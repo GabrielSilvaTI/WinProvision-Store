@@ -1,7 +1,0 @@
-{
-  "CompletenessWeight": 0.35,
-  "PopularityWeight": 0.35,
-  "MaintenanceWeight": 0.30,
-  "NeutralScoreWhenNoGitHubData": 55,
-  "MaintenanceDecayMonths": 24
-}
