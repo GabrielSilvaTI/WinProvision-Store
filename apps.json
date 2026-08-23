@@ -1,0 +1,4 @@
+[
+  { "id": "Microsoft.VisualStudioCode", "name": "Visual Studio Code", "publisher": "Microsoft" },
+  { "id": "Mozilla.Firefox", "name": "Firefox", "publisher": "Mozilla" }
+]
