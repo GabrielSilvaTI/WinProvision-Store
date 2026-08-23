@@ -1,0 +1,99 @@
+using System.Net.Http;
+using System.Text.Json;
+using WinProvision.Core.Models;
+
+namespace WinProvision.Core.Services.IconSync;
+
+/// <summary>
+/// Orquestra a sincronização de ícones a partir das três fontes comunitárias e do
+/// catálogo publicado (apps.json). Ordem de prioridade quando mais de uma fonte
+/// resolve o mesmo Id (a primeira que resolver vence, as demais só preenchem lacunas):
+///
+///   1. Winstall aprovado manualmente — curadoria humana, a mais confiável
+///   2. UniGetUI                      — maior cobertura, mantido por outro projeto de loja
+///   3. package-icons externo         — match exato por nome de arquivo, fallback final
+///
+/// Gera dois arquivos em OutputDir:
+///   icons-database.json              Dictionary&lt;PackageIdentifier normalizado, URL do ícone&gt;
+///   winstall-review-candidates.json  Sugestões para aprovação manual (nunca aplicadas)
+/// </summary>
+public class IconSyncPipeline
+{
+    private static readonly JsonSerializerOptions ReadOptions = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
+
+    private readonly UniGetUiIconRepository _unigetui = new();
+    private readonly ExternalIconRepository _external = new();
+    private readonly WinstallApprovedMappingRepository _winstallApproved = new();
+    private readonly WinstallReviewCandidateGenerator _reviewGenerator = new();
+
+    public async Task<IconSyncStats> RunAsync(IconSyncOptions options)
+    {
+        var catalog = await LoadCatalogAsync(options.CatalogPath);
+        var catalogIds = catalog.Select(a => IconIdNormalizer.Normalize(a.Id)).Where(id => id.Length > 0).ToHashSet();
+
+        var winstallResolved = _winstallApproved.Load(options.ApprovedMappingsPath, options.WinstallDir);
+        var unigetuiResolved = _unigetui.Load(options.UniGetUiDir);
+        var externalResolved = _external.Load(options.ExternalDir);
+
+        var final = new Dictionary<string, string>();
+        int fromWinstall = 0, fromUniGetUi = 0, fromExternal = 0;
+
+        foreach (var id in catalogIds)
+        {
+            if (winstallResolved.TryGetValue(id, out var winstallUrl))
+            {
+                final[id] = winstallUrl;
+                fromWinstall++;
+            }
+            else if (unigetuiResolved.TryGetValue(id, out var unigetuiUrl))
+            {
+                final[id] = unigetuiUrl;
+                fromUniGetUi++;
+            }
+            else if (externalResolved.TryGetValue(id, out var externalUrl))
+            {
+                final[id] = externalUrl;
+                fromExternal++;
+            }
+        }
+
+        var approvedFileNames = _winstallApproved.GetApprovedFileNames(options.ApprovedMappingsPath);
+        var reviewCandidates = _reviewGenerator.Generate(options.WinstallDir, approvedFileNames, catalog);
+
+        Directory.CreateDirectory(options.OutputDir);
+        await WriteJsonAsync(Path.Combine(options.OutputDir, "icons-database.json"), final);
+        await WriteJsonAsync(Path.Combine(options.OutputDir, "winstall-review-candidates.json"), reviewCandidates);
+
+        return new IconSyncStats(
+            CatalogSize: catalog.Count,
+            ResolvedFromWinstallApproved: fromWinstall,
+            ResolvedFromUniGetUi: fromUniGetUi,
+            ResolvedFromExternal: fromExternal,
+            Unresolved: catalog.Count - final.Count,
+            WinstallReviewCandidatesGenerated: reviewCandidates.Count);
+    }
+
+    private static async Task<List<AppEntry>> LoadCatalogAsync(string catalogPath)
+    {
+        string json;
+
+        if (catalogPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            json = await http.GetStringAsync(catalogPath);
+        }
+        else
+        {
+            json = await File.ReadAllTextAsync(catalogPath);
+        }
+
+        return JsonSerializer.Deserialize<List<AppEntry>>(json, ReadOptions) ?? [];
+    }
+
+    private static async Task WriteJsonAsync<T>(string path, T data)
+    {
+        await using var stream = File.Create(path);
+        await JsonSerializer.SerializeAsync(stream, data, WriteOptions);
+    }
+}

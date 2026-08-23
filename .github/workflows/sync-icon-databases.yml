@@ -1,0 +1,137 @@
+name: Sync Community Icon Databases
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # Executa diariamente às 03:00 AM (UTC)
+  workflow_dispatch:        # Permite rodar manualmente no painel do GitHub
+
+permissions:
+  contents: write
+
+jobs:
+  sync-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # ---------------------------------------------------------------
+      # 1) Winstall (SplashtopInc) — ícones + fallback
+      #    (fallback é subpasta de assets/apps, então já vem junto)
+      # ---------------------------------------------------------------
+      - name: Baixar ícones do Winstall
+        run: |
+          mkdir -p ./sources/winstall
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/SplashtopInc/winstall.git ./tmp-winstall
+          cd ./tmp-winstall
+          git sparse-checkout set public/assets/apps
+          cd ..
+          cp -r ./tmp-winstall/public/assets/apps/. ./sources/winstall/
+          rm -rf ./tmp-winstall
+          echo "Total de arquivos Winstall: $(find ./sources/winstall -type f | wc -l)"
+
+      # ---------------------------------------------------------------
+      # 2) package-icons (memstechtips) — ícones externos, branch dev
+      # ---------------------------------------------------------------
+      - name: Baixar ícones externos (package-icons)
+        run: |
+          mkdir -p ./sources/external
+          git clone --depth 1 --branch dev --filter=blob:none --sparse \
+            https://github.com/memstechtips/package-icons.git ./tmp-external
+          cd ./tmp-external
+          git sparse-checkout set icons/external
+          cd ..
+          cp -r ./tmp-external/icons/external/. ./sources/external/
+          rm -rf ./tmp-external
+          echo "Total de arquivos externos: $(find ./sources/external -type f | wc -l)"
+
+      # ---------------------------------------------------------------
+      # 3) UniGetUI — todos os branches/variantes que você listou
+      #    (falha isolada em um arquivo não derruba o job inteiro)
+      # ---------------------------------------------------------------
+      - name: Baixar JSONs do UniGetUI (main, app-icons, app-icon-badges)
+        run: |
+          mkdir -p ./sources/unigetui
+          set +e
+
+          declare -A files=(
+            ["main-v1"]="main/WebBasedData/screenshot-database.json"
+            ["main-v2"]="main/WebBasedData/screenshot-database-v2.json"
+            ["app-icons-v1"]="app-icons/WebBasedData/screenshot-database.json"
+            ["app-icons-v2"]="app-icons/WebBasedData/screenshot-database-v2.json"
+            ["app-icon-badges-v1"]="app-icon-badges/WebBasedData/screenshot-database.json"
+            ["app-icon-badges-v2"]="app-icon-badges/WebBasedData/screenshot-database-v2.json"
+          )
+
+          fail=0
+          for key in "${!files[@]}"; do
+            path="${files[$key]}"
+            url="https://raw.githubusercontent.com/Devolutions/UniGetUI/${path}"
+            echo "Baixando ${key} <- ${url}"
+            if ! curl -sfL "$url" -o "./sources/unigetui/${key}.json"; then
+              echo "⚠️  Falhou: ${key} (branch ou arquivo pode não existir mais)"
+              fail=$((fail+1))
+            fi
+          done
+
+          echo "Falhas: $fail de ${#files[@]}"
+          # Não aborta o job por causa de 1-2 branches que sumirem;
+          # o Indexer decide o que fazer com o que sobrou.
+
+      # ---------------------------------------------------------------
+      # 4) Catálogo publicado (apps.json) — necessário pro subcomando normalizar
+      #    os Ids do Winstall/UniGetUI/external contra o que já está na loja
+      # ---------------------------------------------------------------
+      - name: Baixar catálogo publicado (apps.json)
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/database/apps.json" \
+            -o ./catalog-apps.json
+
+      # ---------------------------------------------------------------
+      # 5) Consolidação via o subcomando sync-icons do Indexer (C#)
+      # ---------------------------------------------------------------
+      - name: Sincronizar ícones com o Indexer
+        run: |
+          mkdir -p ./output
+          dotnet run --project src/WinProvision.Indexer/WinProvision.Indexer.csproj -- \
+            sync-icons \
+            --catalog ./catalog-apps.json \
+            --winstall-dir ./sources/winstall \
+            --external-dir ./sources/external \
+            --unigetui-dir ./sources/unigetui \
+            --approved-mappings ./src/WinProvision.Indexer/config/winstall-approved-mappings.json \
+            --output-dir ./output
+
+      - name: Publicar artefatos de build (debug + revisão manual)
+        uses: actions/upload-artifact@v4
+        with:
+          name: icon-sync-output
+          # winstall-review-candidates.json fica só no artefato de build, pra revisão
+          # humana (ver docs/ICON_APPROVAL.md) — nunca vai pra branch pública icons-cdn.
+          path: |
+            ./output/icons-database.json
+            ./output/winstall-review-candidates.json
+          retention-days: 7
+
+      # ---------------------------------------------------------------
+      # 6) Publicação na branch exclusiva de dados (só o que o app cliente consome)
+      # ---------------------------------------------------------------
+      - name: Preparar pasta de publicação
+        run: |
+          mkdir -p ./icons-cdn-publish
+          cp ./output/icons-database.json ./icons-cdn-publish/
+
+      - name: Publicar na branch icons-cdn
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./icons-cdn-publish
+          publish_branch: icons-cdn
+          force_orphan: true
+          commit_message: "chore: sync de ícones da comunidade [skip ci]"

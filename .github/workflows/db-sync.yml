@@ -1,0 +1,90 @@
+name: Sincronizar Banco de Dados do Winget
+on:
+  schedule:
+    - cron: '0 3 * * *'  # Roda diariamente às 03:00 UTC
+  workflow_dispatch:      # Permite disparar manualmente no painel do GitHub
+
+concurrency:
+  group: winget-sync
+  cancel-in-progress: true  # Evita duas execuções simultâneas disputando o push na branch database
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Só precisamos do HEAD, não do histórico
+
+      - name: Setup do .NET SDK 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          cache: true  # Cacheia pacotes NuGet automaticamente entre execuções
+          cache-dependency-path: |
+            src/WinProvision.Indexer/WinProvision.Indexer.csproj
+            src/WinProvision.Core/WinProvision.Core.csproj
+
+      - name: Checkout do Winget Packages (Shallow + Single Branch)
+        run: |
+          git clone --depth 1 --single-branch --branch master https://github.com/microsoft/winget-pkgs.git winget-pkgs
+
+      - name: Recuperar cache de métricas do GitHub (execuções anteriores)
+        uses: actions/cache@v4
+        with:
+          path: output/metrics-cache.json
+          # A chave muda por semana: força uma renovação periódica do cache do Actions,
+          # mas o metrics-cache.json baixado da branch database (passo abaixo) garante
+          # que o histórico não se perde mesmo se esse cache expirar antes disso.
+          key: github-metrics-cache-${{ github.run_id }}
+          restore-keys: |
+            github-metrics-cache-
+
+      - name: Baixar metrics-cache.json existente da branch 'database' (se houver)
+        run: |
+          mkdir -p output
+          curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/database/metrics-cache.json" \
+            -o output/metrics-cache.json || echo "Sem cache prévio na branch database, seguindo do zero."
+
+      - name: Publicar Indexer Engine (Release, self-contained build)
+        run: |
+          dotnet publish src/WinProvision.Indexer/WinProvision.Indexer.csproj \
+            -c Release \
+            -o ./publish \
+            --no-self-contained
+
+      - name: Executar Engine de Indexação
+        env:
+          # Token nativo do Actions: eleva o limite da API do GitHub de 60 para 5.000 req/hora
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet ./publish/WinProvision.Indexer.dll ./winget-pkgs/manifests ./output
+
+      - name: Publicar catálogo na Branch 'database' via Git Nativo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Guarda os JSONs de saída fora da árvore de trabalho ANTES de qualquer troca de branch
+          mkdir -p /tmp/catalog-output
+          cp output/*.json /tmp/catalog-output/
+
+          # Cria a branch 'database' em um worktree isolado — nunca mexe no checkout principal
+          git fetch origin database 2>/dev/null || true
+          if git ls-remote --exit-code --heads origin database > /dev/null 2>&1; then
+            git worktree add /tmp/database-branch database
+          else
+            git worktree add --orphan -b database /tmp/database-branch
+          fi
+
+          cp /tmp/catalog-output/*.json /tmp/database-branch/
+
+          cd /tmp/database-branch
+          git rm -rf . > /dev/null 2>&1 || true
+          git add ./*.json -f
+          git diff --cached --quiet || git commit -m "data: atualizacao automatica do catalogo winget [skip ci]"
+          git push origin database --force
