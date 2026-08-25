@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WinProvision.Core/WinProvision.Core.csproj" />
+    <Project Path="src/WinProvision.Indexer/WinProvision.Indexer.csproj" />
+    <Project Path="src/WinProvision.ConsoleDemo/WinProvision.ConsoleDemo.csproj" />
+  </Folder>
+  <Project Path="WinProvision.Store/WinProvision.Store.csproj" Id="05aab021-c807-4d4e-a199-855d1ba6cbfb" />
+</Solution>
