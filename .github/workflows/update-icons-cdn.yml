@@ -2,21 +2,24 @@ name: Update App Icons CDN
 
 on:
   schedule:
-    - cron: '0 3 * * 1' # Runs every Monday at 03:00 AM UTC
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+    - cron: '0 3 * * 1' # Executa toda segunda-feira às 03:00 AM UTC
+  workflow_dispatch:
+    inputs:
+      test_limit:
+        description: 'Quantidade de apps para testar (digite 0 para o catálogo inteiro)'
+        required: false
+        default: '5'
 
 permissions:
   contents: write
 
 jobs:
-  build-and-process:
+  process-icons-cdn:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout do Repositório
         uses: actions/checkout@v4
-        with:
-          path: main-repo
 
       - name: Setup .NET SDK (.NET 10.0)
         uses: actions/setup-dotnet@v4
@@ -24,41 +27,54 @@ jobs:
           dotnet-version: 10.0.x
           include-prerelease: true
 
-      - name: Locate and Build Extrator C#
+      - name: Baixar Catálogo Real da branch 'database'
         run: |
-          PROJ_PATH=$(find main-repo -iname "WingetIconExtractor.csproj" -print -quit)
+          mkdir -p work_dir
+          # Baixa o apps.json da sua branch database
+          curl -sSL "https://raw.githubusercontent.com/GabrielSilvaTI/WinProvision-Store/database/apps.json" -o work_dir/apps_full.json
+          
+          LIMIT="${{ github.event.inputs.test_limit || '5' }}"
+          
+          if [ "$LIMIT" -gt 0 ]; then
+            echo "Modo de Teste Ativo: Limitando a $LIMIT aplicativos..."
+            # Usa o 'jq' nativo do runner Linux para pegar apenas os N primeiros apps
+            jq ".[0:$LIMIT]" work_dir/apps_full.json > work_dir/apps.json
+          else
+            echo "Modo Produção: Processando catálogo inteiro..."
+            cp work_dir/apps_full.json work_dir/apps.json
+          fi
+
+      - name: Compilar Extrator C#
+        run: |
+          PROJ_PATH=$(find . -iname "WingetIconExtractor.csproj" -print -quit)
           if [ -z "$PROJ_PATH" ]; then
-            echo "::error::Project WingetIconExtractor.csproj was not found in repository!"
+            echo "Erro: Projeto WingetIconExtractor.csproj não encontrado!"
             exit 1
           fi
-          echo "Found project at: $PROJ_PATH"
           echo "PROJ_PATH=$PROJ_PATH" >> $GITHUB_ENV
           dotnet build "$PROJ_PATH" -c Release
 
-      - name: Execute Icon Pipeline
+      - name: Executar Extrator Isolado
         run: |
           mkdir -p temp_icons
-          dotnet run --project "$ENV:PROJ_PATH" -c Release -- --outdir temp_icons
+          dotnet run --project "$PROJ_PATH" -c Release -- \
+            --catalog work_dir/apps.json \
+            --outdir temp_icons
 
-      - name: Deploy to Icons CDN Branch
+      - name: Deploy para a Branch Órfã 'icons' (CDN)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Clone repository into a temporary folder to manage the orphan branch
+          # Autenticação garantida via token automático da Action (evita Rate Limits)
           git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git icons-branch-dir
           cd icons-branch-dir
           
-          # Switch to 'icons' branch, or create it as an orphan branch if it doesn't exist
           git checkout icons 2>/dev/null || git checkout --orphan icons
           
-          # Clean untracked/old files to prevent stale icon accumulation
-          git rm -rf . --ignore-unmatch 2>/dev/null || true
-          
-          # Copy newly extracted .webp icons and icons.json to branch root
+          # Copia apenas os novos ícones gerados no teste
           cp -r ../temp_icons/* .
           
-          # Stage and commit changes
           git add .
-          git commit -m "chore: cdn updated automatically $(date +'%Y-%m-%d %H:%M')" || exit 0
+          git commit -m "test: cdn de ícones atualizada com pacote de testes $(date +'%Y-%m-%d %H:%M')" || exit 0
           git push origin icons --force
