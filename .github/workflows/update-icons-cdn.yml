@@ -2,8 +2,8 @@ name: Update App Icons CDN
 
 on:
   schedule:
-    - cron: '0 3 * * 1' # Executa toda segunda-feira às 03:00 AM UTC
-  workflow_dispatch: # Permite disparo manual via botão na interface do GitHub
+    - cron: '0 3 * * 1' # Runs every Monday at 03:00 AM UTC
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 permissions:
   contents: write
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do Código Principal
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           path: main-repo
@@ -24,33 +24,41 @@ jobs:
           dotnet-version: 10.0.x
           include-prerelease: true
 
-      - name: Compilar Extrator C#
-        run: dotnet build main-repo/src/WingetIconExtractor/WingetIconExtractor.csproj -c Release
-
-      - name: Executar Pipeline de Ícones
+      - name: Locate and Build Extrator C#
         run: |
-          mkdir temp_icons
-          dotnet run --project main-repo/src/WingetIconExtractor/WingetIconExtractor.csproj -c Release -- --outdir temp_icons
+          PROJ_PATH=$(find main-repo -iname "WingetIconExtractor.csproj" -print -quit)
+          if [ -z "$PROJ_PATH" ]; then
+            echo "::error::Project WingetIconExtractor.csproj was not found in repository!"
+            exit 1
+          fi
+          echo "Found project at: $PROJ_PATH"
+          echo "PROJ_PATH=$PROJ_PATH" >> $GITHUB_ENV
+          dotnet build "$PROJ_PATH" -c Release
 
-      - name: Deploy para a Branch de Ícones (CDN)
+      - name: Execute Icon Pipeline
+        run: |
+          mkdir -p temp_icons
+          dotnet run --project "$ENV:PROJ_PATH" -c Release -- --outdir temp_icons
+
+      - name: Deploy to Icons CDN Branch
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Clona o repositório em uma pasta separada para gerenciar a branch órfã
+          # Clone repository into a temporary folder to manage the orphan branch
           git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git icons-branch-dir
           cd icons-branch-dir
           
-          # Verifica se a branch 'icons' existe, se não, cria como órfã
+          # Switch to 'icons' branch, or create it as an orphan branch if it doesn't exist
           git checkout icons 2>/dev/null || git checkout --orphan icons
           
-          # Limpa rastreamentos antigos para renovação do catálogo
+          # Clean untracked/old files to prevent stale icon accumulation
           git rm -rf . --ignore-unmatch 2>/dev/null || true
           
-          # Copia os novos ícones em WebP e o icons.json para a raiz da branch
+          # Copy newly extracted .webp icons and icons.json to branch root
           cp -r ../temp_icons/* .
           
-          # Sincroniza e faz a publicação
+          # Stage and commit changes
           git add .
-          git commit -m "chore: cdn atualizada automaticamente $(date +'%Y-%m-%d %H:%M')" || exit 0
+          git commit -m "chore: cdn updated automatically $(date +'%Y-%m-%d %H:%M')" || exit 0
           git push origin icons --force
