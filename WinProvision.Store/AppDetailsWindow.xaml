@@ -1,0 +1,158 @@
+﻿<ui:FluentWindow x:Class="WinProvision.Store.AppDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Detalhes do pacote"
+        Height="620" Width="640"
+        MinHeight="480" MinWidth="520"
+        WindowStartupLocation="CenterOwner"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" Title="Detalhes do pacote" ShowMaximize="False" ShowMinimize="False" />
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="28,4,28,16">
+            <StackPanel>
+
+                <!-- Ícone + Nome + Publisher -->
+                <Grid Margin="0,0,0,18">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Width="72" Height="72" Margin="0,0,18,0" CornerRadius="16" ClipToBounds="True">
+                        <Image x:Name="AppIcon" Stretch="Uniform" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="AppNameText" FontSize="22" FontWeight="Bold" TextWrapping="Wrap" />
+                        <ui:HyperlinkButton x:Name="PublisherLink" Padding="0" Margin="0,4,0,0">
+                            <TextBlock x:Name="PublisherLinkText" FontSize="13" />
+                        </ui:HyperlinkButton>
+                        <TextBlock x:Name="PublisherPlainText" FontSize="13"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Tags -->
+                <ItemsControl x:Name="TagsList" Margin="0,0,0,16">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                    CornerRadius="12" Padding="10,4" Margin="0,0,8,8">
+                                <TextBlock Text="{Binding}" FontSize="11" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Descrição -->
+                <TextBlock x:Name="DescriptionText" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,20" />
+
+                <!-- Separador -->
+                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,16" />
+
+                <!-- Metadados -->
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="ID do pacote" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="IdText" FontSize="12" Margin="0,0,0,10"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Versão" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="VersionText" FontSize="12" Margin="0,0,0,10"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Score de relevância" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ScoreText" FontSize="12" Margin="0,0,0,10"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" x:Name="GitHubStarsLabel" Text="Estrelas no GitHub"
+                               FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10" />
+                    <StackPanel Grid.Row="3" Grid.Column="1" x:Name="GitHubStarsRow" Orientation="Horizontal" Margin="0,0,0,10">
+                        <ui:SymbolIcon Symbol="Star24" FontSize="14" Foreground="#FFD700" Margin="0,0,4,0" />
+                        <TextBlock x:Name="GitHubStarsText" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" x:Name="LicenseLabel" Text="Licença" FontWeight="SemiBold" FontSize="12" />
+                    <ui:HyperlinkButton Grid.Row="4" Grid.Column="1" x:Name="LicenseLink" Padding="0">
+                        <TextBlock x:Name="LicenseLinkText" FontSize="12" />
+                    </ui:HyperlinkButton>
+                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="LicensePlainText" FontSize="12"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Grid>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Ações -->
+        <Grid Grid.Row="2" Margin="28,0,28,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                <ui:Button x:Name="AddToCatalogButton" Content="Adicionar ao catálogo"
+                           Icon="{ui:SymbolIcon Add24}" Appearance="Primary"
+                           FontSize="14" Padding="20,11" FontWeight="SemiBold"
+                           Click="AddToCatalogButton_Click" Margin="0,0,10,0" />
+                <ui:Button x:Name="InstallButton" Content="Instalar"
+                           Icon="{ui:SymbolIcon ArrowDownload24}"
+                           Background="{StaticResource InstallActionBrush}"
+                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                           PressedBackground="{StaticResource InstallActionPressedBrush}"
+                           Foreground="White" PressedForeground="White"
+                           Padding="16,11"
+                           Click="InstallButton_Click" />
+                <ui:Button x:Name="OpenButton" Content="Abrir"
+                           Icon="{ui:SymbolIcon Open24}"
+                           Background="{StaticResource InstallActionBrush}"
+                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                           PressedBackground="{StaticResource InstallActionPressedBrush}"
+                           Foreground="White" PressedForeground="White"
+                           Padding="16,11"
+                           Visibility="Collapsed"
+                           Click="OpenButton_Click" Margin="0,0,10,0" />
+                <ui:Button x:Name="UninstallButton" Content="Desinstalar" Appearance="Secondary"
+                           Icon="{ui:SymbolIcon Delete24}"
+                           Padding="16,11"
+                           Visibility="Collapsed"
+                           Click="UninstallButton_Click" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                <ui:Button x:Name="HomepageButton" Content="Página do app" Appearance="Secondary"
+                           Click="OpenLink_Click" Margin="0,0,8,0" />
+                <ui:Button x:Name="ReleaseNotesButton" Content="Notas de versão" Appearance="Secondary"
+                           Click="OpenLink_Click" Margin="0,0,8,0" />
+                <TextBlock x:Name="StatusText" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

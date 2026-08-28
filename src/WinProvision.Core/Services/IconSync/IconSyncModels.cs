@@ -7,6 +7,7 @@ namespace WinProvision.Core.Services.IconSync;
 /// </summary>
 public enum IconSourceKind
 {
+    WinGetOfficialManifest,
     WinstallApproved,
     UniGetUi,
     External
@@ -25,16 +26,24 @@ public record WinstallReviewCandidate(
     string SuggestedAppName,
     double Confidence);
 
+/// <param name="WinGetIndexDbPath">
+/// Caminho local do index.db oficial do WinGet (baixado à parte, ver
+/// docs/ICON_APPROVAL.md). Opcional: se nulo/vazio ou o arquivo não existir, o
+/// Tier 1 (manifesto oficial via CDN) é pulado silenciosamente e a cascata
+/// segue normalmente a partir das fontes comunitárias de fallback.
+/// </param>
 public record IconSyncOptions(
     string CatalogPath,
     string WinstallDir,
     string ExternalDir,
     string UniGetUiDir,
     string ApprovedMappingsPath,
-    string OutputDir);
+    string OutputDir,
+    string? WinGetIndexDbPath = null);
 
 public record IconSyncStats(
     int CatalogSize,
+    int ResolvedFromWinGetManifest,
     int ResolvedFromWinstallApproved,
     int ResolvedFromUniGetUi,
     int ResolvedFromExternal,

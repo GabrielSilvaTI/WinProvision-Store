@@ -11,8 +11,6 @@ namespace WinProvision.Core.Models;
 /// </summary>
 public class AppEntry : INotifyPropertyChanged
 {
-    private bool _isSelected;
-
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
@@ -83,20 +81,46 @@ public class AppEntry : INotifyPropertyChanged
     [JsonIgnore]
     public string IconUrl { get; set; } = string.Empty;
 
+    private bool _isInstalled;
+
     /// <summary>
-    /// Controle efêmero de seleção na interface (CheckBox).
+    /// Preenchido em tempo de execução pelo InstalledAppsService (via "winget export").
+    /// Não vem do apps.json. Notifica mudança para o botão Instalar/Abrir do card e do
+    /// painel de detalhes trocarem automaticamente via binding.
     /// </summary>
     [JsonIgnore]
-    public bool IsSelected
+    public bool IsInstalled
     {
-        get => _isSelected;
+        get => _isInstalled;
         set
         {
-            if (_isSelected != value)
-            {
-                _isSelected = value;
-                OnPropertyChanged();
-            }
+            if (_isInstalled == value)
+                return;
+
+            _isInstalled = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _isInstalling;
+
+    /// <summary>
+    /// Ligado enquanto uma instalação está em andamento para este app (ver
+    /// OperationRunner.RunInstallAsync). Usado pelo botão de ação do card/detalhes
+    /// para trocar o rótulo para "Instalando" e bloquear novos cliques sem depender
+    /// de IsEnabled (que mudaria a cor do botão via o estado "disabled" padrão).
+    /// </summary>
+    [JsonIgnore]
+    public bool IsInstalling
+    {
+        get => _isInstalling;
+        set
+        {
+            if (_isInstalling == value)
+                return;
+
+            _isInstalling = value;
+            OnPropertyChanged();
         }
     }
 

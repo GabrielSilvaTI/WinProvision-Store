@@ -30,8 +30,12 @@ usam match automático e confiável), o Winstall só entra na base publicada
    (inclua subpasta, ex. `fallback/algo.png`, se for o caso).
 
 4. Na próxima execução do workflow, essas entradas passam a resolver ícone via
-   Winstall — prioridade mais alta entre as três fontes, por ser a única curada
-   por humano.
+   Winstall — prioridade mais alta entre as três fontes comunitárias, por ser a
+   única curada por humano. O manifesto oficial do WinGet (CDN + `index.db`,
+   via `WinGetOfficialManifestRepository`) continua tendo prioridade ainda
+   maior quando resolve o Id, já que vem direto da mesma infraestrutura que o
+   `winget install` usa — o Winstall só entra pra preencher o que esse Tier 1
+   não cobrir (manifesto sem a tag `Icons`, Id fora do `winget-pkgs`, etc.).
 
 ## Por que os candidatos nunca são aplicados automaticamente
 

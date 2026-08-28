@@ -12,6 +12,8 @@
 	<ItemGroup>
 		<PackageReference Include="WPF-UI" Version="4.3.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+		<!-- Teste: decodificar webp que o WIC do WPF não decodifica nativamente -->
+		<PackageReference Include="SixLabors.ImageSharp" Version="4.1.1" />
 	</ItemGroup>
 
 	<ItemGroup>

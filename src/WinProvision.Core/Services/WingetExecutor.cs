@@ -30,7 +30,13 @@ public class WingetExecutor
     /// </summary>
     public async Task<WingetExecutionResult> UninstallAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default)
     {
-        string args = $"uninstall --id \"{appId}\" --exact --silent";
+        // Faltava --accept-source-agreements aqui (presente no Install e no export):
+        // sem ela, winget uninstall precisa consultar a source para resolver o --exact
+        // e, se o acordo da source ainda não tiver sido aceito no perfil elevado em que
+        // a Store roda (requireAdministrator), fica esperando uma confirmação
+        // interativa que nunca chega (stdin não é redirecionado) e a operação sempre
+        // termina em falha/timeout.
+        string args = $"uninstall --id \"{appId}\" --exact --silent --accept-source-agreements";
         return await ExecuteWingetCommandAsync(args, onLogReceived, cancellationToken);
     }
 

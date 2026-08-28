@@ -10,7 +10,14 @@
                 <!-- Define o tema Dark padrão da WPF UI v4 -->
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="Styles/GradientProgressBar.xaml" />
+                <ResourceDictionary Source="Styles/InstallActionBrushes.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Ícones agora usam a attached property conv:AsyncImage.SourceUrl
+                 (download+decode assíncrono e cacheado) em vez de um converter
+                 síncrono na thread de UI — ver Converters/AsyncImage.cs -->
+            <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

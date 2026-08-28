@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
@@ -21,6 +22,14 @@ public class StoreService
     };
 
     private List<AppEntry> _cachedCatalog = [];
+
+    /// <summary>
+    /// Disparado sempre que _cachedCatalog é trocado por uma lista nova
+    /// (refresh em background ou forçado). Quem mantém uma referência própria
+    /// ao catálogo (ex.: HomePage._allApps) deve assinar isso para não ficar
+    /// com dados/flags de instâncias antigas de AppEntry.
+    /// </summary>
+    public event Action<IReadOnlyList<AppEntry>>? CatalogUpdated;
 
     public StoreService(HttpClient? httpClient = null, IconService? iconService = null)
     {
@@ -135,12 +144,28 @@ public class StoreService
 
             if (catalog.Count > 0)
             {
+                // Preserva o flag IsInstalled ao trocar as instâncias de AppEntry.
+                // Sem isso, buscas feitas após o refresh em background (que roda
+                // fire-and-forget e substitui _cachedCatalog por objetos novos)
+                // voltam sempre com IsInstalled = false, mesmo já sincronizado antes.
+                var installedIds = _cachedCatalog
+                    .Where(a => a.IsInstalled)
+                    .Select(a => a.Id)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var app in catalog)
+                {
+                    app.IsInstalled = installedIds.Contains(app.Id);
+                }
+
                 _cachedCatalog = catalog;
                 await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
                 PopulateIcons(_cachedCatalog);
 
                 Directory.CreateDirectory(_cacheDirectory);
                 await File.WriteAllTextAsync(_cacheFilePath, remoteJson, cancellationToken);
+
+                CatalogUpdated?.Invoke(_cachedCatalog);
             }
 
             return _cachedCatalog;

@@ -13,6 +13,11 @@ public static class SyncIconsCommand
     private static readonly string[] RequiredFlags =
         ["catalog", "winstall-dir", "external-dir", "unigetui-dir", "approved-mappings", "output-dir"];
 
+    // Opcional: sem essa flag, o Tier 1 (manifesto oficial do WinGet via CDN +
+    // index.db) é simplesmente pulado e a cascata roda só com as fontes
+    // comunitárias, como antes.
+    private const string WinGetIndexDbFlag = "winget-index-db";
+
     public static async Task<int> RunAsync(string[] args)
     {
         var flags = ParseFlags(args);
@@ -22,7 +27,8 @@ public static class SyncIconsCommand
         {
             Console.Error.WriteLine(
                 "Uso: WinProvision.Indexer sync-icons --catalog <caminho-ou-url> --winstall-dir <pasta> " +
-                "--external-dir <pasta> --unigetui-dir <pasta> --approved-mappings <arquivo> --output-dir <pasta>");
+                "--external-dir <pasta> --unigetui-dir <pasta> --approved-mappings <arquivo> --output-dir <pasta> " +
+                "[--winget-index-db <caminho-do-index.db>]");
             Console.Error.WriteLine($"Faltando: {string.Join(", ", missing.Select(m => $"--{m}"))}");
             return 1;
         }
@@ -33,16 +39,25 @@ public static class SyncIconsCommand
             ExternalDir: flags["external-dir"],
             UniGetUiDir: flags["unigetui-dir"],
             ApprovedMappingsPath: flags["approved-mappings"],
-            OutputDir: flags["output-dir"]);
+            OutputDir: flags["output-dir"],
+            WinGetIndexDbPath: flags.GetValueOrDefault(WinGetIndexDbFlag));
 
         Console.WriteLine("==================================================");
         Console.WriteLine("  WinProvision Store - Sincronização de Ícones");
         Console.WriteLine("==================================================");
 
+        if (string.IsNullOrWhiteSpace(options.WinGetIndexDbPath))
+        {
+            Console.WriteLine(
+                "[AVISO] --winget-index-db não informado: Tier 1 (manifesto oficial do WinGet) " +
+                "desativado nesta execução, usando só as fontes comunitárias.");
+        }
+
         var pipeline = new IconSyncPipeline();
         var stats = await pipeline.RunAsync(options);
 
         Console.WriteLine($"\n      Catálogo:                                  {stats.CatalogSize:N0} apps");
+        Console.WriteLine($"      Resolvidos via WinGet Oficial (CDN):       {stats.ResolvedFromWinGetManifest:N0}");
         Console.WriteLine($"      Resolvidos via Winstall aprovado:          {stats.ResolvedFromWinstallApproved:N0}");
         Console.WriteLine($"      Resolvidos via package-icons externo:      {stats.ResolvedFromExternal:N0}");
         Console.WriteLine($"      Resolvidos via UniGetUI:                   {stats.ResolvedFromUniGetUi:N0}");

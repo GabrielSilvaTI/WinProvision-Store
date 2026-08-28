@@ -5,18 +5,25 @@ using WinProvision.Core.Models;
 namespace WinProvision.Core.Services.IconSync;
 
 /// <summary>
-/// Orquestra a sincronização de ícones a partir das três fontes comunitárias e do
-/// catálogo publicado (apps.json). Ordem de prioridade quando mais de uma fonte
-/// resolve o mesmo Id (a primeira que resolver vence, as demais só preenchem lacunas):
+/// Orquestra a sincronização de ícones a partir do manifesto oficial do WinGet e
+/// das três fontes comunitárias, contra o catálogo publicado (apps.json). Ordem
+/// de prioridade quando mais de uma fonte resolve o mesmo Id (a primeira que
+/// resolver vence, as demais só preenchem lacunas):
 ///
-///   1. Winstall aprovado manualmente — curadoria humana, a mais confiável
-///   2. package-icons externo         — curado especificamente para winget, match exato
-///                                      por nome de arquivo, baixo risco de ícone errado
-///   3. UniGetUI                      — maior cobertura, mas agrega vários gerenciadores
-///                                      de pacote (winget, scoop, chocolatey) numa base só;
-///                                      testes manuais mostraram ícones incorretos/quebrados
-///                                      em parte das entradas, então entra por último —
-///                                      só preenche o que as fontes mais confiáveis não cobrem
+///   1. Manifesto oficial do WinGet    — CDN + index.db (WinGetOfficialManifestRepository).
+///                                        Mesma infraestrutura que o `winget install` já usa,
+///                                        não é uma dependência nova de terceiro. Cobertura
+///                                        parcial esperada (nem todo manifesto declara Icons)
+///                                        e opcional (só roda se --winget-index-db for passado).
+///   2. Winstall aprovado manualmente  — curadoria humana, a mais confiável entre as fontes
+///                                        comunitárias
+///   3. package-icons externo          — curado especificamente para winget, match exato
+///                                        por nome de arquivo, baixo risco de ícone errado
+///   4. UniGetUI                       — maior cobertura, mas agrega vários gerenciadores
+///                                        de pacote (winget, scoop, chocolatey) numa base só;
+///                                        testes manuais mostraram ícones incorretos/quebrados
+///                                        em parte das entradas, então entra por último —
+///                                        só preenche o que as fontes mais confiáveis não cobrem
 ///
 /// Gera dois arquivos em OutputDir:
 ///   icons-database.json              Dictionary&lt;PackageIdentifier normalizado, URL do ícone&gt;
@@ -37,16 +44,28 @@ public class IconSyncPipeline
         var catalog = await LoadCatalogAsync(options.CatalogPath);
         var catalogIds = catalog.Select(a => IconIdNormalizer.Normalize(a.Id)).Where(id => id.Length > 0).ToHashSet();
 
+        // Tier 1 usa o catálogo original (com Id não-normalizado) porque precisa
+        // consultar o index.db pelo PackageIdentifier real — ver comentário em
+        // WinGetOfficialManifestRepository sobre por que a forma já normalizada
+        // (minúscula, sem pontos) não serve pra essa busca.
+        using var winGetOfficialRepo = new WinGetOfficialManifestRepository();
+        var winGetOfficialResolved = await winGetOfficialRepo.LoadAsync(catalog, options.WinGetIndexDbPath);
+
         var winstallResolved = _winstallApproved.Load(options.ApprovedMappingsPath, options.WinstallDir);
         var unigetuiResolved = _unigetui.Load(options.UniGetUiDir);
         var externalResolved = _external.Load(options.ExternalDir);
 
         var final = new Dictionary<string, string>();
-        int fromWinstall = 0, fromUniGetUi = 0, fromExternal = 0;
+        int fromWinGetOfficial = 0, fromWinstall = 0, fromUniGetUi = 0, fromExternal = 0;
 
         foreach (var id in catalogIds)
         {
-            if (winstallResolved.TryGetValue(id, out var winstallUrl))
+            if (winGetOfficialResolved.TryGetValue(id, out var winGetOfficialUrl))
+            {
+                final[id] = winGetOfficialUrl;
+                fromWinGetOfficial++;
+            }
+            else if (winstallResolved.TryGetValue(id, out var winstallUrl))
             {
                 final[id] = winstallUrl;
                 fromWinstall++;
@@ -72,6 +91,7 @@ public class IconSyncPipeline
 
         return new IconSyncStats(
             CatalogSize: catalog.Count,
+            ResolvedFromWinGetManifest: fromWinGetOfficial,
             ResolvedFromWinstallApproved: fromWinstall,
             ResolvedFromUniGetUi: fromUniGetUi,
             ResolvedFromExternal: fromExternal,

@@ -1,0 +1,198 @@
+<Page
+    x:Class="WinProvision.Store.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:local="clr-namespace:WinProvision.Store"
+    xmlns:conv="clr-namespace:WinProvision.Store.Converters"
+    xmlns:behaviors="clr-namespace:WinProvision.Store.Behaviors"
+    ScrollViewer.CanContentScroll="False"
+    Title="HomePage">
+
+    <Page.Resources>
+        <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
+        <conv:InstalledToLabelConverter x:Key="InstalledToLabelConverter" />
+        <conv:InstalledToIconConverter x:Key="InstalledToIconConverter" />
+        <conv:InstallStateToLabelConverter x:Key="InstallStateToLabelConverter" />
+        <conv:InstallStateToIconConverter x:Key="InstallStateToIconConverter" />
+        <conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+    </Page.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- 0: Busca -->
+            <RowDefinition Height="Auto"/>   <!-- 1: Cabeçalho + Ações -->
+            <RowDefinition Height="Auto"/>   <!-- 2: Chips de categoria -->
+            <RowDefinition Height="*"/>      <!-- 3: Lista de apps -->
+            <RowDefinition Height="Auto"/>   <!-- 4: Rodapé / Status -->
+        </Grid.RowDefinitions>
+
+        <!-- BUSCA -->
+        <ui:TextBox
+            x:Name="SearchBox"
+            Grid.Row="0"
+            Margin="0,0,0,20"
+            PlaceholderText="Pesquise apps, pacotes e mais..."
+            Icon="{ui:SymbolIcon Search24}"
+            TextChanged="SearchBox_TextChanged"
+            KeyDown="SearchBox_KeyDown"
+            MaxWidth="900" HorizontalAlignment="Stretch"
+            Padding="12,10"/>
+
+        <!-- CABEÇALHO + AÇÕES -->
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="Visão Geral" FontSize="26" FontWeight="Bold"/>
+                <TextBlock Text="Pesquise, explore e adicione aplicativos ao seu catálogo de provisionamento"
+                           FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:Button Content="Recarregar catálogo"
+                           Icon="{ui:SymbolIcon ArrowClockwise24}"
+                           Appearance="Secondary"
+                           Click="RefreshButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <!-- CHIPS DE CATEGORIA -->
+        <ItemsControl Grid.Row="2" Margin="0,0,0,16" x:Name="CategoryList">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type local:CategoryChip}">
+                    <RadioButton
+                        GroupName="CategoryFilter"
+                        IsChecked="{Binding IsSelected, Mode=OneWay}"
+                        Checked="CategoryChip_Checked"
+                        Tag="{Binding Tag}"
+                        Margin="0,0,8,0" Cursor="Hand">
+                        <RadioButton.Template>
+                            <ControlTemplate TargetType="RadioButton">
+                                <Border x:Name="Chip" CornerRadius="16" Padding="14,7"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="{Binding Icon}" Margin="0,0,6,0"/>
+                                        <TextBlock Text="{Binding Label}" FontSize="13"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Chip" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </RadioButton.Template>
+                    </RadioButton>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- GRADE DE APPS (cartões arredondados, estilo Featured Packages) -->
+        <ScrollViewer Grid.Row="3"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
+            <ItemsControl x:Name="AppsList" ItemsSource="{Binding Apps}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <!-- Cartão inteiro clicável, abre a página de detalhes do app.
+                             Cliques nos ui:Button internos chegam já "Handled" (ButtonBase
+                             marca isso ao processar o clique), então não abrem os detalhes. -->
+                        <Border Width="304" Margin="0,0,16,16" Padding="18" CornerRadius="14"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                Cursor="Hand"
+                                MouseLeftButtonUp="AppCard_Click">
+                            <StackPanel>
+
+                                <!-- Ícone + Nome + Publisher -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Width="52" Height="52" Margin="0,0,12,0" CornerRadius="12" ClipToBounds="True">
+                                        <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="15"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Publisher}" FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Descrição curta -->
+                                <TextBlock Text="{Binding Description}" FontSize="12" TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis" MaxHeight="34" LineHeight="17"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           Margin="0,0,0,16"
+                                           Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}" />
+
+                                <!-- Estrelas no GitHub + Botão de Instalação -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center"
+                                                Visibility="{Binding HasGitHubMetrics, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <ui:SymbolIcon Symbol="Star24" FontSize="14" Foreground="#FFD700" Margin="0,0,4,0" />
+                                        <TextBlock Text="{Binding GitHubStars}" FontSize="12"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+
+                                    <ui:Button Grid.Column="1"
+                                               Background="{StaticResource InstallActionBrush}"
+                                               MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                                               PressedBackground="{StaticResource InstallActionPressedBrush}"
+                                               Foreground="White" PressedForeground="White"
+                                               IsHitTestVisible="{Binding IsInstalling, Converter={StaticResource InverseBooleanConverter}}"
+                                               Click="InstallOrOpenButton_Click" Tag="{Binding}">
+                                        <ui:Button.Content>
+                                            <MultiBinding Converter="{StaticResource InstallStateToLabelConverter}">
+                                                <Binding Path="IsInstalled" />
+                                                <Binding Path="IsInstalling" />
+                                            </MultiBinding>
+                                        </ui:Button.Content>
+                                        <ui:Button.Icon>
+                                            <MultiBinding Converter="{StaticResource InstallStateToIconConverter}">
+                                                <Binding Path="IsInstalled" />
+                                                <Binding Path="IsInstalling" />
+                                            </MultiBinding>
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- BARRA DE STATUS -->
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="4"
+                   Margin="0,12,0,0"
+                   Text="Pronto para pesquisar"
+                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+    </Grid>
+</Page>

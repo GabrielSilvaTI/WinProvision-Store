@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:local="clr-namespace:WinProvision.Store"
+        xmlns:controls="clr-namespace:WinProvision.Store.Controls"
         Title="WinProvision Store"
         Height="650" Width="1000"
         WindowStartupLocation="CenterScreen"
@@ -15,7 +16,57 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="WinProvision Store v1.0.0" />
+        <Grid Grid.Row="0">
+            <ui:TitleBar Title="WinProvision Store v1.0.0">
+                <!-- TrailingContent é hit-test visível "de fábrica" pelo próprio TitleBar
+                     (ele mesmo trata cliques aqui como área interativa, não como arraste
+                     de janela) - é o slot certo para botões extras, em vez de sobrepor
+                     algo por cima manualmente. -->
+                <ui:TitleBar.TrailingContent>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                        <ui:Button x:Name="ThemeToggleButton"
+                                   Appearance="Transparent"
+                                   Padding="8"
+                                   VerticalAlignment="Center"
+                                   ToolTip="Alternar tema claro/escuro"
+                                   Click="ThemeToggleButton_Click">
+                            <ui:SymbolIcon x:Name="ThemeToggleIcon" Symbol="WeatherSunny24" />
+                        </ui:Button>
+
+                        <ui:Button x:Name="QueueToggleButton"
+                                   Appearance="Transparent"
+                                   Padding="8"
+                                   VerticalAlignment="Center"
+                                   ToolTip="Fila de operações"
+                                   Click="QueueToggleButton_Click">
+                            <Grid>
+                                <ui:SymbolIcon Symbol="ArrowDownload24" />
+                                <Border x:Name="QueueBadge"
+                                        Width="16" Height="16" CornerRadius="8"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Margin="0,-6,-8,0"
+                                        Visibility="Collapsed">
+                                    <TextBlock x:Name="QueueBadgeText" Text="0" FontSize="9" FontWeight="Bold"
+                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </ui:Button>
+
+                        <Popup x:Name="QueuePopup"
+                               PlacementTarget="{Binding ElementName=QueueToggleButton}"
+                               Placement="Bottom"
+                               HorizontalOffset="-360"
+                               VerticalOffset="6"
+                               AllowsTransparency="True"
+                               StaysOpen="False"
+                               PopupAnimation="Fade">
+                            <controls:OperationsQueuePanel x:Name="QueuePanelControl" />
+                        </Popup>
+                    </StackPanel>
+                </ui:TitleBar.TrailingContent>
+            </ui:TitleBar>
+        </Grid>
 
         <ui:NavigationView
             x:Name="RootNavigation"
@@ -26,9 +77,9 @@
 
             <!-- Itens Principais do Menu -->
             <ui:NavigationView.MenuItems>
-                <ui:NavigationViewItem Content="Loja de Apps" TargetPageType="{x:Type local:StorePage}">
+                <ui:NavigationViewItem Content="Visão Geral" TargetPageType="{x:Type local:HomePage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Search24" />
+                        <ui:SymbolIcon Symbol="Home24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 

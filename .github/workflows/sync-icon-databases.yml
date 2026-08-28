@@ -110,11 +110,37 @@ jobs:
             -o ./catalog-apps.json
 
       # ---------------------------------------------------------------
+      # 4.1) index.db oficial do WinGet (Tier 1 — CDN da própria Microsoft)
+      #      Vem dentro do source.msix, que é só um pacote zip/App-x. Falha
+      #      aqui é tolerada (continue-on-error): sem o index.db, o Indexer
+      #      pula o Tier 1 sozinho e a cascata segue com as fontes comunitárias.
+      # ---------------------------------------------------------------
+      - name: Baixar index.db oficial do WinGet
+        continue-on-error: true
+        run: |
+          mkdir -p ./sources/winget-index
+          curl -fsSL --retry 3 --retry-delay 5 \
+            "https://cdn.winget.microsoft.com/cache/source.msix" \
+            -o ./source.msix
+          unzip -o -q ./source.msix -d ./winget-source-extracted
+          find ./winget-source-extracted -iname "index.db" -exec cp {} ./sources/winget-index/index.db \;
+          if [ -f ./sources/winget-index/index.db ]; then
+            echo "index.db baixado com sucesso."
+          else
+            echo "⚠️  index.db não encontrado dentro do source.msix — Tier 1 será pulado nesta execução."
+          fi
+
+      # ---------------------------------------------------------------
       # 5) Consolidação via o subcomando sync-icons do Indexer (C#)
       # ---------------------------------------------------------------
       - name: Sincronizar ícones com o Indexer
         run: |
           mkdir -p ./output
+          EXTRA_ARGS=""
+          if [ -f ./sources/winget-index/index.db ]; then
+            EXTRA_ARGS="--winget-index-db ./sources/winget-index/index.db"
+          fi
+
           dotnet run --project src/WinProvision.Indexer/WinProvision.Indexer.csproj -- \
             sync-icons \
             --catalog ./catalog-apps.json \
@@ -122,7 +148,8 @@ jobs:
             --external-dir ./sources/external \
             --unigetui-dir ./sources/unigetui \
             --approved-mappings ./src/WinProvision.Indexer/config/winstall-approved-mappings.json \
-            --output-dir ./output
+            --output-dir ./output \
+            $EXTRA_ARGS
 
       - name: Publicar artefatos de build (debug + revisão manual)
         uses: actions/upload-artifact@v4

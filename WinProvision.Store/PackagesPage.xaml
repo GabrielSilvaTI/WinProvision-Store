@@ -2,6 +2,8 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:conv="clr-namespace:WinProvision.Store.Converters"
+      xmlns:behaviors="clr-namespace:WinProvision.Store.Behaviors"
       ScrollViewer.CanContentScroll="False"
       Title="PackagesPage">
 
@@ -16,7 +18,7 @@
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="6" ClipToBounds="True">
-                        <Image Source="{Binding IconUrl}" Stretch="Uniform" />
+                        <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
                     </Border>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -125,7 +127,8 @@
                                   HorizontalScrollBarVisibility="Disabled"
                                   Background="Transparent"
                                   Focusable="False"
-                                  Margin="0,8,0,0">
+                                  Margin="0,8,0,0"
+                                  behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
                         <ItemsControl ItemsSource="{Binding Items}" 
                                       ItemTemplate="{StaticResource CollectionEntryCardTemplate}" 
                                       Background="Transparent" />

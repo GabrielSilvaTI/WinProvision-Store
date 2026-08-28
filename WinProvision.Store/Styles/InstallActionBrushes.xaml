@@ -1,0 +1,19 @@
+<!--
+    Brushes de cor fixa (azul) para o botão de ação principal do catálogo
+    (Instalar/Abrir), tanto no card da grade quanto no painel de detalhes.
+
+    Propositalmente NÃO usam DynamicResource de accent do Windows: o pedido
+    era um azul consistente sempre, independente do usuário ter escolhido
+    outra cor de destaque no sistema. Os três estados (normal/hover/pressed)
+    são consumidos pelas propriedades MouseOverBackground/PressedBackground
+    do ui:Button (Wpf.Ui.Controls.Button), que já dão suporte a overrides
+    de cor por estado sem precisar reescrever o ControlTemplate inteiro.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <SolidColorBrush x:Key="InstallActionBrush" Color="#0067C0" />
+    <SolidColorBrush x:Key="InstallActionHoverBrush" Color="#1975C4" />
+    <SolidColorBrush x:Key="InstallActionPressedBrush" Color="#005A9E" />
+
+</ResourceDictionary>
