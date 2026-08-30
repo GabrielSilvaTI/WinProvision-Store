@@ -63,16 +63,14 @@ public partial class HomePage : Page
         BuildCategoryChips();
 
         // Assina o cache compartilhado de instalados para refletir aqui mudanças feitas
-        // em outra tela (ex.: desinstalar pelos Detalhes do Pacote). Desinscreve no
-        // Unloaded porque a página é Transient no DI (recriada a cada navegação) - sem
-        // isso, o singleton InstalledAppsService acumularia referências de páginas antigas.
+        // em outra tela (ex.: desinstalar pelos Detalhes do Pacote). Como a HomePage agora
+        // é Singleton (uma instância só, reaproveitada entre navegações — é o que faz a
+        // busca/filtro persistirem quando você sai e volta), essa inscrição pode ficar viva
+        // pelo tempo de vida do app inteiro, sem o antigo workaround de desinscrever no
+        // Unloaded (que era necessário só quando a página era Transient e recriada a cada
+        // navegação — sem isso, cada instância antiga ficaria presa na memória).
         _installedAppsService.Changed += OnInstalledAppsChanged;
         _storeService.CatalogUpdated += OnCatalogUpdated;
-        Unloaded += (_, _) =>
-        {
-            _installedAppsService.Changed -= OnInstalledAppsChanged;
-            _storeService.CatalogUpdated -= OnCatalogUpdated;
-        };
 
         Loaded += HomePage_Loaded;
     }

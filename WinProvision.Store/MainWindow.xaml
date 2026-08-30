@@ -8,7 +8,8 @@
         Height="650" Width="1000"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
-        WindowBackdropType="Mica">
+        WindowBackdropType="Mica"
+        FontFamily="Segoe UI Variable Text, Segoe UI">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -88,11 +89,23 @@
                         <ui:SymbolIcon Symbol="Box24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Office" TargetPageType="{x:Type local:OfficePage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="AppsAddIn24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Atualizações" TargetPageType="{x:Type local:UpdatesPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
             </ui:NavigationView.MenuItems>
 
             <!-- Itens do Rodapé (Configurações, Sobre, GitHub) -->
             <ui:NavigationView.FooterMenuItems>
-                <ui:NavigationViewItem Content="Configurações">
+                <ui:NavigationViewItem Content="Configurações" TargetPageType="{x:Type local:SettingsPage}">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Settings24" />
                     </ui:NavigationViewItem.Icon>

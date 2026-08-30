@@ -2,11 +2,14 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
+using WinProvision.Core.Models.Office;
 using WinProvision.Core.Services;
+using WinProvision.Core.Services.Office;
 using WinProvision.Core.Services.Profile;
 
 namespace WinProvision.Store;
@@ -17,6 +20,8 @@ public partial class PackagesPage : Page
     private readonly ProfileService _profileService;
     private readonly StoreService _storeService;
     private readonly WingetExecutor _wingetExecutor;
+    private readonly OfficeDeploymentToolService _officeService;
+    private readonly OperationsQueueService _queue;
 
     public PackagesPage()
     {
@@ -26,6 +31,8 @@ public partial class PackagesPage : Page
         _profileService = App.Services.GetRequiredService<ProfileService>();
         _storeService = App.Services.GetRequiredService<StoreService>();
         _wingetExecutor = App.Services.GetRequiredService<WingetExecutor>();
+        _officeService = App.Services.GetRequiredService<OfficeDeploymentToolService>();
+        _queue = App.Services.GetRequiredService<OperationsQueueService>();
 
         // Conecta a lista de abas ao TabControl
         ProfileTabControl.ItemsSource = _collectionService.Tabs;
@@ -70,6 +77,99 @@ public partial class PackagesPage : Page
         }
     }
 
+    // ----------------------------------------------------------------
+    // Instalar (botão geral da barra de ferramentas, estilo UnigetUI)
+    // ----------------------------------------------------------------
+
+    /// <summary>
+    /// Instala tudo que estiver marcado (CheckBox) na guia atual, um de cada vez.
+    /// Pra cada item, decide o que rodar olhando pro item: AppEntry.Office
+    /// preenchido => pipeline do Office via ODT (mesmo request que a OfficePage
+    /// monta); Office == null => pacote winget comum, mesmo fluxo usado no card da
+    /// Visão Geral/detalhes.
+    /// </summary>
+    private async void InstallSelectedButton_Click(object sender, RoutedEventArgs e)
+    {
+        var activeTab = _collectionService.ActiveTab;
+        var selected = activeTab?.Items.Where(a => a.IsSelectedForInstall).ToList() ?? new List<AppEntry>();
+
+        if (selected.Count == 0)
+        {
+            StatusText.Text = "Marque o checkbox de ao menos um pacote na guia atual antes de instalar.";
+            return;
+        }
+
+        InstallSelectedButton.IsEnabled = false;
+        StatusText.Text = $"Instalando {selected.Count} pacote(s) selecionado(s)... acompanhe na fila de operações.";
+
+        int succeeded = 0;
+        int failed = 0;
+
+        try
+        {
+            foreach (var app in selected)
+            {
+                bool success = app.Office is { } officeOptions
+                    ? await InstallOfficePlanAsync(app, officeOptions)
+                    : await InstallWingetAppAsync(app);
+
+                if (success) succeeded++;
+                else failed++;
+            }
+
+            StatusText.Text = failed == 0
+                ? $"{succeeded} pacote(s) instalado(s) com sucesso."
+                : $"{succeeded} pacote(s) instalado(s), {failed} falharam. Veja a fila de operações para detalhes.";
+        }
+        finally
+        {
+            InstallSelectedButton.IsEnabled = true;
+        }
+    }
+
+    private async Task<bool> InstallOfficePlanAsync(AppEntry app, OfficeInstallOptions options)
+    {
+        var plan = OfficePlanCatalog.All.FirstOrDefault(p => string.Equals(p.ProductId, options.ProductId, StringComparison.OrdinalIgnoreCase));
+        if (plan is null)
+        {
+            StatusText.Text = $"Não foi possível instalar \"{app.Name}\": o plano de Office (ProductId '{options.ProductId}') não existe no catálogo desta versão do app.";
+            return false;
+        }
+
+        var request = new OfficeInstallRequest(
+            plan,
+            options.Architecture,
+            options.LanguageId,
+            options.ExcludedApps,
+            DisplayNone: options.Silent,
+            AdditionalLanguageIds: options.AdditionalLanguageIds,
+            DisplayLevel: options.Silent ? OfficeDisplayLevel.Silent : OfficeDisplayLevel.Visible,
+            ChannelOverride: options.ChannelOverride,
+            AutoUpdatesEnabled: options.AutoUpdatesEnabled);
+
+        try
+        {
+            return await OperationRunner.RunOfficeInstallAsync(_queue, _officeService, request);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> InstallWingetAppAsync(AppEntry app)
+    {
+        try
+        {
+            var result = await OperationRunner.RunInstallAsync(_queue, _wingetExecutor, app.Id, app.Name, app.IconUrl);
+            return result.Success;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private void RemoveButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: AppEntry app } && _collectionService.ActiveTab != null)
@@ -103,14 +203,34 @@ public partial class PackagesPage : Page
         {
             var manifest = await _profileService.ImportAsync(openFileDialog.FileName);
             var installedIds = await _wingetExecutor.GetInstalledPackageIdsAsync();
-            var (toInstall, alreadySatisfied) = _profileService.Reconcile(manifest, installedIds);
-            var pendingIds = toInstall.Select(a => a.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var (toInstall, _) = _profileService.Reconcile(manifest, installedIds);
 
-            var matched = _storeService.GetAll().Where(app => pendingIds.Contains(app.Id));
+            // Apps winget comuns: resolvidos contra o catálogo remoto vivo (StoreService),
+            // igual a antes.
+            var pendingWingetIds = toInstall
+                .Where(a => a.OfficeOptions is null)
+                .Select(a => a.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var matchedWingetApps = _storeService.GetAll().Where(app => pendingWingetIds.Contains(app.Id));
+
+            // Planos de Office: não existem no catálogo remoto, e o winget nunca "vê"
+            // uma instalação do Office (reconciliação acima não se aplica a eles) —
+            // reconstruídos direto a partir do próprio .json (autocontido).
+            var officeEntries = manifest.Apps
+                .Where(a => a.OfficeOptions is not null)
+                .Select(a => new AppEntry
+                {
+                    Id = a.Id,
+                    Name = a.Name ?? a.Id,
+                    Publisher = a.Publisher ?? "Microsoft",
+                    IconUrl = a.IconUrl ?? string.Empty,
+                    Description = a.Description,
+                    Office = a.OfficeOptions,
+                });
 
             // Adiciona em uma nova guia nomeada com o arquivo importado
             var importedTab = _collectionService.CreateNewTab(Path.GetFileNameWithoutExtension(openFileDialog.FileName));
-            foreach (var app in matched)
+            foreach (var app in matchedWingetApps.Concat(officeEntries))
             {
                 importedTab.Items.Add(app);
             }
@@ -185,6 +305,19 @@ public partial class PackagesPage : Page
         // Itera sobre a lista de itens da guia ativa
         foreach (var app in activeTab.Items)
         {
+            if (app.Office is not null)
+            {
+                // Plano de Office: não é um pacote winget, então não dá pra gerar um
+                // "winget install" válido pra ele aqui. Deixa registrado no script pra
+                // não sumir silenciosamente — a instalação real desse item continua
+                // sendo feita pelo botão Instalar na tela Pacotes (ou na OfficePage),
+                // que já sabe rodar o pipeline do ODT com os parâmetros salvos.
+                scriptBuilder.AppendLine($"# {app.Name} é um plano de Office (ODT) — não instalável via winget.");
+                scriptBuilder.AppendLine("# Use o botão \"Instalar\" na tela Pacotes do WinProvision Store para aplicar este plano.");
+                scriptBuilder.AppendLine();
+                continue;
+            }
+
             scriptBuilder.AppendLine($"Write-Host 'Instalando {app.Name} ({app.Id})...' -ForegroundColor Cyan");
             scriptBuilder.AppendLine($"winget install --id \"{app.Id}\" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force");
             scriptBuilder.AppendLine();

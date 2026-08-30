@@ -1,0 +1,141 @@
+<Page x:Class="WinProvision.Store.UpdatesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      xmlns:conv="clr-namespace:WinProvision.Store.Converters"
+      xmlns:behaviors="clr-namespace:WinProvision.Store.Behaviors"
+      ScrollViewer.CanContentScroll="False"
+      Title="UpdatesPage">
+
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+        <conv:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
+        <conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+
+        <DataTemplate x:Key="UpgradableItemTemplate">
+            <Border Margin="0,0,0,8" Padding="12" CornerRadius="6" Background="{DynamicResource ControlFillColorDefaultBrush}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Seleção pro botão geral "Atualizar selecionados", mesmo estilo do
+                         checkbox de seleção usado na tela Pacotes. -->
+                    <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0"
+                              IsChecked="{Binding IsSelectedForUpdate, Mode=TwoWay}"
+                              IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBooleanConverter}}"
+                              Checked="ItemCheckBox_Changed" Unchecked="ItemCheckBox_Changed" />
+
+                    <Border Grid.Column="1" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="6" ClipToBounds="True">
+                        <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
+                    </Border>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11">
+                            <Run Text="ID: " />
+                            <Run Text="{Binding Id, Mode=OneWay}" />
+                            <Run Text="    " />
+                            <Run Text="{Binding CurrentVersion, Mode=OneWay}" />
+                            <Run Text=" → " />
+                            <Run Text="{Binding AvailableVersion, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="    Origem: " />
+                            <Run Text="{Binding Source, Mode=OneWay}" />
+                        </TextBlock>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="Atualizando..."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVisConverter}}" />
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
+    <!-- Grid principal restrito à tela -->
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <!-- Row 0: Cabeçalho Fixo -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 1: Barra de Ferramentas Fixa -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 2: Barra "Selecionar todos" -->
+            <RowDefinition Height="Auto" />
+            <!-- Row 3: Lista de atualizações (área rolável) -->
+            <RowDefinition Height="*" />
+            <!-- Row 4: Rodapé Fixo -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Cabeçalho Fixo -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="32" Margin="0,0,12,0" />
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Atualizações" FontSize="20" FontWeight="SemiBold" />
+                <TextBlock Text="Veja quais apps instalados têm uma versão mais nova disponível e escolha o que atualizar." Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- BARRA DE FERRAMENTAS SUPERIOR -->
+        <Border Grid.Row="1" Margin="0,0,0,12" Padding="8" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:Button x:Name="UpdateSelectedButton" Content="Atualizar selecionados" Margin="0,0,4,0"
+                           Background="{StaticResource InstallActionBrush}"
+                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                           PressedBackground="{StaticResource InstallActionPressedBrush}"
+                           Foreground="White" PressedForeground="White"
+                           Click="UpdateSelectedButton_Click">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+
+                <Rectangle Width="1" Height="20" Margin="4,0,8,0" VerticalAlignment="Center" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                <ui:Button x:Name="CheckUpdatesButton" Content="Verificar atualizações" Appearance="Transparent" Margin="0,0,4,0" Click="CheckUpdatesButton_Click">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+
+                <ProgressBar x:Name="BusyIndicator" Width="120" Height="4" Margin="8,0,0,0" VerticalAlignment="Center"
+                             Style="{StaticResource GradientProgressBarStyle}" IsIndeterminate="True"
+                             Visibility="Collapsed" />
+            </WrapPanel>
+        </Border>
+
+        <!-- SELECIONAR TODOS -->
+        <Grid Grid.Row="2" Margin="4,0,4,8" Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}}">
+            <CheckBox x:Name="SelectAllCheckBox" Content="Selecionar todos" IsThreeState="True" Click="SelectAllCheckBox_Click" />
+        </Grid>
+
+        <!-- LISTA DE ATUALIZAÇÕES (ROLÁVEL) -->
+        <Grid Grid.Row="3">
+            <!-- Estado vazio: some quando a lista tem itens -->
+            <StackPanel x:Name="EmptyStatePanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}">
+                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="40" HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock x:Name="EmptyStateText" Text="Clique em &quot;Verificar atualizações&quot; para começar." Margin="0,8,0,0"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+            </StackPanel>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Background="Transparent"
+                          Focusable="False"
+                          behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
+                <ItemsControl x:Name="UpdatesList"
+                              ItemTemplate="{StaticResource UpgradableItemTemplate}"
+                              Background="Transparent" />
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Rodapé Fixo -->
+        <Grid Grid.Row="4" Margin="0,12,0,0">
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Text="Clique em &quot;Verificar atualizações&quot; para começar." Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        </Grid>
+    </Grid>
+</Page>

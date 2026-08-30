@@ -18,14 +18,17 @@ public record ReconcileResult(
 /// lista de Ids já instalados (via WingetExecutor / detecção estruturada, a
 /// mesma fonte usada pela aba "Atualizações") e devolve só o diff a aplicar.
 ///
+/// Planos de Office (ProfileAppRef.OfficeOptions preenchido) não passam por
+/// essa reconciliação — winget nunca "vê" uma instalação do Office (ela roda
+/// via ODT, fora do winget), então eles são tratados à parte na importação
+/// (ver PackagesPage.ImportProfileButton_Click): sempre recriados diretamente
+/// a partir do próprio .json, sem depender do catálogo remoto de apps.
+///
 /// TODO (quando os detalhes de implementação forem definidos):
 /// - Trocar IEnumerable&lt;string&gt; installedAppIds pela assinatura real que o
 ///   WingetExecutor expuser (ex.: IEnumerable&lt;InstalledAppInfo&gt;) se ele
 ///   carregar mais que só o Id (versão instalada, por ex., pra respeitar
 ///   PinnedVersion corretamente).
-/// - Decidir se Import vai só popular a aba "Instalados" (marcar seleção) ou
-///   também disparar instalação direta via WingetExecutor (caso de uso de
-///   provisionamento em máquina nova).
 /// </summary>
 public class ProfileService
 {
@@ -44,7 +47,19 @@ public class ProfileService
             CreatedAt = DateTime.UtcNow,
             Name = profileName,
             Apps = selectedApps
-                .Select(app => new ProfileAppRef { Id = app.Id })
+                .Select(app => new ProfileAppRef
+                {
+                    Id = app.Id,
+                    // Planos de Office não existem no catálogo remoto de apps, então
+                    // levam os campos de exibição + OfficeOptions junto no próprio
+                    // .json — apps winget comuns (Office == null) continuam só com o
+                    // Id, resolvidos de volta contra o catálogo na importação.
+                    OfficeOptions = app.Office,
+                    Name = app.Office is not null ? app.Name : null,
+                    Publisher = app.Office is not null ? app.Publisher : null,
+                    IconUrl = app.Office is not null ? app.IconUrl : null,
+                    Description = app.Office is not null ? app.Description : null,
+                })
                 .ToList()
         };
     }

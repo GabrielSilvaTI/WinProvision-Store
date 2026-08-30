@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
+using WinProvision.Core.Models.Office;
 
 namespace WinProvision.Core.Models;
 
@@ -81,6 +82,18 @@ public class AppEntry : INotifyPropertyChanged
     [JsonIgnore]
     public string IconUrl { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Presente só quando este item representa um plano de Office (ex.: criado pelo
+    /// botão "Adicionar ao catálogo" da OfficePage), em vez de um pacote winget comum.
+    /// Null = app winget normal, instalado via <see cref="Services.WingetExecutor"/>;
+    /// não-null = a tela de Pacotes/Instalar deve rodar o pipeline do ODT
+    /// (<see cref="Services.Office.OfficeDeploymentToolService"/>) com estes parâmetros
+    /// em vez de chamar o winget. Serializado normalmente no perfil (.json) — é o que
+    /// permite exportar/importar apps winget e planos de Office no mesmo arquivo.
+    /// </summary>
+    [JsonPropertyName("office")]
+    public OfficeInstallOptions? Office { get; set; }
+
     private bool _isInstalled;
 
     /// <summary>
@@ -120,6 +133,28 @@ public class AppEntry : INotifyPropertyChanged
                 return;
 
             _isInstalling = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _isSelectedForInstall;
+
+    /// <summary>
+    /// Estado do CheckBox de seleção na tela Pacotes (ver PackagesPage). Não vem do
+    /// apps.json nem do perfil (.json) — é só o estado transitório de "marcado pra
+    /// instalar" usado pelo botão geral "Instalar" da barra de ferramentas, ao estilo
+    /// do UnigetUI, em vez de um botão de instalar por item.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsSelectedForInstall
+    {
+        get => _isSelectedForInstall;
+        set
+        {
+            if (_isSelectedForInstall == value)
+                return;
+
+            _isSelectedForInstall = value;
             OnPropertyChanged();
         }
     }

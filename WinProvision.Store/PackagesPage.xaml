@@ -13,15 +13,21 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="6" ClipToBounds="True">
+                    <!-- Seleção pro botão geral "Instalar" da barra de ferramentas
+                         (estilo UnigetUI) — sem instalar direto por aqui. -->
+                    <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0"
+                              IsChecked="{Binding IsSelectedForInstall, Mode=TwoWay}" />
+
+                    <Border Grid.Column="1" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="6" ClipToBounds="True">
                         <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
                     </Border>
 
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding Publisher, StringFormat=' ({0})'}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -34,7 +40,7 @@
                         </TextBlock>
                     </StackPanel>
 
-                    <ui:Button Grid.Column="2" VerticalAlignment="Center" Content="Remover" Appearance="Secondary"
+                    <ui:Button Grid.Column="3" VerticalAlignment="Center" Content="Remover" Appearance="Secondary"
                                Click="RemoveButton_Click" Tag="{Binding}">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="Delete24" />
@@ -70,6 +76,22 @@
         <!-- BARRA DE FERRAMENTAS SUPERIOR -->
         <Border Grid.Row="1" Margin="0,0,0,12" Padding="8" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
             <WrapPanel Orientation="Horizontal">
+                <!-- Instalar geral: instala tudo que estiver marcado nos checkboxes dos
+                     itens da guia atual, ao estilo do UnigetUI (seleção + um botão só
+                     em vez de um botão por item). Antes de "Novo", como pedido. -->
+                <ui:Button x:Name="InstallSelectedButton" Content="Instalar" Margin="0,0,4,0"
+                           Background="{StaticResource InstallActionBrush}"
+                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                           PressedBackground="{StaticResource InstallActionPressedBrush}"
+                           Foreground="White" PressedForeground="White"
+                           Click="InstallSelectedButton_Click">
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon Symbol="ArrowDownload24" />
+                    </ui:Button.Icon>
+                </ui:Button>
+
+                <Rectangle Width="1" Height="20" Margin="4,0,8,0" VerticalAlignment="Center" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
                 <ui:Button x:Name="NewTabButton" Content="Novo" Appearance="Transparent" Margin="0,0,4,0" Click="NewTabButton_Click">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="Add24" />

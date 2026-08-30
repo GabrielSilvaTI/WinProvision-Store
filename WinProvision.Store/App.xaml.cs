@@ -1,4 +1,7 @@
 ﻿using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -6,6 +9,8 @@ using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Appearance;
 using WinProvision.Core.Services;
+using WinProvision.Core.Services.Backup;
+using WinProvision.Core.Services.Office;
 using WinProvision.Core.Services.Profile;
 
 namespace WinProvision.Store;
@@ -32,11 +37,30 @@ public partial class App : Application
             services.AddSingleton<OperationsQueueService>(); // Fila global do painel estilo UnigetUI
             services.AddSingleton<InstalledAppsService>(); // Cache compartilhado de apps já instalados (winget export)
             services.AddSingleton<AppLaunchService>(); // Resolve/abre o executável de um app já instalado
+            services.AddSingleton<OfficeDeploymentToolService>(); // Pipeline ODT: winget install + setup.exe /configure
+            services.AddSingleton<OfficeInstalledProductsDetector>(); // Leitura (somente leitura) do registro Click-to-Run
+            services.AddSingleton<AutoInstallCliService>(); // Modo CLI: "WinProvision.Store.exe /auto perfil.json"
+
+            // Backup local + nuvem (login com GitHub via PAT é opcional — ver SettingsPage)
+            services.AddSingleton<LocalBackupService>();
+            services.AddSingleton<GitHubBackupService>();
+            services.AddSingleton<BackupAutoSyncService>(); // resolvido ansiosamente no OnStartup abaixo, pra assinar Changed cedo
 
             // UI
             services.AddSingleton<MainWindow>();
-            services.AddTransient<HomePage>();
+            // HomePage e OfficePage viram Singleton de propósito: a MESMA instância (com
+            // busca/filtro/seleções já feitas) é reaproveitada a cada navegação, em vez de
+            // reconstruída do zero — é isso que faz o app "lembrar" o que estava na tela
+            // quando você sai e volta (pesquisa feita, plano/apps escolhidos no Office...).
+            // PackagesPage continua Transient: as guias/itens já vivem no PackageCollectionService
+            // (singleton), então o estado já sobrevive à navegação sem precisar do mesmo truque aqui.
+            services.AddSingleton<HomePage>();
             services.AddTransient<PackagesPage>();
+            services.AddSingleton<OfficePage>();
+            // Singleton pelo mesmo motivo de HomePage/OfficePage: a lista já verificada
+            // e as seleções feitas na tela Atualizações sobrevivem à navegação.
+            services.AddSingleton<UpdatesPage>();
+            services.AddSingleton<SettingsPage>();
         })
         .Build();
 
@@ -46,6 +70,37 @@ public partial class App : Application
     {
         await _host.StartAsync();
 
+        // Resolve ansiosamente para o construtor assinar InstalledAppsService.Changed
+        // desde já — sem isso, o backup automático só começaria a reagir depois que
+        // alguma tela (ex.: SettingsPage) fosse aberta pela primeira vez, deixando
+        // instalações/remoções anteriores fora do backup. Vale tanto pro modo janela
+        // quanto pro modo CLI (/auto) logo abaixo.
+        _host.Services.GetRequiredService<BackupAutoSyncService>();
+
+        // Modo CLI: "WinProvision.Store.exe /auto caminho\para\perfil.json" instala tudo
+        // que o perfil descreve (apps winget + planos de Office) sem nenhum prompt/janela,
+        // pensado pra ser chamado de dentro de scripts de provisionamento automatizado.
+        // Sem isso, o app sempre abre a MainWindow normal — o modo CLI é a exceção,
+        // detectada aqui antes de qualquer janela ser criada.
+        if (HasAutoFlag(e.Args))
+        {
+            string? autoInstallProfilePath = TryGetAutoInstallProfilePath(e.Args);
+            if (autoInstallProfilePath is null)
+            {
+                // "/auto" sem caminho depois: erro de uso explícito, não cai
+                // silenciosamente pra janela normal (script chamador esperaria
+                // instalação automática, não uma janela abrindo do nada).
+                NativeConsole.AttachToParentIfAvailable();
+                Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /auto <caminho-para-perfil.json> [/log <caminho.log>]");
+                NativeConsole.ReleaseParentPrompt();
+                Shutdown((int)AutoInstallExitCode.InvalidArguments);
+                return;
+            }
+
+            await RunAutoInstallAndExitAsync(autoInstallProfilePath, e.Args);
+            return;
+        }
+
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
 
         // Aplica o tema (claro/escuro) de acordo com o tema atual do Windows e continua
@@ -54,6 +109,87 @@ public partial class App : Application
         SystemThemeWatcher.Watch(mainWindow);
 
         mainWindow.Show();
+    }
+
+    /// <summary>Só checa se "/auto" foi passado, independente de ter um caminho válido depois.</summary>
+    private static bool HasAutoFlag(string[] args) =>
+        args.Any(a => string.Equals(a, "/auto", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Procura "/auto &lt;caminho&gt;" nos argumentos de linha de comando (case-insensitive).
+    /// Retorna o caminho do perfil (.json) se encontrado, ou null se "/auto" não foi
+    /// passado com um caminho logo depois.
+    /// </summary>
+    private static string? TryGetAutoInstallProfilePath(string[] args)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (string.Equals(args[i], "/auto", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Roda a instalação automática e encerra o processo com um código de saída detalhado
+    /// (ver <see cref="AutoInstallExitCode"/>), pra scripts de provisionamento — ou o
+    /// WinProvision principal, via Process.Start — poderem checar o resultado com precisão
+    /// (ex.: "if %errorlevel% neq 0 ..."). Shutdown() dispara o evento Exit normalmente,
+    /// então OnExit já cuida de parar/descartar o host — não duplica isso aqui.
+    /// </summary>
+    private async Task RunAutoInstallAndExitAsync(string profilePath, string[] args)
+    {
+        NativeConsole.AttachToParentIfAvailable();
+
+        string logPath = TryGetLogPath(args) ?? DefaultLogPath(profilePath);
+        using var logger = new CliFileLogger(logPath);
+
+        if (logger.FilePath is not null)
+        {
+            logger.Log($"[WinProvision] Log desta execução: {logger.FilePath}");
+        }
+
+        var cliService = _host.Services.GetRequiredService<AutoInstallCliService>();
+        AutoInstallExitCode exitCode = await cliService.RunAsync(profilePath, logger.Log);
+
+        logger.Log($"[WinProvision] Código de saída: {(int)exitCode} ({exitCode}).");
+
+        NativeConsole.ReleaseParentPrompt();
+        Shutdown((int)exitCode);
+    }
+
+    /// <summary>Procura "/log &lt;caminho&gt;" nos argumentos (opcional — sobrescreve o caminho padrão).</summary>
+    private static string? TryGetLogPath(string[] args)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (string.Equals(args[i], "/log", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Caminho padrão do log quando "/log" não é informado: um arquivo por execução em
+    /// %LocalAppData%\WinProvision\Logs, nomeado com o perfil + timestamp — não precisa
+    /// de privilégio de admin e não colide entre execuções.
+    /// </summary>
+    private static string DefaultLogPath(string profilePath)
+    {
+        string baseDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "WinProvision", "Logs");
+
+        string profileLabel = Path.GetFileNameWithoutExtension(profilePath);
+        string fileName = $"auto-{profileLabel}-{DateTime.Now:yyyyMMdd-HHmmss}.log";
+
+        return Path.Combine(baseDir, fileName);
     }
 
     private async void OnExit(object sender, ExitEventArgs e)

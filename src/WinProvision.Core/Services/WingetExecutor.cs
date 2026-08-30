@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+using WinProvision.Core.Models;
 
 namespace WinProvision.Core.Services;
 
@@ -38,6 +39,35 @@ public class WingetExecutor
         // termina em falha/timeout.
         string args = $"uninstall --id \"{appId}\" --exact --silent --accept-source-agreements";
         return await ExecuteWingetCommandAsync(args, onLogReceived, cancellationToken);
+    }
+
+    /// <summary>
+    /// Atualiza um pacote específico via "winget update" (alias de "winget upgrade"),
+    /// silenciosamente e sem interação — mesmos argumentos usados no InstallAppAsync,
+    /// mais --include-unknown (necessário pro winget atualizar apps cuja versão instalada
+    /// ele não consegue detectar com certeza) e --force (ignora hash mismatch/instalador
+    /// já baixado em cache desatualizado).
+    /// </summary>
+    public async Task<WingetExecutionResult> UpdateAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default)
+    {
+        string args = $"update --id \"{appId}\" --exact --source winget --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force";
+        return await ExecuteWingetCommandAsync(args, onLogReceived, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lista os pacotes com atualização pendente ("winget upgrade"). Diferente de
+    /// GetInstalledPackageIdsAsync (que usa "winget export", com saída JSON), esse comando
+    /// não tem opção de saída estruturada — a resposta é a tabela de texto padrão do
+    /// console, parseada por WingetUpgradeListParser. --include-unknown inclui pacotes cuja
+    /// versão instalada o winget não consegue confirmar (comuns em apps instalados fora do
+    /// winget), pra não esconder atualizações reais só por causa disso.
+    /// </summary>
+    public async Task<List<UpgradablePackage>> GetUpgradablePackagesAsync(CancellationToken cancellationToken = default)
+    {
+        string args = "upgrade --include-unknown --accept-source-agreements --disable-interactivity";
+        var result = await ExecuteWingetCommandAsync(args, onLogReceived: null, cancellationToken);
+
+        return WingetUpgradeListParser.Parse(result.Output);
     }
 
     /// <summary>
