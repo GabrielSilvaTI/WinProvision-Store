@@ -1,3 +1,5 @@
+using WinProvision.Core.Models.Provisioning;
+
 namespace WinProvision.Core.Models;
 
 /// <summary>
@@ -17,4 +19,14 @@ public class ProfileManifest
     public string? Name { get; set; }
 
     public List<ProfileAppRef> Apps { get; set; } = new();
+
+    /// <summary>
+    /// Ajustes de provisionamento de sistema (tema, barra de tarefas, energia, nome da
+    /// máquina, wallpaper) — opcional, null quando o perfil só trata de apps/Office. Um único
+    /// arquivo .json pode descrever apps E provisionamento ao mesmo tempo: o modo CLI /auto
+    /// aplica os dois; o modo /Provision aplica só esta seção. A sincronização via
+    /// backup/Gist (<see cref="ProfileBackupSet"/>) cobre esse campo de graça, por já
+    /// serializar o ProfileManifest inteiro.
+    /// </summary>
+    public ProvisioningManifest? Provisioning { get; set; }
 }

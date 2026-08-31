@@ -11,6 +11,7 @@ using WinProvision.Core.Models.Office;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Office;
 using WinProvision.Core.Services.Profile;
+using WinProvision.Core.Services.Provisioning;
 
 namespace WinProvision.Store;
 
@@ -22,6 +23,7 @@ public partial class PackagesPage : Page
     private readonly WingetExecutor _wingetExecutor;
     private readonly OfficeDeploymentToolService _officeService;
     private readonly OperationsQueueService _queue;
+    private readonly ProvisioningService _provisioningService;
 
     public PackagesPage()
     {
@@ -33,6 +35,7 @@ public partial class PackagesPage : Page
         _wingetExecutor = App.Services.GetRequiredService<WingetExecutor>();
         _officeService = App.Services.GetRequiredService<OfficeDeploymentToolService>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
+        _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
 
         // Conecta a lista de abas ao TabControl
         ProfileTabControl.ItemsSource = _collectionService.Tabs;
@@ -236,7 +239,19 @@ public partial class PackagesPage : Page
             }
 
             ProfileTabControl.SelectedItem = importedTab;
-            StatusText.Text = $"Perfil importado em nova guia: {importedTab.Items.Count} pacote(s).";
+
+            // Se o .json trouxer também uma seção de provisionamento, não descarta —
+            // marca como estado atual (entra no próximo backup/sincronização) e a tela
+            // Provisionamento já reflete isso na próxima vez que for aberta.
+            if (manifest.Provisioning is { } provisioning)
+            {
+                _provisioningService.SetCurrent(provisioning);
+                StatusText.Text = $"Perfil importado em nova guia: {importedTab.Items.Count} pacote(s). Provisionamento incluído — veja a tela Provisionamento e clique em \"Aplicar agora\" para valer nesta máquina.";
+            }
+            else
+            {
+                StatusText.Text = $"Perfil importado em nova guia: {importedTab.Items.Count} pacote(s).";
+            }
         }
         catch (Exception ex)
         {
@@ -262,10 +277,17 @@ public partial class PackagesPage : Page
 
         if (saveFileDialog.ShowDialog() != true) return;
 
-        var manifest = _profileService.BuildFromSelection(activeTab.Items, activeTab.Title);
+        // Inclui o provisionamento atual (se houver) no mesmo arquivo — este é o
+        // ".json completo" (apps/Office + provisionamento) que tanto /auto quanto o
+        // backup em nuvem esperam. _provisioningService.Current fica preenchido tanto por
+        // "Aplicar agora" quanto por Exportar/Importar na tela Provisionamento.
+        var provisioning = _provisioningService.Current;
+        var manifest = _profileService.BuildFromSelection(activeTab.Items, activeTab.Title, provisioning);
         await _profileService.ExportAsync(manifest, saveFileDialog.FileName);
 
-        StatusText.Text = $"Perfil '{activeTab.Title}' exportado com sucesso.";
+        StatusText.Text = provisioning is not null
+            ? $"Perfil '{activeTab.Title}' exportado com sucesso, incluindo o provisionamento atual."
+            : $"Perfil '{activeTab.Title}' exportado com sucesso (sem provisionamento — nada configurado na tela Provisionamento ainda).";
     }
 
     // -------------------------------------------------------------

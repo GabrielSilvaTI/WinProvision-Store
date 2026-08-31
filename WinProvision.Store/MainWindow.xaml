@@ -90,15 +90,21 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
+                <ui:NavigationViewItem Content="Atualizações" TargetPageType="{x:Type local:UpdatesPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
                 <ui:NavigationViewItem Content="Office" TargetPageType="{x:Type local:OfficePage}">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="AppsAddIn24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
-                <ui:NavigationViewItem Content="Atualizações" TargetPageType="{x:Type local:UpdatesPage}">
+                <ui:NavigationViewItem Content="Provisionamento" TargetPageType="{x:Type local:ProvisioningPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                        <ui:SymbolIcon Symbol="Desktop24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
             </ui:NavigationView.MenuItems>

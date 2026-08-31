@@ -67,6 +67,39 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="0,0,4,0" MaxWidth="640" HorizontalAlignment="Left">
 
+                <!-- ================= Exportar perfil completo ================= -->
+                <!-- Junta TODAS as guias de pacotes abertas + o provisionamento atual num
+                     único .json — o mesmo formato que /auto e /Provision esperam. Diferente
+                     de "Sincronizar agora" (que sobe pro backup local/Gist sem gerar
+                     arquivo), este botão salva um arquivo pra você levar/distribuir. -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Exportar perfil completo" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Gera um único .json com todos os pacotes (todas as guias) e os ajustes de provisionamento atuais — pronto para usar com /auto &lt;caminho ou URL&gt;."
+                                           Style="{StaticResource CardSubtitleStyle}" />
+                            </StackPanel>
+
+                            <ui:SymbolIcon Grid.Column="1" Symbol="DocumentArrowRight24" FontSize="22" VerticalAlignment="Top"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+
+                        <ui:Button x:Name="ExportAllButton" Content="Exportar tudo (.json)" Appearance="Secondary"
+                                   Style="{StaticResource ActionButtonStyle}" Margin="0,16,0,0"
+                                   HorizontalAlignment="Left" Click="ExportAllButton_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowExport24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </Border>
+
                 <!-- ================= Backup local ================= -->
                 <!-- Sempre ativo, não depende de login: roda sozinho a cada instalar/remover
                      (ver BackupAutoSyncService) e também pelo botão "Sincronizar agora" abaixo. -->

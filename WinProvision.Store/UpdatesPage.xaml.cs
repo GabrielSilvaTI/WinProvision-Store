@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,13 +33,21 @@ public partial class UpdatesPage : Page
 
         UpdatesList.ItemsSource = _packages;
         UpdateSelectedButton.IsEnabled = false;
+
+        // UpdatesPage é Singleton (ver App.xaml.cs) — o Loaded dispara de novo a cada
+        // navegação até aqui pelo menu (mesmo padrão do OfficePage.RefreshInstalledProducts),
+        // então a verificação roda sozinha toda vez que o usuário entra na tela, sem precisar
+        // clicar em "Verificar".
+        Loaded += async (_, _) => await CheckUpdatesAsync();
     }
 
     // ----------------------------------------------------------------
     // Verificar atualizações (winget upgrade)
     // ----------------------------------------------------------------
 
-    private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e)
+    private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e) => await CheckUpdatesAsync();
+
+    private async Task CheckUpdatesAsync()
     {
         CheckUpdatesButton.IsEnabled = false;
         UpdateSelectedButton.IsEnabled = false;
@@ -47,7 +56,11 @@ public partial class UpdatesPage : Page
 
         try
         {
-            var upgradable = await _wingetExecutor.GetUpgradablePackagesAsync();
+            // onLogReceived aqui é só o que o WingetBootstrapper reporta (baixando/instalando
+            // dependências), não a saída do "winget upgrade" em si — GetUpgradablePackagesAsync
+            // não expõe progresso incremental do próprio comando, só do bootstrap, que só roda
+            // de fato na primeira verificação da sessão (ver WingetExecutor.EnsureWingetBootstrappedOnceAsync).
+            var upgradable = await _wingetExecutor.GetUpgradablePackagesAsync(onLogReceived: line => StatusText.Text = line);
 
             // Cruza com o catálogo já carregado só pra reaproveitar o mesmo ícone
             // exibido em Visão Geral/Pacotes (ver comentário em UpgradablePackage.IconUrl).

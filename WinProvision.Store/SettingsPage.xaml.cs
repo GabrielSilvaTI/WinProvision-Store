@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,6 +8,7 @@ using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Backup;
 using WinProvision.Core.Services.Profile;
+using WinProvision.Core.Services.Provisioning;
 
 namespace WinProvision.Store;
 
@@ -18,6 +20,7 @@ public partial class SettingsPage : Page
     private readonly PackageCollectionService _collectionService;
     private readonly ProfileService _profileService;
     private readonly StoreService _storeService;
+    private readonly ProvisioningService _provisioningService;
 
     public SettingsPage()
     {
@@ -28,6 +31,7 @@ public partial class SettingsPage : Page
         _autoSyncService = App.Services.GetRequiredService<BackupAutoSyncService>();
         _collectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _profileService = App.Services.GetRequiredService<ProfileService>();
+        _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
         _storeService = App.Services.GetRequiredService<StoreService>();
 
         RefreshConnectionUi();
@@ -116,6 +120,49 @@ public partial class SettingsPage : Page
     }
 
     /// <summary>
+    /// Gera um único .json "completo": todos os apps de TODAS as guias abertas (não só a
+    /// ativa, e sem duplicar Ids repetidos entre guias) + o provisionamento atual (se
+    /// houver) — o mesmo formato que /auto e /Provision esperam. Diferente de
+    /// "Sincronizar agora" (que só sobe pro backup local/Gist, sem gerar um arquivo pra
+    /// baixar), este botão sempre abre o SaveFileDialog.
+    /// </summary>
+    private async void ExportAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        var nonEmptyTabs = _collectionService.Tabs.Where(t => t.Items.Count > 0).ToList();
+        var provisioning = _provisioningService.Current;
+
+        if (nonEmptyTabs.Count == 0 && provisioning is null)
+        {
+            StatusText.Text = "Nada para exportar — nenhuma guia de pacotes tem itens e nenhum provisionamento foi configurado ainda.";
+            return;
+        }
+
+        var saveFileDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "JSON Profile (*.json)|*.json",
+            FileName = "perfil-completo.json",
+            Title = "Salvar Perfil Completo (Pacotes + Provisionamento)"
+        };
+
+        if (saveFileDialog.ShowDialog() != true) return;
+
+        // Uma única lista de Apps (não o formato multi-guia do ProfileBackupSet) porque é
+        // isto que /auto e /Provision (ProfileService.ImportAsync) sabem ler — Ids
+        // repetidos entre guias são mesclados, mantendo a primeira ocorrência.
+        var mergedApps = nonEmptyTabs
+            .SelectMany(t => t.Items)
+            .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First());
+
+        var manifest = _profileService.BuildFromSelection(mergedApps, "Perfil completo", provisioning);
+        await _profileService.ExportAsync(manifest, saveFileDialog.FileName);
+
+        StatusText.Text = provisioning is not null
+            ? $"Perfil completo exportado: {manifest.Apps.Count} pacote(s) + provisionamento, em '{saveFileDialog.FileName}'."
+            : $"Perfil completo exportado: {manifest.Apps.Count} pacote(s) (sem provisionamento — nada configurado na tela Provisionamento ainda), em '{saveFileDialog.FileName}'.";
+    }
+
+    /// <summary>
     /// Salva o backup local (sempre) e, se conectado, também sincroniza com o Gist —
     /// mesma rotina que roda sozinha após cada instalar/remover (ver BackupAutoSyncService),
     /// só que sem esperar o debounce.
@@ -123,14 +170,19 @@ public partial class SettingsPage : Page
     private async void SyncNowButton_Click(object sender, RoutedEventArgs e)
     {
         var activeTab = _collectionService.ActiveTab;
-        if (activeTab is null || activeTab.Items.Count == 0)
+        bool hasPackages = activeTab is not null && activeTab.Items.Count > 0;
+        bool hasProvisioning = _provisioningService.Current is not null;
+
+        if (!hasPackages && !hasProvisioning)
         {
-            StatusText.Text = "A guia ativa da tela Pacotes está vazia — nada para sincronizar.";
+            StatusText.Text = "A guia ativa da tela Pacotes está vazia e nenhum provisionamento foi aplicado/exportado ainda — nada para sincronizar.";
             return;
         }
 
         SyncNowButton.IsEnabled = false;
-        StatusText.Text = $"Salvando '{activeTab.Title}'...";
+        StatusText.Text = hasPackages
+            ? $"Salvando '{activeTab!.Title}'..."
+            : "Salvando ajustes de provisionamento...";
 
         try
         {
@@ -139,9 +191,10 @@ public partial class SettingsPage : Page
             RefreshConnectionUi();
             RefreshLocalBackupUi();
 
+            string label = hasPackages ? $"'{activeTab!.Title}'" : "Provisionamento";
             StatusText.Text = _backupService.IsConnected
-                ? $"'{activeTab.Title}' sincronizado com sucesso (local + nuvem)."
-                : $"'{activeTab.Title}' salvo no backup local. Conecte-se ao GitHub acima para sincronizar também na nuvem.";
+                ? $"{label} sincronizado com sucesso (local + nuvem)."
+                : $"{label} salvo no backup local. Conecte-se ao GitHub acima para sincronizar também na nuvem.";
         }
         finally
         {
@@ -163,13 +216,13 @@ public partial class SettingsPage : Page
         {
             var backupSet = await _backupService.DownloadProfileAsync();
 
-            if (backupSet is null || backupSet.Tabs.Count == 0)
+            if (backupSet is null || (backupSet.Tabs.Count == 0 && backupSet.Provisioning is null))
             {
                 StatusText.Text = "Nenhum backup encontrado nessa conta GitHub.";
                 return;
             }
 
-            StatusText.Text = ImportBackupSetAsNewTabs(backupSet, "nuvem");
+            StatusText.Text = await RestoreBackupSetAsync(backupSet, "nuvem");
         }
         catch (Exception ex)
         {
@@ -194,13 +247,13 @@ public partial class SettingsPage : Page
         {
             var backupSet = await _localBackupService.TryLoadLatestAsync();
 
-            if (backupSet is null || backupSet.Tabs.Count == 0)
+            if (backupSet is null || (backupSet.Tabs.Count == 0 && backupSet.Provisioning is null))
             {
                 StatusText.Text = "Nenhum backup local encontrado nesta máquina.";
                 return;
             }
 
-            StatusText.Text = ImportBackupSetAsNewTabs(backupSet, "local");
+            StatusText.Text = await RestoreBackupSetAsync(backupSet, "local");
         }
         catch (Exception ex)
         {
@@ -214,17 +267,47 @@ public partial class SettingsPage : Page
 
     /// <summary>
     /// Recria TODAS as guias do backup (uma guia nova por entrada em ProfileBackupSet.Tabs),
-    /// na mesma ordem em que foram salvas, e devolve uma mensagem de status resumindo o
-    /// resultado pra exibir em StatusText.
+    /// na mesma ordem em que foram salvas, e — se o backup também trouxer uma seção de
+    /// provisionamento — aplica esses ajustes de sistema na máquina atual (mesmo caminho do
+    /// botão "Aplicar agora" da tela Provisionamento). Devolve uma mensagem de status
+    /// resumindo o resultado pra exibir em StatusText.
     /// </summary>
-    private string ImportBackupSetAsNewTabs(ProfileBackupSet backupSet, string origemLabel)
+    private async Task<string> RestoreBackupSetAsync(ProfileBackupSet backupSet, string origemLabel)
     {
         var restoredTabs = backupSet.Tabs.Select(ImportManifestAsNewTab).ToList();
         int totalPackages = restoredTabs.Sum(t => t.Items.Count);
 
-        return restoredTabs.Count == 1
-            ? $"Backup {origemLabel} restaurado em nova guia '{restoredTabs[0].Title}': {totalPackages} pacote(s). Veja a tela Pacotes."
-            : $"Backup {origemLabel} restaurado: {restoredTabs.Count} guia(s), {totalPackages} pacote(s) no total. Veja a tela Pacotes.";
+        string? packagesSummary = restoredTabs.Count switch
+        {
+            0 => null,
+            1 => $"nova guia '{restoredTabs[0].Title}' ({totalPackages} pacote(s))",
+            _ => $"{restoredTabs.Count} guia(s), {totalPackages} pacote(s) no total"
+        };
+
+        string? provisioningSummary = null;
+        if (backupSet.Provisioning is { } provisioning)
+        {
+            var result = await _provisioningService.ApplyAsync(provisioning);
+            int ok = result.Steps.Count(s => s.Success);
+            int failed = result.Steps.Count - ok;
+
+            provisioningSummary = failed == 0
+                ? $"provisionamento aplicado ({ok} ajuste(s))"
+                : $"provisionamento aplicado com falhas ({ok} sucesso(s), {failed} falha(s))";
+
+            if (result.RestartRequired)
+                provisioningSummary += " — reinicie o Windows para concluir";
+        }
+
+        string body = (packagesSummary, provisioningSummary) switch
+        {
+            (not null, not null) => $"{packagesSummary}; {provisioningSummary}",
+            (not null, null) => packagesSummary,
+            (null, not null) => provisioningSummary,
+            (null, null) => "nada a restaurar"
+        };
+
+        return $"Backup {origemLabel} restaurado: {body}. Veja a tela Pacotes/Provisionamento.";
     }
 
     /// <summary>

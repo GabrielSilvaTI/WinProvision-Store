@@ -1,5 +1,7 @@
 using System.Text.Json;
 using WinProvision.Core.Models;
+using WinProvision.Core.Models.Provisioning;
+using WinProvision.Core.Services;
 
 namespace WinProvision.Core.Services.Profile;
 
@@ -32,20 +34,24 @@ public record ReconcileResult(
 /// </summary>
 public class ProfileService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
-    /// <summary>Constrói um ProfileManifest a partir da seleção atual do usuário na Store.</summary>
-    public ProfileManifest BuildFromSelection(IEnumerable<AppEntry> selectedApps, string? profileName = null)
+    /// <summary>
+    /// Constrói um ProfileManifest a partir da seleção atual do usuário na Store.
+    /// <paramref name="provisioning"/> é opcional: quando informado (normalmente
+    /// <see cref="Provisioning.ProvisioningService.Current"/>), o perfil resultante é o
+    /// ".json completo" — apps/Office + provisionamento juntos no mesmo arquivo, prontos
+    /// tanto para /auto quanto para o backup/Gist cobrir os dois de uma vez.
+    /// </summary>
+    public ProfileManifest BuildFromSelection(
+        IEnumerable<AppEntry> selectedApps,
+        string? profileName = null,
+        ProvisioningManifest? provisioning = null)
     {
         return new ProfileManifest
         {
             SchemaVersion = 1,
             CreatedAt = DateTime.UtcNow,
             Name = profileName,
+            Provisioning = provisioning,
             Apps = selectedApps
                 .Select(app => new ProfileAppRef
                 {
@@ -67,15 +73,15 @@ public class ProfileService
     /// <summary>Serializa e grava o perfil em disco (ex.: via SaveFileDialog na UI).</summary>
     public async Task ExportAsync(ProfileManifest profile, string filePath, CancellationToken ct = default)
     {
-        var json = JsonSerializer.Serialize(profile, JsonOptions);
+        var json = JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Default);
         await File.WriteAllTextAsync(filePath, json, ct);
     }
 
-    /// <summary>Lê e desserializa um perfil de um arquivo .json (ex.: via OpenFileDialog na UI).</summary>
+    /// <summary>Lê e desserializa um perfil de um caminho local ou de uma URL http(s) (ex.: link "raw" de Gist).</summary>
     public async Task<ProfileManifest> ImportAsync(string filePath, CancellationToken ct = default)
     {
-        var json = await File.ReadAllTextAsync(filePath, ct);
-        var profile = JsonSerializer.Deserialize<ProfileManifest>(json, JsonOptions);
+        var json = await ProfileSourceReader.ReadTextAsync(filePath, ct);
+        var profile = JsonSerializer.Deserialize<ProfileManifest>(json, WinProvisionJsonOptions.Default);
 
         if (profile is null)
             throw new InvalidDataException($"Não foi possível interpretar o perfil em '{filePath}'.");

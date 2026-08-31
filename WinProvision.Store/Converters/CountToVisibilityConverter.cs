@@ -14,7 +14,14 @@ public class CountToVisibilityConverter : IValueConverter
     public object Convert(object? value, Type targetType, object parameter, CultureInfo culture)
     {
         int count = value is int i ? i : 0;
-        return count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        bool visible = count > 0;
+
+        if (string.Equals(parameter as string, "Invert", StringComparison.OrdinalIgnoreCase))
+        {
+            visible = !visible;
+        }
+
+        return visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
