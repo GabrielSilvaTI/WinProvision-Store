@@ -58,6 +58,7 @@ public static class SyncIconsCommand
 
         Console.WriteLine($"\n      Catálogo:                                  {stats.CatalogSize:N0} apps");
         Console.WriteLine($"      Resolvidos via WinGet Oficial (CDN):       {stats.ResolvedFromWinGetManifest:N0}");
+        Console.WriteLine($"      Resolvidos via Cloudflare (bucket próprio): {stats.ResolvedFromCloudflare:N0}");
         Console.WriteLine($"      Resolvidos via Winstall aprovado:          {stats.ResolvedFromWinstallApproved:N0}");
         Console.WriteLine($"      Resolvidos via package-icons externo:      {stats.ResolvedFromExternal:N0}");
         Console.WriteLine($"      Resolvidos via UniGetUI:                   {stats.ResolvedFromUniGetUi:N0}");

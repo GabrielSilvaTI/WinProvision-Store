@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
 using WinProvision.Core.Models.Provisioning;
 using WinProvision.Core.Services;
+using WinProvision.Core.Services.Backup;
 using WinProvision.Core.Services.Provisioning;
 
 namespace WinProvision.Store;
@@ -18,6 +19,8 @@ namespace WinProvision.Store;
 public partial class ProvisioningPage : Page
 {
     private readonly ProvisioningService _provisioningService;
+    private readonly CliPresetsService _cliPresetsService;
+    private readonly GitHubBackupService _backupService;
 
     // Guardados à parte (em vez de num controle de UI) porque o wallpaper é um arquivo, não um
     // valor editável — ficam aqui até o usuário exportar ou aplicar, e são preenchidos de volta
@@ -35,6 +38,8 @@ public partial class ProvisioningPage : Page
         InitializeComponent();
 
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
+        _cliPresetsService = App.Services.GetRequiredService<CliPresetsService>();
+        _backupService = App.Services.GetRequiredService<GitHubBackupService>();
 
         CurrentMachineNameText.Text = $"Nome atual: {Environment.MachineName}";
 
@@ -49,6 +54,13 @@ public partial class ProvisioningPage : Page
 
         _uiLoaded = true;
         RefreshProfileSummary();
+
+        // Preenche o gerador de CLI com o perfil/webhook salvos em Configurações → Conta,
+        // se os campos ainda estiverem vazios (nunca sobrescreve o que o usuário já digitou
+        // nesta sessão). Também escuta mudanças salvas em Configurações enquanto esta
+        // página (Singleton) já está aberta.
+        ApplyCliPresetsIfEmpty();
+        _cliPresetsService.Changed += () => Dispatcher.BeginInvoke(ApplyCliPresetsIfEmpty);
     }
 
     /// <summary>Alterna o menu lateral de "Provisionamento" entre a visão do Perfil (padrão) e uma seção específica.</summary>
@@ -58,6 +70,7 @@ public partial class ProvisioningPage : Page
         UpdatesSectionPanel.Visibility = Visibility.Collapsed;
         AdvancedSectionPanel.Visibility = Visibility.Collapsed;
         JsonSectionPanel.Visibility = Visibility.Collapsed;
+        CliSectionPanel.Visibility = Visibility.Collapsed;
         sectionPanel.Visibility = Visibility.Visible;
 
         SectionTitleText.Text = title;
@@ -79,6 +92,12 @@ public partial class ProvisioningPage : Page
     private void AdvancedNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(AdvancedSectionPanel, "Configurações Avançadas");
 
     private void JsonNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(JsonSectionPanel, "Visualização do JSON");
+
+    private void CliNavCard_Click(object sender, RoutedEventArgs e)
+    {
+        ShowSection(CliSectionPanel, "Gerador de Comando CLI Nativo");
+        UpdateCliCommandPreview();
+    }
 
     private void BackToProfileButton_Click(object sender, RoutedEventArgs e) => ShowProfileOverview();
 
@@ -164,6 +183,119 @@ public partial class ProvisioningPage : Page
     {
         Clipboard.SetText(JsonPreviewTextBox.Text);
         StatusText.Text = "JSON copiado para a área de transferência.";
+    }
+
+    private void CliField_Changed(object sender, RoutedEventArgs e) => UpdateCliCommandPreview();
+
+    /// <summary>Remonta o comando de terminal (Row "Comando") a partir do modo (/auto ou /Provision),
+    /// do caminho/URL do perfil e, se marcadas, das flags /log e /webhook — mesmo formato lido por App.xaml.cs.</summary>
+    private void UpdateCliCommandPreview()
+    {
+        if (CliCommandPreviewTextBox is null) return;
+
+        string mode = (CliModeComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "/auto";
+        string path = CliProfilePathTextBox.Text.Trim();
+        if (path.Length == 0)
+        {
+            path = "<caminho-ou-URL-do-perfil.json>";
+        }
+
+        var command = new StringBuilder(".\\WinProvision.Store.exe ")
+            .Append(mode)
+            .Append(" \"").Append(path).Append('"');
+
+        if (CliLogCheckBox.IsChecked == true)
+        {
+            string logPath = CliLogPathTextBox.Text.Trim();
+            if (logPath.Length > 0)
+            {
+                command.Append(" /log \"").Append(logPath).Append('"');
+            }
+        }
+
+        if (CliWebhookCheckBox.IsChecked == true)
+        {
+            string webhookUrl = CliWebhookUrlPasswordBox.Password.Trim();
+            if (webhookUrl.Length > 0)
+            {
+                command.Append(" /webhook \"").Append(webhookUrl).Append('"');
+            }
+        }
+
+        CliCommandPreviewTextBox.Text = command.ToString();
+    }
+
+    private void CopyCliCommandButton_Click(object sender, RoutedEventArgs e)
+    {
+        Clipboard.SetText(CliCommandPreviewTextBox.Text);
+        StatusText.Text = "Comando copiado para a área de transferência.";
+    }
+
+    /// <summary>
+    /// Preenche "Caminho ou URL do perfil .json" com a URL "raw" do Gist de backup automático
+    /// da conta conectada (Configurações → Conta) — a mesma sincronização quase em tempo real
+    /// (guias de Pacotes + provisionamento) que já roda sozinha a cada instalação/remoção. Não
+    /// digita nada por conta própria: só busca o link e deixa a pré-visualização do comando
+    /// (<see cref="UpdateCliCommandPreview"/>, disparado pelo TextChanged) atualizar sozinha.
+    /// </summary>
+    private void SyncGistUrlButton_Click(object sender, RoutedEventArgs e)
+    {
+        string? url = _backupService.BackupRawUrl;
+
+        if (url is null)
+        {
+            StatusText.Text = _backupService.IsConnected
+                ? "Ainda não há um backup salvo no Gist desta conta — sincronize ao menos uma vez (Configurações → Backup → \"Sincronizar agora\", ou instale/remova algo) e tente de novo."
+                : "Vincule sua conta GitHub em Configurações → Conta para usar o Gist de backup automático aqui.";
+            return;
+        }
+
+        CliProfilePathTextBox.Text = url;
+        StatusText.Text = "Preenchido com a URL do Gist de backup automático (guias de Pacotes + provisionamento sincronizados quase em tempo real).";
+    }
+
+    /// <summary>Preenche o caminho/URL do perfil e a URL do webhook a partir do que está salvo
+    /// em Configurações → Conta — só nos campos que estiverem vazios agora, pra nunca
+    /// sobrescrever o que o usuário já digitou nesta sessão.</summary>
+    private void ApplyCliPresetsIfEmpty()
+    {
+        if (CliProfilePathTextBox.Text.Trim().Length == 0 && _cliPresetsService.ProfilePathOrUrl is { Length: > 0 } path)
+        {
+            CliProfilePathTextBox.Text = path;
+        }
+
+        if (CliWebhookUrlPasswordBox.Password.Trim().Length == 0 && _cliPresetsService.WebhookUrl is { Length: > 0 } webhook)
+        {
+            CliWebhookCheckBox.IsChecked = true;
+            CliWebhookUrlPasswordBox.Password = webhook;
+        }
+    }
+
+    /// <summary>Lê o caminho/URL do perfil e a URL do webhook preenchidos agora no gerador de
+    /// CLI — usado por Configurações → Conta ("Usar valores da tela de Provisionamento") pra
+    /// copiar sem precisar digitar de novo. Retorna null em cada posição vazia.</summary>
+    internal (string? ProfilePathOrUrl, string? WebhookUrl) GetCurrentCliFieldValues()
+    {
+        string path = CliProfilePathTextBox.Text.Trim();
+        string webhook = CliWebhookCheckBox.IsChecked == true ? CliWebhookUrlPasswordBox.Password.Trim() : string.Empty;
+
+        return (path.Length > 0 ? path : null, webhook.Length > 0 ? webhook : null);
+    }
+
+    /// <summary>Salva o que está preenchido agora como padrão (ver <see cref="CliPresetsService"/>)
+    /// — some volta a aparecer sozinho da próxima vez, tanto aqui quanto em Configurações.</summary>
+    private void SaveCliDefaultsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var (profilePathOrUrl, webhookUrl) = GetCurrentCliFieldValues();
+
+        _cliPresetsService.SaveProfilePathOrUrl(profilePathOrUrl);
+
+        if (webhookUrl is not null)
+        {
+            _cliPresetsService.SaveWebhookUrl(webhookUrl);
+        }
+
+        StatusText.Text = "Perfil/webhook salvos como padrão — vão preencher automaticamente da próxima vez.";
     }
 
     private void OpenFullEditorButton_Click(object sender, RoutedEventArgs e)

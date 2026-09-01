@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -148,6 +149,65 @@ public class WingetExecutor
         var result = await ExecuteWingetCommandAsync(args, onLogReceived: null, cancellationToken);
 
         return WingetUpgradeListParser.Parse(result.Output);
+    }
+
+    /// <summary>
+    /// Obtém o tamanho do instalador sem baixar o pacote — usado só como fallback ao
+    /// vivo para pacotes que não têm InstallerSizeBytes já calculado no catálogo (ver
+    /// AppEntry.InstallerSizeBytes, preenchido pelo Indexer na sincronização diária a
+    /// partir da própria InstallerUrl do manifesto winget-pkgs — não existe um campo
+    /// de tamanho no schema oficial do winget, então essa é a única fonte confiável).
+    /// Consulta apenas os headers HTTP (HEAD/Range) das URLs de instalador reportadas
+    /// por "winget show", sem baixar o instalador inteiro.
+    /// </summary>
+    public async Task<long?> GetPackageInstallerSizeAsync(string appId, CancellationToken cancellationToken = default)
+    {
+        var bootstrapResult = await EnsureWingetBootstrappedOnceAsync(null);
+        if (!bootstrapResult.IsUsable)
+            return null;
+
+        string args = $"show --id \"{appId}\" --exact --source winget --accept-source-agreements --disable-interactivity --locale en-US";
+        var result = await ExecuteWingetCommandAsync(args, null, cancellationToken);
+        if (string.IsNullOrWhiteSpace(result.Output))
+            return null;
+
+        // Limitado às 2 primeiras URLs (ex.: pacotes com várias arquiteturas/instaladores
+        // como o VLC chegam a ter 3-4). Cada URL pode disparar até duas requisições HTTP
+        // (HEAD + fallback via Range GET), então testar todas as URLs de um pacote com
+        // muitos instaladores podia levar bem mais de um minuto e deixar a tela presa em
+        // "Calculando…" por tempo demais — a primeira URL que responder já é suficiente.
+        foreach (string url in ParseInstallerUrls(result.Output).Take(2))
+        {
+            long? remoteSize = await InstallerSizeResolver.TryGetRemoteContentLengthAsync(url, cancellationToken);
+            if (remoteSize is > 0)
+                return remoteSize;
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string> ParseInstallerUrls(string output)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string rawLine in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            int separator = rawLine.IndexOf(':');
+            if (separator < 0)
+                continue;
+
+            string label = rawLine[..separator].Trim();
+            if (!label.Contains("Installer Url", StringComparison.OrdinalIgnoreCase) &&
+                !label.Equals("InstallerURL", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string url = rawLine[(separator + 1)..].Trim().Trim('\"');
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                seen.Add(uri.AbsoluteUri))
+            {
+                yield return uri.AbsoluteUri;
+            }
+        }
     }
 
     /// <summary>

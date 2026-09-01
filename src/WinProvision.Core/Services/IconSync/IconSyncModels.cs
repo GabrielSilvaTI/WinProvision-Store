@@ -8,6 +8,7 @@ namespace WinProvision.Core.Services.IconSync;
 public enum IconSourceKind
 {
     WinGetOfficialManifest,
+    Cloudflare,
     WinstallApproved,
     UniGetUi,
     External
@@ -44,6 +45,7 @@ public record IconSyncOptions(
 public record IconSyncStats(
     int CatalogSize,
     int ResolvedFromWinGetManifest,
+    int ResolvedFromCloudflare,
     int ResolvedFromWinstallApproved,
     int ResolvedFromUniGetUi,
     int ResolvedFromExternal,

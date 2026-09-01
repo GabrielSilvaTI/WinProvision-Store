@@ -1,563 +1,675 @@
-<Page x:Class="WinProvision.Store.ProvisioningPage"
+﻿<Page x:Class="WinProvision.Store.ProvisioningPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       ScrollViewer.CanContentScroll="False"
-      Title="ProvisioningPage">
+      Title="ProvisioningPage"
+      Background="Transparent"
+    TextElement.FontFamily="Segoe UI Variable Text, Segoe UI"
+    TextElement.FontSize="14"
+    TextOptions.TextFormattingMode="Display"
+    UseLayoutRounding="True">
 
     <Page.Resources>
-        <!-- Mesmo cartão "de vidro" usado na SettingsPage/OfficePage — mantém a identidade visual entre as páginas. -->
-        <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Padding" Value="20" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Margin" Value="0,0,0,12" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#26FFFFFF" Offset="0" />
-                        <GradientStop Color="#0DFFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#38FFFFFF" Offset="0" />
-                        <GradientStop Color="#14FFFFFF" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#FF000000" Direction="270" ShadowDepth="3" BlurRadius="20" Opacity="0.30" />
-                </Setter.Value>
-            </Setter>
+        <!-- Tipografia Fluent (Segoe UI Variable) -->
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
         </Style>
+
         <Style x:Key="CardTitleStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
         </Style>
+
         <Style x:Key="CardSubtitleStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
         </Style>
+
         <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+            <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
-        <Style x:Key="ActionButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-            <Setter Property="Margin" Value="0,0,8,0" />
+
+        <!-- Cartão Clássico (Para a Sidebar de Resumo) -->
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="24" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Margin" Value="0,0,0,16" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="#14FFFFFF" />
         </Style>
-        <Style x:Key="NavCardStyle" TargetType="ui:CardAction" BasedOn="{StaticResource {x:Type ui:CardAction}}">
-            <Setter Property="Margin" Value="0,0,0,12" />
+
+        <!-- NOVO: Cartão de Configurações (Estilo Lista do Win11, sem Padding interno para as linhas tocarem a borda) -->
+        <Style x:Key="SettingsCardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Margin" Value="0,0,0,24" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="#14FFFFFF" />
+            <Setter Property="Padding" Value="0" />
         </Style>
-        <Style x:Key="InfoRowLabelStyle" TargetType="TextBlock">
+
+        <!-- Estilos para as Linhas de Configuração -->
+        <Style x:Key="SettingsRowTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        </Style>
+
+        <Style x:Key="SettingsRowSubtitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
+
+        <!-- Menu Principal (Cards Largos) -->
+        <Style x:Key="MenuCardButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Background" Value="#08FFFFFF" />
+            <Setter Property="BorderBrush" Value="#14FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <!-- Estilos para os Textos de Estatística (Resumo) -->
         <Style x:Key="StatValueStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="22" />
-            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="28" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,0,4" />
         </Style>
+
         <Style x:Key="StatLabelStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
         </Style>
-        <!-- Item da lista de alterações (Perfil/JSON) — um "•" + o rótulo amigável (ex.: "Tema: Escuro"). -->
+
+        <!-- Item da lista de alterações -->
         <Style x:Key="ChangeItemStyle" TargetType="TextBlock">
-            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Margin" Value="0,0,0,8" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
         </Style>
     </Page.Resources>
 
-    <Grid Margin="24">
+    <Grid Margin="32,24" MaxWidth="1600" HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Cabeçalho -->
-        <Grid Grid.Row="0" Margin="0,0,0,16">
+        <!-- ================= Cabeçalho Global ================= -->
+        <Grid Grid.Row="0" Margin="0,0,0,24">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <ui:SymbolIcon Symbol="Desktop24" FontSize="32" Margin="0,0,14,0" VerticalAlignment="Center" />
+                <ui:SymbolIcon Symbol="Desktop24" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center" />
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Provisionamento" FontSize="26" FontWeight="Bold" />
-                    <TextBlock Text="Perfil para a máquina-alvo: aplicado na hora (se for esta máquina) ou exportado como perfil .json para outra máquina via linha de comando (/Provision)."
-                               FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
+                    <TextBlock Text="Provisionamento" Style="{StaticResource PageTitleStyle}" />
+                    <TextBlock Text="Perfil para a máquina-alvo: aplicado na hora (nesta máquina) ou exportado como .json para linha de comando."
+                               Style="{StaticResource CardSubtitleStyle}" Margin="0,4,0,0" />
                 </StackPanel>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="ImportButton" Content="Importar" Appearance="Secondary"
-                           Style="{StaticResource ActionButtonStyle}" Click="ImportButton_Click">
+                <ui:Button x:Name="ImportButton" Content="Importar" Appearance="Secondary" Margin="0,0,8,0" Click="ImportButton_Click" CornerRadius="6" Height="36">
                     <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowImport24" />
+                        <ui:SymbolIcon Symbol="ArrowImport24" FontSize="16" />
                     </ui:Button.Icon>
                 </ui:Button>
-                <ui:Button x:Name="ExportButton" Content="Exportar" Appearance="Secondary"
-                           Style="{StaticResource ActionButtonStyle}" Click="ExportButton_Click">
+
+                <ui:Button x:Name="ExportButton" Content="Exportar" Appearance="Secondary" Margin="0,0,12,0" Click="ExportButton_Click" CornerRadius="6" Height="36">
                     <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowExport24" />
+                        <ui:SymbolIcon Symbol="ArrowExport24" FontSize="16" />
                     </ui:Button.Icon>
                 </ui:Button>
-                <ui:Button x:Name="ApplyButton" Content="Aplicar agora" Appearance="Primary"
-                           Click="ApplyButton_Click">
+
+                <ui:Button x:Name="ApplyButton" Content="Aplicar agora" Appearance="Primary" Click="ApplyButton_Click" CornerRadius="6" Height="36" Background="{DynamicResource SystemAccentColorPrimaryBrush}">
                     <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="PlayCircle24" />
+                        <ui:SymbolIcon Symbol="PlayCircle24" FontSize="16" />
                     </ui:Button.Icon>
                 </ui:Button>
             </StackPanel>
         </Grid>
 
-        <!-- Menu lateral de seções (esquerda) + conteúdo (direita): a visão principal é o
-             Perfil/JSON; cada cartão do menu abre sua seção no lugar do Perfil, com um botão
-             "Voltar" para retornar. Tudo aqui vira campo do ProvisioningManifest — inclusive
-             Atualizações & Drivers e Ponto de Restauração, que não são mais ações "ao vivo" na
-             máquina onde o perfil é montado, e sim toggles executados pelo
-             ProvisioningService.ApplyAsync quando o perfil é de fato aplicado na máquina-alvo
-             (botão "Aplicar agora" acima, ou CLI /Provision). -->
+        <!-- ================= Corpo (Drill-down + Sidebar) ================= -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" />
-                <ColumnDefinition Width="20" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="7*" MinWidth="540" />
+                <ColumnDefinition Width="32" />
+                <!-- Espaço -->
+                <ColumnDefinition Width="3*" MinWidth="300" MaxWidth="340" />
             </Grid.ColumnDefinitions>
 
-            <!-- ================= Menu de seções ================= -->
-            <StackPanel Grid.Column="0">
-                <ui:CardAction x:Name="PersonalizationNavCard" Style="{StaticResource NavCardStyle}" Click="PersonalizationNavCard_Click">
-                    <ui:CardAction.Icon>
-                        <ui:SymbolIcon Symbol="PaintBrush24" />
-                    </ui:CardAction.Icon>
-                    <StackPanel>
-                        <TextBlock Text="Personalização" FontWeight="SemiBold" />
-                        <TextBlock Text="Tema, barra de tarefas e papel de parede." Style="{StaticResource CardSubtitleStyle}" FontSize="12" />
-                    </StackPanel>
-                </ui:CardAction>
+            <!-- ESQUERDA: Menu Principal OU Formulários de Seção -->
+            <Grid Grid.Column="0">
 
-                <ui:CardAction x:Name="UpdatesNavCard" Style="{StaticResource NavCardStyle}" Click="UpdatesNavCard_Click">
-                    <ui:CardAction.Icon>
-                        <ui:SymbolIcon Symbol="ArrowSync24" />
-                    </ui:CardAction.Icon>
-                    <StackPanel>
-                        <TextBlock Text="Atualizações" FontWeight="SemiBold" />
-                        <TextBlock Text="Defina como o sistema deve buscar e instalar atualizações." Style="{StaticResource CardSubtitleStyle}" FontSize="12" />
-                    </StackPanel>
-                </ui:CardAction>
-
-                <ui:CardAction x:Name="AdvancedNavCard" Style="{StaticResource NavCardStyle}" Click="AdvancedNavCard_Click">
-                    <ui:CardAction.Icon>
-                        <ui:SymbolIcon Symbol="Settings24" />
-                    </ui:CardAction.Icon>
-                    <StackPanel>
-                        <TextBlock Text="Configurações Avançadas" FontWeight="SemiBold" />
-                        <TextBlock Text="Nome da máquina, região, energia e ponto de restauração." Style="{StaticResource CardSubtitleStyle}" FontSize="12" />
-                    </StackPanel>
-                </ui:CardAction>
-
-                <ui:CardAction x:Name="JsonNavCard" Style="{StaticResource NavCardStyle}" Click="JsonNavCard_Click">
-                    <ui:CardAction.Icon>
-                        <ui:SymbolIcon Symbol="Code24" />
-                    </ui:CardAction.Icon>
-                    <StackPanel>
-                        <TextBlock Text="Visualização do JSON" FontWeight="SemiBold" />
-                        <TextBlock Text="Dados do perfil e o JSON completo gerado." Style="{StaticResource CardSubtitleStyle}" FontSize="12" />
-                    </StackPanel>
-                </ui:CardAction>
-            </StackPanel>
-
-            <!-- ================= Conteúdo: Perfil (padrão) ou seção escolhida ================= -->
-            <Grid Grid.Column="2">
-
-                <!-- ===== Visão do Perfil — padrão ao abrir a página ===== -->
+                <!-- Visão 1: Menu de Seções -->
                 <ScrollViewer x:Name="ProfileOverviewPanel" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="0,0,4,0">
-
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="16" />
-                                <ColumnDefinition Width="260" />
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Alterações do Perfil -->
-                            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Margin="0">
-                                <StackPanel>
-                                    <TextBlock Text="Alterações do Perfil" Style="{StaticResource CardTitleStyle}" />
-                                    <TextBlock Text="O que este perfil vai levar quando você exportar ou aplicar agora." Style="{StaticResource CardSubtitleStyle}" Margin="0,2,0,16" />
-
-                                    <TextBlock x:Name="NoChangesText" Text="Nenhuma alteração ainda — ajuste algo em Personalização, Atualizações ou Configurações Avançadas."
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-
-                                    <ItemsControl x:Name="ChangesListItemsControl">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
-                                                    <TextBlock Text="•" Margin="0,0,8,0" Foreground="{DynamicResource AccentFillColorDefaultBrush}" FontWeight="Bold" />
-                                                    <TextBlock Text="{Binding}" Style="{StaticResource ChangeItemStyle}" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                    <StackPanel Margin="0,0,8,0">
+                        <ui:Button x:Name="PersonalizationNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="PersonalizationNavCard_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="PaintBrush24" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Personalização" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Tema, barra de tarefas e papel de parede." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
                                 </StackPanel>
-                            </Border>
+                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            </Grid>
+                        </ui:Button>
 
-                            <!-- Resumo do Perfil -->
-                            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Margin="0">
-                                <StackPanel>
-                                    <TextBlock Text="Resumo do Perfil" Style="{StaticResource CardTitleStyle}" />
-
-                                    <Grid Margin="0,16,0,16">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock x:Name="SectionsConfiguredCountText" Text="0" Style="{StaticResource StatValueStyle}" />
-                                            <TextBlock Text="Seções configuradas" Style="{StaticResource StatLabelStyle}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock x:Name="KeysModifiedCountText" Text="0" Style="{StaticResource StatValueStyle}" />
-                                            <TextBlock Text="Chaves modificadas" Style="{StaticResource StatLabelStyle}" />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="2">
-                                            <TextBlock x:Name="WarningsCountText" Text="0" Style="{StaticResource StatValueStyle}" />
-                                            <TextBlock Text="Advertências" Style="{StaticResource StatLabelStyle}" />
-                                        </StackPanel>
-                                    </Grid>
-
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon x:Name="ProfileValidIcon" Symbol="CheckmarkCircle24" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
-                                        <TextBlock x:Name="ProfileValidText" Text="Perfil válido" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
+                        <ui:Button x:Name="UpdatesNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="UpdatesNavCard_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="ArrowSync24" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Atualizações" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Defina como o sistema deve buscar e instalar atualizações." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
                                 </StackPanel>
-                            </Border>
-                        </Grid>
+                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            </Grid>
+                        </ui:Button>
 
+                        <ui:Button x:Name="AdvancedNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="AdvancedNavCard_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Settings24" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Configurações Avançadas" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Nome da máquina, região, energia e ponto de restauração." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
+                                </StackPanel>
+                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            </Grid>
+                        </ui:Button>
+
+                        <ui:Button x:Name="JsonNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="JsonNavCard_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Code24" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Visualização do JSON" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Dados de identificação e o código JSON completo gerado." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
+                                </StackPanel>
+                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            </Grid>
+                        </ui:Button>
+
+                        <ui:Button x:Name="CliNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="CliNavCard_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="WindowConsole20" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Gerador de Comando CLI Nativo" Style="{StaticResource CardTitleStyle}" />
+                                    <TextBlock Text="Monte o comando de terminal para aplicar um perfil remoto." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
+                                </StackPanel>
+                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                            </Grid>
+                        </ui:Button>
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- ===== Seções abertas a partir do menu lateral ===== -->
+                <!-- Visão 2: Formulários das Seções -->
                 <Grid x:Name="SectionPanel" Visibility="Collapsed">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-                        <ui:Button Appearance="Transparent" Padding="6" Click="BackToProfileButton_Click">
-                            <ui:SymbolIcon Symbol="ArrowLeft24" />
+                    <!-- Cabeçalho de Retorno Breadcrumb -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,24">
+                        <ui:Button Appearance="Transparent" Padding="8,6" CornerRadius="6" Click="BackToProfileButton_Click">
+                            <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="18" />
                         </ui:Button>
-                        <TextBlock x:Name="SectionTitleText" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        <TextBlock x:Name="SectionTitleText" Style="{StaticResource PageTitleStyle}" FontSize="20" VerticalAlignment="Center" Margin="12,0,0,0" />
                     </StackPanel>
 
                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="0,0,4,0" MaxWidth="640" HorizontalAlignment="Left">
+                        <StackPanel Margin="0,0,12,0">
 
-                            <!-- ================= Seção: Personalização ================= -->
+                            <!-- ================= 1. Personalização ================= -->
                             <StackPanel x:Name="PersonalizationSectionPanel" Visibility="Collapsed">
 
-                        <!-- ================= Tema e barra de tarefas ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                <!-- Bloco 1: Tema e Barra de Tarefas -->
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
 
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Tema e barra de tarefas" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Alinhamento e caixa de pesquisa só têm efeito no Windows 11."
-                                                   Style="{StaticResource CardSubtitleStyle}" />
+                                        <!-- Tema -->
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Tema do sistema" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Escolha o tema visual do sistema." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="ThemeComboBox" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" SelectionChanged="Field_Changed">
+                                                <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
+                                                <ComboBoxItem Content="Claro" Tag="Claro" />
+                                                <ComboBoxItem Content="Escuro" Tag="Escuro" />
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <!-- Alinhamento Barra de Tarefas -->
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Alinhamento da barra de tarefas" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Apenas Windows 11." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="TaskbarAlignmentComboBox" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" SelectionChanged="Field_Changed">
+                                                <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
+                                                <ComboBoxItem Content="Esquerda" Tag="Esquerda" />
+                                                <ComboBoxItem Content="Centro" Tag="Centro" />
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <!-- Caixa de Pesquisa -->
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Caixa de pesquisa" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Apenas Windows 11." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="TaskbarSearchBoxComboBox" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" SelectionChanged="Field_Changed">
+                                                <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
+                                                <ComboBoxItem Content="Oculta" Tag="Oculta" />
+                                                <ComboBoxItem Content="Apenas ícone" Tag="ApenasIcone" />
+                                                <ComboBoxItem Content="Caixa completa" Tag="CaixaCompleta" />
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <!-- Auto Hide -->
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Ocultar a barra de tarefas automaticamente" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Faz a barra recolher quando não está em uso." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="TaskbarAutoHideCheckBox" Grid.Column="1" VerticalAlignment="Center" Checked="Field_Changed" Unchecked="Field_Changed" />
+                                        </Grid>
+
                                     </StackPanel>
-
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="PaintBrush24" FontSize="22" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </Grid>
-
-                                <TextBlock Text="Tema do sistema" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,6" />
-                                <ComboBox x:Name="ThemeComboBox" SelectionChanged="Field_Changed">
-                                    <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
-                                    <ComboBoxItem Content="Claro" Tag="Claro" />
-                                    <ComboBoxItem Content="Escuro" Tag="Escuro" />
-                                </ComboBox>
-
-                                <TextBlock Text="Alinhamento da barra de tarefas" Style="{StaticResource FieldLabelStyle}" Margin="0,14,0,6" />
-                                <ComboBox x:Name="TaskbarAlignmentComboBox" SelectionChanged="Field_Changed">
-                                    <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
-                                    <ComboBoxItem Content="Esquerda" Tag="Esquerda" />
-                                    <ComboBoxItem Content="Centro" Tag="Centro" />
-                                </ComboBox>
-
-                                <TextBlock Text="Caixa de pesquisa" Style="{StaticResource FieldLabelStyle}" Margin="0,14,0,6" />
-                                <ComboBox x:Name="TaskbarSearchBoxComboBox" SelectionChanged="Field_Changed">
-                                    <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
-                                    <ComboBoxItem Content="Oculta" Tag="Oculta" />
-                                    <ComboBoxItem Content="Apenas ícone" Tag="ApenasIcone" />
-                                    <ComboBoxItem Content="Caixa completa" Tag="CaixaCompleta" />
-                                </ComboBox>
-
-                                <CheckBox x:Name="TaskbarAutoHideCheckBox" Content="Ocultar a barra de tarefas automaticamente"
-                                          Margin="0,16,0,0" Checked="Field_Changed" Unchecked="Field_Changed" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ================= Wallpaper ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Papel de parede" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="A imagem escolhida viaja em Base64 dentro do próprio perfil .json — ao aplicar, é salva em C:\ProgramData\WinProvision\Wallpaper e definida como papel de parede."
-                                                   Style="{StaticResource CardSubtitleStyle}" />
-                                    </StackPanel>
-
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="ImageMultiple24" FontSize="22" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </Grid>
-
-                                <Border Width="220" Height="124" CornerRadius="8" Margin="0,16,0,10" ClipToBounds="True"
-                                        Background="{DynamicResource ControlFillColorDefaultBrush}" HorizontalAlignment="Left">
-                                    <Image x:Name="WallpaperPreviewImage" Stretch="UniformToFill" />
                                 </Border>
 
-                                <TextBlock x:Name="WallpaperFileNameText" Text="Nenhuma imagem selecionada."
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap" />
+                                <!-- Bloco 2: Wallpaper -->
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <!-- Título da Seção do Cartão -->
+                                        <Grid Margin="24,16">
+                                            <StackPanel>
+                                                <TextBlock Text="Papel de Parede" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Escolha uma imagem para o plano de fundo da área de trabalho." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                        </Grid>
 
-                                <ui:Button x:Name="SelectWallpaperButton" Content="Escolher imagem..." Appearance="Secondary"
-                                           HorizontalAlignment="Left" Click="SelectWallpaperButton_Click">
-                                    <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="ImageAdd24" />
-                                    </ui:Button.Icon>
-                                </ui:Button>
-                            </StackPanel>
-                        </Border>
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
 
-                            </StackPanel>
+                                        <!-- Linha de Ação do Wallpaper -->
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
 
-                            <!-- ================= Seção: Atualizações (Windows Update) ================= -->
-                            <StackPanel x:Name="UpdatesSectionPanel" Visibility="Collapsed">
+                                            <!-- Thumbnail -->
+                                            <Border Grid.Column="0" Width="100" Height="64" CornerRadius="6" ClipToBounds="True" Background="#1AFFFFFF" Margin="0,0,16,0">
+                                                <Image x:Name="WallpaperPreviewImage" Stretch="UniformToFill" />
+                                            </Border>
 
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                            <!-- Textos -->
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                                                <TextBlock Text="Imagem" FontWeight="Medium" FontFamily="Segoe UI Variable Text" />
+                                                <TextBlock x:Name="WallpaperFileNameText" Text="Nenhuma imagem selecionada." FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                                            </StackPanel>
 
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Atualizações do Windows" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Busca e instala todas as atualizações de qualidade/segurança e drivers pendentes (via WUAPI) na máquina-alvo, automaticamente no momento em que este perfil for aplicado — não nesta máquina, agora."
-                                                   Style="{StaticResource CardSubtitleStyle}" />
+                                            <!-- Botão -->
+                                            <ui:Button x:Name="SelectWallpaperButton" Grid.Column="2" Content="Alterar imagem" Appearance="Secondary" VerticalAlignment="Center" Click="SelectWallpaperButton_Click" CornerRadius="6" />
+                                        </Grid>
                                     </StackPanel>
-
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="ArrowDownload24" FontSize="22" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </Grid>
-
-                                <CheckBox x:Name="AutoInstallWindowsUpdatesCheckBox"
-                                          Content="Instalar atualizações e drivers automaticamente ao aplicar este perfil"
-                                          Margin="0,16,0,0" Checked="Field_Changed" Unchecked="Field_Changed" />
-                            </StackPanel>
-                        </Border>
-
+                                </Border>
                             </StackPanel>
 
-                            <!-- ================= Seção: Configurações Avançadas ================= -->
+                            <!-- ================= 2. Atualizações ================= -->
+                            <StackPanel x:Name="UpdatesSectionPanel" Visibility="Collapsed">
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Atualizações automáticas" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Busca e instala todas as atualizações de qualidade/segurança e drivers pendentes ao aplicar este perfil." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="AutoInstallWindowsUpdatesCheckBox" Grid.Column="1" VerticalAlignment="Center" Checked="Field_Changed" Unchecked="Field_Changed" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ================= 3. Avançadas ================= -->
                             <StackPanel x:Name="AdvancedSectionPanel" Visibility="Collapsed">
 
-                        <!-- ================= Nome e região ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                <!-- Nome e Região -->
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Nome da Máquina" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Alterar o nome requer reinício." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                    <TextBlock Text="Atual: " FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}"/>
+                                                    <TextBlock x:Name="CurrentMachineNameText" Text="PC" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                            <ui:TextBox x:Name="MachineNameTextBox" Grid.Column="1" VerticalAlignment="Center" PlaceholderText="Deixe em branco p/ não alterar" TextChanged="Field_Changed" />
+                                        </Grid>
 
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Nome e região" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Nome da máquina requer reinício. Região cobre só a localização (SetUserGeoName) — formato de data/hora/moeda não tem ajuste aqui."
-                                                   Style="{StaticResource CardSubtitleStyle}" />
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Região" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Afeta a localização do Windows (GeoID)." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="RegionComboBox" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" SelectionChanged="Field_Changed">
+                                                <ComboBoxItem Content="Não alterar" Tag="" IsSelected="True" />
+                                                <ComboBoxItem Content="Brasil" Tag="BR" />
+                                                <ComboBoxItem Content="Estados Unidos" Tag="US" />
+                                                <ComboBoxItem Content="Portugal" Tag="PT" />
+                                            </ComboBox>
+                                        </Grid>
                                     </StackPanel>
-
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="Laptop24" FontSize="22" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </Grid>
-
-                                <TextBlock x:Name="CurrentMachineNameText" Text="Nome atual:"
-                                           Margin="0,16,0,10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                                <ui:TextBox x:Name="MachineNameTextBox" PlaceholderText="Deixe em branco para não alterar" TextChanged="Field_Changed" />
-
-                                <TextBlock Text="Região" Style="{StaticResource FieldLabelStyle}" Margin="0,16,0,6" />
-                                <ComboBox x:Name="RegionComboBox" SelectionChanged="Field_Changed">
-                                    <ComboBoxItem Content="Não alterar" Tag="" IsSelected="True" />
-                                    <ComboBoxItem Content="Brasil" Tag="BR" />
-                                    <ComboBoxItem Content="Estados Unidos" Tag="US" />
-                                    <ComboBoxItem Content="Portugal" Tag="PT" />
-                                    <ComboBoxItem Content="Espanha" Tag="ES" />
-                                    <ComboBoxItem Content="Alemanha" Tag="DE" />
-                                    <ComboBoxItem Content="França" Tag="FR" />
-                                    <ComboBoxItem Content="Reino Unido" Tag="GB" />
-                                    <ComboBoxItem Content="Itália" Tag="IT" />
-                                    <ComboBoxItem Content="Japão" Tag="JP" />
-                                    <ComboBoxItem Content="Argentina" Tag="AR" />
-                                    <ComboBoxItem Content="México" Tag="MX" />
-                                    <ComboBoxItem Content="Canadá" Tag="CA" />
-                                </ComboBox>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ================= Energia ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Plano de energia" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Troca o plano ativo do Windows (equivalente a powercfg /setactive)."
-                                                   Style="{StaticResource CardSubtitleStyle}" />
-                                    </StackPanel>
-
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="BatteryCharge24" FontSize="22" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </Grid>
-
-                                <ComboBox x:Name="PowerPlanComboBox" Margin="0,16,0,0" SelectionChanged="Field_Changed">
-                                    <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
-                                    <ComboBoxItem Content="Economia de energia" Tag="Economia" />
-                                    <ComboBoxItem Content="Equilibrado" Tag="Equilibrado" />
-                                    <ComboBoxItem Content="Alto desempenho" Tag="AltoDesempenho" />
-                                </ComboBox>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ================= Ponto de restauração ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Ponto de restauração" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Cria um ponto de restauração (via WMI SystemRestore) na máquina-alvo, automaticamente no início da aplicação deste perfil — o Windows limita a 1 a cada 24h por padrão."
-                                                   Style="{StaticResource CardSubtitleStyle}" />
-                                    </StackPanel>
-
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="History32" FontSize="22" VerticalAlignment="Top"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                </Grid>
-
-                                <CheckBox x:Name="AutoCreateRestorePointCheckBox"
-                                          Content="Criar ponto de restauração automaticamente ao aplicar este perfil"
-                                          Margin="0,16,0,0" Checked="Field_Changed" Unchecked="Field_Changed" />
-                            </StackPanel>
-                        </Border>
-
-                            </StackPanel>
-
-                            <!-- ================= Seção: Visualização do JSON ================= -->
-                            <StackPanel x:Name="JsonSectionPanel" Visibility="Collapsed">
-
-                        <!-- ================= Informações do Perfil ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Informações do Perfil" Style="{StaticResource CardTitleStyle}" />
-                                <TextBlock Text="Dados de identificação do perfil de provisionamento (até 14 caracteres cada)." Style="{StaticResource CardSubtitleStyle}" Margin="0,2,0,16" />
-
-                                <TextBlock Text="Nome do Perfil" Style="{StaticResource FieldLabelStyle}" />
-                                <ui:TextBox x:Name="ProfileNameTextBox" MaxLength="14" PlaceholderText="Sem nome"
-                                            TextChanged="Field_Changed" Margin="0,0,0,14" />
-
-                                <TextBlock Text="Criador" Style="{StaticResource FieldLabelStyle}" />
-                                <ui:TextBox x:Name="ProfileCreatorTextBox" MaxLength="14" PlaceholderText="WinProvision"
-                                            TextChanged="Field_Changed" Margin="0,0,0,14" />
-
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="140" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Data de Criação" Style="{StaticResource InfoRowLabelStyle}" />
-                                    <TextBlock x:Name="ProfileCreatedAtText" Grid.Column="1" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- ================= Visualização do JSON ================= -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Visualização do JSON" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Confira abaixo o JSON completo do perfil de provisionamento." Style="{StaticResource CardSubtitleStyle}" />
-                                    </StackPanel>
-
-                                    <ui:Button Grid.Column="1" x:Name="OpenFullEditorButton" Content="Abrir editor completo" Appearance="Secondary"
-                                               VerticalAlignment="Top" Click="OpenFullEditorButton_Click">
-                                        <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="Notepad24" />
-                                        </ui:Button.Icon>
-                                    </ui:Button>
-                                </Grid>
-
-                                <Border CornerRadius="8" Background="#33000000" Padding="12">
-                                    <TextBox x:Name="JsonPreviewTextBox"
-                                             IsReadOnly="True" BorderThickness="0" Background="Transparent"
-                                             FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12"
-                                             TextWrapping="NoWrap" AcceptsReturn="True"
-                                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                             Height="320" />
                                 </Border>
 
-                                <Grid Margin="0,12,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                                <!-- Energia -->
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Plano de energia" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Troca o plano ativo do Windows (equivalente a powercfg)." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="PowerPlanComboBox" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" SelectionChanged="Field_Changed">
+                                                <ComboBoxItem Content="Não alterar" Tag="NaoDefinido" IsSelected="True" />
+                                                <ComboBoxItem Content="Economia de energia" Tag="Economia" />
+                                                <ComboBoxItem Content="Equilibrado" Tag="Equilibrado" />
+                                                <ComboBoxItem Content="Alto desempenho" Tag="AltoDesempenho" />
+                                            </ComboBox>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
 
-                                    <TextBlock x:Name="ChangesDetectedText" Grid.Column="0" VerticalAlignment="Center"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-
-                                    <ui:Button Grid.Column="1" Content="Copiar JSON" Appearance="Secondary" Click="CopyJsonButton_Click">
-                                        <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="Copy24" />
-                                        </ui:Button.Icon>
-                                    </ui:Button>
-                                </Grid>
+                                <!-- Restauração -->
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Ponto de restauração" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Cria um ponto de restauração de segurança antes de aplicar." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <CheckBox x:Name="AutoCreateRestorePointCheckBox" Grid.Column="1" VerticalAlignment="Center" Checked="Field_Changed" Unchecked="Field_Changed" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
-                        </Border>
 
+                            <!-- ================= 4. JSON ================= -->
+                            <StackPanel x:Name="JsonSectionPanel" Visibility="Collapsed">
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Nome do Perfil" Style="{StaticResource SettingsRowTitleStyle}" />
+                                            </StackPanel>
+                                            <ui:TextBox x:Name="ProfileNameTextBox" Grid.Column="1" VerticalAlignment="Center" MaxLength="14" PlaceholderText="Sem nome" TextChanged="Field_Changed" />
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Criador" Style="{StaticResource SettingsRowTitleStyle}" />
+                                            </StackPanel>
+                                            <ui:TextBox x:Name="ProfileCreatorTextBox" Grid.Column="1" VerticalAlignment="Center" MaxLength="14" PlaceholderText="WinProvision" TextChanged="Field_Changed" />
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Data de Criação" Style="{StaticResource SettingsRowTitleStyle}" />
+                                            </StackPanel>
+                                            <TextBlock x:Name="ProfileCreatedAtText" Grid.Column="1" VerticalAlignment="Center" FontFamily="Segoe UI Variable Text" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Código JSON" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="JSON bruto gerado em tempo real." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ui:Button x:Name="OpenFullEditorButton" Grid.Column="1" Content="Editor completo" Appearance="Secondary" VerticalAlignment="Center" Click="OpenFullEditorButton_Click" CornerRadius="6">
+                                                <ui:Button.Icon>
+                                                    <ui:SymbolIcon Symbol="Notepad24" />
+                                                </ui:Button.Icon>
+                                            </ui:Button>
+                                        </Grid>
+
+                                        <Border CornerRadius="6" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{StaticResource AppBorderSubtleBrush}" BorderThickness="1">
+                                            <TextBox x:Name="JsonPreviewTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Height="260" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        </Border>
+
+                                        <Grid Margin="24,0,24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock x:Name="ChangesDetectedText" Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" />
+                                            <ui:Button Grid.Column="1" Content="Copiar JSON" Appearance="Secondary" Click="CopyJsonButton_Click" CornerRadius="6">
+                                                <ui:Button.Icon>
+                                                    <ui:SymbolIcon Symbol="Copy24" />
+                                                </ui:Button.Icon>
+                                            </ui:Button>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- ================= 5. CLI ================= -->
+                            <StackPanel x:Name="CliSectionPanel" Visibility="Collapsed">
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="300" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Modo de execução" Style="{StaticResource SettingsRowTitleStyle}" />
+                                            </StackPanel>
+                                            <ComboBox x:Name="CliModeComboBox" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" SelectionChanged="CliField_Changed">
+                                                <ComboBoxItem Content="/auto (Instala tudo)" Tag="/auto" IsSelected="True" />
+                                                <ComboBoxItem Content="/Provision (Apenas config.)" Tag="/Provision" />
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="300" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="URL do Gist ou Caminho Local" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="De onde o arquivo JSON será lido." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <Grid Grid.Column="1">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ui:TextBox x:Name="CliProfilePathTextBox" Grid.Column="0" PlaceholderText="https://gist..." TextChanged="CliField_Changed" />
+                                                <ui:Button x:Name="SyncGistUrlButton" Grid.Column="1" Appearance="Secondary" Margin="8,0,0,0" Click="SyncGistUrlButton_Click" CornerRadius="6" ToolTip="Sincronizar Gist">
+                                                    <ui:SymbolIcon Symbol="CloudSync24" />
+                                                </ui:Button>
+                                            </Grid>
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="300" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Gravar log de execução (/log)" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <CheckBox x:Name="CliLogCheckBox" Content="Habilitar Log Local" Checked="CliField_Changed" Unchecked="CliField_Changed" Margin="0,8,0,0" />
+                                            </StackPanel>
+                                            <ui:TextBox x:Name="CliLogPathTextBox" Grid.Column="1" VerticalAlignment="Center" PlaceholderText="C:\WinProvision\exec.log" IsEnabled="{Binding IsChecked, ElementName=CliLogCheckBox}" TextChanged="CliField_Changed" />
+                                        </Grid>
+
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="300" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Notificação via Webhook (/webhook)" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <CheckBox x:Name="CliWebhookCheckBox" Content="Habilitar Discord/Slack" Checked="CliField_Changed" Unchecked="CliField_Changed" Margin="0,8,0,0" />
+                                            </StackPanel>
+                                            <ui:PasswordBox x:Name="CliWebhookUrlPasswordBox" Grid.Column="1" VerticalAlignment="Center" PlaceholderText="https://discord.com/api..." IsEnabled="{Binding IsChecked, ElementName=CliWebhookCheckBox}" PasswordChanged="CliField_Changed" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <StackPanel>
+                                                <TextBlock Text="Comando Gerado" Style="{StaticResource SettingsRowTitleStyle}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Border CornerRadius="6" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{StaticResource AppBorderSubtleBrush}" BorderThickness="1">
+                                            <TextBox x:Name="CliCommandPreviewTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="24,0,24,16">
+                                            <ui:Button Content="Copiar comando" Appearance="Primary" Click="CopyCliCommandButton_Click" CornerRadius="6" Margin="0,0,12,0">
+                                                <ui:Button.Icon>
+                                                    <ui:SymbolIcon Symbol="Copy24" />
+                                                </ui:Button.Icon>
+                                            </ui:Button>
+                                            <ui:Button Content="Salvar como padrão" Appearance="Secondary" Click="SaveCliDefaultsButton_Click" CornerRadius="6">
+                                                <ui:Button.Icon>
+                                                    <ui:SymbolIcon Symbol="DocumentSave24" />
+                                                </ui:Button.Icon>
+                                            </ui:Button>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
 
                         </StackPanel>
@@ -565,9 +677,68 @@
                 </Grid>
 
             </Grid>
+
+            <!-- DIREITA: Barra Lateral de Resumo (Sempre Visível) -->
+            <StackPanel Grid.Column="2">
+
+                <!-- Resumo -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Resumo do Perfil" Style="{StaticResource CardTitleStyle}" Margin="0,0,0,24" />
+
+                        <Grid Margin="0,0,0,24">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock x:Name="SectionsConfiguredCountText" Text="0" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="Seções configuradas" Style="{StaticResource StatLabelStyle}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1">
+                                <TextBlock x:Name="KeysModifiedCountText" Text="0" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="Chaves modificadas" Style="{StaticResource StatLabelStyle}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock x:Name="WarningsCountText" Text="0" Style="{StaticResource StatValueStyle}" />
+                                <TextBlock Text="Advertências" Style="{StaticResource StatLabelStyle}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <ui:SymbolIcon x:Name="ProfileValidIcon" Symbol="CheckmarkCircle24" Foreground="{DynamicResource SystemFillColorSuccessBrush}" FontSize="18" Margin="0,0,8,0" />
+                            <TextBlock x:Name="ProfileValidText" Text="Perfil válido" FontFamily="Segoe UI Variable Text" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Alterações Pendentes -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Alterações Pendentes" Style="{StaticResource CardTitleStyle}" Margin="0,0,0,8" />
+
+                        <ItemsControl x:Name="ChangesListItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
+                                        <TextBlock Text="•" Margin="0,0,8,0" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding}" Style="{StaticResource ChangeItemStyle}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock x:Name="NoChangesText" Text="Nenhuma alteração registrada neste perfil ainda." Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </Grid>
 
-        <TextBlock x:Name="StatusText" Grid.Row="2" Margin="4,8,4,0" TextWrapping="Wrap"
-                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+        <!-- ================= Rodapé ================= -->
+        <TextBlock x:Name="StatusText" Grid.Row="2" Margin="4,8,4,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" />
     </Grid>
 </Page>

@@ -1,0 +1,48 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
+
+    <!-- Visual language: dark Mica, restrained glass surfaces and Fluent accents. -->
+    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#0DFFFFFF" />
+    <SolidColorBrush x:Key="AppSurfaceElevatedBrush" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="AppSurfaceStrongBrush" Color="#1AFFFFFF" />
+    <SolidColorBrush x:Key="AppBorderBrush" Color="#18FFFFFF" />
+    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#0FFFFFFF" />
+    <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#F5F7FA" />
+    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#BCC5D2" />
+    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#8793A5" />
+    <SolidColorBrush x:Key="AppIconBrush" Color="#DDE7F5" />
+    <SolidColorBrush x:Key="AppIconMutedBrush" Color="#91A0B5" />
+    <SolidColorBrush x:Key="AppAccentBrush" Color="#4AA3FF" />
+    <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#264AA3FF" />
+
+    <Style TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+        <!-- Antes usava {StaticResource AppTextPrimaryBrush}, uma cor quase-branca fixa
+             (#F5F7FA) que nunca muda com o tema — por ser StaticResource, é resolvida uma
+             única vez e nunca reage à troca de tema em runtime, e por ser uma cor fixa
+             (em vez de um token do WPF-UI) fica quase branca mesmo no tema Claro, sumindo
+             sobre o fundo claro. TextFillColorPrimaryBrush é o token oficial do WPF-UI/
+             Fluent que já é trocado automaticamente pelo ThemesDictionary (Dark/Light) e é
+             o mesmo brush usado no restante do app (ver Foreground="{DynamicResource
+             TextFillColorSecondaryBrush}" espalhado pelas páginas) — resolve o sumiço no
+             tema Claro e deixa a cor do texto consistente com o padrão do WPF-UI. -->
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <!-- WPF-UI's SymbolIcon is a FontIcon; color it consistently instead of leaving
+         individual pages with mismatched white/blue glyphs. Explicit Foreground values
+         on action buttons still win when an accent icon is intentional. -->
+    <Style TargetType="ui:SymbolIcon">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Opacity" Value="0.94" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style TargetType="ToolTip">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+        <Setter Property="FontSize" Value="12" />
+    </Style>
+</ResourceDictionary>

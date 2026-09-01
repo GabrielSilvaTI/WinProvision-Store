@@ -5,6 +5,7 @@ using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WinProvision.Core.Models;
+using WinProvision.Core.Services;
 
 namespace WinProvision.Core.Services.Backup;
 
@@ -30,11 +31,9 @@ public class GitHubBackupService
     private const string BackupFileName = "winprovision-profile.json";
     private const string GistDescription = "WinProvision Store — backup automático de perfil (não editar manualmente)";
 
-    private static readonly JsonSerializerOptions ManifestJsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    // Mesmas opções usadas em todo o resto do app (ProfileService/ProvisioningService) — um
+    // arquivo salvo por um lado sempre bate com o que o outro espera ao ler de volta.
+    private static readonly JsonSerializerOptions ManifestJsonOptions = WinProvisionJsonOptions.Default;
 
     private readonly HttpClient _http;
     private readonly string _accountInfoPath;
@@ -69,6 +68,23 @@ public class GitHubBackupService
     public string? ConnectedLogin => _account.Login;
 
     public DateTime? LastSyncUtc => _account.LastSyncUtc;
+
+    /// <summary>
+    /// URL "raw" pública do Gist de backup automático — o mesmo arquivo (<see cref="ProfileBackupSet"/>)
+    /// que <see cref="UploadProfileAsync"/> mantém atualizado quase em tempo real a cada
+    /// instalação/remoção ou ajuste de provisionamento. Não exige token pra ler: mesmo o Gist
+    /// sendo criado como "secreto" (não listado no perfil público da conta), quem tiver o link
+    /// exato consegue baixar o conteúdo — é assim que o GitHub trata Gists secretos. Null se a
+    /// conta não estiver conectada ou se nenhum Gist tiver sido criado ainda nesta conta
+    /// (primeiro <see cref="UploadProfileAsync"/> bem-sucedido ainda não rodou). Usado pelo botão
+    /// "Sincronizar" do gerador de comando CLI (tela Provisionamento) — desde que
+    /// <see cref="ProfileManifestParser"/> trate esse formato como equivalente a um perfil único,
+    /// esta URL serve tanto para <c>/auto</c> quanto para <c>/Provision</c>.
+    /// </summary>
+    public string? BackupRawUrl =>
+        IsConnected && !string.IsNullOrEmpty(_account.GistId) && !string.IsNullOrEmpty(_account.Login)
+            ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.GistId}/raw/{BackupFileName}"
+            : null;
 
     /// <summary>Carrega token (se existir e for descriptografável) e metadados salvos, sem chamar a rede.</summary>
     [SupportedOSPlatform("windows")]

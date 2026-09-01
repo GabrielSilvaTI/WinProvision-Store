@@ -1,141 +1,274 @@
-<Page x:Class="WinProvision.Store.UpdatesPage"
+﻿<Page x:Class="WinProvision.Store.UpdatesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:conv="clr-namespace:WinProvision.Store.Converters"
       xmlns:behaviors="clr-namespace:WinProvision.Store.Behaviors"
       ScrollViewer.CanContentScroll="False"
-      Title="UpdatesPage">
+      Title="UpdatesPage"
+      Background="Transparent"
+    TextElement.FontFamily="Segoe UI Variable Text, Segoe UI"
+    TextElement.FontSize="14"
+    TextOptions.TextFormattingMode="Display"
+    UseLayoutRounding="True">
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
         <conv:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
         <conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
 
+        <!-- Tipografia Fluent -->
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+        </Style>
+
+        <Style x:Key="CardTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+        </Style>
+
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="#06FFFFFF" />
+            <Setter Property="BorderBrush" Value="#14FFFFFF" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <!-- Template dos Itens da Lista (Idêntico à Imagem) -->
         <DataTemplate x:Key="UpgradableItemTemplate">
-            <Border Margin="0,0,0,8" Padding="12" CornerRadius="6" Background="{DynamicResource ControlFillColorDefaultBrush}">
+            <Border BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="0,0,0,1" Padding="16,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <!-- Checkbox -->
                         <ColumnDefinition Width="Auto" />
+                        <!-- Icon -->
                         <ColumnDefinition Width="*" />
+                        <!-- Name/Publisher -->
+                        <ColumnDefinition Width="Auto" MinWidth="180" />
+                        <!-- Version Info -->
                         <ColumnDefinition Width="Auto" />
+                        <!-- Action Button -->
+                        <ColumnDefinition Width="Auto" />
+                        <!-- More Options -->
                     </Grid.ColumnDefinitions>
 
-                    <!-- Seleção pro botão geral "Atualizar selecionados", mesmo estilo do
-                         checkbox de seleção usado na tela Pacotes. -->
-                    <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0"
+                    <!-- Checkbox de Seleção -->
+                    <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0"
                               IsChecked="{Binding IsSelectedForUpdate, Mode=TwoWay}"
                               IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBooleanConverter}}"
                               Checked="ItemCheckBox_Changed" Unchecked="ItemCheckBox_Changed" />
 
-                    <Border Grid.Column="1" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="6" ClipToBounds="True">
+                    <!-- Ícone do App -->
+                    <Border Grid.Column="1" Width="32" Height="32" Margin="0,0,16,0" CornerRadius="6" ClipToBounds="True">
                         <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
                     </Border>
 
-                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                        <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11">
-                            <Run Text="ID: " />
-                            <Run Text="{Binding Id, Mode=OneWay}" />
-                            <Run Text="    " />
-                            <Run Text="{Binding CurrentVersion, Mode=OneWay}" />
-                            <Run Text=" → " />
-                            <Run Text="{Binding AvailableVersion, Mode=OneWay}" FontWeight="SemiBold" />
-                            <Run Text="    Origem: " />
-                            <Run Text="{Binding Source, Mode=OneWay}" />
-                        </TextBlock>
+                    <!-- Nome e Desenvolvedor -->
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Source, Mode=OneWay}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                     </StackPanel>
 
-                    <TextBlock Grid.Column="3" VerticalAlignment="Center" Text="Atualizando..."
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVisConverter}}" />
+                    <!-- Versões (De -> Para em Verde) -->
+                    <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="12" FontFamily="Segoe UI Variable Text">
+                        <Run Text="{Binding CurrentVersion, Mode=OneWay}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Run Text="  →  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <Run Text="{Binding AvailableVersion, Mode=OneWay}" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                    </TextBlock>
+
+                    <!-- Botão de Atualizar Único -->
+                    <ui:Button Grid.Column="4" Content="Atualizar agora" Appearance="Secondary" 
+                               Padding="16,6" Margin="16,0,8,0" VerticalAlignment="Center"
+                               IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBooleanConverter}}"
+                               Click="SingleUpdateButton_Click">
+                        <!-- O texto muda se estiver atualizando -->
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsUpdating}" Value="True">
+                                        <Setter Property="Content" Value="Atualizando..." />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+
+                    <!-- Botão de Mais Opções (Três pontinhos) -->
+                    <ui:Button Grid.Column="5" Appearance="Transparent" Padding="8,6" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="MoreVertical24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </ui:Button>
                 </Grid>
             </Border>
         </DataTemplate>
     </Page.Resources>
 
-    <!-- Grid principal restrito à tela -->
-    <Grid Margin="24">
+    <!-- Layout Principal com Margem Fixa -->
+    <Grid Margin="36,24,36,24">
         <Grid.RowDefinitions>
-            <!-- Row 0: Cabeçalho Fixo -->
             <RowDefinition Height="Auto" />
-            <!-- Row 1: Barra de Ferramentas Fixa -->
-            <RowDefinition Height="Auto" />
-            <!-- Row 2: Barra "Selecionar todos" -->
-            <RowDefinition Height="Auto" />
-            <!-- Row 3: Lista de atualizações (área rolável) -->
+            <!-- Cabeçalho -->
             <RowDefinition Height="*" />
-            <!-- Row 4: Rodapé Fixo -->
-            <RowDefinition Height="Auto" />
+            <!-- Duas Colunas -->
         </Grid.RowDefinitions>
 
-        <!-- Cabeçalho Fixo -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="32" Margin="0,0,12,0" />
+        <!-- ================= Cabeçalho Global ================= -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,32">
+            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center" />
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="Atualizações" FontSize="20" FontWeight="SemiBold" />
-                <TextBlock Text="Veja quais apps instalados têm uma versão mais nova disponível e escolha o que atualizar." Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="Atualizações" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock Text="Veja quais apps instalados têm uma versão mais nova disponível e escolha o que atualizar."
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" Margin="0,4,0,0" />
             </StackPanel>
         </StackPanel>
 
-        <!-- BARRA DE FERRAMENTAS SUPERIOR -->
-        <Border Grid.Row="1" Margin="0,0,0,12" Padding="8" CornerRadius="8" Background="{DynamicResource CardBackgroundFillColorDefaultBrush}">
-            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="UpdateSelectedButton" Content="Atualizar selecionados" Margin="0,0,4,0"
-                           Background="{StaticResource InstallActionBrush}"
-                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
-                           PressedBackground="{StaticResource InstallActionPressedBrush}"
-                           Foreground="White" PressedForeground="White"
-                           Click="UpdateSelectedButton_Click">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowSync24" />
-                    </ui:Button.Icon>
-                </ui:Button>
+        <!-- ================= Grid de 2 Colunas ================= -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <!-- Coluna da Lista -->
+                <ColumnDefinition Width="20" />
+                <!-- Espaçamento -->
+                <ColumnDefinition Width="300" />
+                <!-- Coluna Lateral (Ações) -->
+            </Grid.ColumnDefinitions>
 
-                <Rectangle Width="1" Height="20" Margin="4,0,8,0" VerticalAlignment="Center" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
+            <!-- ================= COLUNA ESQUERDA (Lista de Atualizações) ================= -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                <ui:Button x:Name="CheckUpdatesButton" Content="Verificar atualizações" Appearance="Transparent" Margin="0,0,4,0" Click="CheckUpdatesButton_Click">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowClockwise24" />
-                    </ui:Button.Icon>
-                </ui:Button>
-
-                <ProgressBar x:Name="BusyIndicator" Width="120" Height="4" Margin="8,0,0,0" VerticalAlignment="Center"
-                             Style="{StaticResource GradientProgressBarStyle}" IsIndeterminate="True"
-                             Visibility="Collapsed" />
-            </WrapPanel>
-        </Border>
-
-        <!-- SELECIONAR TODOS -->
-        <Grid Grid.Row="2" Margin="4,0,4,8" Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}}">
-            <CheckBox x:Name="SelectAllCheckBox" Content="Selecionar todos" IsThreeState="True" Click="SelectAllCheckBox_Click" />
-        </Grid>
-
-        <!-- LISTA DE ATUALIZAÇÕES (ROLÁVEL) -->
-        <Grid Grid.Row="3">
-            <!-- Estado vazio: some quando a lista tem itens -->
-            <StackPanel x:Name="EmptyStatePanel" VerticalAlignment="Center" HorizontalAlignment="Center"
+                <!-- Status Empty State (Tudo em dia) -->
+                <!-- Aparece APENAS quando a lista for 0 -->
+                <Border x:Name="EmptyStatePanel" Grid.Row="0" Grid.RowSpan="2" Style="{StaticResource CardStyle}" VerticalAlignment="Center" Margin="0,40,0,0" Padding="0,48"
                         Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}">
-                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="40" HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                <TextBlock x:Name="EmptyStateText" Text="Clique em &quot;Verificar atualizações&quot; para começar." Margin="0,8,0,0"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Border Width="64" Height="64" CornerRadius="32" Background="#1A107C10" HorizontalAlignment="Center" Margin="0,0,0,16">
+                            <ui:SymbolIcon Symbol="ShieldTask24" FontSize="32" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                        </Border>
+                        <TextBlock Text="Tudo em dia!" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                        <TextBlock x:Name="EmptyStateText" Text="Todos os seus aplicativos estão atualizados." 
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+
+                <!-- O Cartão da Lista de Atualizações (Só aparece se tiver itens) -->
+                <Border Grid.Row="1" Style="{StaticResource CardStyle}" Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Cabeçalho do Cartão -->
+                        <Grid Grid.Row="0" Margin="20,16,20,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Atualizações disponíveis" Style="{StaticResource CardTitleStyle}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                <!-- Badge contador automático -->
+                                <Border Background="#1AFFFFFF" CornerRadius="10" Padding="8,2" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Items.Count, ElementName=UpdatesList}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Checkbox Selecionar Todos no topo da lista -->
+                            <CheckBox x:Name="SelectAllCheckBox" Grid.Column="1" HorizontalAlignment="Right" Content="Selecionar todos" IsThreeState="True" Click="SelectAllCheckBox_Click" Margin="0" />
+                        </Grid>
+
+                        <Rectangle Grid.Row="0" Height="1" Fill="#0DFFFFFF" VerticalAlignment="Bottom" />
+
+                        <!-- Lista em si -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      Focusable="False" behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
+                            <ItemsControl x:Name="UpdatesList" ItemTemplate="{StaticResource UpgradableItemTemplate}" Background="Transparent" />
+                        </ScrollViewer>
+
+                        <!-- Rodapé do Cartão -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="20,12">
+                            <TextBlock Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12">
+                                <Run Text="{Binding Items.Count, ElementName=UpdatesList, Mode=OneWay}" />
+                                <Run Text=" atualização(ões) disponível(is)" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ================= COLUNA DIREITA (Sidebar) ================= -->
+            <StackPanel Grid.Column="2">
+
+                <!-- 1. Cartão Status das Atualizações -->
+                <Border Style="{StaticResource CardStyle}" Padding="20">
+                    <StackPanel>
+                        <!-- Título e Ícone Recarregar -->
+                        <Grid Margin="0,0,0,24">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Status das Atualizações" Style="{StaticResource CardTitleStyle}" Margin="0,0,0,4" />
+                                <TextBlock Text="Última busca: Ainda não realizada" x:Name="LastSearchText" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                            <ui:SymbolIcon Symbol="ArrowClockwise24" HorizontalAlignment="Right" VerticalAlignment="Top" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+
+                        <!-- Número Gigante -->
+                        <TextBlock Text="{Binding Items.Count, ElementName=UpdatesList}" FontSize="48" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                        <TextBlock Text="Atualizações disponíveis" HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,24" />
+
+                        <Rectangle Height="1" Fill="#0DFFFFFF" Margin="0,0,0,24" />
+
+                        <!-- Status Extra -->
+                        <TextBlock x:Name="StatusText" Text="Apps instalados verificados: -" HorizontalAlignment="Center" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,16" />
+
+                        <!-- Badge Warning (Condicionalmente visível) -->
+                        <Border Background="#1AFFC107" CornerRadius="6" Padding="12,8" HorizontalAlignment="Center" 
+                                Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Warning24" FontSize="16" Foreground="#FFC107" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Atualizações pendentes" Foreground="#FFC107" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- 2. Cartão Ações Rápidas -->
+                <Border Style="{StaticResource CardStyle}" Padding="20" Margin="0">
+                    <StackPanel>
+                        <TextBlock Text="Ações Rápidas" Style="{StaticResource CardTitleStyle}" Margin="0,0,0,16" />
+
+                        <!-- Botão Primário Azul Escuro -->
+                        <ui:Button x:Name="UpdateSelectedButton" Content="Atualizar Tudo / Selecionados" 
+                                   Background="{DynamicResource SystemAccentColorPrimaryBrush}" 
+                                   Foreground="White" BorderBrush="Transparent"
+                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Margin="0,0,0,12"
+                                   Click="UpdateSelectedButton_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowDownload24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+
+                        <!-- Botão Secundário Verificar -->
+                        <ui:Button x:Name="CheckUpdatesButton" Content="Verificar Atualizações" Appearance="Secondary" 
+                                   HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                   Click="CheckUpdatesButton_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
+
+                        <ProgressBar x:Name="BusyIndicator" Height="4" Margin="0,16,0,0" 
+                                     IsIndeterminate="True" Visibility="Collapsed" />
+                    </StackPanel>
+                </Border>
             </StackPanel>
-
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          Background="Transparent"
-                          Focusable="False"
-                          behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
-                <ItemsControl x:Name="UpdatesList"
-                              ItemTemplate="{StaticResource UpgradableItemTemplate}"
-                              Background="Transparent" />
-            </ScrollViewer>
-        </Grid>
-
-        <!-- Rodapé Fixo -->
-        <Grid Grid.Row="4" Margin="0,12,0,0">
-            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Text="Clique em &quot;Verificar atualizações&quot; para começar." Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
         </Grid>
     </Grid>
 </Page>

@@ -12,6 +12,7 @@
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="Styles/GradientProgressBar.xaml" />
                 <ResourceDictionary Source="Styles/InstallActionBrushes.xaml" />
+                <ResourceDictionary Source="Styles/VisualPolish.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Ícones agora usam a attached property conv:AsyncImage.SourceUrl

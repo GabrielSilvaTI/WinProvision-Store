@@ -5,11 +5,16 @@
         xmlns:local="clr-namespace:WinProvision.Store"
         xmlns:controls="clr-namespace:WinProvision.Store.Controls"
         Title="WinProvision Store"
-        Height="650" Width="1000"
+        Height="720" Width="1180" MinHeight="640" MinWidth="1080"
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
-        FontFamily="Segoe UI Variable Text, Segoe UI">
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        TextElement.FontFamily="Segoe UI Variable Text, Segoe UI"
+        TextElement.FontSize="14"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -25,15 +30,6 @@
                      algo por cima manualmente. -->
                 <ui:TitleBar.TrailingContent>
                     <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
-                        <ui:Button x:Name="ThemeToggleButton"
-                                   Appearance="Transparent"
-                                   Padding="8"
-                                   VerticalAlignment="Center"
-                                   ToolTip="Alternar tema claro/escuro"
-                                   Click="ThemeToggleButton_Click">
-                            <ui:SymbolIcon x:Name="ThemeToggleIcon" Symbol="WeatherSunny24" />
-                        </ui:Button>
-
                         <ui:Button x:Name="QueueToggleButton"
                                    Appearance="Transparent"
                                    Padding="8"
@@ -74,7 +70,7 @@
             Grid.Row="1"
             PaneDisplayMode="Left"
             IsPaneOpen="True"
-            OpenPaneLength="220">
+            OpenPaneLength="216">
 
             <!-- Itens Principais do Menu -->
             <ui:NavigationView.MenuItems>
@@ -86,7 +82,7 @@
 
                 <ui:NavigationViewItem Content="Pacotes" TargetPageType="{x:Type local:PackagesPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Box24" />
+                        <ui:SymbolIcon Symbol="AppsListDetail24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
@@ -131,5 +127,13 @@
             </ui:NavigationView.FooterMenuItems>
 
         </ui:NavigationView>
+
+        <!-- Overlay de Detalhes do pacote: fica por cima de TUDO (TitleBar +
+             NavigationView, daí o RowSpan="2") porque é declarado por último no Grid -
+             no WPF, entre irmãos do mesmo painel, quem vem depois no XAML desenha por
+             cima. Content é atribuído em code-behind (ver MainWindow.xaml.cs) porque o
+             AppDetailsOverlay é resolvido via injeção de dependência, não instanciado
+             direto aqui. Substitui a antiga AppDetailsWindow (janela/processo à parte). -->
+        <ContentControl x:Name="DetailsOverlayHost" Grid.Row="0" Grid.RowSpan="2" Focusable="False" />
     </Grid>
 </ui:FluentWindow>

@@ -120,12 +120,14 @@ public class ProvisioningService(WindowsUpdateService windowsUpdateService, Rest
     /// <summary>
     /// Lê um perfil (caminho local ou URL http(s), ex.: link "raw" de Gist) e devolve só a
     /// seção de provisionamento — o mesmo arquivo pode ter apps/Office junto, que este
-    /// método simplesmente ignora (quem cuida dos dois juntos é o modo CLI /auto).
+    /// método simplesmente ignora (quem cuida dos dois juntos é o modo CLI /auto). Aceita tanto
+    /// um perfil único quanto um conjunto de backup completo (mesma URL do Gist de backup
+    /// automático funciona aqui) — ver <see cref="ProfileManifestParser"/>.
     /// </summary>
     public async Task<ProvisioningManifest> ImportAsync(string filePath, CancellationToken ct = default)
     {
         string json = await ProfileSourceReader.ReadTextAsync(filePath, ct);
-        var profile = JsonSerializer.Deserialize<ProfileManifest>(json, WinProvisionJsonOptions.Default);
+        var profile = ProfileManifestParser.Parse(json, Path.GetFileNameWithoutExtension(filePath));
 
         if (profile?.Provisioning is not { } manifest)
             throw new InvalidDataException($"O perfil em '{filePath}' não contém uma seção de provisionamento.");

@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Backup;
@@ -21,6 +23,8 @@ public partial class SettingsPage : Page
     private readonly ProfileService _profileService;
     private readonly StoreService _storeService;
     private readonly ProvisioningService _provisioningService;
+    private readonly CliPresetsService _cliPresetsService;
+    private readonly CacheService _cacheService;
 
     public SettingsPage()
     {
@@ -33,15 +37,71 @@ public partial class SettingsPage : Page
         _profileService = App.Services.GetRequiredService<ProfileService>();
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
         _storeService = App.Services.GetRequiredService<StoreService>();
+        _cliPresetsService = App.Services.GetRequiredService<CliPresetsService>();
+        _cacheService = App.Services.GetRequiredService<CacheService>();
 
         RefreshConnectionUi();
         RefreshLocalBackupUi();
+        RefreshThemeButtonsUi();
+        RefreshCliDefaultsUi();
+
+        // Mantém os botões Claro/Escuro coerentes mesmo quando o tema muda "sozinho"
+        // (ex.: o botão sol/lua da barra de título, ou o tema do Windows via SystemThemeWatcher).
+        ApplicationThemeManager.Changed += ApplicationThemeManager_Changed;
+
+        // A tela de Provisionamento também pode salvar um novo padrão (botão "Salvar como
+        // padrão" no gerador de CLI) enquanto esta página já está aberta — reflete sem
+        // precisar reabrir Configurações. Não desliga no Unloaded de propósito: esta
+        // página é Singleton (vive o app inteiro), então não há vazamento de memória aqui.
+        _cliPresetsService.Changed += () => Dispatcher.BeginInvoke(RefreshCliDefaultsUi);
 
         // Backup automático pode terminar em segundo plano (após um install/uninstall)
         // enquanto esta página está aberta — reflete o resultado sem precisar reabrir a tela.
         _autoSyncService.SyncAttempted += AutoSyncService_SyncAttempted;
-        Unloaded += (_, _) => _autoSyncService.SyncAttempted -= AutoSyncService_SyncAttempted;
+        Unloaded += (_, _) =>
+        {
+            _autoSyncService.SyncAttempted -= AutoSyncService_SyncAttempted;
+            ApplicationThemeManager.Changed -= ApplicationThemeManager_Changed;
+        };
     }
+
+    // -------------------------------------------------------------
+    // NAVEGAÇÃO ENTRE SEÇÕES (Drill-down: Menu Principal -> Subseção)
+    // -------------------------------------------------------------
+
+    private void ShowSection(ScrollViewer sectionPanel, string title)
+    {
+        // Oculta o menu principal e mostra a área da subseção
+        SettingsOverviewPanel.Visibility = Visibility.Collapsed;
+        SectionPanel.Visibility = Visibility.Visible;
+        SectionTitleText.Text = title;
+
+        // Oculta todas as subseções e mostra apenas a selecionada
+        AccountSectionPanel.Visibility = Visibility.Collapsed;
+        AppearanceSectionPanel.Visibility = Visibility.Collapsed;
+        BackupSectionPanel.Visibility = Visibility.Collapsed;
+
+        sectionPanel.Visibility = Visibility.Visible;
+    }
+
+    private void BackToSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Oculta a área da subseção e volta para o menu principal
+        SectionPanel.Visibility = Visibility.Collapsed;
+        SettingsOverviewPanel.Visibility = Visibility.Visible;
+
+        AccountSectionPanel.Visibility = Visibility.Collapsed;
+        AppearanceSectionPanel.Visibility = Visibility.Collapsed;
+        BackupSectionPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void AccountNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(AccountSectionPanel, "Conta");
+
+    private void AppearanceNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(AppearanceSectionPanel, "Aparência da UI");
+
+    private void BackupNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(BackupSectionPanel, "Backup & Exportação");
+
+    private void GoToAccountButton_Click(object sender, RoutedEventArgs e) => ShowSection(AccountSectionPanel, "Conta");
 
     private void AutoSyncService_SyncAttempted()
     {
@@ -52,12 +112,18 @@ public partial class SettingsPage : Page
         });
     }
 
+    // -------------------------------------------------------------
+    // CONTA — vínculo/desvínculo do GitHub (Gist secreto)
+    // -------------------------------------------------------------
+
     private void RefreshConnectionUi()
     {
         bool connected = _backupService.IsConnected;
 
-        ConnectPanel.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
-        ConnectedPanel.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
+        AccountConnectPanel.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
+        AccountConnectedPanel.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
+        CloudBackupDisconnectedPanel.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
+        CloudBackupConnectedPanel.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
 
         if (connected)
         {
@@ -65,23 +131,9 @@ public partial class SettingsPage : Page
                 ? utc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
                 : "ainda não sincronizado";
 
-            ConnectedStatusText.Text = $"Conectado como @{_backupService.ConnectedLogin} · Última sincronização: {lastSync}";
+            ConnectedStatusText.Text = $"Vinculado como @{_backupService.ConnectedLogin}.";
+            CloudBackupStatusText.Text = $"Conectado como @{_backupService.ConnectedLogin} · Última sincronização: {lastSync}";
         }
-    }
-
-    /// <summary>
-    /// Backup local independe de login — atualiza o cartão correspondente sempre,
-    /// mesmo com o GitHub desconectado (ver adendo: "login não é obrigatório").
-    /// </summary>
-    private void RefreshLocalBackupUi()
-    {
-        var lastLocal = _localBackupService.LastBackupUtc;
-
-        LocalBackupStatusText.Text = lastLocal is { } utc
-            ? $"Último backup local: {utc.ToLocalTime():dd/MM/yyyy HH:mm}"
-            : "Nenhum backup local ainda — será criado automaticamente ao instalar ou remover um pacote.";
-
-        RestoreLocalButton.IsEnabled = lastLocal is not null;
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
@@ -99,11 +151,11 @@ public partial class SettingsPage : Page
             {
                 TokenPasswordBox.Clear();
                 RefreshConnectionUi();
-                StatusText.Text = $"Conectado como @{_backupService.ConnectedLogin}.";
+                StatusText.Text = $"Conta vinculada como @{_backupService.ConnectedLogin}.";
             }
             else
             {
-                StatusText.Text = result.ErrorMessage ?? "Não foi possível conectar.";
+                StatusText.Text = result.ErrorMessage ?? "Não foi possível vincular a conta.";
             }
         }
         finally
@@ -116,7 +168,142 @@ public partial class SettingsPage : Page
     {
         _backupService.Disconnect();
         RefreshConnectionUi();
-        StatusText.Text = "Desconectado. O backup na nuvem não é mais atualizado automaticamente — o backup local continua funcionando normalmente.";
+        StatusText.Text = "Conta desvinculada. O backup na nuvem não é mais atualizado automaticamente — o backup local continua funcionando normalmente.";
+    }
+
+    // -------------------------------------------------------------
+    // CONTA — perfil e webhook padrão do gerador de CLI (Provisionamento)
+    // -------------------------------------------------------------
+
+    private void RefreshCliDefaultsUi()
+    {
+        DefaultProfilePathTextBox.Text = _cliPresetsService.ProfilePathOrUrl ?? string.Empty;
+
+        if (_cliPresetsService.WebhookUrl is { Length: > 0 } webhook)
+        {
+            WebhookConfiguredStatusText.Text = $"Webhook salvo ({WebhookHostLabel(webhook)}). Deixe o campo acima em branco e clique Salvar para manter o atual.";
+            RemoveWebhookButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            WebhookConfiguredStatusText.Text = "Nenhum webhook salvo ainda.";
+            RemoveWebhookButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private static string WebhookHostLabel(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : "URL salva";
+
+    /// <summary>Salva o caminho/URL do perfil sempre; a URL do webhook só é sobrescrita se o
+    /// campo (uma PasswordBox, sempre em branco ao abrir a tela) tiver algo digitado —
+    /// deixá-lo em branco preserva o webhook já salvo em vez de apagá-lo.</summary>
+    private void SaveDefaultsButton_Click(object sender, RoutedEventArgs e)
+    {
+        string path = DefaultProfilePathTextBox.Text.Trim();
+        _cliPresetsService.SaveProfilePathOrUrl(path.Length > 0 ? path : null);
+
+        string webhook = DefaultWebhookPasswordBox.Password.Trim();
+        if (webhook.Length > 0)
+        {
+            _cliPresetsService.SaveWebhookUrl(webhook);
+            DefaultWebhookPasswordBox.Clear();
+        }
+
+        RefreshCliDefaultsUi();
+        StatusText.Text = "Perfil/webhook padrão salvos — vão preencher automaticamente o gerador de CLI na aba Provisionamento.";
+    }
+
+    private void RemoveWebhookButton_Click(object sender, RoutedEventArgs e)
+    {
+        _cliPresetsService.SaveWebhookUrl(null);
+        RefreshCliDefaultsUi();
+        StatusText.Text = "Webhook padrão removido.";
+    }
+
+    /// <summary>Copia o caminho/URL do perfil e (se marcado) a URL do webhook que já estão
+    /// preenchidos agora mesmo no gerador de CLI da aba Provisionamento — evita ter que
+    /// procurar/colar de novo o mesmo valor aqui.</summary>
+    private void UseCurrentCliValuesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var provisioningPage = App.Services.GetRequiredService<ProvisioningPage>();
+        var (profilePathOrUrl, webhookUrl) = provisioningPage.GetCurrentCliFieldValues();
+
+        if (profilePathOrUrl is null && webhookUrl is null)
+        {
+            StatusText.Text = "O gerador de CLI (aba Provisionamento) ainda não tem caminho/URL de perfil nem webhook preenchidos.";
+            return;
+        }
+
+        if (profilePathOrUrl is not null)
+        {
+            DefaultProfilePathTextBox.Text = profilePathOrUrl;
+        }
+
+        if (webhookUrl is not null)
+        {
+            DefaultWebhookPasswordBox.Password = webhookUrl;
+        }
+
+        StatusText.Text = "Valores copiados da tela de Provisionamento — clique Salvar para confirmar.";
+    }
+
+    private async void ClearCacheButton_Click(object sender, RoutedEventArgs e)
+    {
+        ClearCacheButton.IsEnabled = false;
+        StatusText.Text = "Limpando cache local…";
+        try
+        {
+            await _cacheService.ClearAsync();
+            Converters.AsyncImage.ClearCache();
+            StatusText.Text = "Cache limpo. O catálogo será carregado novamente quando necessário.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Não foi possível limpar todo o cache: {ex.Message}";
+        }
+        finally
+        {
+            ClearCacheButton.IsEnabled = true;
+        }
+    }
+
+    // -------------------------------------------------------------
+    // APARÊNCIA DA UI — tema claro/escuro do aplicativo
+    // -------------------------------------------------------------
+
+    private void LightThemeButton_Click(object sender, RoutedEventArgs e) =>
+        ApplicationThemeManager.Apply(ApplicationTheme.Light, WindowBackdropType.Mica);
+
+    private void DarkThemeButton_Click(object sender, RoutedEventArgs e) =>
+        ApplicationThemeManager.Apply(ApplicationTheme.Dark, WindowBackdropType.Mica);
+
+    private void ApplicationThemeManager_Changed(ApplicationTheme currentApplicationTheme, System.Windows.Media.Color systemAccent) =>
+        Dispatcher.Invoke(RefreshThemeButtonsUi);
+
+    private void RefreshThemeButtonsUi()
+    {
+        bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+        LightThemeButton.Appearance = dark ? ControlAppearance.Secondary : ControlAppearance.Primary;
+        DarkThemeButton.Appearance = dark ? ControlAppearance.Primary : ControlAppearance.Secondary;
+    }
+
+    // -------------------------------------------------------------
+    // BACKUP & EXPORTAÇÃO — exportar perfil, backup local e na nuvem
+    // -------------------------------------------------------------
+
+    /// <summary>
+    /// Backup local independe de login — atualiza o cartão correspondente sempre,
+    /// mesmo com o GitHub desvinculado (ver adendo: "login não é obrigatório").
+    /// </summary>
+    private void RefreshLocalBackupUi()
+    {
+        var lastLocal = _localBackupService.LastBackupUtc;
+
+        LocalBackupStatusText.Text = lastLocal is { } utc
+            ? $"Último backup local: {utc.ToLocalTime():dd/MM/yyyy HH:mm}"
+            : "Nenhum backup local ainda — será criado automaticamente ao instalar ou remover um pacote.";
+
+        RestoreLocalButton.IsEnabled = lastLocal is not null;
     }
 
     /// <summary>
@@ -194,7 +381,7 @@ public partial class SettingsPage : Page
             string label = hasPackages ? $"'{activeTab!.Title}'" : "Provisionamento";
             StatusText.Text = _backupService.IsConnected
                 ? $"{label} sincronizado com sucesso (local + nuvem)."
-                : $"{label} salvo no backup local. Conecte-se ao GitHub acima para sincronizar também na nuvem.";
+                : $"{label} salvo no backup local. Vincule sua conta em Conta para sincronizar também na nuvem.";
         }
         finally
         {
@@ -236,7 +423,7 @@ public partial class SettingsPage : Page
 
     /// <summary>
     /// Mesma restauração do RestoreButton_Click, só que a partir do arquivo local em
-    /// vez do Gist — funciona mesmo sem nunca ter feito login (ver LocalBackupService).
+    /// vez do Gist — funciona mesmo sem nunca ter vinculado conta (ver LocalBackupService).
     /// </summary>
     private async void RestoreLocalButton_Click(object sender, RoutedEventArgs e)
     {

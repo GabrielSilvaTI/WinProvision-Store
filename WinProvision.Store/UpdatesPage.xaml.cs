@@ -82,6 +82,9 @@ public partial class UpdatesPage : Page
 
             SelectAllCheckBox.IsChecked = false;
 
+            // Atualiza o card lateral com a hora da busca
+            LastSearchText.Text = $"Última busca: Hoje às {DateTime.Now:HH:mm}";
+
             StatusText.Text = _packages.Count == 0
                 ? "Nenhuma atualização disponível. Tudo em dia."
                 : $"{_packages.Count} atualização(ões) disponível(is).";
@@ -198,5 +201,22 @@ public partial class UpdatesPage : Page
 
         SyncSelectAllCheckBoxState();
         CheckUpdatesButton.IsEnabled = true;
+    }
+
+    // ----------------------------------------------------------------
+    // Nova Ação: Atualizar item individualmente (Botão na linha)
+    // ----------------------------------------------------------------
+
+    private void SingleUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Pega o elemento que disparou o clique (o botão "Atualizar agora")
+        if (sender is FrameworkElement element && element.DataContext is UpgradablePackage appToUpdate)
+        {
+            // 1. Marca apenas este aplicativo como selecionado
+            appToUpdate.IsSelectedForUpdate = true;
+
+            // 2. Chama a sua função existente que já faz o trabalho de atualizar a fila
+            UpdateSelectedButton_Click(sender, e);
+        }
     }
 }

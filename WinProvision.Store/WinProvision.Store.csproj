@@ -27,4 +27,13 @@
 		<ProjectReference Include="..\src\WinProvision.Core\WinProvision.Core.csproj" />
 	</ItemGroup>
 
+	<!-- Ícone genérico de fallback embutido direto no .exe (Assets/Icons/default_app.png).
+	     Resource (não Content) pra ficar acessível via pack://application:,,,/... a
+	     partir do assembly principal. O lote curado por app (CuratedIconCatalog) foi
+	     removido: o bucket Cloudflare já cobre os mesmos apps, sem precisar recompilar
+	     o .exe pra corrigir um ícone. -->
+	<ItemGroup>
+		<Resource Include="Assets\Icons\**\*.png" />
+	</ItemGroup>
+
 </Project>

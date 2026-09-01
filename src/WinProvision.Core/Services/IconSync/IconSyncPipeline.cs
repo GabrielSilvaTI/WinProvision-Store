@@ -15,11 +15,14 @@ namespace WinProvision.Core.Services.IconSync;
 ///                                        não é uma dependência nova de terceiro. Cobertura
 ///                                        parcial esperada (nem todo manifesto declara Icons)
 ///                                        e opcional (só roda se --winget-index-db for passado).
-///   2. Winstall aprovado manualmente  — curadoria humana, a mais confiável entre as fontes
+///   2. Cloudflare (bucket próprio)    — curadoria própria do autor do projeto, publicada no
+///                                        R2 (CloudflareIconRepository). Chave já é o
+///                                        PackageIdentifier real, sem heurística de nome.
+///   3. Winstall aprovado manualmente  — curadoria humana, a mais confiável entre as fontes
 ///                                        comunitárias
-///   3. package-icons externo          — curado especificamente para winget, match exato
+///   4. package-icons externo          — curado especificamente para winget, match exato
 ///                                        por nome de arquivo, baixo risco de ícone errado
-///   4. UniGetUI                       — maior cobertura, mas agrega vários gerenciadores
+///   5. UniGetUI                       — maior cobertura, mas agrega vários gerenciadores
 ///                                        de pacote (winget, scoop, chocolatey) numa base só;
 ///                                        testes manuais mostraram ícones incorretos/quebrados
 ///                                        em parte das entradas, então entra por último —
@@ -37,6 +40,7 @@ public class IconSyncPipeline
     private readonly UniGetUiIconRepository _unigetui = new();
     private readonly ExternalIconRepository _external = new();
     private readonly WinstallApprovedMappingRepository _winstallApproved = new();
+    private readonly CloudflareIconRepository _cloudflare = new();
     private readonly WinstallReviewCandidateGenerator _reviewGenerator = new();
 
     public async Task<IconSyncStats> RunAsync(IconSyncOptions options)
@@ -51,12 +55,13 @@ public class IconSyncPipeline
         using var winGetOfficialRepo = new WinGetOfficialManifestRepository();
         var winGetOfficialResolved = await winGetOfficialRepo.LoadAsync(catalog, options.WinGetIndexDbPath);
 
+        var cloudflareResolved = await _cloudflare.LoadAsync();
         var winstallResolved = _winstallApproved.Load(options.ApprovedMappingsPath, options.WinstallDir);
         var unigetuiResolved = _unigetui.Load(options.UniGetUiDir);
         var externalResolved = _external.Load(options.ExternalDir);
 
         var final = new Dictionary<string, string>();
-        int fromWinGetOfficial = 0, fromWinstall = 0, fromUniGetUi = 0, fromExternal = 0;
+        int fromWinGetOfficial = 0, fromCloudflare = 0, fromWinstall = 0, fromUniGetUi = 0, fromExternal = 0;
 
         foreach (var id in catalogIds)
         {
@@ -64,6 +69,11 @@ public class IconSyncPipeline
             {
                 final[id] = winGetOfficialUrl;
                 fromWinGetOfficial++;
+            }
+            else if (cloudflareResolved.TryGetValue(id, out var cloudflareUrl))
+            {
+                final[id] = cloudflareUrl;
+                fromCloudflare++;
             }
             else if (winstallResolved.TryGetValue(id, out var winstallUrl))
             {
@@ -92,6 +102,7 @@ public class IconSyncPipeline
         return new IconSyncStats(
             CatalogSize: catalog.Count,
             ResolvedFromWinGetManifest: fromWinGetOfficial,
+            ResolvedFromCloudflare: fromCloudflare,
             ResolvedFromWinstallApproved: fromWinstall,
             ResolvedFromUniGetUi: fromUniGetUi,
             ResolvedFromExternal: fromExternal,

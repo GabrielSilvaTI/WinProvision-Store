@@ -39,4 +39,26 @@ public static class ManifestMapper
             Architectures = architectures
         };
     }
+
+    /// <summary>
+    /// Extrai as URLs de instalador do manifesto (uma por entrada em "Installers"),
+    /// deduplicadas e limitadas às 2 primeiras — usado pelo Indexer para estimar o
+    /// tamanho do instalador via HTTP (ver InstallerSizeResolver) direto na
+    /// sincronização, sem precisar rodar "winget show" pacote a pacote.
+    /// </summary>
+    public static List<string> GetInstallerUrls(RawManifestBundle bundle)
+    {
+        var installer = bundle.InstallerManifest;
+        if (installer is null)
+            return [];
+
+        return installer
+            .GetObjectList("Installers")
+            .Select(i => i.GetString("InstallerUrl"))
+            .Where(u => !string.IsNullOrWhiteSpace(u))
+            .Select(u => u!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(2)
+            .ToList();
+    }
 }

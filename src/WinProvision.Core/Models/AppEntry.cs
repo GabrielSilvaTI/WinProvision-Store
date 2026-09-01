@@ -94,6 +94,30 @@ public class AppEntry : INotifyPropertyChanged
     [JsonPropertyName("office")]
     public OfficeInstallOptions? Office { get; set; }
 
+    private long? _installerSizeBytes;
+
+    /// <summary>
+    /// Tamanho estimado do instalador, em bytes. Não existe um campo de tamanho no
+    /// schema oficial do winget-pkgs (não há "InstallerSize" no manifesto) — este
+    /// valor vem de uma checagem HTTP (HEAD/Range) feita pelo Indexer na
+    /// sincronização diária, direto contra a(s) InstallerUrl do manifesto (ver
+    /// InstallerSizeResolver). Nem todo pacote resolve (URL pode bloquear HEAD/Range,
+    /// redirecionar de forma atípica, etc.) — null significa "não foi possível
+    /// estimar", não "instalador vazio". Quando ausente aqui, a tela de Pacotes ainda
+    /// tenta um fallback ao vivo via WingetExecutor.GetPackageInstallerSizeAsync.
+    /// </summary>
+    [JsonPropertyName("installerSizeBytes")]
+    public long? InstallerSizeBytes
+    {
+        get => _installerSizeBytes;
+        set
+        {
+            if (_installerSizeBytes == value) return;
+            _installerSizeBytes = value;
+            OnPropertyChanged();
+        }
+    }
+
     private bool _isInstalled;
 
     /// <summary>

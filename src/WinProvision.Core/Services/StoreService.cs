@@ -22,6 +22,13 @@ public class StoreService
     };
 
     private List<AppEntry> _cachedCatalog = [];
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
+    private readonly object _refreshSync = new();
+    private Task<List<AppEntry>>? _refreshTask;
+    private CancellationTokenSource? _refreshCts;
+    private int _cacheGeneration;
+
+    private static readonly TimeSpan CatalogCacheTtl = TimeSpan.FromHours(6);
 
     /// <summary>
     /// Disparado sempre que _cachedCatalog é trocado por uma lista nova
@@ -30,6 +37,7 @@ public class StoreService
     /// com dados/flags de instâncias antigas de AppEntry.
     /// </summary>
     public event Action<IReadOnlyList<AppEntry>>? CatalogUpdated;
+    public event Action? CacheCleared;
 
     public StoreService(HttpClient? httpClient = null, IconService? iconService = null)
     {
@@ -46,27 +54,46 @@ public class StoreService
 
     public async Task<List<AppEntry>> LoadCatalogAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
     {
-        if (!forceRefresh && File.Exists(_cacheFilePath))
+        await _loadLock.WaitAsync(cancellationToken);
+        try
         {
-            try
+            if (forceRefresh)
+                return await RefreshCacheInBackgroundAsync(cancellationToken);
+
+            if (_cachedCatalog.Count > 0)
             {
-                string localJson = await File.ReadAllTextAsync(_cacheFilePath, cancellationToken);
-                _cachedCatalog = JsonSerializer.Deserialize<List<AppEntry>>(localJson, _jsonOptions) ?? [];
-
-                await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
-                PopulateIcons(_cachedCatalog);
-
-                _ = RefreshCacheInBackgroundAsync(cancellationToken);
-
+                bool stale = IsCacheStale();
+                if (stale)
+                    _ = RefreshCacheInBackgroundAsync(CancellationToken.None);
                 return _cachedCatalog;
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[StoreService] Cache local corrompido, baixando novamente: {ex.Message}");
-            }
-        }
 
-        return await FetchAndSaveRemoteCatalogAsync(cancellationToken);
+            if (!forceRefresh && File.Exists(_cacheFilePath))
+            {
+                try
+                {
+                    string localJson = await File.ReadAllTextAsync(_cacheFilePath, cancellationToken);
+                    _cachedCatalog = JsonSerializer.Deserialize<List<AppEntry>>(localJson, _jsonOptions) ?? [];
+                    await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
+                    PopulateIcons(_cachedCatalog);
+
+                    if (IsCacheStale())
+                        _ = RefreshCacheInBackgroundAsync(CancellationToken.None);
+
+                    return _cachedCatalog;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[StoreService] Cache local corrompido, baixando novamente: {ex.Message}");
+                }
+            }
+
+            return await FetchAndSaveRemoteCatalogAsync(cancellationToken);
+        }
+        finally
+        {
+            _loadLock.Release();
+        }
     }
 
     /// <summary>Catálogo completo já carregado em memória (o que LoadCatalogAsync populou).</summary>
@@ -137,6 +164,7 @@ public class StoreService
 
     private async Task<List<AppEntry>> FetchAndSaveRemoteCatalogAsync(CancellationToken cancellationToken = default)
     {
+        int generation = Volatile.Read(ref _cacheGeneration);
         try
         {
             string remoteJson = await _httpClient.GetStringAsync(DatabaseUrl, cancellationToken);
@@ -157,6 +185,11 @@ public class StoreService
                 {
                     app.IsInstalled = installedIds.Contains(app.Id);
                 }
+
+                // Se o usuário limpou o cache enquanto a rede estava em andamento,
+                // descarta o resultado antigo para não recriar o cache logo após a limpeza.
+                if (generation != Volatile.Read(ref _cacheGeneration))
+                    return _cachedCatalog;
 
                 _cachedCatalog = catalog;
                 await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
@@ -185,8 +218,71 @@ public class StoreService
         }
     }
 
-    private async Task RefreshCacheInBackgroundAsync(CancellationToken cancellationToken = default)
+    public void ClearCache()
     {
-        await FetchAndSaveRemoteCatalogAsync(cancellationToken);
+        Interlocked.Increment(ref _cacheGeneration);
+        _cachedCatalog = [];
+
+        lock (_refreshSync)
+        {
+            try { _refreshCts?.Cancel(); } catch { }
+            _refreshCts?.Dispose();
+            _refreshCts = null;
+            _refreshTask = null;
+        }
+
+        try
+        {
+            if (File.Exists(_cacheFilePath))
+                File.Delete(_cacheFilePath);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Não foi possível remover o cache do catálogo: {ex.Message}");
+        }
+
+        CacheCleared?.Invoke();
+    }
+
+    private bool IsCacheStale()
+    {
+        try
+        {
+            return !File.Exists(_cacheFilePath) || DateTime.UtcNow - File.GetLastWriteTimeUtc(_cacheFilePath) >= CatalogCacheTtl;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private Task<List<AppEntry>> RefreshCacheInBackgroundAsync(CancellationToken cancellationToken = default)
+    {
+        lock (_refreshSync)
+        {
+            if (_refreshTask is { IsCompleted: false })
+                return _refreshTask;
+
+            _refreshCts?.Dispose();
+            _refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            CancellationToken token = _refreshCts.Token;
+            Task<List<AppEntry>> task = FetchAndSaveRemoteCatalogAsync(token);
+            _refreshTask = task;
+
+            _ = task.ContinueWith(_ =>
+            {
+                lock (_refreshSync)
+                {
+                    if (ReferenceEquals(_refreshTask, task))
+                    {
+                        _refreshTask = null;
+                        _refreshCts?.Dispose();
+                        _refreshCts = null;
+                    }
+                }
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+            return task;
+        }
     }
 }

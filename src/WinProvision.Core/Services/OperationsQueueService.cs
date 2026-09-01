@@ -8,7 +8,7 @@ namespace WinProvision.Core.Services;
 /// <summary>
 /// Fila global de operações (instalar/atualizar/remover) em andamento, consumida pelo
 /// painel flutuante estilo UnigetUI (OperationsQueuePanel). É singleton via DI para que
-/// qualquer página/janela (HomePage, AppDetailsWindow, PackagesPage...) possa enfileirar
+/// qualquer página/janela (HomePage, AppDetailsOverlay, PackagesPage...) possa enfileirar
 /// uma operação e o mesmo painel reflita tudo em tempo real.
 /// </summary>
 public class OperationsQueueService : INotifyPropertyChanged

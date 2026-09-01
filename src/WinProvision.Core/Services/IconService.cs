@@ -13,9 +13,10 @@ namespace WinProvision.Core.Services;
 public class IconService
 {
     // Base de ícones da comunidade publicada pelo workflow sync-icon-databases.yml
-    // (Winstall aprovado manualmente + UniGetUI + package-icons externo — ver
-    // WinProvision.Core.Services.IconSync.IconSyncPipeline). Quando o Id do app não
-    // está nela, cai no favicon do site oficial.
+    // (WinGet oficial + Cloudflare + Winstall aprovado manualmente + package-icons
+    // externo + UniGetUI — ver WinProvision.Core.Services.IconSync.IconSyncPipeline).
+    // Quando o Id do app não está nela, cai no ícone genérico local (ver
+    // ResolveIconUrl).
     private const string IconsDatabaseUrl =
         "https://raw.githubusercontent.com/GabrielSilvaTI/WinProvision-Store/icons-cdn/icons-database.json";
 
@@ -59,11 +60,54 @@ public class IconService
     }
 
     /// <summary>
+    /// Limpa o cache em memória e em disco da base de ícones da comunidade.
+    /// </summary>
+    public void ClearCache()
+    {
+        _iconsDatabase = [];
+        lock (_loadLock)
+        {
+            _loadTask = null;
+        }
+
+        try
+        {
+            if (File.Exists(_iconsDatabaseCachePath))
+                File.Delete(_iconsDatabaseCachePath);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[IconService] Não foi possível remover o cache da base de ícones: {ex.Message}");
+        }
+
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(_iconCacheFolder, "*.png"))
+                File.Delete(file);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[IconService] Não foi possível limpar todos os ícones locais: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Retorna a melhor URL ou caminho local de ícone para o aplicativo.
-    /// Ordem: 1) Base de ícones da comunidade sincronizada 2) Favicon HD do site
-    /// oficial 3) Ícone genérico local. Se a base ainda não terminou de carregar
-    /// (ou EnsureIconsDatabaseLoadedAsync nunca foi chamado), cai direto pro favicon
-    /// — nunca bloqueia esperando o carregamento.
+    /// Ordem: 1) Base de ícones da comunidade sincronizada 2) Ícone genérico local
+    /// (embutido no .exe). Se a base comunitária ainda não terminou de carregar (ou
+    /// EnsureIconsDatabaseLoadedAsync nunca foi chamado), o passo 1 é pulado — nunca
+    /// bloqueia esperando o carregamento.
+    ///
+    /// Antes existia um passo anterior a este, o lote curado embutido no .exe
+    /// (CuratedIconCatalog, ~30 apps mais visíveis). Removido: o bucket Cloudflare
+    /// já cobre esses mesmos apps e mais, então manter os dois só duplicava ícone
+    /// sem necessidade e exigia recompilar o app pra corrigir qualquer um deles.
+    ///
+    /// Antes existia um passo que caía no favicon do site oficial
+    /// (google.com/s2/favicons). Removido: para apps cujo Homepage aponta pra um
+    /// repositório (github.com, gitlab.com etc.), o favicon retornado é o do próprio
+    /// site, não do projeto — resultado prático era o logo do GitHub aparecendo como
+    /// "ícone do app" em várias entradas. O genérico embutido é preferível a isso.
     /// </summary>
     public string ResolveIconUrl(AppEntry app)
     {
@@ -73,12 +117,7 @@ public class IconService
             return communityIcon;
         }
 
-        if (!string.IsNullOrEmpty(app.Homepage) && Uri.TryCreate(app.Homepage, UriKind.Absolute, out var uri))
-        {
-            return $"https://www.google.com/s2/favicons?domain={uri.Host}&sz=128";
-        }
-
-        return "pack://application:,,,/Resources/Icons/default_app.png";
+        return "pack://application:,,,/Assets/Icons/default_app.png";
     }
 
     /// <summary>
@@ -161,7 +200,7 @@ public class IconService
         {
             // Sem base remota disponível (offline, primeira execução antes do primeiro
             // workflow rodar, branch icons-cdn ainda não publicada etc.) — ResolveIconUrl
-            // já cai pro favicon sozinho, não precisa propagar o erro.
+            // já cai pro genérico local sozinho, não precisa propagar o erro.
             Debug.WriteLine($"[IconService] Falha ao baixar base de ícones da comunidade: {ex.Message}");
         }
     }

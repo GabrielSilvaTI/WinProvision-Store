@@ -9,7 +9,7 @@ namespace WinProvision.Core.Services.IconSync;
 ///
 /// Isso é SÓ um gerador de sugestões: nunca escreve no arquivo de mapeamento aprovado.
 /// Um catálogo público mostrando o ícone errado é pior que não mostrar ícone nenhum
-/// (cai no fallback de favicon do IconService) — similaridade de texto tem falsos
+/// (cai no genérico embutido do IconService) — similaridade de texto tem falsos
 /// positivos previsíveis demais (ex.: "Photo" vs "Photoshop") pra publicar sem revisão
 /// humana. Ver docs/ICON_APPROVAL.md para o fluxo de aprovação.
 /// </summary>

@@ -77,11 +77,17 @@ public class ProfileService
         await File.WriteAllTextAsync(filePath, json, ct);
     }
 
-    /// <summary>Lê e desserializa um perfil de um caminho local ou de uma URL http(s) (ex.: link "raw" de Gist).</summary>
+    /// <summary>
+    /// Lê e desserializa um perfil de um caminho local ou de uma URL http(s) (ex.: link "raw" de
+    /// Gist). Aceita tanto um perfil único (ProfileManifest) quanto um conjunto de backup
+    /// completo (ProfileBackupSet, o mesmo que o backup automático/Gist secreto mantém
+    /// atualizado) — ver <see cref="ProfileManifestParser"/> para os detalhes de como os dois
+    /// são tratados como equivalentes.
+    /// </summary>
     public async Task<ProfileManifest> ImportAsync(string filePath, CancellationToken ct = default)
     {
         var json = await ProfileSourceReader.ReadTextAsync(filePath, ct);
-        var profile = JsonSerializer.Deserialize<ProfileManifest>(json, WinProvisionJsonOptions.Default);
+        var profile = ProfileManifestParser.Parse(json, Path.GetFileNameWithoutExtension(filePath));
 
         if (profile is null)
             throw new InvalidDataException($"Não foi possível interpretar o perfil em '{filePath}'.");

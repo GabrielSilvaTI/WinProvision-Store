@@ -1,10 +1,15 @@
 using System;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
 using WinProvision.Core.Models.Office;
@@ -24,6 +29,11 @@ public partial class PackagesPage : Page
     private readonly OfficeDeploymentToolService _officeService;
     private readonly OperationsQueueService _queue;
     private readonly ProvisioningService _provisioningService;
+    private readonly PackageMetricsService _metricsService;
+    private PackageProfileTab? _observedTab;
+    private ICollectionView? _collectionView;
+    private CancellationTokenSource? _metricsCts;
+    private readonly HashSet<AppEntry> _metricAttemptedItems = [];
 
     public PackagesPage()
     {
@@ -36,11 +46,13 @@ public partial class PackagesPage : Page
         _officeService = App.Services.GetRequiredService<OfficeDeploymentToolService>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
+        _metricsService = App.Services.GetRequiredService<PackageMetricsService>();
 
         // Conecta a lista de abas ao TabControl
         ProfileTabControl.ItemsSource = _collectionService.Tabs;
         ProfileTabControl.SelectedItem = _collectionService.ActiveTab;
-
+        AttachToActiveTab();
+        SetViewMode(false);
         UpdateStatus();
     }
 
@@ -49,26 +61,40 @@ public partial class PackagesPage : Page
         var active = _collectionService.ActiveTab;
         if (active == null) return;
 
+        int selected = active.Items.Count(a => a.IsSelectedForInstall);
+        SelectionSummaryText.Text = $"{active.Items.Count} pacote(s) · {selected} selecionado(s)";
         StatusText.Text = active.Items.Count == 0
-            ? $"[{active.Title}] Nenhuma aplicativo adicionado ainda."
+            ? $"[{active.Title}] Nenhum aplicativo adicionado ainda."
             : $"[{active.Title}] {active.Items.Count} pacote(s) na coleção.";
+
+        CloseProfileButton.IsEnabled = !active.IsDefault;
+        CloseProfileButton.Visibility = active.IsDefault ? Visibility.Collapsed : Visibility.Visible;
+        RefreshCollectionSummary(active);
     }
 
     private void NewTabButton_Click(object sender, RoutedEventArgs e)
     {
         var newTab = _collectionService.CreateNewTab();
         ProfileTabControl.SelectedItem = newTab;
+        AttachToActiveTab();
         UpdateStatus();
     }
 
     private void CloseTabButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: PackageProfileTab tab })
-        {
-            _collectionService.CloseTab(tab);
-            ProfileTabControl.SelectedItem = _collectionService.ActiveTab;
-            UpdateStatus();
-        }
+        var tab = _collectionService.ActiveTab;
+        if (tab is null || tab.IsDefault) return;
+
+        var result = MessageBox.Show(
+            $"Excluir o perfil '{tab.Title}'? Os aplicativos desta guia serão removidos da coleção, mas nenhum aplicativo será desinstalado do Windows.",
+            "Excluir perfil", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+        if (result != MessageBoxResult.Yes) return;
+
+        _collectionService.CloseTab(tab);
+        ProfileTabControl.SelectedItem = _collectionService.ActiveTab;
+        AttachToActiveTab();
+        UpdateStatus();
     }
 
     private void ProfileTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -76,9 +102,211 @@ public partial class PackagesPage : Page
         if (ProfileTabControl.SelectedItem is PackageProfileTab selectedTab)
         {
             _collectionService.ActiveTab = selectedTab;
+            AttachToActiveTab();
             UpdateStatus();
         }
     }
+
+    private void AttachToActiveTab()
+    {
+        if (_observedTab is not null)
+        {
+            _observedTab.Items.CollectionChanged -= ActiveItems_CollectionChanged;
+            foreach (var app in _observedTab.Items)
+                app.PropertyChanged -= App_PropertyChanged;
+        }
+
+        _observedTab = _collectionService.ActiveTab;
+        if (_observedTab is null) return;
+
+        _observedTab.Items.CollectionChanged += ActiveItems_CollectionChanged;
+        foreach (var app in _observedTab.Items)
+            app.PropertyChanged += App_PropertyChanged;
+
+        _collectionView = CollectionViewSource.GetDefaultView(_observedTab.Items);
+        _collectionView.Filter = FilterCollectionItem;
+        AppCollectionItemsControl.ItemsSource = _collectionView;
+        AppCollectionListItemsControl.ItemsSource = _collectionView;
+        _ = RefreshCollectionMetricsAsync(_observedTab);
+        RefreshCollectionSummary(_observedTab);
+    }
+
+    private void ActiveItems_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.NewItems is not null)
+            foreach (AppEntry app in e.NewItems) app.PropertyChanged += App_PropertyChanged;
+        if (e.OldItems is not null)
+            foreach (AppEntry app in e.OldItems) app.PropertyChanged -= App_PropertyChanged;
+
+        _collectionView?.Refresh();
+        UpdateStatus();
+        if (_observedTab is { } tab) _ = RefreshCollectionMetricsAsync(tab);
+    }
+
+    private void App_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(AppEntry.IsSelectedForInstall) or nameof(AppEntry.InstallerSizeBytes))
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (_collectionService.ActiveTab is { } tab)
+                    RefreshCollectionSummary(tab);
+                UpdateStatus();
+            });
+    }
+
+    private bool FilterCollectionItem(object item)
+    {
+        if (item is not AppEntry app) return false;
+        string query = PackageSearchTextBox?.Text?.Trim() ?? string.Empty;
+        if (query.Length == 0) return true;
+        return app.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || app.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || app.Id.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void PackageSearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => _collectionView?.Refresh();
+
+    private void GridViewToggleButton_Click(object sender, RoutedEventArgs e) => SetViewMode(false);
+    private void ListViewToggleButton_Click(object sender, RoutedEventArgs e) => SetViewMode(true);
+
+    private void SetViewMode(bool list)
+    {
+        GridViewScrollViewer.Visibility = list ? Visibility.Collapsed : Visibility.Visible;
+        ListViewScrollViewer.Visibility = list ? Visibility.Visible : Visibility.Collapsed;
+        GridViewToggleButton.IsChecked = !list;
+        ListViewToggleButton.IsChecked = list;
+        Brush accent = GetThemeBrush("SystemAccentColorPrimaryBrush", SystemColors.HighlightBrush);
+        Brush primaryText = GetThemeBrush("TextFillColorPrimaryBrush", SystemColors.ControlTextBrush);
+        GridViewToggleButton.Background = !list ? accent : Brushes.Transparent;
+        ListViewToggleButton.Background = list ? accent : Brushes.Transparent;
+        GridViewToggleButton.Foreground = !list ? Brushes.White : primaryText;
+        ListViewToggleButton.Foreground = list ? Brushes.White : primaryText;
+    }
+
+    private Brush GetThemeBrush(string key, Brush fallback) =>
+        TryFindResource(key) as Brush ?? fallback;
+
+    private async Task RefreshCollectionMetricsAsync(PackageProfileTab tab)
+    {
+        _metricsCts?.Cancel();
+        _metricsCts?.Dispose();
+        _metricsCts = new CancellationTokenSource();
+        CancellationToken ct = _metricsCts.Token;
+        // Inclui itens nunca consultados E itens já consultados que falharam (size ainda
+        // null) — estes últimos são tentados de novo a cada troca de aba/alteração na
+        // coleção, sem ficar bloqueados pra sempre (ver comentário abaixo).
+        var apps = tab.Items.Where(a => a.Office is null
+            && (!_metricAttemptedItems.Contains(a) || !a.InstallerSizeBytes.HasValue)).ToList();
+        if (apps.Count == 0)
+        {
+            RefreshCollectionSummary(tab);
+            return;
+        }
+
+        using var gate = new SemaphoreSlim(3);
+        var tasks = apps.Select(async app =>
+        {
+            await gate.WaitAsync(ct);
+            try
+            {
+                long? size = await _metricsService.GetInstallerSizeAsync(app, ct);
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    // Sempre marca como "tentado" (sucesso ou falha) — é isso que faz o
+                    // resumo parar de mostrar "Calculando…" assim que a consulta termina.
+                    // A decisão de tentar de novo mais tarde não depende deste HashSet:
+                    // depende só de InstallerSizeBytes continuar null (ver seleção
+                    // de "apps" acima), então falhas nunca ficam bloqueadas pra sempre, mas
+                    // também nunca ficam presas em "Calculando…" enquanto não há nenhuma
+                    // consulta de fato em andamento.
+                    _metricAttemptedItems.Add(app);
+
+                    if (tab.Items.Contains(app))
+                        app.InstallerSizeBytes = size;
+
+                    // Uma consulta pode terminar depois que o usuário trocou de perfil.
+                    // Nesse caso atualizamos somente o modelo antigo; nunca sobrescrevemos
+                    // o resumo visual do perfil que está atualmente aberto.
+                    if (ReferenceEquals(_collectionService.ActiveTab, tab))
+                    {
+                        RefreshCollectionSummary(tab);
+                        UpdateStatus();
+                    }
+                });
+            }
+            catch (OperationCanceledException) { }
+            catch
+            {
+                // Mesmo numa exceção inesperada (não tratada dentro do próprio
+                // PackageMetricsService), marca como tentado — senão o item fica preso
+                // em "Calculando…" pra sempre, já que nenhuma consulta nova é disparada
+                // pra ele enquanto não houver troca de aba/alteração na coleção.
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    _metricAttemptedItems.Add(app);
+                    if (ReferenceEquals(_collectionService.ActiveTab, tab))
+                        RefreshCollectionSummary(tab);
+                });
+            }
+            finally { gate.Release(); }
+        });
+
+        try { await Task.WhenAll(tasks); } catch (OperationCanceledException) { }
+    }
+
+    private void RefreshCollectionSummary(PackageProfileTab tab)
+    {
+        long totalBytes = tab.Items.Sum(a => a.InstallerSizeBytes ?? 0);
+        int measurablePackageCount = tab.Items.Count(a => a.Office is null);
+        bool loading = tab.Items.Any(a => a.Office is null && !_metricAttemptedItems.Contains(a));
+        bool hasUnknownSize = tab.Items.Any(a => a.Office is null && _metricAttemptedItems.Contains(a) && !a.InstallerSizeBytes.HasValue);
+
+        if (tab.Items.Count == 0)
+        {
+            EstimatedSizeText.Text = "—";
+            EstimatedTimeText.Text = "—";
+            return;
+        }
+
+        if (loading)
+        {
+            EstimatedSizeText.Text = totalBytes > 0 ? FormatBytes(totalBytes, true) : "Calculando…";
+            EstimatedTimeText.Text = totalBytes > 0 ? FormatDuration(totalBytes, true, measurablePackageCount) : "Calculando…";
+            return;
+        }
+
+        if (totalBytes <= 0 && hasUnknownSize)
+        {
+            EstimatedSizeText.Text = "Indisponível";
+            EstimatedTimeText.Text = "Indisponível";
+            return;
+        }
+
+        EstimatedSizeText.Text = FormatBytes(totalBytes, hasUnknownSize);
+        EstimatedTimeText.Text = FormatDuration(totalBytes, hasUnknownSize, measurablePackageCount);
+    }
+
+    private static string FormatBytes(long bytes, bool unknown)
+    {
+        if (bytes <= 0) return unknown ? "Calculando…" : "—";
+        double mb = bytes / 1024d / 1024d;
+        string value = mb >= 1024 ? $"~ {mb / 1024:0.0} GB" : $"~ {mb:0} MB";
+        return unknown ? value + " +" : value;
+    }
+
+    private static string FormatDuration(long bytes, bool unknown, int packageCount)
+    {
+        if (bytes <= 0) return unknown ? "Calculando…" : "—";
+        // Estimativa conservadora: ~8 MB/s de download + uma pequena margem por pacote
+        // para validação, extração e execução do instalador. Não representa o tempo exato
+        // do instalador, mas reage proporcionalmente ao conteúdo real da coleção.
+        double overhead = Math.Max(10, packageCount * 12);
+        double seconds = overhead + (bytes / 1024d / 1024d) / 8d;
+        if (seconds >= 3600) return $"~ {seconds / 3600:0.0} h" + (unknown ? " +" : string.Empty);
+        if (seconds >= 60) return $"~ {Math.Ceiling(seconds / 60):0} min" + (unknown ? " +" : string.Empty);
+        return $"~ {Math.Max(1, Math.Ceiling(seconds)):0} s" + (unknown ? " +" : string.Empty);
+    }
+
 
     // ----------------------------------------------------------------
     // Instalar (botão geral da barra de ferramentas, estilo UnigetUI)

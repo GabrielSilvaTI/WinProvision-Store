@@ -7,6 +7,7 @@ public class PackageProfileTab
 {
     public string Id { get; } = Guid.NewGuid().ToString();
     public string Title { get; set; } = "Novo Perfil";
+    public bool IsDefault { get; set; }
     public ObservableCollection<AppEntry> Items { get; } = new();
 }
 
@@ -27,7 +28,8 @@ public class PackageCollectionService
         int count = Tabs.Count + 1;
         var tab = new PackageProfileTab
         {
-            Title = name ?? $"Perfil {count}"
+            Title = name ?? $"Perfil {count}",
+            IsDefault = Tabs.Count == 0 && string.Equals(name, "Perfil Padrão", StringComparison.OrdinalIgnoreCase)
         };
         Tabs.Add(tab);
         ActiveTab = tab;

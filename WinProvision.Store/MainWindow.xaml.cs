@@ -2,9 +2,9 @@
 using System.Windows;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
-using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 using WinProvision.Core.Services;
+using WinProvision.Store.Controls;
 
 namespace WinProvision.Store;
 
@@ -16,7 +16,8 @@ public partial class MainWindow : FluentWindow
     public MainWindow(
         INavigationViewPageProvider pageProvider,
         INavigationService navigationService,
-        OperationsQueueService queueService)
+        OperationsQueueService queueService,
+        AppDetailsOverlay detailsOverlay)
     {
         InitializeComponent();
 
@@ -27,12 +28,11 @@ public partial class MainWindow : FluentWindow
         _queueService.PropertyChanged += QueueService_PropertyChanged;
         UpdateQueueBadge();
 
-        // Mantém o ícone do botão sol/lua coerente mesmo quando o tema muda "sozinho"
-        // (troca do tema do Windows detectada pelo SystemThemeWatcher, configurado no
-        // App.xaml.cs), e não só quando o próprio usuário clica no botão.
-        UpdateThemeToggleIcon();
-        ApplicationThemeManager.Changed += ApplicationThemeManager_Changed;
-        Closed += (_, _) => ApplicationThemeManager.Changed -= ApplicationThemeManager_Changed;
+        // Overlay de Detalhes do pacote (ver AppDetailsOverlay/AppDetailsOverlayService)
+        // - resolvido via DI porque depende de vários serviços (PackageCollectionService,
+        // WingetExecutor etc.), então é mais simples deixar o host de conteúdo no XAML
+        // vazio e atribuir aqui do que reconstruir a árvore de injeção dentro do XAML.
+        DetailsOverlayHost.Content = detailsOverlay;
 
         // Associa o provedor de páginas v4 e o controle de navegação[cite: 1]
         RootNavigation.SetPageProviderService(pageProvider);
@@ -63,35 +63,5 @@ public partial class MainWindow : FluentWindow
         int pending = _queueService.TotalCount - _queueService.CompletedCount;
         QueueBadge.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueBadgeText.Text = pending.ToString();
-    }
-
-    // -------------------------------------------------------------
-    // TEMA CLARO/ESCURO
-    //
-    // Automático por padrão (SystemThemeWatcher, ligado no App.xaml.cs, acompanha o
-    // tema do Windows o tempo todo). Este botão só permite ao usuário sobrepor essa
-    // escolha manualmente sem sair do app; a próxima mudança de tema do Windows volta
-    // a valer normalmente, já que o watcher continua ativo em segundo plano.
-    // -------------------------------------------------------------
-
-    private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        var next = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
-            ? ApplicationTheme.Light
-            : ApplicationTheme.Dark;
-
-        ApplicationThemeManager.Apply(next, WindowBackdropType.Mica);
-    }
-
-    private void ApplicationThemeManager_Changed(ApplicationTheme currentApplicationTheme, System.Windows.Media.Color systemAccent) =>
-        Dispatcher.Invoke(UpdateThemeToggleIcon);
-
-    private void UpdateThemeToggleIcon()
-    {
-        // Mostra o ícone da ação que o clique vai realizar (padrão comum desse tipo de
-        // botão): sol quando está escuro (clique clareia), lua quando está claro.
-        ThemeToggleIcon.Symbol = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark
-            ? SymbolRegular.WeatherSunny24
-            : SymbolRegular.WeatherMoon24;
     }
 }

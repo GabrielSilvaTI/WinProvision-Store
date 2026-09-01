@@ -13,6 +13,8 @@ using WinProvision.Core.Services.Backup;
 using WinProvision.Core.Services.Office;
 using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
+using WinProvision.Store.Controls;
+using WinProvision.Store.Services;
 
 namespace WinProvision.Store;
 
@@ -31,8 +33,11 @@ public partial class App : Application
             services.AddSingleton<INavigationService, NavigationService>();
 
             // Serviços Core (Adicionado ProfileService)
+            services.AddSingleton<IconService>();
             services.AddSingleton<StoreService>();
             services.AddSingleton<WingetExecutor>();
+            services.AddSingleton<PackageMetricsService>();
+            services.AddSingleton<CacheService>();
             services.AddSingleton<WingetBootstrapper>(); // Garante o winget disponível antes do /auto usá-lo (ver AutoInstallCliService)
             services.AddSingleton<PackageCollectionService>();
             services.AddSingleton<ProfileService>(); // <-- REGISTRO QUE FALTAVA
@@ -46,6 +51,9 @@ public partial class App : Application
             services.AddSingleton<WindowsUpdateService>(); // Busca/instala atualizações do Windows (WUAPI) — usado pelo ProvisioningService.ApplyAsync na máquina-alvo
             services.AddSingleton<RestorePointService>(); // Cria ponto de restauração do sistema — usado pelo ProvisioningService.ApplyAsync na máquina-alvo
             services.AddSingleton<ProvisionCliService>(); // Modo CLI: "WinProvision.Store.exe /Provision perfil.json"
+            services.AddSingleton<CliPresetsService>(); // Perfil/webhook padrão do gerador de comando CLI (Provisionamento + Configurações)
+            services.AddSingleton<AppDetailsOverlayService>(); // Ponte HomePage -> AppDetailsOverlay (ver os dois arquivos)
+            services.AddSingleton<AppDetailsOverlay>(); // Painel de Detalhes hospedado no MainWindow, no lugar da antiga AppDetailsWindow
 
             // Backup local + nuvem (login com GitHub via PAT é opcional — ver SettingsPage)
             services.AddSingleton<LocalBackupService>();
@@ -101,7 +109,7 @@ public partial class App : Application
                 // silenciosamente pra janela normal (script chamador esperaria
                 // instalação automática, não uma janela abrindo do nada).
                 NativeConsole.AttachToParentIfAvailable();
-                Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /auto <caminho-ou-URL-do-perfil.json> [/log <caminho.log>]");
+                Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /auto <caminho-ou-URL-do-perfil.json> [/log <caminho.log>] [/webhook <url>]");
                 NativeConsole.ReleaseParentPrompt();
                 Shutdown((int)AutoInstallExitCode.InvalidArguments);
                 return;
@@ -122,7 +130,7 @@ public partial class App : Application
             if (provisioningProfilePath is null)
             {
                 NativeConsole.AttachToParentIfAvailable();
-                Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /Provision <caminho-ou-URL-do-perfil.json> [/log <caminho.log>]");
+                Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /Provision <caminho-ou-URL-do-perfil.json> [/log <caminho.log>] [/webhook <url>]");
                 NativeConsole.ReleaseParentPrompt();
                 Shutdown((int)ProvisioningExitCode.InvalidArguments);
                 return;
@@ -188,6 +196,15 @@ public partial class App : Application
 
         logger.Log($"[WinProvision] Código de saída: {(int)exitCode} ({exitCode}).");
 
+        // Envia o log completo ao webhook, se informado — depois do último Log() acima,
+        // pra que o próprio resultado final da execução também vá no envio.
+        string? webhookUrl = TryGetWebhookUrl(args);
+        if (webhookUrl is not null)
+        {
+            string title = Path.GetFileNameWithoutExtension(profilePath);
+            await WebhookLogNotifier.SendAsync(webhookUrl, title, exitCode == AutoInstallExitCode.Success, logger.GetFullText(), logger.Log);
+        }
+
         NativeConsole.ReleaseParentPrompt();
         Shutdown((int)exitCode);
     }
@@ -236,6 +253,15 @@ public partial class App : Application
 
         logger.Log($"[WinProvision] Código de saída: {(int)exitCode} ({exitCode}).");
 
+        // Envia o log completo ao webhook, se informado — depois do último Log() acima,
+        // pra que o próprio resultado final da execução também vá no envio.
+        string? webhookUrl = TryGetWebhookUrl(args);
+        if (webhookUrl is not null)
+        {
+            string title = Path.GetFileNameWithoutExtension(profilePath);
+            await WebhookLogNotifier.SendAsync(webhookUrl, title, exitCode == ProvisioningExitCode.Success, logger.GetFullText(), logger.Log);
+        }
+
         NativeConsole.ReleaseParentPrompt();
         Shutdown((int)exitCode);
     }
@@ -246,6 +272,20 @@ public partial class App : Application
         for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "/log", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Procura "/webhook &lt;url&gt;" nos argumentos (opcional — envia o log completo pra essa URL ao final).</summary>
+    private static string? TryGetWebhookUrl(string[] args)
+    {
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (string.Equals(args[i], "/webhook", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {
                 return args[i + 1];
             }

@@ -60,7 +60,7 @@ public partial class OfficePage : Page
         private void _() { } // mantém CS8618 quieto sem afetar leitura acima
     }
 
-    private sealed record AppStatusRow(string DisplayName, string IconUrl, string StatusText, Brush StatusBrush);
+    private sealed record AppStatusRow(string DisplayName, string IconUrl, string StatusText, Brush StatusBrush, Wpf.Ui.Controls.SymbolRegular StatusSymbol);
 
     // Apps ligados por padrão, igual ao comportamento típico de uma instalação completa do Microsoft 365.
     private static readonly HashSet<string> DefaultOnApps = new(StringComparer.OrdinalIgnoreCase)
@@ -423,15 +423,15 @@ public partial class OfficePage : Page
 
             if (installed.Count == 0)
             {
-                row = new AppStatusRow(displayName, iconUrl, "Não instalado", NotInstalledBrush);
+                row = new AppStatusRow(displayName, iconUrl, "Não instalado", NotInstalledBrush, Wpf.Ui.Controls.SymbolRegular.DismissCircle24);
             }
             else if (installed.Any(p => p.ExcludedApps.Any(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase))))
             {
-                row = new AppStatusRow(displayName, iconUrl, "Excluído", ExcludedBrush);
+                row = new AppStatusRow(displayName, iconUrl, "Excluído", ExcludedBrush, Wpf.Ui.Controls.SymbolRegular.ErrorCircle24);
             }
             else
             {
-                row = new AppStatusRow(displayName, iconUrl, "Instalado", InstalledBrush);
+                row = new AppStatusRow(displayName, iconUrl, "Instalado", InstalledBrush, Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24);
                 installedCount++;
             }
 
