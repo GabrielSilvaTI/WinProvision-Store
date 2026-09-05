@@ -1,0 +1,224 @@
+import os
+
+html_content = """<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WinProvision Store - Sobre & Documentação</title>
+    <style>
+        :root {
+            --bg-color: #202020;
+            --card-bg: #2d2d2d;
+            --accent-color: #0078d4;
+            --accent-hover: #106ebe;
+            --text-main: #ffffff;
+            --text-secondary: #cccccc;
+            --border-color: #3d3d3d;
+            --success-color: #28a745;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding-bottom: 40px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+
+        .badges {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .badge {
+            background-color: var(--card-bg);
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+
+        ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        li {
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            position: relative;
+            padding-left: 20px;
+        }
+
+        li::before {
+            content: "•";
+            color: var(--accent-color);
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+
+        pre {
+            background-color: #1a1a1a;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 15px;
+            overflow-x: auto;
+            color: #dcdcdc;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin: 15px 0;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            color: #777;
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>WinProvision Store</h1>
+            <p class="tagline">Solução de Dia 0 Autônoma para Provisionamento e Personalização do Windows 11</p>
+            
+            <div class="badges">
+                <span class="badge">.NET 10.0</span>
+                <span class="badge">WPF + WPF-UI</span>
+                <span class="badge">Windows 11</span>
+                <span class="badge">Single-File Standalone</span>
+                <span class="badge">Custo Zero</span>
+            </div>
+
+            <a href="https://github.com/SeuUsuario/WinProvisionStore/releases" class="btn">Baixar Versão v1.0.0</a>
+        </header>
+
+        <!-- Seção Sobre -->
+        <div class="card">
+            <h2>Sobre o Projeto</h2>
+            <p>O <strong>WinProvision Store</strong> nasceu para resolver a fragilidade das automações convencionais de TI. Em vez de depender de uma colcha de retalhos de scripts isolados e utilitários de terceiros, o projeto unifica o catálogo de software, o deploy do Microsoft 365, a personalização de sistema e a telemetria em um único executável de alta performance.</p>
+            <p>Construído nativamente em <strong>C# .NET 10</strong> com interface em <strong>WPF-UI (Fluent Design)</strong>, o sistema opera de forma autônoma durante o ambiente de <code>FirstLogon</code> (via conta SYSTEM ou Administrador) sem necessitar de runtimes pré-instalados.</p>
+        </div>
+
+        <!-- Release Notes v1.0.0 -->
+        <div class="card">
+            <h2>Notas da Versão v1.0.0</h2>
+            <ul>
+                <strong>Orquestrador Winget:</strong> Busca, instalação e atualização em tempo real integrado aos catálogos oficiais da Microsoft.</li>
+                <strong>Deployment do Office 365:</strong> Gerador dinâmico de configurações do Office Deployment Tool (ODT) sem intermediários.</li>
+                <strong>Canvas Visual de Personalização:</strong> Organização interativa de atalhos e papéis de parede com exportação Base64 autocontida.</li>
+                <strong>Branding OEM Customizado:</strong> Edição direta das chaves de identificação de sistema e fabricante no Registro do Windows.</li>
+                <strong>Sincronização via GitHub Gist:</strong> Importação e exportação de perfis JSON completos via nuvem.</li>
+                <strong>Telemetria e CLI Nativa:</strong> Suporte para execução silenciosa (<code>/silent</code>) com logs remotos via Webhook (Discord/Slack).</li>
+            </ul>
+        </div>
+
+        <!-- Instruções de Automação -->
+        <div class="card">
+            <h2>Execução Automatizada (CLI)</h2>
+            <p>Para utilizar o WinProvision Store em rotinas Unattended ou scripts de <code>SetupComplete.cmd</code>, utilize a sintaxe de linha de comando gerada diretamente pela aplicação:</p>
+            <pre>WinProvision.Store.exe /auto "https://gist.githubusercontent.com/.../profile.json" /silent /webhook "https://discord.com/api/webhooks/..."</pre>
+        </div>
+
+        <!-- Agradecimentos -->
+        <div class="card">
+            <h2>Agradecimentos</h2>
+            <p>Agradecimentos especiais ao ecossistema Open Source e às tecnologias que viabilizaram a criação deste projeto:</p>
+            <ul>
+                <strong>Microsoft:</strong> Pela infraestrutura do Winget, Office Deployment Tool e APIs do Windows Shell.</li>
+                <strong>WPF-UI:</strong> Pela biblioteca fantástica de componentes Fluent Design para WPF.</li>
+                <strong>Comunidade .NET:</strong> Pelo suporte contínuo à evolução da plataforma desktop.</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>WinProvision Store v1.0.0 &copy; 2026 — Desenvolvido de forma autônoma e com custo operacional zero.</p>
+        </footer>
+    </div>
+
+</body>
+</html>
+"""
+
+os.makedirs("./docs", exist_ok=True)
+with open("./docs/index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print("Arquivo ./docs/index.html criado com sucesso.")
