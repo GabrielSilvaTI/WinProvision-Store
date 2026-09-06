@@ -1,0 +1,80 @@
+name: Update App Icons CDN
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Executa toda segunda-feira às 03:00 AM UTC
+  workflow_dispatch:
+    inputs:
+      test_limit:
+        description: 'Quantidade de apps para testar (digite 0 para o catálogo inteiro)'
+        required: false
+        default: '5'
+
+permissions:
+  contents: write
+
+jobs:
+  process-icons-cdn:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK (.NET 10.0)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          include-prerelease: true
+
+      - name: Baixar Catálogo Real da branch 'database'
+        run: |
+          mkdir -p work_dir
+          # Baixa o apps.json da sua branch database
+          curl -sSL "https://raw.githubusercontent.com/GabrielSilvaTI/WinProvision-Store/database/apps.json" -o work_dir/apps_full.json
+          
+          LIMIT="${{ github.event.inputs.test_limit || '5' }}"
+          
+          if [ "$LIMIT" -gt 0 ]; then
+            echo "Modo de Teste Ativo: Limitando a $LIMIT aplicativos..."
+            # Usa o 'jq' nativo do runner Linux para pegar apenas os N primeiros apps
+            jq ".[0:$LIMIT]" work_dir/apps_full.json > work_dir/apps.json
+          else
+            echo "Modo Produção: Processando catálogo inteiro..."
+            cp work_dir/apps_full.json work_dir/apps.json
+          fi
+
+      - name: Compilar Extrator C#
+        run: |
+          PROJ_PATH=$(find . -iname "WingetIconExtractor.csproj" -print -quit)
+          if [ -z "$PROJ_PATH" ]; then
+            echo "Erro: Projeto WingetIconExtractor.csproj não encontrado!"
+            exit 1
+          fi
+          echo "PROJ_PATH=$PROJ_PATH" >> $GITHUB_ENV
+          dotnet build "$PROJ_PATH" -c Release
+
+      - name: Executar Extrator Isolado
+        run: |
+          mkdir -p temp_icons
+          dotnet run --project "$PROJ_PATH" -c Release -- \
+            --catalog work_dir/apps.json \
+            --outdir temp_icons
+
+      - name: Deploy para a Branch Órfã 'icons' (CDN)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Autenticação garantida via token automático da Action (evita Rate Limits)
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git icons-branch-dir
+          cd icons-branch-dir
+          
+          git checkout icons 2>/dev/null || git checkout --orphan icons
+          
+          # Copia apenas os novos ícones gerados no teste
+          cp -r ../temp_icons/* .
+          
+          git add .
+          git commit -m "test: cdn de ícones atualizada com pacote de testes $(date +'%Y-%m-%d %H:%M')" || exit 0
+          git push origin icons --force

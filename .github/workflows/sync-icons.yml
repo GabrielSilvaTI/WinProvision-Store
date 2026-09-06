@@ -1,0 +1,54 @@
+name: Sync Icon Manifest (R2 + Workers KV)
+
+on:
+  schedule:
+    # todo dia às 06:00 UTC (03:00 no horário de Brasília)
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar boto3
+        run: pip install boto3
+
+      - name: Gerar manifesto a partir do bucket R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python scripts/icons/build_manifest_from_r2.py
+
+      - name: Publicar icon-manifest.json de volta no R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python scripts/icons/upload_manifest_ci.py
+
+      - name: Subir chaves no Workers KV
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.R2_ACCOUNT_ID }}
+          command: kv bulk put kv_bulk.json --namespace-id ${{ secrets.KV_NAMESPACE_ID }} --remote
+
+      - name: Publicar relatório como artefato (se houver conflitos de extensão)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: icon-sync-report
+          path: |
+            icon-manifest.json
+            kv_bulk.json
+            conflitos_extensao.json
+          if-no-files-found: ignore
