@@ -29,14 +29,6 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Rodar o Indexer (gera apps.json a partir dos manifests)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-          dotnet run --project src/WinProvision.Indexer -c Release --
-          "${{ github.workspace }}/winget-pkgs/manifests"
-          "${{ github.workspace }}/catalog-output"
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -45,6 +37,24 @@ jobs:
       - name: Instalar boto3
         run: pip install boto3
 
+      - name: Restaurar metrics-cache.json do R2 (se existir)
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: >
+          python scripts/database/r2_download.py
+          Store/Database/metrics-cache.json
+          "${{ github.workspace }}/catalog-output/metrics-cache.json"
+
+      - name: Rodar o Indexer (gera apps.json a partir dos manifests)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          dotnet run --project src/WinProvision.Indexer -c Release --
+          "${{ github.workspace }}/winget-pkgs/manifests"
+          "${{ github.workspace }}/catalog-output"
+
       - name: Publicar apps.json no R2 (Store/Database/apps.json)
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -52,3 +62,13 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           APPS_JSON_SOURCE: ${{ github.workspace }}/catalog-output/apps.json
         run: python scripts/database/upload_apps_json.py
+
+      - name: Devolver metrics-cache.json atualizado pro R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: >
+          python scripts/database/r2_upload.py
+          "${{ github.workspace }}/catalog-output/metrics-cache.json"
+          Store/Database/metrics-cache.json
