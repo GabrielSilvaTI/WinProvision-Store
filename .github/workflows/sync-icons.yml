@@ -40,6 +40,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.R2_ACCOUNT_ID }}
+          wranglerVersion: "4"
           command: kv bulk put kv_bulk.json --namespace-id ${{ secrets.KV_NAMESPACE_ID }} --remote
 
       - name: Publicar relatório como artefato (se houver conflitos de extensão)
