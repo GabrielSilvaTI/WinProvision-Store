@@ -5,19 +5,17 @@ Catálogo curado de aplicativos do WinGet, no estilo [Winstall](https://winstall
 ## Como funciona
 
 ```
-[winget-pkgs (github)] → [WinProvision.Indexer] → [branch "database"] → [app cliente]
+[winget-pkgs (github)] → [WinProvision.Indexer] → [Cloudflare R2] → [app cliente]
 ```
 
-Todos os dias às 03:00 UTC (ou manualmente via `workflow_dispatch`), o workflow `db-sync.yml`:
+O catálogo consumido pelo app fica no Cloudflare R2 em
+`Store/Database/apps.json`. Ele não é commitado neste repositório.
 
 1. Clona o [`microsoft/winget-pkgs`](https://github.com/microsoft/winget-pkgs) (shallow clone).
 2. Executa o `WinProvision.Indexer`, que varre os manifests YAML, filtra, pontua e exporta o catálogo.
-3. Publica os arquivos JSON resultantes na branch `database` (isolada da `main`, nunca gera conflito).
+3. Publica o `apps.json` no R2 por meio da pipeline externa de dados.
 
-O workflow `sync-icon-databases.yml` **não roda mais no mesmo cron**. Ele é disparado via
-`workflow_run` só depois que o `db-sync.yml` termina com sucesso — isso elimina a corrida
-onde o sync de ícones podia rodar antes do `apps.json` existir/estar atualizado na branch
-`database` (causa dos 404 no curl). Pode ser disparado manualmente também.
+O workflow `sync-icons.yml` sincroniza o manifesto de ícones do R2 com o Workers KV.
 
 ## Pipeline do Indexer (`WinProvision.Indexer`)
 
@@ -29,17 +27,13 @@ onde o sync de ícones podia rodar antes do `apps.json` existir/estar atualizado
 | **4. Enriquecimento GitHub** | Para apps com repositório GitHub identificável na Homepage/PackageUrl, busca estrelas, forks e data do último push via API REST, com cache em disco (`metrics-cache.json`, TTL 7 dias) e `GITHUB_TOKEN` nativo do Actions (5.000 req/h). |
 | **5. Score (0–100)** | `Completude × 0.35 + Popularidade × 0.35 + Manutenção × 0.30` — pesos em [`config/scoring-weights.json`](src/WinProvision.Indexer/config/scoring-weights.json). Apps **sem** repositório GitHub (a maioria dos apps proprietários mais usados — Chrome, Spotify, Zoom...) recebem um score neutro nos componentes de Popularidade/Manutenção em vez de serem penalizados. |
 | **6. Corte por score mínimo** | Descarta do catálogo publicado quem passou no filtro de ruído mas tirou nota baixa (ex.: repo GitHub abandonado, zero estrelas). Limite em `MinimumScoreThreshold` (`config/scoring-weights.json`, padrão 25). |
-| **7. Exportação segmentada** | Gera 4 arquivos JSON (ver abaixo) para o cliente nunca precisar baixar a base inteira. |
+| **7. Exportação** | Gera o `apps.json`, que é publicado externamente no R2. |
 
-## Arquivos publicados na branch `database`
+## Arquivo publicado no R2
 
 | Arquivo | Conteúdo | Uso sugerido |
 |---|---|---|
-| `apps.json` | Catálogo completo, higienizado e pontuado | Download sob demanda / tela de detalhes |
-| `apps-featured.json` | Top 500 por score | Destaques da home |
-| `apps-regional-br.json` | Apenas apps com `regionTags` contendo `BR` | Seção "Apps do Brasil" |
-| `apps-search-index.json` | Só `id`, `name`, `publisher`, `score`, `tags` | Autocomplete / busca instantânea |
-| `metrics-cache.json` | Cache interno de métricas do GitHub | Uso interno da pipeline (não é para o app cliente) |
+| `Store/Database/apps.json` | Catálogo completo, higienizado e pontuado | Catálogo da aplicação |
 
 ## Estrutura do repositório
 
@@ -54,10 +48,9 @@ src/
       WingetExecutor.cs        # Instalação/desinstalação via winget.exe
   WinProvision.Indexer/        # Ponto de entrada da pipeline de indexação (CI)
     config/                    # scoring-weights.json, noise-rules.json
-  WinProvision.ConsoleDemo/    # Cliente de teste manual (busca + instalação via console)
 ```
 
-> A interface gráfica (WPF/MAUI/outro) ainda não existe neste repositório — os serviços em `WinProvision.Core` (`StoreService`, `IconService`, `WingetExecutor`) já estão prontos para serem consumidos por ela quando for criada.
+> A interface gráfica está no projeto `WinProvision.Store` e consome os serviços compartilhados de `WinProvision.Core`.
 
 ## Rodando localmente
 
@@ -69,8 +62,6 @@ git clone --depth 1 https://github.com/microsoft/winget-pkgs.git
 dotnet publish src/WinProvision.Indexer -c Release -o ./publish
 dotnet ./publish/WinProvision.Indexer.dll ./winget-pkgs/manifests ./output
 
-# (opcional) testar busca/instalação interativamente
-dotnet run --project src/WinProvision.ConsoleDemo
 ```
 
 Sem `GITHUB_TOKEN` no ambiente, o enriquecimento via GitHub roda no limite não autenticado (60 req/h) e pode atingir rate limit rapidamente numa base de milhares de apps — normal em teste local, não é erro.

@@ -9,7 +9,7 @@ usam match automático e confiável), o Winstall só entra na base publicada
 
 ## Como funciona
 
-1. Toda execução do workflow `sync-icon-databases.yml` gera
+1. Toda execução do workflow `sync-icons.yml` gera
    `winstall-review-candidates.json` como artefato de build — uma lista de sugestões
    (`arquivo do Winstall → app do catálogo`) calculada por similaridade de nome
    (índice de Jaccard entre tokens). Não é confiável o suficiente para publicar sozinha.

@@ -10,7 +10,7 @@ namespace WinProvision.Core.Services;
 
 public class StoreService
 {
-    private const string DatabaseUrl = "https://raw.githubusercontent.com/GabrielSilvaTI/WinProvision-Store/database/apps.json";
+    private const string DatabaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json";
     private readonly string _cacheDirectory;
     private readonly string _cacheFilePath;
     private readonly HttpClient _httpClient;

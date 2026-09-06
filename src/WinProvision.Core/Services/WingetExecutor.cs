@@ -33,9 +33,8 @@ public class WingetExecutor
     /// <param name="bootstrapper">
     /// Opcional — quando presente (via injeção de dependência; ver App.xaml.cs), garante o
     /// winget disponível antes da PRIMEIRA instalação da sessão (ver
-    /// <see cref="EnsureWingetBootstrappedOnceAsync"/>). Null mantém o comportamento antigo
-    /// (usado pelo WinProvision.ConsoleDemo, que instancia sem DI) — sem checagem prévia,
-    /// só chama winget.exe direto.
+    /// <see cref="EnsureWingetBootstrappedOnceAsync"/>). Null mantém o comportamento sem
+    /// checagem prévia, chamando winget.exe diretamente.
     /// </param>
     public WingetExecutor(WingetBootstrapper? bootstrapper = null)
     {
@@ -445,8 +444,7 @@ public class WingetExecutor
     {
         if (_bootstrapper is null)
         {
-            // Sem WingetBootstrapper injetado (ex.: WinProvision.ConsoleDemo, que instancia
-            // sem DI) — mantém o comportamento de sempre: tenta rodar o winget.exe direto.
+            // Sem WingetBootstrapper injetado, tenta rodar o winget.exe diretamente.
             return Task.FromResult(new WingetBootstrapResult(WingetBootstrapStatus.AlreadyAvailable));
         }
 
