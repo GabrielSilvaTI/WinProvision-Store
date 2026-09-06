@@ -1,0 +1,64 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-windows;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <DebugSymbols>true</DebugSymbols>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <TieredCompilation>true</TieredCompilation>
+    <ConcurrentGC>true</ConcurrentGC>
+    <GCLatencyMode>Balanced</GCLatencyMode>
+    <GCConserveMemory>false</GCConserveMemory>
+    <EnableSSE3Instructions>true</EnableSSE3Instructions>
+    <EnableSSE41Instructions>true</EnableSSE41Instructions>
+    <EnableSSE42Instructions>true</EnableSSE42Instructions>
+    <EnableAVX2Instructions>true</EnableAVX2Instructions>
+    <EnableBMI2Instructions>true</EnableBMI2Instructions>
+    <EnableFMAInstructions>true</EnableFMAInstructions>
+    <EnableLZCNTInstructions>true</EnableLZCNTInstructions>
+    <EnablePOPCNTInstructions>true</EnablePOPCNTInstructions>
+    <EnableAESInstructions>true</EnableAESInstructions>
+    <EnablePCLMULInstructions>true</EnablePCLMULInstructions>
+    <CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <PredefinedCulturesOnly>false</PredefinedCulturesOnly>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugType>portable</DebugType>
+    <Optimize>false</Optimize>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+    <TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>embedded</DebugType>
+    <Optimize>true</Optimize>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+    <TieredCompilationQuickJitForLoops>false</TieredCompilationQuickJitForLoops>
+    <QuickJitForLoopHoisting>true</QuickJitForLoopHoisting>
+    <EnableCompressedEnumerables>true</EnableCompressedEnumerables>
+    <EnableCompressedRefFields>true</EnableCompressedRefFields>
+    <DefineConstants>RELEASE;TRACE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
+    <PackageReference Include="YamlDotNet" Version="18.1.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.8" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>

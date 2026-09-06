@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+	<assemblyIdentity version="1.0.0.0" name="WinProvision.Store.app"/>
+
+	<trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+		<security>
+			<requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+				<!-- SEM elevação por padrão. Rodar a Store inteira como Administrador
+             quebrava a desinstalação de qualquer pacote instalado no escopo do
+             usuário (a maioria) — o winget se recusa a desinstalar um pacote
+             "user" quando quem chama está elevado (bug/limitação conhecida do
+             próprio winget-cli). A grande maioria das operações (winget install/
+             uninstall/update em escopo user, e toda a aba de Provisionamento
+             exceto renomear a máquina) não precisa de admin. Quando alguma
+             operação específica precisar (instalar/atualizar pacote de escopo
+             machine, ou renomear o computador), o próprio winget pede UAC sozinho
+             por comando, ou a Store relança só aquele comando elevado (ver
+             ElevatedProcessRunner) — nunca o processo inteiro. -->
+				<requestedExecutionLevel level="asInvoker" uiAccess="false" />
+			</requestedPrivileges>
+		</security>
+	</trustInfo>
+
+	<compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+		<application>
+			<!-- Windows 10 / Windows 11 -->
+			<supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+		</application>
+	</compatibility>
+
+	<application xmlns="urn:schemas-microsoft-com:asm.v3">
+		<windowsSettings>
+			<dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+			<dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+		</windowsSettings>
+	</application>
+</assembly>
