@@ -1,0 +1,30 @@
+<Application x:Class="WinProvision.Store.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:conv="clr-namespace:WinProvision.Store.Converters"
+             Startup="OnStartup"
+             Exit="OnExit">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Define o tema Dark padrão da WPF UI v4 -->
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+                <ResourceDictionary Source="Styles/GradientProgressBar.xaml" />
+                <ResourceDictionary Source="Styles/InstallActionBrushes.xaml" />
+                <ResourceDictionary Source="Styles/VisualPolish.xaml" />
+                <ResourceDictionary Source="Styles/ComboBoxStyle.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- Ícones agora usam a attached property conv:AsyncImage.SourceUrl
+                 (download+decode assíncrono e cacheado) em vez de um converter
+                 síncrono na thread de UI — ver Converters/AsyncImage.cs -->
+            <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+            <conv:ProgressScaleConverter x:Key="ProgressScaleConverter" />
+            <conv:StageToSymbolConverter x:Key="StageToSymbolConverter" />
+            <conv:StageStatusToFilledConverter x:Key="StageStatusToFilledConverter" />
+            <conv:StageStatusToIconForegroundConverter x:Key="StageStatusToIconForegroundConverter" />
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

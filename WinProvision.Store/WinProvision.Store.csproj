@@ -1,0 +1,106 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<UseWPF>true</UseWPF>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<ApplicationIcon>Assets\app.ico</ApplicationIcon>
+		<Version>1.0.1</Version>
+		<AssemblyVersion>1.0.1.0</AssemblyVersion>
+		<FileVersion>1.0.1.0</FileVersion>
+		<LangVersion>latest</LangVersion>
+
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<PlatformTarget>x64</PlatformTarget>
+		<SelfContained>true</SelfContained>
+		<PublishSingleFile>true</PublishSingleFile>
+		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+
+		<EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+		<TrimmerSingleWarn>false</TrimmerSingleWarn>
+		<SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+
+		<EnableCompressedEnumerables>true</EnableCompressedEnumerables>
+		<EnableCompressedRefFields>true</EnableCompressedRefFields>
+
+		<DebugSymbols>true</DebugSymbols>
+		<IncludeSymbolsInSingleFile>false</IncludeSymbolsInSingleFile>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<Deterministic>true</Deterministic>
+		<ContinuousIntegrationBuild>false</ContinuousIntegrationBuild>
+		<EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+
+		<ConcurrentGC>true</ConcurrentGC>
+		<GCLatencyMode>Balanced</GCLatencyMode>
+		<GCConserveMemory>false</GCConserveMemory>
+		<HighPerformanceGC>false</HighPerformanceGC>
+		<GCHeapHardLimitPercent>0</GCHeapHardLimitPercent>
+
+		<TieredCompilation>true</TieredCompilation>
+		<Prefer32Bit>false</Prefer32Bit>
+
+		<EnableSSE3Instructions>true</EnableSSE3Instructions>
+		<EnableSSE41Instructions>true</EnableSSE41Instructions>
+		<EnableSSE42Instructions>true</EnableSSE42Instructions>
+		<EnableAVX2Instructions>true</EnableAVX2Instructions>
+		<EnableBMI2Instructions>true</EnableBMI2Instructions>
+		<EnableFMAInstructions>true</EnableFMAInstructions>
+		<EnableLZCNTInstructions>true</EnableLZCNTInstructions>
+		<EnablePOPCNTInstructions>true</EnablePOPCNTInstructions>
+		<EnableAESInstructions>true</EnableAESInstructions>
+		<EnablePCLMULInstructions>true</EnablePCLMULInstructions>
+
+		<CheckForOverflowUnderflow>false</CheckForOverflowUnderflow>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<InvariantGlobalization>false</InvariantGlobalization>
+		<PredefinedCulturesOnly>false</PredefinedCulturesOnly>
+		<DisableImplicitCultureSensitiveComparisons>false</DisableImplicitCultureSensitiveComparisons>
+		<EnableAnalyzerRequiresUnreferencedCode>true</EnableAnalyzerRequiresUnreferencedCode>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<DebugType>portable</DebugType>
+		<Optimize>false</Optimize>
+		<PublishReadyToRun>false</PublishReadyToRun>
+		<PublishReadyToRunEmitSymbols>false</PublishReadyToRunEmitSymbols>
+		<TieredCompilationQuickJit>true</TieredCompilationQuickJit>
+		<TieredCompilationQuickJitForLoops>true</TieredCompilationQuickJitForLoops>
+		<QuickJitForLoopHoisting>false</QuickJitForLoopHoisting>
+		<DefineConstants>DEBUG;TRACE</DefineConstants>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
+		<DebugType>embedded</DebugType>
+		<Optimize>true</Optimize>
+		<OptimizationPreference>Speed</OptimizationPreference>
+		<PublishReadyToRun>true</PublishReadyToRun>
+		<PublishReadyToRunEmitSymbols>false</PublishReadyToRunEmitSymbols>
+		<TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+		<TieredCompilationQuickJitForLoops>false</TieredCompilationQuickJitForLoops>
+		<QuickJitForLoopHoisting>true</QuickJitForLoopHoisting>
+		<DefineConstants>RELEASE;TRACE</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="WPF-UI" Version="4.3.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3405.78" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\src\WinProvision.Core\WinProvision.Core.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Resource Include="Assets\Icons\**\*.png" />
+		<Resource Include="Assets\Desktop\**\*.png" />
+		<Resource Include="Assets\app.ico" />
+		<Resource Include="Assets\app_icon_256.png" />
+		<Resource Include="Assets\Background.png" />
+	</ItemGroup>
+
+</Project>

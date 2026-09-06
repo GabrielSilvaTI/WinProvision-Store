@@ -1,0 +1,19 @@
+{
+  "IdPrefixExclusions": [
+    "Microsoft.VCRedist",
+    "Microsoft.VCLibs",
+    "Microsoft.DotNet.",
+    "Microsoft.NET.",
+    "Microsoft.WindowsAppRuntime",
+    "Microsoft.UI.Xaml",
+    "Microsoft.DirectX",
+    "Fonts."
+  ],
+  "NameKeywordExclusions": [
+    "Language Pack",
+    "LanguagePack",
+    "Redistributable",
+    "Runtime Libraries"
+  ],
+  "AllowlistIds": []
+}

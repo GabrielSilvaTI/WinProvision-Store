@@ -1,0 +1,169 @@
+<ui:FluentWindow x:Class="WinProvision.Store.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        xmlns:local="clr-namespace:WinProvision.Store"
+        xmlns:controls="clr-namespace:WinProvision.Store.Controls"
+        Title="WinProvision Store"
+        Icon="Assets/app.ico"
+        Height="760" Width="1240" MinHeight="620" MinWidth="820"
+        WindowStartupLocation="CenterScreen"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+        TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+        TextElement.FontSize="14"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextHintingMode="Auto"
+        RenderOptions.ClearTypeHint="Enabled"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <ui:FluentWindow.Resources>
+        <Style TargetType="ui:NavigationViewItem">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="Margin" Value="4,2" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="14" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <ui:TitleBar Title=" "
+                         Icon="pack://application:,,,/Assets/app.ico">
+                <ui:TitleBar.TrailingContent>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                        <ui:Button x:Name="QueueToggleButton"
+                                   Appearance="Transparent"
+                                   Padding="8"
+                                   VerticalAlignment="Center"
+                                   ToolTip="Fila de operações"
+                                   Click="QueueToggleButton_Click">
+                            <Grid>
+                                <ui:SymbolIcon Symbol="ArrowDownload24" />
+                                <Border x:Name="QueueBadge"
+                                        Width="16" Height="16" CornerRadius="8"
+                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                                        Margin="0,-6,-8,0"
+                                        Visibility="Collapsed">
+                                    <TextBlock x:Name="QueueBadgeText" Text="0" FontSize="9" FontWeight="Bold"
+                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                            </Grid>
+                        </ui:Button>
+
+                        <Popup x:Name="QueuePopup"
+                               PlacementTarget="{Binding ElementName=QueueToggleButton}"
+                               Placement="Bottom"
+                               HorizontalOffset="-360"
+                               VerticalOffset="6"
+                               AllowsTransparency="True"
+                               StaysOpen="False"
+                               PopupAnimation="Fade">
+                            <controls:OperationsQueuePanel x:Name="QueuePanelControl" />
+                        </Popup>
+                    </StackPanel>
+                </ui:TitleBar.TrailingContent>
+            </ui:TitleBar>
+
+            <StackPanel x:Name="CustomAppTitle"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Left"
+                        Margin="52,0,0,0"
+                        IsHitTestVisible="False">
+                <Image Source="pack://application:,,,/Assets/app_icon_256.png"
+                       Width="24"
+                       Height="24"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0"
+                       RenderOptions.BitmapScalingMode="Fant"
+                       SnapsToDevicePixels="True"
+                       UseLayoutRounding="True" />
+                <TextBlock Text="WinProvision Store"
+                           VerticalAlignment="Center"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           FontFamily="Segoe UI Variable Display, Aptos, Segoe UI"
+                           TextOptions.TextFormattingMode="Ideal"
+                           TextOptions.TextRenderingMode="ClearType"
+                           RenderOptions.ClearTypeHint="Enabled"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+            </StackPanel>
+        </Grid>
+
+        <ui:NavigationView
+            x:Name="RootNavigation"
+            Grid.Row="1"
+            PaneDisplayMode="Left"
+            IsPaneOpen="True"
+            OpenPaneLength="224">
+
+            <!-- Itens Principais do Menu -->
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Visão Geral" TargetPageType="{x:Type local:HomePage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Home24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Pacotes" TargetPageType="{x:Type local:PackagesPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="AppsListDetail24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Atualizações" TargetPageType="{x:Type local:UpdatesPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Office" TargetPageType="{x:Type local:OfficePage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="AppsAddIn24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Provisionamento" TargetPageType="{x:Type local:ProvisioningPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Desktop24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+
+            <!-- Itens do Rodapé -->
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Configurações" TargetPageType="{x:Type local:SettingsPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Settings24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Sobre" TargetPageType="{x:Type local:AboutPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Info24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+            </ui:NavigationView.FooterMenuItems>
+
+        </ui:NavigationView>
+
+        <!-- Overlay de Detalhes do pacote: fica por cima de TUDO (TitleBar +
+             NavigationView, daí o RowSpan="2") porque é declarado por último no Grid -
+             no WPF, entre irmãos do mesmo painel, quem vem depois no XAML desenha por
+             cima. Content é atribuído em code-behind (ver MainWindow.xaml.cs) porque o
+             AppDetailsOverlay é resolvido via injeção de dependência, não instanciado
+             direto aqui, integrado ao fluxo visual da janela principal. -->
+        <ContentControl x:Name="DetailsOverlayHost" Grid.Row="0" Grid.RowSpan="2" Focusable="False" />
+    </Grid>
+</ui:FluentWindow>

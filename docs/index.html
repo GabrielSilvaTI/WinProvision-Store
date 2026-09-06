@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="WinProvision Store: encontre, instale e organize seus aplicativos no Windows.">
+  <link rel="icon" type="image/png" href="assets/winprovision-icon.png">
+  <title>WinProvision Store | Seu Windows, do seu jeito</title>
+  <style>
+    :root {
+      --bg: #070a12;
+      --panel: rgba(21, 27, 44, .72);
+      --panel-strong: rgba(27, 35, 57, .9);
+      --line: rgba(190, 211, 255, .14);
+      --text: #f5f7ff;
+      --muted: #aab4cc;
+      --blue: #78a9ff;
+      --cyan: #8ee8ff;
+      --purple: #bca3ff;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .36);
+      --radius: 26px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(85, 133, 255, .24), transparent 30rem),
+        radial-gradient(circle at 88% 20%, rgba(154, 93, 255, .18), transparent 32rem),
+        linear-gradient(145deg, #070a12 0%, #0d1426 52%, #090c16 100%);
+      font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    .wrap { width: min(1120px, calc(100% - 40px)); margin: auto; }
+    .nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 24px 0;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; letter-spacing: -.02em; }
+    .brand-mark {
+      display: grid; place-items: center; width: 48px; height: 48px;
+      border: 1px solid rgba(210, 229, 255, .26); border-radius: 15px;
+      background: linear-gradient(145deg, rgba(126, 183, 255, .2), rgba(159, 111, 255, .12));
+      box-shadow: 0 8px 24px rgba(64, 128, 255, .22);
+      overflow: hidden;
+    }
+    .brand-mark img { width: 46px; height: 46px; object-fit: contain; }
+    .nav-links { display: flex; gap: 26px; color: var(--muted); font-size: 14px; }
+    .nav-links a:hover { color: var(--text); }
+
+    .hero { display: grid; grid-template-columns: 1.02fr .98fr; gap: 60px; align-items: center; padding: 76px 0 100px; }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px;
+      border: 1px solid var(--line); border-radius: 999px; color: var(--cyan);
+      background: rgba(103, 151, 255, .1); font-size: 12px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+    h1 { max-width: 650px; margin: 22px 0 18px; font-size: clamp(44px, 6vw, 76px); line-height: 1.02; letter-spacing: -.065em; }
+    .gradient { background: linear-gradient(110deg, var(--cyan), var(--blue) 45%, var(--purple)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lead { max-width: 570px; color: var(--muted); font-size: 19px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+    .button { display: inline-flex; align-items: center; gap: 9px; padding: 13px 18px; border-radius: 14px; border: 1px solid var(--line); font-weight: 650; transition: transform .2s, border-color .2s, background .2s; }
+    .button:hover { transform: translateY(-2px); border-color: rgba(177, 212, 255, .5); }
+    .button.primary { color: #071021; border-color: transparent; background: linear-gradient(110deg, var(--cyan), var(--blue)); box-shadow: 0 10px 28px rgba(84, 159, 255, .24); }
+    .button.secondary { background: rgba(255, 255, 255, .06); color: var(--text); }
+
+    .window {
+      position: relative; padding: 15px; border: 1px solid rgba(203, 222, 255, .22);
+      border-radius: 30px; background: linear-gradient(145deg, rgba(41, 55, 88, .72), rgba(14, 19, 34, .82));
+      box-shadow: var(--shadow); transform: rotate(1.5deg);
+    }
+    .window::before { content: ""; position: absolute; inset: -20px; z-index: -1; border-radius: 40px; background: radial-gradient(circle, rgba(99, 167, 255, .25), transparent 65%); filter: blur(18px); }
+    .window-logo { position: absolute; top: 28px; right: 28px; width: 74px; height: 74px; object-fit: contain; filter: drop-shadow(0 10px 16px rgba(42, 132, 255, .32)); }
+    .window-bar { display: flex; gap: 7px; padding: 5px 7px 14px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #7d8aa8; }
+    .screen { display: grid; grid-template-columns: 78px 1fr; min-height: 330px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: #0f1524; }
+    .side { padding: 18px 12px; background: rgba(6, 9, 17, .42); }
+    .side i { display: block; height: 9px; margin: 0 auto 18px; border-radius: 5px; background: rgba(170, 196, 255, .24); }
+    .side i.active { background: linear-gradient(90deg, var(--cyan), var(--blue)); }
+    .mock { padding: 25px; }
+    .mock h3 { margin: 0 0 7px; font-size: 22px; }
+    .mock p { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
+    .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .card { padding: 17px; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); }
+    .card strong { display: block; margin-bottom: 5px; font-size: 13px; }
+    .card span { color: var(--muted); font-size: 11px; }
+    .card .icon { display: grid; place-items: center; width: 32px; height: 32px; margin-bottom: 13px; border-radius: 10px; color: var(--cyan); background: rgba(117, 174, 255, .14); }
+
+    section { padding: 74px 0; }
+    .section-heading { max-width: 620px; margin-bottom: 30px; }
+    .section-heading h2 { margin: 0 0 8px; font-size: clamp(30px, 4vw, 45px); line-height: 1.1; letter-spacing: -.045em; }
+    .section-heading p { margin: 0; color: var(--muted); }
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feature { padding: 25px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: 0 12px 36px rgba(0,0,0,.12); }
+    .feature:hover { background: var(--panel-strong); }
+    .feature-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 20px; border-radius: 14px; color: var(--cyan); background: linear-gradient(145deg, rgba(107, 173, 255, .2), rgba(174, 123, 255, .14)); }
+    .feature h3 { margin: 0 0 7px; font-size: 19px; }
+    .feature p { margin: 0; color: var(--muted); font-size: 14px; }
+    .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .step { position: relative; padding: 24px; border-top: 1px solid rgba(170, 205, 255, .25); }
+    .step b { display: block; margin-bottom: 10px; color: var(--blue); font-size: 13px; letter-spacing: .1em; }
+    .step h3 { margin: 0 0 6px; font-size: 18px; }
+    .step p { margin: 0; color: var(--muted); font-size: 14px; }
+    .cta { display: flex; align-items: center; justify-content: space-between; gap: 25px; padding: 38px; border: 1px solid rgba(178, 211, 255, .2); border-radius: var(--radius); background: linear-gradient(115deg, rgba(96, 155, 255, .16), rgba(155, 112, 255, .12)); }
+    .cta h2 { margin: 0 0 6px; font-size: 28px; letter-spacing: -.04em; }
+    .cta p { margin: 0; color: var(--muted); }
+    footer { padding: 30px 0 42px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    footer .wrap { display: flex; flex-direction: column; gap: 16px; }
+    .credits { max-width: 780px; color: #8995b0; font-size: 12px; line-height: 1.7; }
+    .credits strong { color: #c7d3ec; font-weight: 650; }
+    .credits a { color: #a9c9ff; }
+    .credits a:hover { color: var(--text); }
+
+    @media (max-width: 800px) {
+      .nav-links { display: none; }
+      .hero { grid-template-columns: 1fr; padding-top: 45px; }
+      .window { max-width: 620px; margin: auto; }
+      .features, .flow { grid-template-columns: 1fr; }
+      .cta { align-items: flex-start; flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; transform: none !important; } }
+  </style>
+</head>
+<body>
+  <header class="wrap nav">
+    <a class="brand" href="#">
+      <span class="brand-mark"><img src="assets/winprovision-icon.png" alt=""></span>
+      <span>WinProvision Store</span>
+    </a>
+    <nav class="nav-links" aria-label="Navegação"><a href="#recursos">Recursos</a><a href="#como-funciona">Como funciona</a><a href="https://github.com/GabrielSilvaTI/WinProvision-Store">GitHub</a></nav>
+  </header>
+
+  <main>
+    <section class="wrap hero">
+      <div>
+        <span class="eyebrow">Uma experiência melhor para o Windows</span>
+        <h1>Seu Windows.<br><span class="gradient">Do seu jeito.</span></h1>
+        <p class="lead">Encontre, instale e organize seus aplicativos em um só lugar. Simples para começar, completo quando você precisa.</p>
+        <div class="actions"><a class="button primary" href="https://github.com/GabrielSilvaTI/WinProvision-Store">Conheça o projeto <span aria-hidden="true">↗</span></a><a class="button secondary" href="#recursos">Ver recursos</a></div>
+      </div>
+      <div class="window" aria-label="Prévia ilustrativa do WinProvision Store">
+        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><img class="window-logo" src="assets/winprovision-icon.png" alt="">
+        <div class="screen"><aside class="side"><i class="active"></i><i></i><i></i><i></i><i></i></aside><div class="mock"><h3>Olá, Gabriel</h3><p>O que você quer fazer hoje?</p><div class="cards"><div class="card"><div class="icon">✦</div><strong>Aplicativos</strong><span>Encontre o que precisa</span></div><div class="card"><div class="icon">↻</div><strong>Atualizações</strong><span>Tudo em dia</span></div><div class="card"><div class="icon">⚙</div><strong>Provisionamento</strong><span>Prepare seu sistema</span></div><div class="card"><div class="icon">▶</div><strong>Instalação Auto</strong><span>Deixe acontecer</span></div></div></div></div>
+      </div>
+    </section>
+
+    <section id="recursos" class="wrap">
+      <div class="section-heading"><h2>Tudo o que você precisa,<br><span class="gradient">sem complicação.</span></h2><p>Uma central moderna para cuidar dos aplicativos e da preparação do seu computador.</p></div>
+      <div class="features">
+        <article class="feature"><div class="feature-icon">✦</div><h3>Catálogo de aplicativos</h3><p>Encontre seus programas favoritos em uma experiência organizada e fácil de usar.</p></article>
+        <article class="feature"><div class="feature-icon">▣</div><h3>Instalação em lote</h3><p>Selecione vários aplicativos e configure seu ambiente de uma só vez.</p></article>
+        <article class="feature"><div class="feature-icon">↻</div><h3>Atualizações rápidas</h3><p>Mantenha os aplicativos instalados sempre atualizados com o WinGet.</p></article>
+        <article class="feature"><div class="feature-icon">☷</div><h3>Perfis personalizados</h3><p>Salve sua seleção e restaure o mesmo conjunto quando precisar.</p></article>
+        <article class="feature"><div class="feature-icon">⚙</div><h3>Provisionamento</h3><p>Prepare o Windows com configurações e ferramentas em um fluxo guiado.</p></article>
+        <article class="feature"><div class="feature-icon">▶</div><h3>Modo Auto</h3><p>Automatize a instalação e acompanhe cada etapa com clareza.</p></article>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="wrap">
+      <div class="section-heading"><h2>Do catálogo ao Windows pronto.</h2><p>O fluxo foi pensado para ser direto, transparente e sem etapas desnecessárias.</p></div>
+      <div class="flow"><div class="step"><b>01 — ENCONTRE</b><h3>Escolha seus aplicativos</h3><p>Pesquise no catálogo e selecione tudo o que deseja instalar.</p></div><div class="step"><b>02 — ORGANIZE</b><h3>Monte seu perfil</h3><p>Salve sua seleção para repetir a configuração sempre que quiser.</p></div><div class="step"><b>03 — CONCLUA</b><h3>Deixe o WinGet trabalhar</h3><p>O WinProvision executa as operações e mostra o progresso em tempo real.</p></div></div>
+    </section>
+
+    <section class="wrap"><div class="cta"><div><h2>Pronto para simplificar seu Windows?</h2><p>Veja o projeto, acompanhe sua evolução e faça parte da próxima versão.</p></div><a class="button primary" href="https://github.com/GabrielSilvaTI/WinProvision-Store">Abrir no GitHub <span aria-hidden="true">↗</span></a></div></section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 WinProvision Store · Feito para uma experiência melhor no Windows.</span>
+      <div class="credits">
+        <strong>Projeto de Gabriel Silva, desenvolvido com assistência de inteligência artificial.</strong>
+        Criado com <strong>.NET 10.0</strong> e <strong>WPF-UI</strong> para uma experiência moderna no Windows.
+        <br>
+        Agradecimentos a
+        <a href="https://www.anthropic.com/" rel="noopener">Anthropic Claude</a>,
+        <a href="https://gemini.google.com/" rel="noopener">Google Gemini</a>,
+        <a href="https://chatgpt.com/" rel="noopener">OpenAI ChatGPT</a>,
+        <a href="https://github.com/features/copilot" rel="noopener">GitHub Copilot</a>,
+        <a href="https://www.microsoft.com/" rel="noopener">Microsoft</a> e
+        <a href="https://github.com/" rel="noopener">GitHub</a>.
+        <br>Menção honrosa ao <strong>Office Tool Plus</strong> e ao <strong>UniGetUI</strong>.
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
