@@ -1,5 +1,9 @@
 # WinProvision Store
 
+<p align="center">
+  <img src="docs/assets/winprovision-icon.png" alt="Ícone do WinProvision Store" width="220">
+</p>
+
 O **WinProvision Store** é um aplicativo para Windows que ajuda a encontrar,
 instalar e organizar aplicativos de forma simples e rápida.
 
