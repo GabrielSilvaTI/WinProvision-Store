@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,6 +45,7 @@ public partial class SettingsPage : Page
         RefreshLocalBackupUi();
         RefreshThemeButtonsUi();
         RefreshCliDefaultsUi();
+        VersionText.Text = $"Versão {GetApplicationVersion()}";
 
         // Mantém os botões Claro/Escuro coerentes mesmo quando o tema muda "sozinho"
         // (ex.: o botão sol/lua da barra de título, ou o tema do Windows via SystemThemeWatcher).
@@ -63,6 +65,12 @@ public partial class SettingsPage : Page
             _autoSyncService.SyncAttempted -= AutoSyncService_SyncAttempted;
             ApplicationThemeManager.Changed -= ApplicationThemeManager_Changed;
         };
+    }
+
+    private static string GetApplicationVersion()
+    {
+        var version = Assembly.GetEntryAssembly()?.GetName().Version;
+        return version is null ? "desconhecida" : version.ToString(3);
     }
 
     // -------------------------------------------------------------
