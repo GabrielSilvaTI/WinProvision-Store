@@ -148,7 +148,7 @@
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
-                <ui:NavigationViewItem Content="Sobre">
+                <ui:NavigationViewItem Content="Sobre" TargetPageType="{x:Type local:AboutPage}">
                     <ui:NavigationViewItem.Icon>
                         <ui:SymbolIcon Symbol="Info24" />
                     </ui:NavigationViewItem.Icon>

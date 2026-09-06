@@ -1,0 +1,74 @@
+<Page x:Class="WinProvision.Store.AboutPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Sobre"
+      Background="Transparent"
+      TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+      TextOptions.TextRenderingMode="ClearType"
+      UseLayoutRounding="True">
+
+    <Canvas Margin="36,24,36,24">
+        <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+              Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
+                <ui:SymbolIcon Symbol="Info24" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center" />
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Sobre o WinProvision Store"
+                               FontSize="26"
+                               FontWeight="SemiBold"
+                               FontFamily="Segoe UI Variable Display, Aptos, Segoe UI" />
+                    <TextBlock Text="O GitHub Pages do projeto, sempre atualizado."
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+            </StackPanel>
+
+            <Border Grid.Row="1"
+                    CornerRadius="12"
+                    BorderThickness="1"
+                    BorderBrush="{StaticResource AppCardBorderBrush}"
+                    Background="{StaticResource AppCardBackgroundBrush}"
+                    Padding="1">
+                <Grid>
+                    <wv2:WebView2 x:Name="PagesBrowser"
+                                  NavigationCompleted="PagesBrowser_NavigationCompleted" />
+                    <Border x:Name="BrowserStatusPanel"
+                            Background="{DynamicResource ApplicationBackgroundBrush}"
+                            Opacity="0.96"
+                            Visibility="Collapsed">
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    MaxWidth="560">
+                            <ui:SymbolIcon Symbol="GlobeError24"
+                                           FontSize="40"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="Não foi possível carregar o GitHub Pages."
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,16,0,0" />
+                            <TextBlock x:Name="BrowserStatusText"
+                                       Text="Verifique sua conexão e tente novamente."
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Margin="0,8,0,0" />
+                            <ui:Button Content="Tentar novamente"
+                                       Click="RetryButton_Click"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,20,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Canvas>
+</Page>

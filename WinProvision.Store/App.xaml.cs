@@ -73,6 +73,7 @@ public partial class App : Application
             services.AddSingleton<OfficePage>();
             services.AddSingleton<UpdatesPage>();
             services.AddSingleton<SettingsPage>();
+            services.AddSingleton<AboutPage>();
             services.AddSingleton<ProvisioningPage>();
         })
         .Build();
