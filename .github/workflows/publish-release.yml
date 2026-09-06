@@ -62,4 +62,8 @@ jobs:
             Versão autocontida para Windows x64, publicada com todas as dependências .NET incluídas.
 
             Requer apenas o Microsoft Edge WebView2 Runtime (Evergreen), componente necessário para a aba Sobre com o GitHub Pages.
-          files: WinProvision-Store-win-x64.zip
+          # Asset estável para Bootstrap/autounattend.xml:
+          # https://github.com/GabrielSilvaTI/WinProvision-Store/releases/latest/download/WinProvision.Store.exe
+          files: |
+            WinProvision-Store-win-x64.zip
+            publish/WinProvision.Store.exe
