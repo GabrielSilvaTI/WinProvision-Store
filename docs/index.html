@@ -110,14 +110,18 @@
     .cta h2 { margin: 0 0 6px; font-size: 28px; letter-spacing: -.04em; }
     .cta p { margin: 0; color: var(--muted); }
     footer { padding: 30px 0 42px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-    footer .wrap { display: flex; justify-content: space-between; gap: 20px; }
+    footer .wrap { display: flex; flex-direction: column; gap: 16px; }
+    .credits { max-width: 780px; color: #8995b0; font-size: 12px; line-height: 1.7; }
+    .credits strong { color: #c7d3ec; font-weight: 650; }
+    .credits a { color: #a9c9ff; }
+    .credits a:hover { color: var(--text); }
 
     @media (max-width: 800px) {
       .nav-links { display: none; }
       .hero { grid-template-columns: 1fr; padding-top: 45px; }
       .window { max-width: 620px; margin: auto; }
       .features, .flow { grid-template-columns: 1fr; }
-      .cta, footer .wrap { align-items: flex-start; flex-direction: column; }
+      .cta { align-items: flex-start; flex-direction: column; }
     }
     @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; transform: none !important; } }
   </style>
@@ -165,6 +169,21 @@
     <section class="wrap"><div class="cta"><div><h2>Pronto para simplificar seu Windows?</h2><p>Veja o projeto, acompanhe sua evolução e faça parte da próxima versão.</p></div><a class="button primary" href="https://github.com/GabrielSilvaTI/WinProvision-Store">Abrir no GitHub <span aria-hidden="true">↗</span></a></div></section>
   </main>
 
-  <footer><div class="wrap"><span>© 2026 WinProvision Store</span><span>Feito para uma experiência melhor no Windows.</span></div></footer>
+  <footer>
+    <div class="wrap">
+      <span>© 2026 WinProvision Store · Feito para uma experiência melhor no Windows.</span>
+      <div class="credits">
+        <strong>Projeto de Gabriel Silva, desenvolvido com assistência de inteligência artificial.</strong>
+        Agradecimentos a
+        <a href="https://www.anthropic.com/" rel="noopener">Anthropic Claude</a>,
+        <a href="https://gemini.google.com/" rel="noopener">Google Gemini</a>,
+        <a href="https://chatgpt.com/" rel="noopener">OpenAI ChatGPT</a>,
+        <a href="https://github.com/features/copilot" rel="noopener">GitHub Copilot</a>,
+        <a href="https://www.microsoft.com/" rel="noopener">Microsoft</a> e
+        <a href="https://github.com/" rel="noopener">GitHub</a>.
+        <br>Menção honrosa ao <strong>Office Tool Plus</strong> e ao <strong>UniGetUI</strong>.
+      </div>
+    </div>
+  </footer>
 </body>
 </html>
