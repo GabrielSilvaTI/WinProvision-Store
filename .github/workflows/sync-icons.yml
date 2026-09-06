@@ -1,4 +1,4 @@
-name: Sync Icon Manifest (R2 + Workers KV)
+name: Sync Icon Manifest (R2)
 
 on:
   schedule:
@@ -29,15 +29,12 @@ jobs:
         run: pip install boto3
 
       - name: Gerar manifesto a partir do bucket R2
-        id: build
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: |
           python scripts/icons/build_manifest_from_r2.py
-          COUNT=$(python -c "import json; print(len(json.load(open('kv_bulk.json'))))")
-          echo "kv_entry_count=$COUNT" >> "$GITHUB_OUTPUT"
 
       - name: Publicar icon-manifest.json de volta no R2
         env:
@@ -46,23 +43,6 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
         run: python scripts/icons/upload_manifest_ci.py
 
-      - name: Subir chaves novas/alteradas no Workers KV
-        if: steps.build.outputs.kv_entry_count != '0'
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.R2_ACCOUNT_ID }}
-          wranglerVersion: "4"
-          command: kv bulk put kv_bulk.json --namespace-id ${{ secrets.KV_NAMESPACE_ID }} --remote
-
-      - name: Marcar chaves como sincronizadas no KV
-        if: steps.build.outputs.kv_entry_count != '0'
-        env:
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-        run: python scripts/icons/mark_kv_synced.py
-
       - name: Publicar relatório como artefato (se houver conflitos de extensão)
         if: always()
         uses: actions/upload-artifact@v4
@@ -70,7 +50,5 @@ jobs:
           name: icon-sync-report
           path: |
             icon-manifest.json
-            kv-synced-manifest.json
-            kv_bulk.json
             conflitos_extensao.json
           if-no-files-found: ignore
