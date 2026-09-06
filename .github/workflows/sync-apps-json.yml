@@ -5,6 +5,13 @@ on:
     - cron: "0 6 * * *"   # ~03h Brasília (UTC-3), mesmo horário do cron de ícones
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-json-sync
+  cancel-in-progress: true
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest

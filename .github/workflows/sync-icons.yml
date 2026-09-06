@@ -6,6 +6,13 @@ on:
     - cron: "0 6 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
+concurrency:
+  group: icon-manifest-sync
+  cancel-in-progress: true
+
 jobs:
   sync:
     runs-on: ubuntu-latest

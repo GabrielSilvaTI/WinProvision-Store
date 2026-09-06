@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Sobe o apps.json (gerado pelo WinProvision.Indexer, publicado na branch
-database do repositorio) pro bucket R2, numa pasta separada da dos ícones
-(Store/Database/, ao invés de Store/Icon_Database/).
+Sobe o apps.json gerado pelo WinProvision.Indexer para o bucket R2, em uma
+pasta separada da dos ícones (Store/Database/, ao invés de Store/Icon_Database/).
 
 Credenciais vem de variaveis de ambiente (Secrets do GitHub Actions).
 """
