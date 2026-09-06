@@ -70,7 +70,7 @@ public class GitHubBackupService
     public DateTime? LastSyncUtc => _account.LastSyncUtc;
 
     /// <summary>
-    /// URL "raw" pública do Gist de backup automático — o mesmo arquivo (<see cref="ProfileBackupSet"/>)
+    /// URL "raw" pública e estável do Gist de backup automático — o mesmo arquivo (<see cref="ProfileBackupSet"/>)
     /// que <see cref="UploadProfileAsync"/> mantém atualizado quase em tempo real a cada
     /// instalação/remoção ou ajuste de provisionamento. Não exige token pra ler: mesmo o Gist
     /// sendo criado como "secreto" (não listado no perfil público da conta), quem tiver o link
@@ -83,7 +83,7 @@ public class GitHubBackupService
     /// </summary>
     public string? BackupRawUrl =>
         IsConnected && !string.IsNullOrEmpty(_account.GistId) && !string.IsNullOrEmpty(_account.Login)
-            ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.GistId}/raw/{BackupFileName}"
+            ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.GistId}/raw"
             : null;
 
     /// <summary>Carrega token (se existir e for descriptografável) e metadados salvos, sem chamar a rede.</summary>
@@ -199,6 +199,13 @@ public class GitHubBackupService
         {
             string json = JsonSerializer.Serialize(backupSet, ManifestJsonOptions);
 
+            if (string.IsNullOrEmpty(_account.GistId))
+            {
+                // O ID é a identidade permanente do Gist. Sempre tenta reencontrar o
+                // backup antes de criar outro, inclusive após limpar o estado local.
+                _account.GistId = await TryFindExistingBackupGistIdAsync(ct);
+            }
+
             bool success = string.IsNullOrEmpty(_account.GistId)
                 ? await CreateGistAsync(json, ct)
                 : await UpdateGistAsync(_account.GistId!, json, ct);
@@ -307,27 +314,42 @@ public class GitHubBackupService
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             _account.GistId = null;
-            return await CreateGistAsync(profileJson, ct);
+            _account.GistId = await TryFindExistingBackupGistIdAsync(ct);
+            return string.IsNullOrEmpty(_account.GistId)
+                ? await CreateGistAsync(profileJson, ct)
+                : await UpdateGistAsync(_account.GistId, profileJson, ct);
         }
 
         return response.IsSuccessStatusCode;
     }
 
-    /// <summary>Varre os gists da conta procurando um com a descrição/arquivo de backup do WinProvision Store.</summary>
+    /// <summary>Varre todos os gists da conta procurando o backup do WinProvision Store.</summary>
     private async Task<string?> TryFindExistingBackupGistIdAsync(CancellationToken ct)
     {
         try
         {
-            var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100", ct);
-            if (!response.IsSuccessStatusCode)
-                return null;
+            for (int page = 1; page <= 10; page++)
+            {
+                var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100&page={page}", ct);
+                if (!response.IsSuccessStatusCode)
+                    return null;
 
-            var gists = await response.Content.ReadFromJsonAsync<List<GitHubGistResponse>>(cancellationToken: ct);
-            var match = gists?.FirstOrDefault(g =>
-                (g.Description == GistDescription) ||
-                (g.Files != null && g.Files.ContainsKey(BackupFileName)));
+                var gists = await response.Content.ReadFromJsonAsync<List<GitHubGistResponse>>(cancellationToken: ct);
+                if (gists is null || gists.Count == 0)
+                    return null;
 
-            return match?.Id;
+                var match = gists.FirstOrDefault(g =>
+                    string.Equals(g.Description, GistDescription, StringComparison.Ordinal) ||
+                    (g.Files != null && g.Files.ContainsKey(BackupFileName)));
+
+                if (match?.Id is not null)
+                    return match.Id;
+
+                if (gists.Count < 100)
+                    return null;
+            }
+
+            return null;
         }
         catch (HttpRequestException)
         {
