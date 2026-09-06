@@ -24,6 +24,8 @@ namespace WinProvision.Store;
 
 public partial class ProvisioningPage : Page
 {
+    private const string DefaultBootstrapScriptUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/WinProvision_Store_Bootstrap.ps1";
+    private const string StableExecutableUrl = "https://github.com/GabrielSilvaTI/WinProvision-Store/releases/latest/download/WinProvision.Store.exe";
     private readonly ProvisioningService _provisioningService;
     private readonly CliPresetsService _cliPresetsService;
     private readonly GitHubBackupService _backupService;
@@ -69,6 +71,7 @@ public partial class ProvisioningPage : Page
         _scheduledTempCleanerService = App.Services.GetRequiredService<ScheduledTempCleanerService>();
         _packageCollectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _iconService = App.Services.GetRequiredService<IconService>();
+        BootstrapScriptUrlTextBox.Text = DefaultBootstrapScriptUrl;
 
         CurrentMachineNameText.Text = $"Nome atual: {Environment.MachineName}";
 
@@ -273,6 +276,112 @@ public partial class ProvisioningPage : Page
     }
 
     private void CliField_Changed(object sender, RoutedEventArgs e) => UpdateCliCommandPreview();
+
+    private void BootstrapField_Changed(object sender, TextChangedEventArgs e) => UpdateBootstrapCommandPreview();
+
+    private void UpdateBootstrapCommandPreview()
+    {
+        if (BootstrapCommandPreviewTextBox is null) return;
+        string scriptUrl = BootstrapScriptUrlTextBox.Text.Trim();
+        BootstrapCommandPreviewTextBox.Text = scriptUrl.Length == 0
+            ? "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"<URL-do-bootstrap>\""
+            : $"powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"iwr -useb '{scriptUrl}' -OutFile $env:TEMP\\bootstrap.ps1; & $env:TEMP\\bootstrap.ps1\"";
+    }
+
+    private string BuildBootstrapScript()
+    {
+        string profileUrl = CliProfilePathTextBox.Text.Trim();
+        if (!Uri.TryCreate(profileUrl, UriKind.Absolute, out var profileUri)
+            || profileUri.Scheme is not ("http" or "https"))
+        {
+            throw new InvalidOperationException("O perfil do Bootstrap precisa ser uma URL HTTP(S), como a URL raw do Gist.");
+        }
+
+        string webhook = CliWebhookCheckBox.IsChecked == true
+            ? CliWebhookUrlPasswordBox.Password.Trim()
+            : string.Empty;
+
+        var script = new StringBuilder();
+        script.AppendLine("$ErrorActionPreference = 'Stop'");
+        script.AppendLine($"$ExeUrl = '{PowerShellLiteral(StableExecutableUrl)}'");
+        script.AppendLine($"$ProfileUrl = '{PowerShellLiteral(profileUrl)}'");
+        script.AppendLine($"$WebhookUrl = '{PowerShellLiteral(webhook)}'");
+        script.AppendLine("$InstallDir = Join-Path $env:SystemDrive 'WinProvision'");
+        script.AppendLine("$ExePath = Join-Path $InstallDir 'WinProvision.Store.exe'");
+        script.AppendLine("$MaxRetries = 5");
+        script.AppendLine("$RetryDelaySeconds = 5");
+        script.AppendLine("[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13");
+        script.AppendLine("Write-Host 'WinProvision Store - Bootstrap FirstLogon' -ForegroundColor Cyan");
+        script.AppendLine("New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null");
+        script.AppendLine("$downloaded = $false");
+        script.AppendLine("for ($attempt = 1; $attempt -le $MaxRetries -and -not $downloaded; $attempt++) {");
+        script.AppendLine("  try {");
+        script.AppendLine("    Write-Host \"Baixando EXE (tentativa $attempt/$MaxRetries)...\" -ForegroundColor Yellow");
+        script.AppendLine("    Invoke-WebRequest -Uri $ExeUrl -OutFile $ExePath -UseBasicParsing");
+        script.AppendLine("    $downloaded = (Test-Path $ExePath) -and ((Get-Item $ExePath).Length -gt 0)");
+        script.AppendLine("  } catch {");
+        script.AppendLine("    if ($attempt -lt $MaxRetries) { Start-Sleep -Seconds $RetryDelaySeconds } else { throw }");
+        script.AppendLine("  }");
+        script.AppendLine("}");
+        script.AppendLine("Unblock-File -Path $ExePath -ErrorAction SilentlyContinue");
+        script.AppendLine("$arguments = @('/auto', $ProfileUrl)");
+        script.AppendLine("if ($WebhookUrl) { $arguments += @('/webhook', $WebhookUrl) }");
+        script.AppendLine("$process = Start-Process -FilePath $ExePath -ArgumentList $arguments -Wait -PassThru -NoNewWindow");
+        script.AppendLine("exit $process.ExitCode");
+        return script.ToString();
+    }
+
+    private static string PowerShellLiteral(string value) => value.Replace("'", "''", StringComparison.Ordinal);
+
+    private async void PublishBootstrapButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string script = BuildBootstrapScript();
+            string? url = await _backupService.PublishBootstrapAsync(script);
+            if (url is null)
+            {
+                StatusText.Text = _backupService.IsConnected
+                    ? "Não foi possível publicar o Bootstrap no Gist."
+                    : "Vincule sua conta GitHub em Configurações → Conta antes de publicar no Gist.";
+                return;
+            }
+
+            BootstrapScriptUrlTextBox.Text = url;
+            StatusText.Text = "Bootstrap publicado no Gist secreto. A URL permanece estável nas próximas atualizações.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Não foi possível gerar o Bootstrap: {ex.Message}";
+        }
+    }
+
+    private void SaveBootstrapButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "PowerShell (*.ps1)|*.ps1",
+                FileName = "WinProvision_Store_Bootstrap.ps1",
+                Title = "Salvar Bootstrap FirstLogon"
+            };
+            if (dialog.ShowDialog() != true) return;
+            File.WriteAllText(dialog.FileName, BuildBootstrapScript(), new UTF8Encoding(false));
+            StatusText.Text = "Bootstrap PowerShell salvo com sucesso.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Não foi possível salvar o Bootstrap: {ex.Message}";
+        }
+    }
+
+    private void CopyBootstrapCommandButton_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateBootstrapCommandPreview();
+        Clipboard.SetText(BootstrapCommandPreviewTextBox.Text);
+        StatusText.Text = "Comando CMD de FirstLogon copiado.";
+    }
 
     /// <summary>Remonta o comando de terminal (Row "Comando") a partir do caminho/URL do perfil
     /// e, se marcadas, das flags /log e /webhook — mesmo formato lido por App.xaml.cs. Sempre

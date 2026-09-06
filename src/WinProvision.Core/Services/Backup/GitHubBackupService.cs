@@ -30,6 +30,8 @@ public class GitHubBackupService
     private const string ApiBase = "https://api.github.com";
     private const string BackupFileName = "winprovision-profile.json";
     private const string GistDescription = "WinProvision Store — backup automático de perfil (não editar manualmente)";
+    private const string BootstrapFileName = "WinProvision_Store_Bootstrap.ps1";
+    private const string BootstrapGistDescription = "WinProvision Store — Bootstrap FirstLogon (não editar manualmente)";
 
     // Mesmas opções usadas em todo o resto do app (ProfileService/ProvisioningService) — um
     // arquivo salvo por um lado sempre bate com o que o outro espera ao ler de volta.
@@ -85,6 +87,71 @@ public class GitHubBackupService
         IsConnected && !string.IsNullOrEmpty(_account.GistId) && !string.IsNullOrEmpty(_account.Login)
             ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.GistId}/raw"
             : null;
+
+    public string? BootstrapRawUrl =>
+        IsConnected && !string.IsNullOrEmpty(_account.BootstrapGistId) && !string.IsNullOrEmpty(_account.Login)
+            ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.BootstrapGistId}/raw"
+            : null;
+
+    public async Task<string?> PublishBootstrapAsync(string script, CancellationToken ct = default)
+    {
+        if (!IsConnected || string.IsNullOrWhiteSpace(script))
+            return null;
+
+        try
+        {
+            _account.BootstrapGistId ??= await TryFindBootstrapGistIdAsync(ct);
+
+            if (string.IsNullOrEmpty(_account.BootstrapGistId))
+            {
+                var payload = new
+                {
+                    description = BootstrapGistDescription,
+                    @public = false,
+                    files = new Dictionary<string, object>
+                    {
+                        [BootstrapFileName] = new { content = script }
+                    }
+                };
+                var response = await _http.PostAsJsonAsync($"{ApiBase}/gists", payload, ct);
+                if (!response.IsSuccessStatusCode) return null;
+                var created = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
+                _account.BootstrapGistId = created?.Id;
+            }
+            else
+            {
+                var payload = new
+                {
+                    files = new Dictionary<string, object>
+                    {
+                        [BootstrapFileName] = new { content = script }
+                    }
+                };
+                using var request = new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}/gists/{_account.BootstrapGistId}")
+                {
+                    Content = JsonContent.Create(payload)
+                };
+                var response = await _http.SendAsync(request, ct);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _account.BootstrapGistId = null;
+                    return await PublishBootstrapAsync(script, ct);
+                }
+                if (!response.IsSuccessStatusCode) return null;
+            }
+
+            PersistAccountInfo();
+            return BootstrapRawUrl;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Carrega token (se existir e for descriptografável) e metadados salvos, sem chamar a rede.</summary>
     [SupportedOSPlatform("windows")]
@@ -359,6 +426,28 @@ public class GitHubBackupService
         {
             return null;
         }
+    }
+
+    private async Task<string?> TryFindBootstrapGistIdAsync(CancellationToken ct)
+    {
+        try
+        {
+            for (int page = 1; page <= 10; page++)
+            {
+                var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100&page={page}", ct);
+                if (!response.IsSuccessStatusCode) return null;
+                var gists = await response.Content.ReadFromJsonAsync<List<GitHubGistResponse>>(cancellationToken: ct);
+                if (gists is null || gists.Count == 0) return null;
+                var match = gists.FirstOrDefault(g =>
+                    string.Equals(g.Description, BootstrapGistDescription, StringComparison.Ordinal) ||
+                    (g.Files != null && g.Files.ContainsKey(BootstrapFileName)));
+                if (match?.Id is not null) return match.Id;
+                if (gists.Count < 100) return null;
+            }
+        }
+        catch (HttpRequestException) { }
+        catch (JsonException) { }
+        return null;
     }
 
     [SupportedOSPlatform("windows")]

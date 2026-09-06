@@ -17,5 +17,6 @@ internal class BackupAccountInfo
 {
     public string? Login { get; set; }
     public string? GistId { get; set; }
+    public string? BootstrapGistId { get; set; }
     public DateTime? LastSyncUtc { get; set; }
 }
