@@ -47,7 +47,7 @@
       background: linear-gradient(145deg, rgba(126, 183, 255, .38), rgba(159, 111, 255, .25));
       box-shadow: 0 8px 24px rgba(64, 128, 255, .22);
     }
-    .brand-mark svg { width: 24px; }
+    .brand-mark img { width: 31px; height: 31px; object-fit: contain; }
     .nav-links { display: flex; gap: 26px; color: var(--muted); font-size: 14px; }
     .nav-links a:hover { color: var(--text); }
 
@@ -73,6 +73,7 @@
       box-shadow: var(--shadow); transform: rotate(1.5deg);
     }
     .window::before { content: ""; position: absolute; inset: -20px; z-index: -1; border-radius: 40px; background: radial-gradient(circle, rgba(99, 167, 255, .25), transparent 65%); filter: blur(18px); }
+    .window-logo { position: absolute; top: 28px; right: 28px; width: 74px; height: 74px; object-fit: contain; filter: drop-shadow(0 10px 16px rgba(42, 132, 255, .32)); }
     .window-bar { display: flex; gap: 7px; padding: 5px 7px 14px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #7d8aa8; }
     .screen { display: grid; grid-template-columns: 78px 1fr; min-height: 330px; overflow: hidden; border: 1px solid var(--line); border-radius: 20px; background: #0f1524; }
@@ -122,7 +123,7 @@
 <body>
   <header class="wrap nav">
     <a class="brand" href="#">
-      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M5 4.5h14v15H5z" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+      <span class="brand-mark"><img src="assets/winprovision-icon.png" alt=""></span>
       <span>WinProvision Store</span>
     </a>
     <nav class="nav-links" aria-label="Navegação"><a href="#recursos">Recursos</a><a href="#como-funciona">Como funciona</a><a href="https://github.com/GabrielSilvaTI/WinProvision-Store">GitHub</a></nav>
@@ -137,7 +138,7 @@
         <div class="actions"><a class="button primary" href="https://github.com/GabrielSilvaTI/WinProvision-Store">Conheça o projeto <span aria-hidden="true">↗</span></a><a class="button secondary" href="#recursos">Ver recursos</a></div>
       </div>
       <div class="window" aria-label="Prévia ilustrativa do WinProvision Store">
-        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div>
+        <div class="window-bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i></div><img class="window-logo" src="assets/winprovision-icon.png" alt="">
         <div class="screen"><aside class="side"><i class="active"></i><i></i><i></i><i></i><i></i></aside><div class="mock"><h3>Olá, Gabriel</h3><p>O que você quer fazer hoje?</p><div class="cards"><div class="card"><div class="icon">✦</div><strong>Aplicativos</strong><span>Encontre o que precisa</span></div><div class="card"><div class="icon">↻</div><strong>Atualizações</strong><span>Tudo em dia</span></div><div class="card"><div class="icon">⚙</div><strong>Provisionamento</strong><span>Prepare seu sistema</span></div><div class="card"><div class="icon">▶</div><strong>Instalação Auto</strong><span>Deixe acontecer</span></div></div></div></div>
       </div>
     </section>
