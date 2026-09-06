@@ -458,6 +458,68 @@ public partial class SettingsPage : Page
             : $"Perfil completo exportado: {manifest.Apps.Count} pacote(s) (sem provisionamento — nada configurado na tela Provisionamento ainda), em '{saveFileDialog.FileName}'.";
     }
 
+    private async void ImportAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        var openFileDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "Perfil JSON (*.json)|*.json",
+            Title = "Importar perfil completo"
+        };
+
+        if (openFileDialog.ShowDialog() != true) return;
+
+        ImportAllButton.IsEnabled = false;
+        StatusText.Text = "Importando perfil completo...";
+
+        try
+        {
+            var manifest = await _profileService.ImportAsync(openFileDialog.FileName);
+            var catalogById = _storeService.GetAll()
+                .ToDictionary(app => app.Id, StringComparer.OrdinalIgnoreCase);
+            var importedApps = manifest.Apps.Select(app =>
+            {
+                if (catalogById.TryGetValue(app.Id, out var catalogApp))
+                {
+                    catalogApp.Office = app.OfficeOptions;
+                    return catalogApp;
+                }
+
+                return new AppEntry
+                {
+                    Id = app.Id,
+                    Name = app.Name ?? app.Id,
+                    Publisher = app.Publisher ?? string.Empty,
+                    IconUrl = app.IconUrl ?? string.Empty,
+                    Description = app.Description,
+                    Office = app.OfficeOptions
+                };
+            }).ToList();
+
+            var importedTab = _collectionService.CreateNewTab(
+                System.IO.Path.GetFileNameWithoutExtension(openFileDialog.FileName));
+            foreach (var app in importedApps)
+            {
+                importedTab.Items.Add(app);
+            }
+
+            if (manifest.Provisioning is { } provisioning)
+            {
+                _provisioningService.SetCurrent(provisioning);
+            }
+
+            StatusText.Text = $"Perfil importado: {importedApps.Count} aplicativo(s)"
+                + (manifest.Provisioning is not null ? " e configurações de provisionamento." : ".");
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Erro ao importar o perfil: {ex.Message}";
+        }
+        finally
+        {
+            ImportAllButton.IsEnabled = true;
+        }
+    }
+
     /// <summary>
     /// Salva o backup local (sempre) e, se conectado, também sincroniza com o Gist —
     /// mesma rotina que roda sozinha após cada instalar/remover (ver BackupAutoSyncService),
@@ -499,9 +561,8 @@ public partial class SettingsPage : Page
     }
 
     /// <summary>
-    /// Baixa o perfil salvo no Gist e importa numa guia nova — mesmo padrão do
-    /// ImportProfileButton_Click da PackagesPage (reconcilia apps winget contra o
-    /// catálogo remoto vivo; planos de Office vêm autocontidos no próprio perfil).
+    /// Baixa o perfil salvo no Gist e importa numa guia nova, mantendo os planos
+    /// de Office autocontidos no próprio backup.
     /// </summary>
     private async void RestoreButton_Click(object sender, RoutedEventArgs e)
     {

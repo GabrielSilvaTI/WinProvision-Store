@@ -337,7 +337,7 @@
                         <!-- ================= 3. BACKUP & EXPORTAÇÃO ================= -->
                         <ScrollViewer x:Name="BackupSectionPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel>
-                                <!-- Exportação Manual -->
+                                <!-- Importação e exportação centralizadas -->
                                 <Border Style="{StaticResource SettingsCardStyle}">
                                     <StackPanel>
                                         <Grid Margin="24,16">
@@ -346,16 +346,23 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0" Margin="0,0,24,0" VerticalAlignment="Center">
-                                                <TextBlock Text="Exportar perfil completo (.json)" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Gera um único arquivo .json combinando todas as guias de pacotes e as configurações de provisionamento atuais." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                <TextBlock Text="Perfis JSON" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Importe ou exporte um único perfil completo com aplicativos e configurações de provisionamento. O mesmo formato pode ser usado pelo CLI." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                             </StackPanel>
-                                            <ui:Button x:Name="ExportAllButton" Grid.Column="1" Content="Exportar .json" Appearance="Primary" VerticalAlignment="Center" Click="ExportAllButton_Click" CornerRadius="6"
-                                                       Background="{StaticResource InstallActionBrush}" MouseOverBackground="{StaticResource InstallActionHoverBrush}" PressedBackground="{StaticResource InstallActionPressedBrush}"
-                                                       Foreground="White" PressedForeground="White">
-                                                <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="DocumentArrowRight24" />
-                                                </ui:Button.Icon>
-                                            </ui:Button>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ui:Button x:Name="ImportAllButton" Content="Importar .json" Appearance="Secondary" Margin="0,0,8,0" Click="ImportAllButton_Click" CornerRadius="6">
+                                                    <ui:Button.Icon>
+                                                        <ui:SymbolIcon Symbol="ArrowImport24" />
+                                                    </ui:Button.Icon>
+                                                </ui:Button>
+                                                <ui:Button x:Name="ExportAllButton" Content="Exportar .json" Appearance="Primary" Click="ExportAllButton_Click" CornerRadius="6"
+                                                           Background="{StaticResource InstallActionBrush}" MouseOverBackground="{StaticResource InstallActionHoverBrush}" PressedBackground="{StaticResource InstallActionPressedBrush}"
+                                                           Foreground="White" PressedForeground="White">
+                                                    <ui:Button.Icon>
+                                                        <ui:SymbolIcon Symbol="DocumentArrowRight24" />
+                                                    </ui:Button.Icon>
+                                                </ui:Button>
+                                            </StackPanel>
                                         </Grid>
                                     </StackPanel>
                                 </Border>

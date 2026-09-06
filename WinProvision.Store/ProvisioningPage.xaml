@@ -172,18 +172,6 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="ImportButton" Content="Importar" Appearance="Secondary" Margin="0,0,8,0" Click="ImportButton_Click" CornerRadius="6" Height="36">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowImport24" FontSize="16" />
-                    </ui:Button.Icon>
-                </ui:Button>
-
-                <ui:Button x:Name="ExportButton" Content="Exportar" Appearance="Secondary" Margin="0,0,12,0" Click="ExportButton_Click" CornerRadius="6" Height="36">
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon Symbol="ArrowExportLtr24" FontSize="16" />
-                    </ui:Button.Icon>
-                </ui:Button>
-
                 <ui:Button x:Name="ApplyButton" Content="Aplicar agora" Appearance="Primary" Click="ApplyButton_Click" CornerRadius="6" Height="36" Background="{DynamicResource SystemAccentColorPrimaryBrush}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="PlayCircle24" FontSize="16" />

@@ -11,7 +11,7 @@ namespace WinProvision.Core.Services;
 ///
 /// <list type="bullet">
 /// <item><description><see cref="ProfileManifest"/> — "perfil único", com <c>apps</c> na raiz.
-/// É o que os botões "Exportar" (Pacotes/Provisionamento/Configurações) geram.</description></item>
+/// É o formato usado pela exportação centralizada em Configurações.</description></item>
 /// <item><description><see cref="ProfileBackupSet"/> — "conjunto de backup", com <c>tabs</c> na
 /// raiz (uma entrada por guia de Pacotes). É o formato salvo automaticamente pelo
 /// <see cref="Backup.BackupAutoSyncService"/> (local e no Gist secreto via

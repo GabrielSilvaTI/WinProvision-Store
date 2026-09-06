@@ -513,18 +513,6 @@
                                 </ui:Button.Icon>
                             </ui:Button>
 
-                            <ui:Button x:Name="ImportProfileButton" Content="Abrir Perfil" ToolTip="Importar um perfil salvo" Style="{StaticResource ActionUniformButtonStyle}" Appearance="Secondary" Click="ImportProfileButton_Click">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="ArrowImport24" />
-                                </ui:Button.Icon>
-                            </ui:Button>
-
-                            <ui:Button x:Name="ExportProfileButton" Content="Exportar" ToolTip="Salvar este perfil em arquivo JSON" Style="{StaticResource ActionUniformButtonStyle}" Appearance="Secondary" Click="ExportProfileButton_Click">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="FolderArrowUp24" />
-                                </ui:Button.Icon>
-                            </ui:Button>
-
                             <ui:Button x:Name="ExportScriptButton" Content="Gerar Script" ToolTip="Exportar um script de instalação em lote" Style="{StaticResource ActionUniformButtonStyle}" Appearance="Secondary" Click="ExportScriptButton_Click">
                                 <ui:Button.Icon>
                                     <ui:SymbolIcon Symbol="Code24" />

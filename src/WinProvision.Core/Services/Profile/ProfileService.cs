@@ -23,7 +23,7 @@ public record ReconcileResult(
 /// Planos de Office (ProfileAppRef.OfficeOptions preenchido) não passam por
 /// essa reconciliação — winget nunca "vê" uma instalação do Office (ela roda
 /// via ODT, fora do winget), então eles são tratados à parte na importação
-/// (ver PackagesPage.ImportProfileButton_Click): sempre recriados diretamente
+/// (ver SettingsPage.ImportAllButton_Click): sempre recriados diretamente
 /// a partir do próprio .json, sem depender do catálogo remoto de apps.
 ///
 /// TODO (quando os detalhes de implementação forem definidos):

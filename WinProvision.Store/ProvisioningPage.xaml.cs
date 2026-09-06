@@ -1376,67 +1376,6 @@ public partial class ProvisioningPage : Page
 
     #endregion
 
-    private async void ImportButton_Click(object sender, RoutedEventArgs e)
-    {
-        var openFileDialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Filter = "JSON Profile (*.json)|*.json",
-            Title = "Selecione o perfil de provisionamento"
-        };
-
-        if (openFileDialog.ShowDialog() != true) return;
-
-        StatusText.Text = "Lendo perfil de provisionamento...";
-
-        try
-        {
-            var manifest = await _provisioningService.ImportAsync(openFileDialog.FileName);
-            LoadManifestIntoUi(manifest);
-
-            // Importar já marca como "atual" (entra no próximo backup/sincronização),
-            // mesmo antes de clicar em "Aplicar agora" — só não mexe no Windows ainda.
-            _provisioningService.SetCurrent(manifest);
-
-            StatusText.Text = $"Perfil \"{manifest.Name ?? System.IO.Path.GetFileNameWithoutExtension(openFileDialog.FileName)}\" importado. Revise os ajustes e clique em \"Aplicar agora\" para valer nesta máquina.";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"Erro ao importar: {ex.Message}";
-        }
-    }
-
-    private async void ExportButton_Click(object sender, RoutedEventArgs e)
-    {
-        var saveFileDialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Filter = "JSON Profile (*.json)|*.json",
-            FileName = "provisionamento.json",
-            Title = "Salvar Perfil de Provisionamento"
-        };
-
-        if (saveFileDialog.ShowDialog() != true) return;
-
-        try
-        {
-            // Respeita o nome que o usuário já digitou em "Nome do Perfil" — só cai pro nome do
-            // arquivo escolhido se o campo estiver vazio (perfil ainda sem nome próprio).
-            var manifest = BuildManifestFromUi();
-            manifest.Name ??= System.IO.Path.GetFileNameWithoutExtension(saveFileDialog.FileName);
-            await _provisioningService.ExportAsync(manifest, saveFileDialog.FileName);
-
-            // Exportar também marca como "atual" — sem isso, editar os campos aqui e
-            // exportar nunca aparecia no backup/sincronização automática (só "Aplicar
-            // agora" atualizava esse estado antes desta correção).
-            _provisioningService.SetCurrent(manifest);
-
-            StatusText.Text = $"Perfil exportado com sucesso em '{saveFileDialog.FileName}'. Também marcado como estado atual — já entra no próximo backup/sincronização.";
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"Erro ao exportar: {ex.Message}";
-        }
-    }
-
     private async void ApplyButton_Click(object sender, RoutedEventArgs e)
     {
         ApplyButton.IsEnabled = false;
