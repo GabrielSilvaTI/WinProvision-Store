@@ -13,8 +13,7 @@
     <!-- Scrim: cobre a janela inteira (ver MainWindow.xaml, onde este controle é
          posicionado com Grid.RowSpan cobrindo TitleBar + NavigationView). Clicar em
          qualquer ponto fora do cartão fecha o painel - não é preciso acertar um botão
-         pequeno, ao contrário da antiga AppDetailsWindow (janela separada, cujo botão
-         de fechar era o botão nativo minúsculo do TitleBar). -->
+         pequeno e integrado ao fluxo visual da janela principal. -->
     <Grid x:Name="Scrim" Background="#99000000" MouseLeftButtonUp="Scrim_MouseLeftButtonUp">
 
         <!-- Cartão: intercepta o clique antes que ele borbulhe até o Scrim, então

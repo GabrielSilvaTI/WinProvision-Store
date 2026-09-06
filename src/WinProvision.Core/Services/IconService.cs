@@ -19,11 +19,8 @@ public class IconService
     // "fuzzy" (essa era necessária quando havia várias fontes heterogêneas de
     // ícone; agora só existe uma fonte, com id já no formato certo).
     //
-    // Cloudflare é a única fonte de ícones do Store agora — a antiga base
-    // multi-fonte (WinGet oficial + Winstall aprovado manualmente + package-icons
-    // externo + UniGetUI, ver WinProvision.Core.Services.IconSync) foi
-    // descontinuada. Quando o Id do app não está no manifesto, cai no ícone
-    // genérico local (ver ResolveIconUrl).
+    // Cloudflare é a única fonte remota de ícones do Store. Quando o Id do app
+    // não está no manifesto, cai no ícone genérico local (ver ResolveIconUrl).
     private const string IconManifestUrl =
         "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/icon-manifest.json";
 
@@ -206,4 +203,3 @@ public class IconService
         }
     }
 }
-

@@ -163,7 +163,7 @@
              no WPF, entre irmãos do mesmo painel, quem vem depois no XAML desenha por
              cima. Content é atribuído em code-behind (ver MainWindow.xaml.cs) porque o
              AppDetailsOverlay é resolvido via injeção de dependência, não instanciado
-             direto aqui. Substitui a antiga AppDetailsWindow (janela/processo à parte). -->
+             direto aqui, integrado ao fluxo visual da janela principal. -->
         <ContentControl x:Name="DetailsOverlayHost" Grid.Row="0" Grid.RowSpan="2" Focusable="False" />
     </Grid>
 </ui:FluentWindow>

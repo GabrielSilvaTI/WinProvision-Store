@@ -3,22 +3,11 @@ using System.Text.Json;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Indexing;
-using WinProvision.Indexer;
-
-// Subcomando separado: sincronização de ícones (Winstall + UniGetUI + package-icons).
-// Despachado antes de tudo pra não interferir no parsing posicional do modo padrão
-// abaixo, que continua funcionando sem alteração pra quem já chama
-// `WinProvision.Indexer.dll <manifests> <output>` diretamente.
-if (args.Length > 0 && args[0].Equals("sync-icons", StringComparison.OrdinalIgnoreCase))
-{
-    return await SyncIconsCommand.RunAsync(args);
-}
 
 if (args.Length < 2)
 {
     Console.Error.WriteLine("Uso:");
     Console.Error.WriteLine("  WinProvision.Indexer <caminho-manifests-winget-pkgs> <pasta-de-saida>");
-    Console.Error.WriteLine("  WinProvision.Indexer sync-icons --catalog <arquivo-ou-url> --winstall-dir <pasta> --external-dir <pasta> --unigetui-dir <pasta> --approved-mappings <arquivo> --output-dir <pasta>");
     return 1;
 }
 
@@ -158,7 +147,7 @@ await Parallel.ForEachAsync(
 
 Console.WriteLine($"      {sizeResolved:N0} de {published.Count:N0} pacotes com tamanho estimado ({(published.Count == 0 ? 0 : sizeResolved * 100.0 / published.Count):N1}%)");
 
-// 7. Exportação dos JSONs segmentados
+// 7. Exportação do catálogo
 Console.WriteLine("\n[7/7] Exportando catálogo...");
 var exporter = new CatalogExporter();
 await exporter.ExportAsync(published, outputDir);
