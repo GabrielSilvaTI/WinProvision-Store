@@ -1,0 +1,65 @@
+name: Publish Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish application
+        shell: pwsh
+        run: |
+          dotnet publish WinProvision.Store/WinProvision.Store.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output publish
+
+      - name: Package release
+        shell: pwsh
+        run: |
+          @"
+          WinProvision Store
+          ==================
+
+          Aplicativo Windows autocontido para provisionamento e gerenciamento de aplicativos.
+
+          Requisitos:
+          - Windows 10/11 x64
+          - Microsoft Edge WebView2 Runtime (Evergreen)
+
+          Execute WinProvision.Store.exe.
+          "@ | Set-Content -Path publish\LEIA-ME.txt -Encoding UTF8
+          Compress-Archive -Path publish\* -DestinationPath WinProvision-Store-win-x64.zip
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: WinProvision Store ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            Versão autocontida para Windows x64, publicada com todas as dependências .NET incluídas.
+
+            Requer apenas o Microsoft Edge WebView2 Runtime (Evergreen), componente necessário para a aba Sobre com o GitHub Pages.
+          files: WinProvision-Store-win-x64.zip
