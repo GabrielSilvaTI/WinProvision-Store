@@ -1,21 +1,41 @@
-name: Publish apps.json to R2
+name: Update apps.json (winget-pkgs -> R2)
 
 on:
-  push:
-    branches:
-      - database
-    paths:
-      - "apps.json"
+  schedule:
+    - cron: "0 6 * * *"   # ~03h Brasília (UTC-3), mesmo horário do cron de ícones
   workflow_dispatch: {}
 
 jobs:
-  publish:
+  build-and-publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
-      - name: Checkout
+      - name: Checkout deste repositório (main)
+        uses: actions/checkout@v4
+
+      - name: Checkout manifests do winget-pkgs (sparse, só a pasta manifests/)
         uses: actions/checkout@v4
         with:
-          ref: database
+          repository: microsoft/winget-pkgs
+          ref: master
+          sparse-checkout: |
+            manifests
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+          path: winget-pkgs
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Rodar o Indexer (gera apps.json a partir dos manifests)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          dotnet run --project src/WinProvision.Indexer -c Release --
+          "${{ github.workspace }}/winget-pkgs/manifests"
+          "${{ github.workspace }}/catalog-output"
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -30,4 +50,5 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          APPS_JSON_SOURCE: ${{ github.workspace }}/catalog-output/apps.json
         run: python scripts/database/upload_apps_json.py
