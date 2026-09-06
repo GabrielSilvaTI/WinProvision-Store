@@ -314,10 +314,16 @@ public partial class ProvisioningPage : Page
         script.AppendLine("Write-Host 'WinProvision Store - Bootstrap FirstLogon' -ForegroundColor Cyan");
         script.AppendLine("New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null");
         script.AppendLine("$downloaded = $false");
+        script.AppendLine("Remove-Item -LiteralPath $ExePath -Force -ErrorAction SilentlyContinue");
         script.AppendLine("for ($attempt = 1; $attempt -le $MaxRetries -and -not $downloaded; $attempt++) {");
         script.AppendLine("  try {");
         script.AppendLine("    Write-Host \"Baixando EXE (tentativa $attempt/$MaxRetries)...\" -ForegroundColor Yellow");
-        script.AppendLine("    Invoke-WebRequest -Uri $ExeUrl -OutFile $ExePath -UseBasicParsing");
+        script.AppendLine("    if (Get-Command curl.exe -ErrorAction SilentlyContinue) {");
+        script.AppendLine("      & curl.exe --fail --location --silent --show-error --retry 2 --retry-delay 2 --connect-timeout 15 --max-time 180 --output $ExePath $ExeUrl");
+        script.AppendLine("      if ($LASTEXITCODE -ne 0) { throw \"curl.exe retornou o código $LASTEXITCODE\" }");
+        script.AppendLine("    } else {");
+        script.AppendLine("      Invoke-WebRequest -Uri $ExeUrl -OutFile $ExePath -UseBasicParsing -TimeoutSec 180");
+        script.AppendLine("    }");
         script.AppendLine("    $downloaded = (Test-Path $ExePath) -and ((Get-Item $ExePath).Length -gt 0)");
         script.AppendLine("  } catch {");
         script.AppendLine("    if ($attempt -lt $MaxRetries) { Start-Sleep -Seconds $RetryDelaySeconds } else { throw }");

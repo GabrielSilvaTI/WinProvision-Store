@@ -1042,52 +1042,6 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Style="{StaticResource SettingsCardStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="24,16">
-                                            <StackPanel>
-                                                <TextBlock Text="Gerador de Bootstrap (FirstLogon)" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Gera um script resiliente que baixa o EXE estável e executa o /auto com o perfil atual." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
-
-                                        <Grid Margin="24,16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="360" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="URL do Bootstrap PowerShell" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Use uma URL pública do R2 ou publique o script no seu Gist secreto." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                            </StackPanel>
-                                            <ui:TextBox x:Name="BootstrapScriptUrlTextBox" Grid.Column="1" TextChanged="BootstrapField_Changed" />
-                                        </Grid>
-
-                                        <StackPanel Orientation="Horizontal" Margin="24,0,24,16">
-                                            <ui:Button Content="Publicar no Gist" Appearance="Secondary" Click="PublishBootstrapButton_Click" CornerRadius="6" Margin="0,0,8,0">
-                                                <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="CloudArrowUp24" />
-                                                </ui:Button.Icon>
-                                            </ui:Button>
-                                            <ui:Button Content="Salvar PS1" Appearance="Secondary" Click="SaveBootstrapButton_Click" CornerRadius="6" Margin="0,0,8,0">
-                                                <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="DocumentArrowDown24" />
-                                                </ui:Button.Icon>
-                                            </ui:Button>
-                                            <ui:Button Content="Copiar CMD" Appearance="Primary" Click="CopyBootstrapCommandButton_Click" CornerRadius="6">
-                                                <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="Copy24" />
-                                                </ui:Button.Icon>
-                                            </ui:Button>
-                                        </StackPanel>
-
-                                        <Border CornerRadius="6" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{StaticResource AppBorderSubtleBrush}" BorderThickness="1">
-                                            <TextBox x:Name="BootstrapCommandPreviewTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
                             </StackPanel>
 
                             <!-- ================= 4. JSON ================= -->
@@ -1270,6 +1224,43 @@
                                                 </ui:Button.Icon>
                                             </ui:Button>
                                         </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource SettingsCardStyle}">
+                                    <StackPanel>
+                                        <Grid Margin="24,16">
+                                            <StackPanel>
+                                                <TextBlock Text="Gerador de Bootstrap (FirstLogon)" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Gera um script resiliente que baixa o EXE estável e executa o /auto com o perfil atual." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="360" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="URL do Bootstrap PowerShell" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Use uma URL pública do R2 ou publique o script no seu Gist secreto." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <ui:TextBox x:Name="BootstrapScriptUrlTextBox" Grid.Column="1" TextChanged="BootstrapField_Changed" />
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="24,0,24,16">
+                                            <ui:Button Content="Publicar no Gist" Appearance="Secondary" Click="PublishBootstrapButton_Click" CornerRadius="6" Margin="0,0,8,0">
+                                                <ui:Button.Icon><ui:SymbolIcon Symbol="CloudArrowUp24" /></ui:Button.Icon>
+                                            </ui:Button>
+                                            <ui:Button Content="Salvar PS1" Appearance="Secondary" Click="SaveBootstrapButton_Click" CornerRadius="6" Margin="0,0,8,0">
+                                                <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentArrowDown24" /></ui:Button.Icon>
+                                            </ui:Button>
+                                            <ui:Button Content="Copiar CMD" Appearance="Primary" Click="CopyBootstrapCommandButton_Click" CornerRadius="6">
+                                                <ui:Button.Icon><ui:SymbolIcon Symbol="Copy24" /></ui:Button.Icon>
+                                            </ui:Button>
+                                        </StackPanel>
+                                        <Border CornerRadius="6" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{StaticResource AppBorderSubtleBrush}" BorderThickness="1">
+                                            <TextBox x:Name="BootstrapCommandPreviewTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
