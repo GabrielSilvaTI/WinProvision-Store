@@ -35,7 +35,7 @@ namespace WinProvision.Core.Services.Backup;
 /// </summary>
 public class BackupAutoSyncService : IDisposable
 {
-    private static readonly TimeSpan DebounceDelay = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan DebounceDelay = TimeSpan.FromSeconds(1);
 
     private readonly InstalledAppsService _installedAppsService;
     private readonly ProvisioningService _provisioningService;
@@ -68,6 +68,7 @@ public class BackupAutoSyncService : IDisposable
         _debounceTimer = new System.Threading.Timer(_ => _ = RunSyncAsync(), null, Timeout.Infinite, Timeout.Infinite);
         _installedAppsService.Changed += OnInstalledAppsChanged;
         _provisioningService.Changed += OnInstalledAppsChanged;
+        _collectionService.Changed += OnInstalledAppsChanged;
     }
 
     private void OnInstalledAppsChanged()
@@ -85,11 +86,6 @@ public class BackupAutoSyncService : IDisposable
         {
             var nonEmptyTabs = _collectionService.Tabs.Where(t => t.Items.Count > 0).ToList();
             var provisioning = _provisioningService.Current;
-
-            // Nada de pacotes E nada de provisionamento configurado ainda => não há o que
-            // salvar (evita gravar/subir um ProfileBackupSet totalmente vazio).
-            if (nonEmptyTabs.Count == 0 && provisioning is null)
-                return;
 
             var backupSet = new ProfileBackupSet
             {
@@ -121,6 +117,7 @@ public class BackupAutoSyncService : IDisposable
     {
         _installedAppsService.Changed -= OnInstalledAppsChanged;
         _provisioningService.Changed -= OnInstalledAppsChanged;
+        _collectionService.Changed -= OnInstalledAppsChanged;
         _debounceTimer.Dispose();
     }
 }

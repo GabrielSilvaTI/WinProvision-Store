@@ -15,6 +15,7 @@ public class PackageCollectionService
 {
     public ObservableCollection<PackageProfileTab> Tabs { get; } = new();
     public PackageProfileTab ActiveTab { get; set; }
+    public event Action? Changed;
 
     public PackageCollectionService()
     {
@@ -32,7 +33,9 @@ public class PackageCollectionService
             IsDefault = Tabs.Count == 0 && string.Equals(name, "Perfil Padrão", StringComparison.OrdinalIgnoreCase)
         };
         Tabs.Add(tab);
+        tab.Items.CollectionChanged += (_, _) => Changed?.Invoke();
         ActiveTab = tab;
+        Changed?.Invoke();
         return tab;
     }
 
@@ -42,6 +45,7 @@ public class PackageCollectionService
 
         int index = Tabs.IndexOf(tab);
         Tabs.Remove(tab);
+        Changed?.Invoke();
 
         if (ActiveTab == tab)
         {
@@ -62,6 +66,7 @@ public class PackageCollectionService
             addedCount++;
         }
 
+        if (addedCount > 0) Changed?.Invoke();
         return addedCount;
     }
 }
