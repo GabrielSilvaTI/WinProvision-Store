@@ -211,22 +211,6 @@
                             </Grid>
                         </ui:Button>
 
-                        <ui:Button x:Name="UpdatesNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="UpdatesNavCard_Click">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="ArrowSync24" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Atualizações" Style="{StaticResource CardTitleStyle}" />
-                                    <TextBlock Text="Defina como o sistema deve buscar e instalar atualizações." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
-                                </StackPanel>
-                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                            </Grid>
-                        </ui:Button>
-
                         <ui:Button x:Name="AdvancedNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="AdvancedNavCard_Click">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -848,26 +832,7 @@
                                 </Border>
                             </StackPanel>
 
-                            <!-- ================= 2. Atualizações ================= -->
-                            <StackPanel x:Name="UpdatesSectionPanel" Visibility="Collapsed">
-                                <Border Style="{StaticResource SettingsCardStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="24,16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="Atualizações automáticas" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Busca e instala todas as atualizações de qualidade/segurança e drivers pendentes ao aplicar este perfil." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                            </StackPanel>
-                                            <CheckBox x:Name="AutoInstallWindowsUpdatesCheckBox" Grid.Column="1" VerticalAlignment="Center" Checked="Field_Changed" Unchecked="Field_Changed" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <!-- ================= 3. Avançadas ================= -->
+                            <!-- ================= 2. Avançadas ================= -->
                             <StackPanel x:Name="AdvancedSectionPanel" Visibility="Collapsed">
 
                                 <StackPanel Margin="4,0,4,16">

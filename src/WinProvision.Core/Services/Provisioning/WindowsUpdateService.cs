@@ -98,10 +98,7 @@ public class WindowsUpdateService
     }
 
     /// <summary>
-    /// Busca e instala TODAS as atualizações/drivers pendentes, sem seleção manual — usado
-    /// pelo Apply automático do perfil de provisionamento (<see cref="ProvisioningManifest.AutoInstallWindowsUpdates"/>),
-    /// pensado pra rodar na máquina-alvo no momento em que o perfil é aplicado, não na máquina
-    /// onde o perfil foi montado.
+    /// Busca e instala TODAS as atualizações/drivers pendentes, sem seleção manual.
     /// </summary>
     public async Task<WindowsUpdateApplyResult> CheckAndInstallAllAsync(
         Action<string>? log = null,

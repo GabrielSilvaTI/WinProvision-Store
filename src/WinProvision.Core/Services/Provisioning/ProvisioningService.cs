@@ -27,12 +27,12 @@ public record ProvisioningApplyResult(List<ProvisioningStepResult> Steps, bool R
 
 /// <summary>
 /// Aplica, exporta e importa perfis de provisionamento do sistema (tema, barra de tarefas,
-/// plano de energia, nome da máquina, wallpaper, atualizações do Windows, ponto de
+/// plano de energia, nome da máquina, wallpaper, ponto de
 /// restauração). Diferente do
 /// <see cref="WinProvision.Core.Services.Profile.ProfileService"/> (que fala com winget/ODT),
 /// este serviço fala direto com o Registro do Windows, com o Win32
 /// (SHAppBarMessage/SetComputerNameEx/SystemParametersInfo), com o powercfg.exe, com o WUAPI
-/// (<see cref="WindowsUpdateService"/>) e com o WMI SystemRestore
+/// e com o WMI SystemRestore
 /// (<see cref="RestorePointService"/>) — por isso é inteiramente específico de Windows (ver
 /// <see cref="SupportedOSPlatformAttribute"/> na classe).
 ///
@@ -51,7 +51,7 @@ public record ProvisioningApplyResult(List<ProvisioningStepResult> Steps, bool R
 /// recebe o relatório completo em <see cref="ProvisioningApplyResult.Steps"/>.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public class ProvisioningService(WindowsUpdateService windowsUpdateService, RestorePointService restorePointService, ScheduledTempCleanerService? tempCleanerService = null)
+public class ProvisioningService(RestorePointService restorePointService, ScheduledTempCleanerService? tempCleanerService = null)
 {
     /// <summary>
     /// Estado de provisionamento "atual" desta sessão do app — guardado em memória, usado
@@ -239,26 +239,6 @@ public class ProvisioningService(WindowsUpdateService windowsUpdateService, Rest
             catch (Exception ex)
             {
                 Report("Ponto de restauração", false, $"Erro: {ex.Message}");
-            }
-        }
-
-        if (manifest.AutoInstallWindowsUpdates == true)
-        {
-            try
-            {
-                var wuResult = await windowsUpdateService.CheckAndInstallAllAsync(log, ct);
-
-                string message = wuResult.Steps.Count == 0
-                    ? "Nenhuma atualização pendente."
-                    : $"{wuResult.Steps.Count(s => s.Success)}/{wuResult.Steps.Count} instalada(s).";
-
-                Report("Atualizações do Windows", wuResult.Steps.Count == 0 || wuResult.Success, message);
-
-                if (wuResult.RestartRequired) restartRequired = true;
-            }
-            catch (Exception ex)
-            {
-                Report("Atualizações do Windows", false, $"Erro: {ex.Message}");
             }
         }
 

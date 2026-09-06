@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.Versioning;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
@@ -125,7 +126,6 @@ public class AutoInstallCliService
             bool hasConfigurations =
                 provisioning.PowerPlan is not null && provisioning.PowerPlan != PowerPlanMode.NaoDefinido
                 || !string.IsNullOrWhiteSpace(provisioning.MachineName)
-                || provisioning.AutoInstallWindowsUpdates == true
                 || provisioning.AutoCreateRestorePoint == true
                 || provisioning.AutoCleanTempOnLogon == true;
 
@@ -175,6 +175,8 @@ public class AutoInstallCliService
         CancellationToken ct = default)
     {
         _log = log ?? Console.WriteLine;
+        using var executionGuard = new AutoExecutionGuard();
+        _log("[WinProvision] Proteção contra suspensão/reinício automático ativa durante o /auto.");
 
         bool isUrl = ProfileSourceReader.IsHttpUrl(profileSource);
 
@@ -587,9 +589,9 @@ public class AutoInstallCliService
             if (manifest.PowerPlan is { } power && power != PowerPlanMode.NaoDefinido) count++;
             if (!string.IsNullOrWhiteSpace(manifest.MachineName)) count++;
             if (manifest.AutoCreateRestorePoint == true) count++;
-            if (manifest.AutoInstallWindowsUpdates == true) count++;
             if (manifest.AutoCleanTempOnLogon == true) count++;
         }
+
         return count;
     }
 
@@ -645,5 +647,25 @@ public class AutoInstallCliService
         }
 
         return false;
+    }
+
+    private sealed class AutoExecutionGuard : IDisposable
+    {
+        private const uint EsContinuous = 0x80000000;
+        private const uint EsSystemRequired = 0x00000001;
+        private const uint EsDisplayRequired = 0x00000002;
+
+        public AutoExecutionGuard()
+        {
+            SetThreadExecutionState(EsContinuous | EsSystemRequired | EsDisplayRequired);
+        }
+
+        public void Dispose()
+        {
+            SetThreadExecutionState(EsContinuous);
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint SetThreadExecutionState(uint esFlags);
     }
 }

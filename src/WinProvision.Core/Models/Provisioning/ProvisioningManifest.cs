@@ -101,19 +101,8 @@ public class ProvisioningManifest
     public string? Region { get; set; }
 
     /// <summary>
-    /// Se true, busca e instala TODAS as atualizações de qualidade/segurança e drivers
-    /// pendentes (via WUAPI) durante o Apply — sem seleção manual, porque o perfil costuma ser
-    /// montado numa máquina para ser aplicado depois em OUTRA (a máquina-alvo recém-formatada),
-    /// então uma lista buscada agora nem corresponderia ao hardware/estado dela. A busca em si
-    /// só acontece no momento do Apply, já rodando na máquina-alvo.
-    /// </summary>
-    public bool? AutoInstallWindowsUpdates { get; set; }
-
-    /// <summary>
     /// Se true, cria um ponto de restauração do sistema (via WMI SystemRestore) no início do
-    /// Apply — mesmo raciocínio de <see cref="AutoInstallWindowsUpdates"/>: precisa acontecer
-    /// na máquina-alvo no momento em que o perfil é aplicado, não na máquina onde o perfil foi
-    /// montado.
+    /// Apply, na máquina-alvo.
     /// </summary>
     public bool? AutoCreateRestorePoint { get; set; }
 

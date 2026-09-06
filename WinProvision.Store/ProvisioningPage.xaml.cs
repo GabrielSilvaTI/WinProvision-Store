@@ -139,7 +139,6 @@ public partial class ProvisioningPage : Page
     private void ShowSection(StackPanel sectionPanel, string title)
     {
         PersonalizationSectionPanel.Visibility = Visibility.Collapsed;
-        UpdatesSectionPanel.Visibility = Visibility.Collapsed;
         AdvancedSectionPanel.Visibility = Visibility.Collapsed;
         JsonSectionPanel.Visibility = Visibility.Collapsed;
         CliSectionPanel.Visibility = Visibility.Collapsed;
@@ -162,8 +161,6 @@ public partial class ProvisioningPage : Page
         ShowSection(PersonalizationSectionPanel, "Personalização");
         UpdateDesktopPreview();
     }
-
-    private void UpdatesNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(UpdatesSectionPanel, "Atualizações");
 
     private void AdvancedNavCard_Click(object sender, RoutedEventArgs e)
     {
@@ -200,7 +197,6 @@ public partial class ProvisioningPage : Page
             || (manifest.TaskbarSearchBox is { } search && search != TaskbarSearchBoxMode.NaoDefinido)
             || manifest.TaskbarAutoHide is true
             || !string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64);
-        bool updatesSet = manifest.AutoInstallWindowsUpdates is true;
         bool advancedSet = !string.IsNullOrWhiteSpace(manifest.MachineName)
             || !string.IsNullOrWhiteSpace(manifest.Region)
             || (manifest.PowerPlan is { } power && power != PowerPlanMode.NaoDefinido)
@@ -211,7 +207,7 @@ public partial class ProvisioningPage : Page
             || manifest.AutoCreateRestorePoint is true
             || manifest.AutoCleanTempOnLogon is true;
 
-        int sectionsConfigured = (personalizationSet ? 1 : 0) + (updatesSet ? 1 : 0) + (advancedSet ? 1 : 0);
+        int sectionsConfigured = (personalizationSet ? 1 : 0) + (advancedSet ? 1 : 0);
 
         int keysModified = 0;
         if (!string.IsNullOrWhiteSpace(manifest.Name)) keysModified++;
@@ -228,7 +224,6 @@ public partial class ProvisioningPage : Page
         if (!string.IsNullOrWhiteSpace(manifest.MachineName)) keysModified++;
         if (!string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64)) keysModified++;
         if (!string.IsNullOrWhiteSpace(manifest.Region)) keysModified++;
-        if (manifest.AutoInstallWindowsUpdates is true) keysModified++;
         if (manifest.AutoCreateRestorePoint is true) keysModified++;
         if (manifest.AutoCleanTempOnLogon is true) keysModified++;
 
@@ -441,7 +436,6 @@ public partial class ProvisioningPage : Page
             && string.IsNullOrWhiteSpace(manifest.MachineName)
             && string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64)
             && string.IsNullOrWhiteSpace(manifest.Region)
-            && manifest.AutoInstallWindowsUpdates is not true
             && manifest.AutoCreateRestorePoint is not true
             && manifest.AutoCleanTempOnLogon is not true
             && manifest.DesktopIconLayout is null or { Count: 0 };
@@ -502,9 +496,6 @@ public partial class ProvisioningPage : Page
 
         if (GetSelectedContent(RegionComboBox, "") is { } region)
             changes.Add($"Região: {region}");
-
-        if (AutoInstallWindowsUpdatesCheckBox.IsChecked is true)
-            changes.Add("Atualizações e drivers: instalar automaticamente ao aplicar");
 
         if (AutoCreateRestorePointCheckBox.IsChecked is true)
             changes.Add("Ponto de restauração: criar automaticamente ao aplicar");
@@ -618,7 +609,6 @@ public partial class ProvisioningPage : Page
         WallpaperFileName = _wallpaperFileName,
         WallpaperImageBase64 = _wallpaperImageBase64,
         Region = GetSelectedRegion(RegionComboBox),
-        AutoInstallWindowsUpdates = AutoInstallWindowsUpdatesCheckBox.IsChecked,
         AutoCreateRestorePoint = AutoCreateRestorePointCheckBox.IsChecked,
         AutoCleanTempOnLogon = AutoCleanTempOnLogonCheckBox.IsChecked,
         DesktopIconLayout = BuildDesktopIconLayout(),
@@ -709,7 +699,6 @@ public partial class ProvisioningPage : Page
         SelectMinutes(StandbyTimeoutAcComboBox, manifest.StandbyTimeoutOnAc ?? manifest.StandbyTimeoutOnDc);
         MachineNameTextBox.Text = manifest.MachineName ?? string.Empty;
         SelectRegion(RegionComboBox, manifest.Region);
-        AutoInstallWindowsUpdatesCheckBox.IsChecked = manifest.AutoInstallWindowsUpdates;
         AutoCreateRestorePointCheckBox.IsChecked = manifest.AutoCreateRestorePoint;
         AutoCleanTempOnLogonCheckBox.IsChecked = manifest.AutoCleanTempOnLogon;
         ApplyDesktopIconLayoutToUi(manifest.DesktopIconLayout);
