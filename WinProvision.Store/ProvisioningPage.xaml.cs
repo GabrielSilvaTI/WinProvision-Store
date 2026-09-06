@@ -24,7 +24,6 @@ namespace WinProvision.Store;
 
 public partial class ProvisioningPage : Page
 {
-    private const string DefaultBootstrapScriptUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/WinProvision_Store_Bootstrap.ps1";
     private const string StableExecutableUrl = "https://github.com/GabrielSilvaTI/WinProvision-Store/releases/latest/download/WinProvision.Store.exe";
     private readonly ProvisioningService _provisioningService;
     private readonly CliPresetsService _cliPresetsService;
@@ -71,7 +70,7 @@ public partial class ProvisioningPage : Page
         _scheduledTempCleanerService = App.Services.GetRequiredService<ScheduledTempCleanerService>();
         _packageCollectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _iconService = App.Services.GetRequiredService<IconService>();
-        BootstrapScriptUrlTextBox.Text = DefaultBootstrapScriptUrl;
+        BootstrapScriptUrlTextBox.Text = _backupService.BootstrapRawUrl ?? string.Empty;
 
         CurrentMachineNameText.Text = $"Nome atual: {Environment.MachineName}";
 
