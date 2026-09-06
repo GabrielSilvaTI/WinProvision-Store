@@ -48,6 +48,14 @@ jobs:
           wranglerVersion: "4"
           command: kv bulk put kv_bulk.json --namespace-id ${{ secrets.KV_NAMESPACE_ID }} --remote
 
+      - name: Marcar chaves como sincronizadas no KV
+        if: steps.build.outputs.kv_entry_count != '0'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: python scripts/icons/mark_kv_synced.py
+
       - name: Publicar relatório como artefato (se houver conflitos de extensão)
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,6 +63,7 @@ jobs:
           name: icon-sync-report
           path: |
             icon-manifest.json
+            kv-synced-manifest.json
             kv_bulk.json
             conflitos_extensao.json
           if-no-files-found: ignore
