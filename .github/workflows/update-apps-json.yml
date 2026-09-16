@@ -1,0 +1,77 @@
+name: Update apps.json (winget-pkgs -> R2)
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # ~03h Brasília (UTC-3)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-json-sync
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+
+    steps:
+      - name: Checkout deste repositório (main)
+        uses: actions/checkout@v4
+
+      - name: Checkout manifests do winget-pkgs (sparse)
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/winget-pkgs
+          ref: master
+          sparse-checkout: |
+            manifests
+          sparse-checkout-cone-mode: true
+          fetch-depth: 1
+          path: winget-pkgs
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar boto3
+        run: python -m pip install boto3
+
+      - name: Restaurar metrics-cache.json do R2 (se existir)
+        run: >
+          python scripts/database/r2_download.py
+          Store/Database/metrics-cache.json
+          "${{ github.workspace }}/catalog-output/metrics-cache.json"
+
+      - name: Rodar o Indexer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          dotnet run --project src/WinProvision.Indexer -c Release --
+          "${{ github.workspace }}/winget-pkgs/manifests"
+          "${{ github.workspace }}/catalog-output"
+
+      - name: Publicar apps.json no R2
+        env:
+          APPS_JSON_SOURCE: ${{ github.workspace }}/catalog-output/apps.json
+          PREVIOUS_APPS_JSON_URL: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json
+        run: python scripts/database/upload_apps_json.py
+
+      - name: Devolver metrics-cache.json atualizado pro R2
+        run: >
+          python scripts/database/r2_upload.py
+          "${{ github.workspace }}/catalog-output/metrics-cache.json"
+          Store/Database/metrics-cache.json

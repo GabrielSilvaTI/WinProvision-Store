@@ -13,7 +13,7 @@ ACCOUNT_ID = os.environ["R2_ACCOUNT_ID"]
 ACCESS_KEY_ID = os.environ["R2_ACCESS_KEY_ID"]
 SECRET_ACCESS_KEY = os.environ["R2_SECRET_ACCESS_KEY"]
 
-BUCKET = os.environ.get("R2_BUCKET", "winprovision")
+BUCKET = os.environ.get("R2_BUCKET") or "winprovision"
 DEST_KEY = os.environ.get("R2_APPS_JSON_KEY", "Store/Database/apps.json")
 SOURCE_FILE = os.environ.get("APPS_JSON_SOURCE", "apps.json")
 

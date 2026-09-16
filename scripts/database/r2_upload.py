@@ -32,7 +32,7 @@ def main() -> int:
     account_id = os.environ["R2_ACCOUNT_ID"]
     access_key = os.environ["R2_ACCESS_KEY_ID"]
     secret_key = os.environ["R2_SECRET_ACCESS_KEY"]
-    bucket = os.environ.get("R2_BUCKET", "winprovision")
+    bucket = os.environ.get("R2_BUCKET") or "winprovision"
 
     client = boto3.client(
         "s3",
