@@ -1,0 +1,46 @@
+name: Atualizar GetHelpCmd no R2
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update-gethelpcmd:
+    runs-on: windows-latest
+    steps:
+      - name: Baixar e extrair GetHelpCmd
+        shell: pwsh
+        run: |
+          $destinationDir = "C:\GetHelp"
+          $zipPath = Join-Path -Path $destinationDir -ChildPath "GetHelp.zip"
+          $downloadUrl = "https://aka.ms/SaRA_EnterpriseVersionFiles"
+
+          New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -MaximumRedirection 5
+          Expand-Archive -Path $zipPath -DestinationPath $destinationDir -Force
+          Remove-Item -Path $zipPath -Force
+
+      - name: Localizar GetHelpCmd.exe e reempacotar
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "C:\GetHelp" -Filter "GetHelpCmd.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+
+          if (-not $exe) {
+            Write-Error "GetHelpCmd.exe não encontrado após extração."
+            exit 1
+          }
+
+          $toolFolder = $exe.DirectoryName
+          Compress-Archive -Path "$toolFolder\*" -DestinationPath "C:\GetHelp\GetHelpCmd.zip" -Force
+
+      - name: Enviar GetHelpCmd.zip ao Cloudflare R2
+        shell: pwsh
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 cp C:\GetHelp\GetHelpCmd.zip "s3://winprovision/Office/Uninstall/GetHelpCmd.zip" `
+            --endpoint-url $env:R2_ENDPOINT
