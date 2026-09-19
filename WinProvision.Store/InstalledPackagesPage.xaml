@@ -40,9 +40,9 @@
             </Setter>
         </Style>
         <Style x:Key="InstalledCardStyle" TargetType="Border">
-            <Setter Property="Width" Value="190" />
-            <Setter Property="Height" Value="150" />
-            <Setter Property="Padding" Value="12" />
+            <Setter Property="Width" Value="214" />
+            <Setter Property="Height" Value="248" />
+            <Setter Property="Padding" Value="14" />
             <Setter Property="Margin" Value="0,0,16,16" />
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -62,15 +62,32 @@
         <DataTemplate x:Key="InstalledGridTemplate">
             <Border Style="{StaticResource InstalledCardStyle}" MouseLeftButtonUp="SelectPackage_Click">
                 <Grid>
-                    <CheckBox HorizontalAlignment="Left" VerticalAlignment="Top"
-                                  IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSelect}"
-                                  Click="SelectionCheckBox_Click" ToolTip="Selecionar" />
-                    <StackPanel VerticalAlignment="Center">
-                        <Border Width="48" Height="48" Margin="0,0,0,6"
-                                HorizontalAlignment="Center" Background="{DynamicResource AppSurfaceBrush}"
-                                CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="20" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ui:SymbolIcon Grid.Row="0" Symbol="CheckmarkCircle24" FontSize="20"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Foreground" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Foreground" Value="#4CAF6B" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
+                    <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                        <Border Width="56" Height="56" Margin="0,0,0,10"
+                                HorizontalAlignment="Center"
+                            Background="{DynamicResource AppSurfaceBrush}"
+                            CornerRadius="{StaticResource OverlayCornerRadius}"
+                                ClipToBounds="True">
                             <Grid>
-                                <ui:SymbolIcon Symbol="Box24" FontSize="28"
+                                <ui:SymbolIcon Symbol="Box24" FontSize="34"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                                Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridInstalledImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
@@ -80,10 +97,12 @@
                             </Grid>
                         </Border>
                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" TextWrapping="Wrap"
-                                   ToolTip="{Binding Name}" />
-                        <TextBlock Text="{Binding Version}" FontSize="11"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Source}" FontSize="11"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,3,0,2" />
+                        <TextBlock Text="{Binding Version}" FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                    TextAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>
@@ -108,15 +127,24 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <Grid Height="60">
+                <Grid MinHeight="52">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="40" /><ColumnDefinition Width="48" />
-                        <ColumnDefinition Width="*" /><ColumnDefinition Width="140" />
-                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" /><ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="110" />
                     </Grid.ColumnDefinitions>
-                    <CheckBox Grid.Column="0" IsChecked="{Binding IsSelected}" IsEnabled="{Binding CanSelect}"
-                                 Click="SelectionCheckBox_Click" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <Border Grid.Column="1" Width="40" Height="40" Margin="0,0,12,0"
+                    <ui:SymbolIcon Grid.Column="0" Symbol="CheckmarkCircle24" FontSize="20"
+                                   Margin="0,0,12,0" VerticalAlignment="Center">
+                        <ui:SymbolIcon.Style>
+                            <Style TargetType="ui:SymbolIcon">
+                                <Setter Property="Foreground" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True"><Setter Property="Foreground" Value="#4CAF6B" /></DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:SymbolIcon.Style>
+                    </ui:SymbolIcon>
+                    <Border Grid.Column="1" Width="36" Height="36" Margin="0,0,12,0"
                             Background="{DynamicResource AppSurfaceBrush}"
                             CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True">
                         <Grid>
@@ -129,11 +157,11 @@
                         </Grid>
                     </Border>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
-                        <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Id}" />
+                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Id}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                     <TextBlock Grid.Column="3" Text="{Binding Version}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="4" Text="{Binding DisplaySource}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="4" Text="{Binding Source}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -164,7 +192,7 @@
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" MinWidth="360" /><ColumnDefinition Width="16" /><ColumnDefinition Width="316" /></Grid.ColumnDefinitions>
             <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="24,24,24,0" ClipToBounds="True">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,24">
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -181,12 +209,6 @@
                             <TextBlock Text="{Binding SelectedCount, StringFormat={}{0} pacote(s) selecionado(s)}" Style="{StaticResource CardSubtitleStyle}" VerticalAlignment="Center" Margin="0,0,14,0" />
                             <ui:Button Content="Selecionar todos" Click="ToggleSelectAll_Click" Padding="8,4" />
                         </StackPanel>
-                        <Grid Grid.Row="2" Grid.ColumnSpan="2" Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="140" /><ColumnDefinition Width="120" /></Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="2" Text="Nome" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Grid.Column="3" Text="Versão" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Grid.Column="4" Text="Origem" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </Grid>
                     </Grid>
                     <Grid Grid.Row="1">
                         <ScrollViewer x:Name="GridViewScrollViewer" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
@@ -200,15 +222,8 @@
                         </ScrollViewer>
                         <ListView x:Name="ListViewScrollViewer" Visibility="Collapsed" ItemsSource="{Binding VisiblePackages}" ItemTemplate="{StaticResource InstalledListTemplate}"
                                       BorderThickness="0" Background="Transparent" ScrollViewer.CanContentScroll="True"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                        <Setter Property="Padding" Value="0" />
-                                    </Style>
-                                </ListView.ItemContainerStyle>
+                                      ScrollViewer.VerticalScrollBarVisibility="Disabled">
                                 <ListView.ItemsPanel>
                                     <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
                                 </ListView.ItemsPanel>

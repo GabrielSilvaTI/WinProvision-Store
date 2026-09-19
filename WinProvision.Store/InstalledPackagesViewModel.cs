@@ -145,14 +145,6 @@ public sealed class InstalledPackageRow : INotifyPropertyChanged
     public Services.InstalledPackage Package { get; }
     public string Name => Package.Name; public string Id => Package.Id; public string Version => Package.Version;
     public string Source => Package.Source; public string Scope => Package.Scope; public string IconUrl => Package.IconUrl;
-    public string DisplaySource => string.IsNullOrWhiteSpace(Source)
-        ? (Id.StartsWith("MSIX\\", StringComparison.OrdinalIgnoreCase) ? "Microsoft Store" : "Local")
-        : Source;
-    public string Subtitle => Id.StartsWith("MSIX\\", StringComparison.OrdinalIgnoreCase)
-        ? "Aplicativo da Microsoft Store"
-        : Id.StartsWith("ARP\\", StringComparison.OrdinalIgnoreCase)
-            ? "Programa instalado"
-            : Id;
     public bool IsOffice => Package.IsOffice;
     public bool IsSystemComponent => Package.IsSystemComponent;
     public bool CanRemove => IsOffice

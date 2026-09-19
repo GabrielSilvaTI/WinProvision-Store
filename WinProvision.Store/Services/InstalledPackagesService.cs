@@ -53,11 +53,8 @@ public sealed class InstalledPackageClassifier(OfficeInstalledProductsDetector d
 public sealed class InstalledPackagesService
 {
     private static readonly TimeSpan ComTimeout = TimeSpan.FromSeconds(5);
-    private readonly InstalledAppIconResolver _iconResolver;
-
-    public InstalledPackagesService(InstalledAppIconResolver iconResolver)
+    public InstalledPackagesService()
     {
-        _iconResolver = iconResolver;
     }
 
     public async Task<IReadOnlyList<InstalledPackage>> ListAsync(CancellationToken cancellationToken = default)
@@ -217,5 +214,535 @@ public sealed class InstalledPackagesService
         }
     }
 
-    public Task<IReadOnlyList<InstalledPackage>> ResolveIconsAsync(IEnumerable<InstalledPackage> packages, CancellationToken cancellationToken = default) => _iconResolver.ResolveAsync(packages, cancellationToken);
+    public async Task<IReadOnlyList<InstalledPackage>> ResolveIconsAsync(
+        IEnumerable<InstalledPackage> packages,
+        CancellationToken cancellationToken = default)
+    {
+        var source = packages.ToArray();
+        var uninstallEntries = await Task.Run(ReadUninstallEntries, cancellationToken);
+        using var gate = new SemaphoreSlim(4);
+        var resolved = new InstalledPackage[source.Length];
+        int withIcon = 0;
+        await Task.WhenAll(source.Select(async (package, index) =>
+        {
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                string? iconUrl = null;
+                string method = "d";
+                var failures = new List<string>();
+
+                string? displayIcon = FindDisplayIcon(package, uninstallEntries);
+                if (!string.IsNullOrWhiteSpace(displayIcon))
+                {
+                    iconUrl = ResolveLocalIcon(displayIcon, package.Id, out string reason);
+                    if (iconUrl is not null) method = "a";
+                    else failures.Add($"a:{reason}");
+                }
+
+                if (iconUrl is null)
+                {
+                    var entry = FindMatchingEntry(package, uninstallEntries);
+                    string? executable = FindMainExecutable(entry);
+                    if (executable is not null)
+                    {
+                        iconUrl = ResolveLocalIcon(executable, package.Id, out string reason);
+                        if (iconUrl is not null) method = "b";
+                        else failures.Add($"b:{reason}");
+                    }
+                    else failures.Add("b:InstallLocation/UninstallString sem executável local");
+                }
+
+                if (iconUrl is null && TryGetAppsFolderPath(package, out string appsFolderPath))
+                {
+                    iconUrl = ResolveShellItemIcon(appsFolderPath, package.Id, out string reason);
+                    if (iconUrl is not null) method = "c";
+                    else failures.Add($"c:{reason}");
+                }
+                else if (iconUrl is null)
+                {
+                    failures.Add("c:PackageFamilyName/AppId não derivado");
+                }
+
+                if (iconUrl is null)
+                    failures.Add("d:ícone genérico");
+                else Interlocked.Increment(ref withIcon);
+
+                WinGetDiagnosticLog.Write(
+                    $"INSTALLED ICON item=\"{package.Name}\" id=\"{package.Id}\" method={method} " +
+                    $"status={(iconUrl is null ? "missing" : "ok")} " +
+                    $"failures=\"{string.Join(" | ", failures)}\"");
+                resolved[index] = package with
+                {
+                    IconUrl = iconUrl ?? IconService.DefaultIconPackUri,
+                    IsSystemComponent = InstalledPackageClassifier.IsSystemComponent(package)
+                };
+            }
+            finally { gate.Release(); }
+        }));
+        WinGetDiagnosticLog.Write($"INSTALLED ICON SUMMARY with={withIcon} without={source.Length - withIcon}");
+        return resolved;
+    }
+
+    private static string? ResolveLocalIcon(string? iconReference, string id, out string reason)
+    {
+        reason = string.Empty;
+        if (string.IsNullOrWhiteSpace(iconReference))
+        {
+            reason = "referência vazia";
+            return null;
+        }
+
+        var (path, iconIndex) = ParseIconReference(iconReference);
+        if (!File.Exists(path))
+        {
+            reason = $"arquivo não encontrado: {path}";
+            return null;
+        }
+
+        string modified = File.GetLastWriteTimeUtc(path).Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        string cacheKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"local-v3|{id}|{path}|{iconIndex}|{modified}"))).ToLowerInvariant();
+        string cacheFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "WinProvisionStore", "Cache", "Icons");
+        Directory.CreateDirectory(cacheFolder);
+        string destination = Path.Combine(cacheFolder, $"arp-{cacheKey}.png");
+        if (File.Exists(destination)) return destination;
+
+        try
+        {
+            bool extracted = iconIndex != 0
+                ? TryExtractIconResource(path, iconIndex, destination)
+                : TryExtractShellIcon(path, destination);
+            if (extracted)
+                return destination;
+            reason = iconIndex != 0
+                ? $"ExtractIconEx não retornou o índice {iconIndex}"
+                : "IShellItemImageFactory não retornou ícone";
+        }
+        catch (Exception ex)
+        {
+            reason = ex.Message;
+        }
+
+        return null;
+    }
+
+    private static string? ResolveShellItemIcon(string shellPath, string id, out string reason)
+    {
+        reason = string.Empty;
+        string cacheKey = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes($"local-v3|{id}|{shellPath}|0"))).ToLowerInvariant();
+        string cacheFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "WinProvisionStore", "Cache", "Icons");
+        Directory.CreateDirectory(cacheFolder);
+        string destination = Path.Combine(cacheFolder, $"shell-{cacheKey}.png");
+        if (File.Exists(destination)) return destination;
+
+        if (TryExtractShellIcon(shellPath, destination))
+            return destination;
+
+        reason = "IShellItemImageFactory não retornou ícone";
+        return null;
+    }
+
+    private static BitmapSource ComposeIconCanvas(BitmapSource source, Color background)
+    {
+        const double size = 256;
+        const double maxDimension = 220;
+        double scale = Math.Min(maxDimension / source.PixelWidth, maxDimension / source.PixelHeight);
+        double width = source.PixelWidth * scale;
+        double height = source.PixelHeight * scale;
+        var visual = new DrawingVisual();
+        using (DrawingContext drawing = visual.RenderOpen())
+        {
+            if (background.A > 0)
+            {
+                drawing.DrawRoundedRectangle(
+                    new SolidColorBrush(background),
+                    null,
+                    new System.Windows.Rect(0, 0, size, size),
+                    42,
+                    42);
+            }
+
+            drawing.DrawImage(source, new System.Windows.Rect((size - width) / 2, (size - height) / 2, width, height));
+        }
+
+        var rendered = new RenderTargetBitmap(256, 256, 96, 96, PixelFormats.Pbgra32);
+        rendered.Render(visual);
+        rendered.Freeze();
+        return rendered;
+    }
+
+    private static BitmapSource CropTransparentBounds(BitmapSource source)
+    {
+        BitmapSource bitmap = source.Format == PixelFormats.Pbgra32
+            ? source
+            : new FormatConvertedBitmap(source, PixelFormats.Pbgra32, null, 0);
+        bitmap.Freeze();
+
+        int stride = bitmap.PixelWidth * 4;
+        byte[] pixels = new byte[stride * bitmap.PixelHeight];
+        bitmap.CopyPixels(pixels, stride, 0);
+
+        int left = bitmap.PixelWidth;
+        int top = bitmap.PixelHeight;
+        int right = -1;
+        int bottom = -1;
+        for (int y = 0; y < bitmap.PixelHeight; y++)
+        {
+            for (int x = 0; x < bitmap.PixelWidth; x++)
+            {
+                if (pixels[y * stride + (x * 4) + 3] == 0)
+                    continue;
+
+                left = Math.Min(left, x);
+                top = Math.Min(top, y);
+                right = Math.Max(right, x);
+                bottom = Math.Max(bottom, y);
+            }
+        }
+
+        if (right < left || bottom < top)
+            return source;
+
+        int padding = Math.Max(1, Math.Max(right - left + 1, bottom - top + 1) / 16);
+        left = Math.Max(0, left - padding);
+        top = Math.Max(0, top - padding);
+        right = Math.Min(bitmap.PixelWidth - 1, right + padding);
+        bottom = Math.Min(bitmap.PixelHeight - 1, bottom + padding);
+
+        var cropped = new CroppedBitmap(bitmap, new Int32Rect(
+            left,
+            top,
+            right - left + 1,
+            bottom - top + 1));
+        cropped.Freeze();
+        return cropped;
+    }
+
+    private static UninstallEntry? FindMatchingEntry(InstalledPackage package, IReadOnlyList<UninstallEntry> entries)
+    {
+        if (TryGetArpKey(package.Id, out string? hive, out string? view, out string? key))
+        {
+            return entries.FirstOrDefault(e => e.Hive == hive && e.View == view
+                && e.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        }
+
+        // Source IDs do not identify one ARP key reliably. Only use a unique
+        // display-name/version match; ambiguity must never select the wrong icon.
+        var exactMatches = entries.Where(e =>
+            e.DisplayName.Equals(package.Name, StringComparison.OrdinalIgnoreCase)
+            && (string.IsNullOrWhiteSpace(package.Version)
+                || e.DisplayVersion.Equals(package.Version, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+        if (exactMatches.Length == 1)
+            return exactMatches[0];
+
+        var nameMatches = entries.Where(e =>
+            (e.DisplayName.Contains(package.Name, StringComparison.OrdinalIgnoreCase)
+             || package.Name.Contains(e.DisplayName, StringComparison.OrdinalIgnoreCase))
+            && (string.IsNullOrWhiteSpace(package.Version)
+                || string.IsNullOrWhiteSpace(e.DisplayVersion)
+                || e.DisplayVersion.Equals(package.Version, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+        var matches = nameMatches.Length == 1 ? nameMatches : exactMatches;
+        return matches.Length == 1 ? matches[0] : null;
+    }
+
+    private static string? FindDisplayIcon(InstalledPackage package, IReadOnlyList<UninstallEntry> entries) =>
+        FindMatchingEntry(package, entries)?.DisplayIcon;
+
+    private static string? FindMainExecutable(UninstallEntry? entry)
+    {
+        if (entry is null) return null;
+        if (!string.IsNullOrWhiteSpace(entry.InstallLocation))
+        {
+            string folder = Environment.ExpandEnvironmentVariables(entry.InstallLocation);
+            if (Directory.Exists(folder))
+            {
+                string? candidate = Directory.EnumerateFiles(folder, "*.exe", SearchOption.TopDirectoryOnly)
+                    .OrderBy(path => Path.GetFileName(path).Contains("unins", StringComparison.OrdinalIgnoreCase))
+                    .ThenBy(path => Path.GetFileName(path).Contains("setup", StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault();
+                if (candidate is not null) return candidate;
+            }
+        }
+
+        return TryParseExecutable(entry.UninstallString);
+    }
+
+    private static string? TryParseExecutable(string? command)
+    {
+        if (string.IsNullOrWhiteSpace(command)) return null;
+        string value = Environment.ExpandEnvironmentVariables(command.Trim());
+        if (value.StartsWith('"'))
+        {
+            int end = value.IndexOf('"', 1);
+            if (end > 1) return value[1..end];
+        }
+        int exeEnd = value.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+        return exeEnd >= 0 ? value[..(exeEnd + 4)].Trim() : null;
+    }
+
+    private static bool TryGetAppsFolderPath(InstalledPackage package, out string path)
+    {
+        path = string.Empty;
+        string value = package.Id;
+        int separator = value.IndexOf('\\');
+        if (separator >= 0) value = value[(separator + 1)..];
+        int bang = value.IndexOf('!');
+        if (bang <= 0 || bang == value.Length - 1) return false;
+        string family = value[..bang];
+        string appId = value[(bang + 1)..];
+        path = $@"shell:AppsFolder\{family}!{appId}";
+        return true;
+    }
+
+    private static bool TryGetArpKey(string id, out string? hive, out string? view, out string? key)
+    {
+        hive = view = key = null;
+        string[] parts = id.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 4 || !parts[0].Equals("ARP", StringComparison.OrdinalIgnoreCase))
+            return false;
+        hive = parts[1].Equals("User", StringComparison.OrdinalIgnoreCase) ? "HKCU" :
+            parts[1].Equals("Machine", StringComparison.OrdinalIgnoreCase) ? "HKLM" : null;
+        view = parts[2].Equals("X86", StringComparison.OrdinalIgnoreCase) ? "X86" :
+            parts[2].Equals("X64", StringComparison.OrdinalIgnoreCase) ? "X64" : null;
+        key = string.Join('\\', parts.Skip(3));
+        return hive is not null && view is not null && !string.IsNullOrWhiteSpace(key);
+    }
+
+    private static IReadOnlyList<UninstallEntry> ReadUninstallEntries()
+    {
+        var result = new List<UninstallEntry>();
+        foreach ((RegistryHive hive, string hiveName) in new[] { (RegistryHive.LocalMachine, "HKLM"), (RegistryHive.CurrentUser, "HKCU") })
+        foreach ((RegistryView view, string viewName) in new[] { (RegistryView.Registry64, "X64"), (RegistryView.Registry32, "X86") })
+        {
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(hive, view);
+                using var uninstall = root.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall");
+                if (uninstall is null) continue;
+                foreach (string keyName in uninstall.GetSubKeyNames())
+                {
+                    using var key = uninstall.OpenSubKey(keyName);
+                    string? displayName = key?.GetValue("DisplayName") as string;
+                    string? displayIcon = key?.GetValue("DisplayIcon") as string;
+                    string? installLocation = key?.GetValue("InstallLocation") as string;
+                    string? uninstallString = key?.GetValue("UninstallString") as string;
+                    if (!string.IsNullOrWhiteSpace(displayName))
+                        result.Add(new UninstallEntry(hiveName, viewName, keyName,
+                            displayName, key!.GetValue("DisplayVersion") as string ?? string.Empty,
+                            string.IsNullOrWhiteSpace(displayIcon) ? string.Empty : NormalizeDisplayIcon(displayIcon),
+                            installLocation ?? string.Empty, uninstallString ?? string.Empty));
+                }
+            }
+            catch (Exception ex)
+            {
+                WinGetDiagnosticLog.Write($"INSTALLED ARP read failed hive={hiveName} view={viewName} error={ex.Message}");
+            }
+        }
+        return result;
+    }
+
+    private static string NormalizeDisplayIcon(string value)
+    {
+        string result = Environment.ExpandEnvironmentVariables(value.Trim());
+        if (result.StartsWith('"'))
+        {
+            int end = result.IndexOf('"', 1);
+            if (end > 1)
+            {
+                string path = result[1..end];
+                string suffix = result[(end + 1)..].Trim();
+                return path + suffix;
+            }
+        }
+        else
+        {
+            int comma = result.IndexOf(',');
+            string path = comma > 0 ? result[..comma].Trim() : result;
+
+            if (!File.Exists(path))
+            {
+                string candidate = path;
+                while (candidate.Contains(' '))
+                {
+                    int separator = candidate.LastIndexOf(' ');
+                    candidate = candidate[..separator].TrimEnd();
+                    if (File.Exists(candidate))
+                    {
+                        result = candidate;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                result = path + (comma > 0 ? result[comma..] : string.Empty);
+            }
+        }
+        return result.Trim().Trim('"');
+    }
+
+    private static (string Path, int Index) ParseIconReference(string value)
+    {
+        string result = Environment.ExpandEnvironmentVariables(value.Trim());
+        int index = 0;
+        if (result.StartsWith('"'))
+        {
+            int endQuote = result.IndexOf('"', 1);
+            if (endQuote > 1)
+            {
+                string suffix = result[(endQuote + 1)..].Trim();
+                result = result[1..endQuote];
+                _ = int.TryParse(suffix.TrimStart(','), out index);
+            }
+        }
+        else
+        {
+            int comma = result.IndexOf(',');
+            if (comma > 0)
+            {
+                _ = int.TryParse(result[(comma + 1)..].Trim(), out index);
+                result = result[..comma].Trim();
+            }
+            else
+            {
+                int executableEnd = result.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+                if (executableEnd >= 0)
+                    result = result[..(executableEnd + 4)].Trim().Trim('"');
+            }
+        }
+        return (result.Trim().Trim('"'), index);
+    }
+
+    private static bool TryExtractIconResource(string path, int iconIndex, string destination)
+    {
+        if (!File.Exists(path)) return false;
+        if (string.Equals(Path.GetExtension(path), ".ico", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                using var icon = new System.Drawing.Icon(path);
+                using var bitmap = icon.ToBitmap();
+                IntPtr bitmapHandle = bitmap.GetHbitmap();
+                try
+                {
+                    var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                        bitmapHandle, IntPtr.Zero, System.Windows.Int32Rect.Empty,
+                        System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                    source.Freeze();
+                    source = ComposeIconCanvas(CropTransparentBounds(source), Colors.Transparent);
+                    using var stream = File.Create(destination);
+                    var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+                    encoder.Save(stream);
+                    return true;
+                }
+                finally
+                {
+                    NativeMethods.DeleteObject(bitmapHandle);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        IntPtr largeIcon = IntPtr.Zero;
+        IntPtr smallIcon = IntPtr.Zero;
+        try
+        {
+            uint extracted = NativeMethods.ExtractIconEx(path, iconIndex, out largeIcon, out smallIcon, 1);
+            IntPtr iconHandle = largeIcon != IntPtr.Zero ? largeIcon : smallIcon;
+            if (extracted == 0 || iconHandle == IntPtr.Zero) return false;
+
+            using var icon = System.Drawing.Icon.FromHandle(iconHandle);
+            using var bitmap = icon.ToBitmap();
+            IntPtr bitmapHandle = bitmap.GetHbitmap();
+            var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                bitmapHandle, IntPtr.Zero, System.Windows.Int32Rect.Empty,
+                System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+            NativeMethods.DeleteObject(bitmapHandle);
+            source.Freeze();
+            source = ComposeIconCanvas(CropTransparentBounds(source), Colors.Transparent);
+            using var stream = File.Create(destination);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+            encoder.Save(stream);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            if (largeIcon != IntPtr.Zero) NativeMethods.DestroyIcon(largeIcon);
+            if (smallIcon != IntPtr.Zero) NativeMethods.DestroyIcon(smallIcon);
+        }
+    }
+
+    private static bool TryExtractShellIcon(string path, string destination)
+    {
+        if (!File.Exists(path)) return false;
+        Guid iid = typeof(NativeMethods.IShellItemImageFactory).GUID;
+        int hr = NativeMethods.SHCreateItemFromParsingName(path, IntPtr.Zero,
+            ref iid, out var factory);
+        if (hr < 0 || factory is null) return false;
+        try
+        {
+            hr = factory.GetImage(new NativeMethods.Size(256, 256),
+                NativeMethods.SIIGBF.BIGGERSIZEOK | NativeMethods.SIIGBF.ICONONLY,
+                out IntPtr bitmap);
+            if (hr < 0 || bitmap == IntPtr.Zero) return false;
+            try
+            {
+                var source = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                    bitmap, IntPtr.Zero, System.Windows.Int32Rect.Empty,
+                    System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                source.Freeze();
+                source = ComposeIconCanvas(CropTransparentBounds(source), Colors.Transparent);
+                using var stream = File.Create(destination);
+                var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+                encoder.Save(stream);
+                return true;
+            }
+            finally { NativeMethods.DeleteObject(bitmap); }
+        }
+        finally { System.Runtime.InteropServices.Marshal.ReleaseComObject(factory); }
+    }
+
+    private sealed record UninstallEntry(
+        string Hive,
+        string View,
+        string Key,
+        string DisplayName,
+        string DisplayVersion,
+        string DisplayIcon,
+        string InstallLocation,
+        string UninstallString);
+
+    private static class NativeMethods
+    {
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        internal static extern int SHCreateItemFromParsingName(string path, IntPtr bindContext, [System.Runtime.InteropServices.In] ref Guid riid, out IShellItemImageFactory item);
+        [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        internal static extern bool DeleteObject(IntPtr hObject);
+        [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        internal static extern uint ExtractIconEx(string szFileName, int nIconIndex, out IntPtr phiconLarge, out IntPtr phiconSmall, uint nIcons);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        internal static extern bool DestroyIcon(IntPtr hIcon);
+        internal enum SIIGBF : uint { BIGGERSIZEOK = 0x1, ICONONLY = 0x4 }
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        internal struct Size(int cx, int cy) { public int cx = cx; public int cy = cy; }
+        [System.Runtime.InteropServices.ComImport, System.Runtime.InteropServices.Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"), System.Runtime.InteropServices.InterfaceType(System.Runtime.InteropServices.ComInterfaceType.InterfaceIsIUnknown)]
+        internal interface IShellItemImageFactory { int GetImage(Size size, SIIGBF flags, out IntPtr bitmap); }
+    }
 }

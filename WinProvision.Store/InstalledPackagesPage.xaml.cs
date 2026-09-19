@@ -55,11 +55,8 @@ public partial class InstalledPackagesPage : Page
 
     private void ToggleSelectAll_Click(object sender, RoutedEventArgs e)
     {
-        var visible = _viewModel.VisiblePackages.Cast<InstalledPackageRow>()
-            .Where(x => x.CanRemove)
-            .ToArray();
-        bool select = visible.Any(x => !x.IsSelected);
-        foreach (var package in visible)
+        bool select = _viewModel.Packages.Any(x => !x.IsSelected && x.CanRemove);
+        foreach (var package in _viewModel.Packages.Where(x => x.CanRemove))
             package.IsSelected = select;
     }
 
@@ -68,7 +65,4 @@ public partial class InstalledPackagesPage : Page
         if (sender is FrameworkElement { DataContext: InstalledPackageRow row } && row.CanSelect)
             row.IsSelected = !row.IsSelected;
     }
-
-    private void SelectionCheckBox_Click(object sender, RoutedEventArgs e) =>
-        e.Handled = true;
 }

@@ -62,7 +62,6 @@ public partial class App : Application
             services.AddSingleton<OfficeUninstallService>();
             services.AddSingleton<OfficeInstalledProductsDetector>();
             services.AddSingleton<WinGetService>();
-            services.AddSingleton<InstalledAppIconResolver>();
             services.AddSingleton<InstalledPackagesService>();
             services.AddSingleton<InstalledPackageClassifier>();
             services.AddSingleton<AutoInstallCliService>();
