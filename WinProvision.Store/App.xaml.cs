@@ -62,6 +62,9 @@ public partial class App : Application
             services.AddSingleton<OfficeUninstallService>();
             services.AddSingleton<OfficeInstalledProductsDetector>();
             services.AddSingleton<WinGetService>();
+            services.AddSingleton<InstalledAppIconResolver>();
+            services.AddSingleton<InstalledPackagesService>();
+            services.AddSingleton<InstalledPackageClassifier>();
             services.AddSingleton<AutoInstallCliService>();
             services.AddSingleton<ProvisioningService>();
             services.AddSingleton<WindowsUpdateService>();
@@ -82,6 +85,7 @@ public partial class App : Application
 
             services.AddSingleton<HomePage>();
             services.AddTransient<PackagesPage>();
+            services.AddSingleton<InstalledPackagesPage>();
             services.AddSingleton<OfficePage>();
             services.AddSingleton<UpdatesPage>();
             services.AddSingleton<AccountSyncPage>();
