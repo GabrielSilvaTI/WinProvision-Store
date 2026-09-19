@@ -1,0 +1,53 @@
+name: Atualizar Office Setup no R2
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  update-odt:
+    runs-on: windows-latest
+    steps:
+      - name: Baixar e extrair ODT
+        shell: pwsh
+        run: |
+          $destinationDir = "C:\ODT"
+          $exePath = Join-Path -Path $destinationDir -ChildPath "officedeploymenttool.exe"
+          $odtPageUrl = "https://www.microsoft.com/en-us/download/details.aspx?id=49117"
+
+          try {
+            $downloadPage = Invoke-WebRequest -Uri $odtPageUrl -UseBasicParsing
+            $downloadUrl = ($downloadPage.Links | Where-Object { $_.href -like "*officedeploymenttool*.exe" }).href
+          } catch {
+            Write-Warning "Falha na raspagem. Usando link fallback."
+          }
+
+          if (-not $downloadUrl) {
+            $downloadUrl = "https://download.microsoft.com/download/2/7/A/27AFA36C-86A2-435F-B21D-C43444747BFE/officedeploymenttool_17328-20162.exe"
+          }
+
+          New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
+
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath
+          Start-Process -FilePath $exePath -ArgumentList "/extract:`"$destinationDir`" /quiet" -Wait
+          Remove-Item -Path $exePath -Force
+
+      - name: Verificar setup.exe extraído
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\ODT\setup.exe")) {
+            Write-Error "setup.exe não encontrado após extração."
+            exit 1
+          }
+
+      - name: Enviar setup.exe ao Cloudflare R2
+        shell: pwsh
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: https://${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET_NAME }}
+        run: |
+          aws s3 cp C:\ODT\setup.exe "s3://$env:R2_BUCKET/Office/Instalador/setup.exe" `
+            --endpoint-url $env:R2_ENDPOINT
