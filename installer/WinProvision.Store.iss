@@ -48,6 +48,7 @@ VersionInfoDescription=Instalador do {#AppName}
 DefaultDirName={autopf}\{#AppName}
 DisableProgramGroupPage=yes
 DisableDirPage=auto
+DirExistsWarning=no
 
 ; O app roda SEM elevação (app.manifest = asInvoker; quando algo precisa de admin, ele pede
 ; UAC só para aquele comando). Por isso o padrão é instalar só para o usuário atual, sem UAC
@@ -90,7 +91,9 @@ WizardImageBackColor=#F7F9FC
 WizardImageBackColorDynamicDark=#101B2D
 
 ; Se o app estiver aberto durante uma atualização, o instalador oferece fechá-lo.
+; Escopo restrito ao próprio EXE (Restart Manager não precisa varrer mais nada).
 CloseApplications=yes
+CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
 
 [Languages]
@@ -110,6 +113,39 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+// O WingetExecutor (fallback quando a API COM do winget falha) chama winget.exe
+// pela linha de comando com o caminho do app embutido nos argumentos. Caminho
+// fora de ASCII já causou parsing quebrado em ferramentas de linha de comando
+// do Windows, então barra aqui em vez de deixar o usuário descobrir depois.
+function IsCharValid(Value: Char): Boolean;
+begin
+  Result := Ord(Value) <= $007F;
+end;
+
+function IsDirNameValid(const Value: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := True;
+  for I := 1 to Length(Value) do
+    if not IsCharValid(Value[I]) then
+    begin
+      Result := False;
+      Exit;
+    end;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and not IsDirNameValid(WizardForm.DirEdit.Text) then
+  begin
+    Result := False;
+    MsgBox('O caminho de instalação não pode ter acentos ou caracteres especiais.' + #13#10 +
+           'Use só letras sem acento, números e espaços.', mbError, MB_OK);
+  end;
+end;
+
 // Ao desinstalar:
 //  - %LOCALAPPDATA%\WinProvisionStore = cache (catálogo/ícones), regenerável -> sempre removido.
 //  - %LOCALAPPDATA%\WinProvision = backups locais, logs, presets, ODT/Office, atualizações
