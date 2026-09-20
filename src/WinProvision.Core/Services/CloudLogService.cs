@@ -34,9 +34,9 @@ public static class CloudLogService
     {
         try
         {
-            string url     = CloudLogSessionId.PushUrl(sessionId);
-            string body    = JsonSerializer.Serialize(new { message, percent });
-            var    content = new StringContent(body, Encoding.UTF8, "application/json");
+            string url = CloudLogSessionId.PushUrl(sessionId);
+            string body = JsonSerializer.Serialize(new { message, percent });
+            var content = new StringContent(body, Encoding.UTF8, "application/json");
             await _http.PostAsync(url, content).ConfigureAwait(false);
         }
         catch

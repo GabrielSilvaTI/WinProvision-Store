@@ -33,9 +33,9 @@ public static class CloudLogSessionId
     public static string Generate()
     {
         var rng = Random.Shared;
-        string adj  = Adjectives[rng.Next(Adjectives.Length)];
+        string adj = Adjectives[rng.Next(Adjectives.Length)];
         string noun = Nouns[rng.Next(Nouns.Length)];
-        int    num  = rng.Next(1000, 10000);
+        int num = rng.Next(1000, 10000);
         return $"{adj}-{noun}-{num}";
     }
 
@@ -57,8 +57,8 @@ public static class CloudLogSessionId
         int size = matrix.GetLength(0);
 
         var sb = new StringBuilder();
-        const string dark   = "██";
-        const string light  = "  ";
+        const string dark = "██";
+        const string light = "  ";
         const string border = "  ";
 
         // Borda quiet-zone superior

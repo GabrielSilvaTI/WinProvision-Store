@@ -78,11 +78,11 @@ internal static class QrEncoder
         // Escolhe versão mínima que caiba o texto em modo Byte com EC nível M
         // V1=14, V2=26, V3=42, V4=62, V5=86, V6=106, V7=122...
         byte[] raw = Encoding.UTF8.GetBytes(text);
-        int    len = raw.Length;
+        int len = raw.Length;
 
         // Tabela capacidade Byte/M: V1=14 V2=26 V3=42 V4=62 V5=86 V6=106 V7=122 V8=154 V9=180 V10=213
         int[] capM = [14, 26, 42, 62, 86, 106, 122, 154, 180, 213];
-        int   ver  = 1;
+        int ver = 1;
         foreach (int cap in capM)
         {
             if (len <= cap) break;
@@ -91,9 +91,9 @@ internal static class QrEncoder
         ver = Math.Clamp(ver, 1, 10);
 
         int[] dataCodewords = [19, 34, 55, 80, 108, 136, 156, 194, 232, 274]; // total data codewords V1..V10/M
-        int[] ecCodewords   = [10, 16, 26, 36, 48, 64, 72, 88, 110, 130];    // EC codewords V1..V10/M
-        int   totalData     = dataCodewords[ver - 1];
-        int   ecCount       = ecCodewords[ver - 1];
+        int[] ecCodewords = [10, 16, 26, 36, 48, 64, 72, 88, 110, 130];    // EC codewords V1..V10/M
+        int totalData = dataCodewords[ver - 1];
+        int ecCount = ecCodewords[ver - 1];
 
         // Monta bitstream de dados
         var bits = new System.Collections.Generic.List<bool>();
@@ -130,14 +130,14 @@ internal static class QrEncoder
         // Bitstream final (dados + EC)
         var finalBits = new System.Collections.Generic.List<bool>();
         foreach (byte b in dataBytes) AddBits(finalBits, b, 8);
-        foreach (byte b in ec)       AddBits(finalBits, b, 8);
+        foreach (byte b in ec) AddBits(finalBits, b, 8);
         // Remainder bits (QR spec) — V1: 0, V2-6: 7, V7: 0...
         int[] remainder = [0, 7, 7, 7, 7, 7, 0, 0, 0, 0];
         for (int i = 0; i < remainder[ver - 1]; i++) finalBits.Add(false);
 
         // ── Monta a matriz ──────────────────────────────────────────────────────────────
         int size = ver * 4 + 17;
-        var mat  = new int[size, size]; // 0=livre, 1=escuro, 2=claro (funcionais)
+        var mat = new int[size, size]; // 0=livre, 1=escuro, 2=claro (funcionais)
         Fill(mat, 0);
 
         // Finder patterns + separadores
@@ -360,8 +360,8 @@ internal static class QrEncoder
     {
         // EC level M = 00, formatInfo = ecLevel<<3 | mask, com BCH(15,5) e máscara 101010000010010
         int data = (ecLevel << 3) | mask;
-        int bch  = BchFormat(data);
-        int fmt  = ((data << 10) | bch) ^ 0b101010000010010;
+        int bch = BchFormat(data);
+        int fmt = ((data << 10) | bch) ^ 0b101010000010010;
 
         int[] order = [0, 1, 2, 3, 4, 5, 7, 8]; // posições 0-8 (pulando 6 = timing)
         for (int i = 0; i < 8; i++)
@@ -371,8 +371,8 @@ internal static class QrEncoder
             m[8, order[i]] = dark ? 1 : 2;
             m[order[i], 8] = dark ? 1 : 2;
             // Cópia (canto inferior/direito)
-            m[size - 1 - i, 8]      = dark ? 1 : 2;
-            m[8,      size - 8 + i] = ((fmt >> (7 + i)) & 1) == 1 ? 1 : 2;
+            m[size - 1 - i, 8] = dark ? 1 : 2;
+            m[8, size - 8 + i] = ((fmt >> (7 + i)) & 1) == 1 ? 1 : 2;
         }
     }
 

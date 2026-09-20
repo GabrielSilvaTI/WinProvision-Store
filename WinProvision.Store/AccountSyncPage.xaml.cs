@@ -80,7 +80,7 @@ public partial class AccountSyncPage : Page
 
         // ── Painel lateral ──
         SidebarDisconnectedPanel.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
-        SidebarConnectedPanel.Visibility    = connected ? Visibility.Visible   : Visibility.Collapsed;
+        SidebarConnectedPanel.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
 
         if (connected)
         {
@@ -89,8 +89,8 @@ public partial class AccountSyncPage : Page
                 : "—";
 
             // Sidebar
-            SidebarLoginText.Text      = $"@{_backupService.ConnectedLogin}";
-            SidebarLastSyncText.Text   = lastSync;
+            SidebarLoginText.Text = $"@{_backupService.ConnectedLogin}";
+            SidebarLastSyncText.Text = lastSync;
             SidebarSyncStatusText.Text = "Ativa ●";
 
             string? avatarUrl = _backupService.ConnectedAvatarUrl;

@@ -1290,32 +1290,32 @@ public sealed class InstalledPackagesService
     {
         var result = new List<UninstallEntry>();
         foreach ((RegistryHive hive, string hiveName) in new[] { (RegistryHive.LocalMachine, "HKLM"), (RegistryHive.CurrentUser, "HKCU") })
-        foreach ((RegistryView view, string viewName) in new[] { (RegistryView.Registry64, "X64"), (RegistryView.Registry32, "X86") })
-        {
-            try
+            foreach ((RegistryView view, string viewName) in new[] { (RegistryView.Registry64, "X64"), (RegistryView.Registry32, "X86") })
             {
-                using var root = RegistryKey.OpenBaseKey(hive, view);
-                using var uninstall = root.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall");
-                if (uninstall is null) continue;
-                foreach (string keyName in uninstall.GetSubKeyNames())
+                try
                 {
-                    using var key = uninstall.OpenSubKey(keyName);
-                    string? displayName = key?.GetValue("DisplayName") as string;
-                    string? displayIcon = key?.GetValue("DisplayIcon") as string;
-                    string? installLocation = key?.GetValue("InstallLocation") as string;
-                    string? uninstallString = key?.GetValue("UninstallString") as string;
-                    if (!string.IsNullOrWhiteSpace(displayName))
-                        result.Add(new UninstallEntry(hiveName, viewName, keyName,
-                            displayName, key!.GetValue("DisplayVersion") as string ?? string.Empty,
-                            string.IsNullOrWhiteSpace(displayIcon) ? string.Empty : NormalizeDisplayIcon(displayIcon),
-                            installLocation ?? string.Empty, uninstallString ?? string.Empty));
+                    using var root = RegistryKey.OpenBaseKey(hive, view);
+                    using var uninstall = root.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall");
+                    if (uninstall is null) continue;
+                    foreach (string keyName in uninstall.GetSubKeyNames())
+                    {
+                        using var key = uninstall.OpenSubKey(keyName);
+                        string? displayName = key?.GetValue("DisplayName") as string;
+                        string? displayIcon = key?.GetValue("DisplayIcon") as string;
+                        string? installLocation = key?.GetValue("InstallLocation") as string;
+                        string? uninstallString = key?.GetValue("UninstallString") as string;
+                        if (!string.IsNullOrWhiteSpace(displayName))
+                            result.Add(new UninstallEntry(hiveName, viewName, keyName,
+                                displayName, key!.GetValue("DisplayVersion") as string ?? string.Empty,
+                                string.IsNullOrWhiteSpace(displayIcon) ? string.Empty : NormalizeDisplayIcon(displayIcon),
+                                installLocation ?? string.Empty, uninstallString ?? string.Empty));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WinGetDiagnosticLog.Write($"INSTALLED ARP read failed hive={hiveName} view={viewName} error={ex.Message}");
                 }
             }
-            catch (Exception ex)
-            {
-                WinGetDiagnosticLog.Write($"INSTALLED ARP read failed hive={hiveName} view={viewName} error={ex.Message}");
-            }
-        }
         return result;
     }
 

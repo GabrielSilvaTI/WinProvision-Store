@@ -51,7 +51,7 @@ public partial class ProvisioningPage : Page
     private double _dragStartTop;
     private bool _isDragging;
     private Border? _selectedIcon;
-    
+
     // Gerenciamento de ícones adicionados pelo usuário (app shortcuts)
     private readonly List<Border> _userAddedDesktopIcons = new();
 
@@ -743,7 +743,7 @@ public partial class ProvisioningPage : Page
     {
         if (!_uiLoaded || DesktopPreviewWallpaper is null || ThemeComboBox is null || TaskbarAlignmentComboBox is null || TaskbarSearchBoxComboBox is null || TaskbarAutoHideCheckBox is null)
             return;
-        
+
         // Also refresh the package shelf when in the personalization section
         if (ProfileOverviewPanel.Visibility == Visibility.Collapsed && PersonalizationSectionPanel.Visibility == Visibility.Visible)
         {
@@ -910,7 +910,7 @@ public partial class ProvisioningPage : Page
             DesktopIconEdge.BorderBrush = Brushes.Transparent;
             DesktopIconEdge.BorderThickness = new Thickness(0);
         }
-        
+
         // Deselect user-added icons
         foreach (var icon in _userAddedDesktopIcons)
         {
@@ -918,7 +918,7 @@ public partial class ProvisioningPage : Page
             icon.BorderBrush = Brushes.Transparent;
             icon.BorderThickness = new Thickness(0);
         }
-        
+
         UpdateContextMenuForSelection();
     }
 
@@ -1176,13 +1176,13 @@ public partial class ProvisioningPage : Page
         if (ImageEdge != null) { ImageEdge.Width = iconSize; ImageEdge.Height = iconSize; }
         if (DesktopIconRecycleBin != null) { DesktopIconRecycleBin.Width = cellWidth; DesktopIconRecycleBin.Height = cellHeight; }
         if (DesktopIconEdge != null) { DesktopIconEdge.Width = cellWidth; DesktopIconEdge.Height = cellHeight; }
-        
+
         // Update user-added icons
         foreach (var icon in _userAddedDesktopIcons)
         {
             icon.Width = cellWidth;
             icon.Height = cellHeight;
-            
+
             // Find the Image control within the icon and update its size
             if (icon.Child is StackPanel stackPanel && stackPanel.Children.Count > 0)
             {
@@ -1546,7 +1546,7 @@ public partial class ProvisioningPage : Page
             if (app != null)
             {
                 // Check if an icon for this app already exists
-                bool alreadyExists = _userAddedDesktopIcons.Any(icon => 
+                bool alreadyExists = _userAddedDesktopIcons.Any(icon =>
                     icon.Tag is AppEntry existingApp && existingApp.Id.Equals(app.Id, StringComparison.OrdinalIgnoreCase));
 
                 if (alreadyExists)
@@ -1558,7 +1558,7 @@ public partial class ProvisioningPage : Page
 
                 // Calculate drop position
                 Point dropPosition = e.GetPosition(DesktopIconsGroup);
-                
+
                 // Create desktop icon
                 var icon = CreateDesktopIcon(app, dropPosition.X, dropPosition.Y);
                 DesktopIconsGroup.Children.Add(icon);
