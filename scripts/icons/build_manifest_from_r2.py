@@ -21,7 +21,7 @@ PUBLIC_BASE = os.environ.get(
 )
 ENDPOINT_URL = f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com"
 
-EXT_PRIORITY = [".png", ".webp", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".ico"]
+EXT_PRIORITY = [".ico", ".png", ".webp", ".jpg", ".jpeg", ".gif", ".bmp", ".svg"]
 
 
 def ext_rank(name: str) -> int:
