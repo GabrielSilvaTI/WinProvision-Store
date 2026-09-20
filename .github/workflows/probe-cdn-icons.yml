@@ -1,0 +1,54 @@
+name: Probe CDN icons
+
+# Teste de cobertura: mede quantos apps do catálogo têm ícone na CDN oficial do
+# winget. Somente leitura: não usa secrets e não escreve no R2.
+on:
+  workflow_dispatch:
+    inputs:
+      sample_size:
+        description: "Quantos apps sondar (0 = todos)"
+        default: "300"
+      apps_url:
+        description: "URL do apps.json do catálogo (vazio = amostra aleatória do índice do winget)"
+        default: "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/apps.json"
+      ids:
+        description: "Opcional: PackageIdentifier separados por vírgula (substitui o apps.json)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install pymszip pyyaml pillow
+
+      - name: Sondar a CDN
+        env:
+          SAMPLE_SIZE: ${{ inputs.sample_size }}
+          APPS_URL: ${{ inputs.apps_url }}
+          IDS: ${{ inputs.ids }}
+        run: |
+          python scripts/icons/probe_cdn_icons.py \
+            --out probe-out \
+            --sample "${SAMPLE_SIZE:-300}" \
+            --apps-url "$APPS_URL" \
+            --ids "$IDS"
+
+      - name: Publicar resultado
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdn-icon-probe
+          path: probe-out
+          retention-days: 14
+          if-no-files-found: ignore
