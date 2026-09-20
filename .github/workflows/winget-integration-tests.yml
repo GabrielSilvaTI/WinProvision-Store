@@ -1,0 +1,57 @@
+name: Testes de integração com o WinGet CLI
+
+on:
+  # Roda toda semana, não a cada commit: o catálogo do winget muda com o tempo (o
+  # 7zip.7zip pode ter uma versão nova, uma source pode ficar instável), então mesmo
+  # sem você mexer em nada aqui, essa suíte pode pegar uma regressão externa antes que
+  # um usuário caia nela.
+  schedule:
+    - cron: "0 9 * * 1" # ~06h Brasília (UTC-3), toda segunda
+  workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+    paths:
+      # Só dispara em PR quando o que está sendo testado de fato mudou — não faz
+      # sentido rodar num PR que só mexe em XAML da UI, por exemplo.
+      - "src/WinProvision.Core/Services/WingetExecutor.cs"
+      - "src/WinProvision.Core/Services/WingetBootstrapper.cs"
+      - "src/WinProvision.Core/Services/WingetErrorTranslator.cs"
+      - "tests/WinProvision.Core.IntegrationTests/**"
+
+permissions:
+  contents: read
+
+jobs:
+  integration-tests:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Confirmar que o winget está presente no runner (sanity check antes dos testes)
+        shell: pwsh
+        run: |
+          winget --version
+          winget source list
+
+      - name: Rodar os testes de integração
+        run: >
+          dotnet test tests/WinProvision.Core.IntegrationTests/WinProvision.Core.IntegrationTests.csproj
+          -c Release
+          --logger "trx;LogFileName=integration-results.trx"
+          --results-directory test-results
+
+      - name: Publicar resultados como artifact (mesmo em caso de falha)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winget-integration-test-results
+          path: test-results/*.trx
+          retention-days: 14
