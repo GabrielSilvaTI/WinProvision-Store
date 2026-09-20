@@ -7,12 +7,14 @@ on:
 
 jobs:
   update-gethelpcmd:
-    runs-on: windows-latest
+    # Só usa cmdlets de PowerShell cross-platform (Invoke-WebRequest, Expand-Archive,
+    # Compress-Archive) e o AWS CLI, que já vem na imagem — não precisa de Windows.
+    runs-on: ubuntu-latest
     steps:
       - name: Baixar e extrair GetHelpCmd
         shell: pwsh
         run: |
-          $destinationDir = "C:\GetHelp"
+          $destinationDir = "$env:RUNNER_TEMP/GetHelp"
           $zipPath = Join-Path -Path $destinationDir -ChildPath "GetHelp.zip"
           $downloadUrl = "https://aka.ms/SaRA_EnterpriseVersionFiles"
 
@@ -25,7 +27,8 @@ jobs:
       - name: Localizar GetHelpCmd.exe e reempacotar
         shell: pwsh
         run: |
-          $exe = Get-ChildItem -Path "C:\GetHelp" -Filter "GetHelpCmd.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          $destinationDir = "$env:RUNNER_TEMP/GetHelp"
+          $exe = Get-ChildItem -Path $destinationDir -Filter "GetHelpCmd.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
 
           if (-not $exe) {
             Write-Error "GetHelpCmd.exe não encontrado após extração."
@@ -33,7 +36,7 @@ jobs:
           }
 
           $toolFolder = $exe.DirectoryName
-          Compress-Archive -Path "$toolFolder\*" -DestinationPath "C:\GetHelp\GetHelpCmd.zip" -Force
+          Compress-Archive -Path "$toolFolder/*" -DestinationPath "$destinationDir/GetHelpCmd.zip" -Force
 
       - name: Enviar GetHelpCmd.zip ao Cloudflare R2
         shell: pwsh
@@ -42,5 +45,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
         run: |
-          aws s3 cp C:\GetHelp\GetHelpCmd.zip "s3://winprovision/Office/Uninstall/GetHelpCmd.zip" `
+          $zipPath = "$env:RUNNER_TEMP/GetHelp/GetHelpCmd.zip"
+          aws s3 cp $zipPath "s3://winprovision/Office/Uninstall/GetHelpCmd.zip" `
             --endpoint-url $env:R2_ENDPOINT

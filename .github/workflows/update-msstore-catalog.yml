@@ -34,6 +34,16 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # Sem packages.lock.json no repo, então cacheia por hash dos .csproj em vez de
+      # usar o cache nativo do setup-dotnet (que exige lock file).
+      - name: Cache de pacotes NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:

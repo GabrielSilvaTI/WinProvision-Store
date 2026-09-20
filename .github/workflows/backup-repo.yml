@@ -53,6 +53,15 @@ jobs:
         with:
           python-version: "3.12"
 
+      # O cache nativo do setup-python exige um requirements.txt para calcular a chave,
+      # e aqui o boto3 é instalado direto na linha de comando — sem lock file. Cacheia
+      # manualmente o diretório de cache do pip.
+      - name: Cache de pacotes pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-boto3
+
       - name: Instalar boto3
         run: python -m pip install boto3
 
