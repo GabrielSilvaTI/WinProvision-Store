@@ -70,13 +70,14 @@ public class WingetExecutorIntegrationTests
         var result = await executor.InstallAppAsync(NonExistentPackageId);
 
         Assert.False(result.Success);
-        // Asserção deliberadamente frouxa quanto ao valor exato do enum: o texto que o
-        // winget.exe devolve pra "pacote não encontrado" já mudou de wording entre
-        // versões antes. O que realmente importa pra esse teste é que o
-        // WingetErrorTranslator conseguiu classificar a saída em vez de cair em
-        // Unknown — é isso que garante que a UI mostra uma mensagem em pt-BR
-        // específica em vez do texto cru do winget.
-        Assert.NotEqual(WingetFailureReason.Unknown, result.FailureReason);
+
+        // Classificação por exit code (0x8A150014, NO_APPLICATIONS_FOUND) + texto: não depende
+        // do idioma do winget nem do wording exato da mensagem. A mensagem do Assert mostra a
+        // saída crua pra diagnosticar de cara caso o winget mude de novo.
+        Assert.True(
+            result.FailureReason == WingetFailureReason.PackageNotInCatalog,
+            $"Esperado PackageNotInCatalog, veio {result.FailureReason} " +
+            $"(ExitCode={result.ExitCode}).\nOutput:\n{result.Output}");
     }
 
     [Fact]
@@ -122,6 +123,49 @@ public class WingetBootstrapperIntegrationTests
         Assert.True(
             result.IsUsable,
             $"Bootstrap não deixou o winget usável: {result.ErrorMessage}\nLog:\n{string.Join('\n', log)}");
+    }
+}
+
+/// <summary>
+/// Testes puros (sem winget.exe, sem rede) do classificador — rápidos e determinísticos.
+/// Cobrem os wordings conhecidos (en/pt-BR) e o fallback por exit code.
+/// </summary>
+[Trait("Category", "Integration")]
+public class WingetErrorTranslatorTests
+{
+    [Theory]
+    [InlineData("No package found matching input criteria.", WingetFailureReason.PackageNotInCatalog)]
+    [InlineData("Nenhum pacote encontrado correspondendo aos critérios de entrada.", WingetFailureReason.PackageNotInCatalog)]
+    [InlineData("No installed package found matching input criteria.", WingetFailureReason.NoPackageFound)]
+    [InlineData("Access is denied", WingetFailureReason.ElevationRequired)]
+    [InlineData("", WingetFailureReason.Unknown)]
+    [InlineData("qualquer coisa que não reconhecemos", WingetFailureReason.Unknown)]
+    public void Classify_PorTexto_ReconheceWordingsConhecidos(string output, WingetFailureReason expected)
+    {
+        Assert.Equal(expected, WingetErrorTranslator.Classify(output));
+    }
+
+    [Theory]
+    [InlineData(unchecked((int)0x8A150014), WingetFailureReason.PackageNotInCatalog)]
+    [InlineData(unchecked((int)0x8A150010), WingetFailureReason.NoApplicableInstallers)]
+    [InlineData(unchecked((int)0x8A150008), WingetFailureReason.DownloadError)]
+    [InlineData(unchecked((int)0x8A150041), WingetFailureReason.PackageAgreementsNotAccepted)]
+    [InlineData(1, WingetFailureReason.Unknown)]
+    public void Classify_PorExitCode_FuncionaMesmoSemTextoReconhecivel(int exitCode, WingetFailureReason expected)
+    {
+        // Texto em idioma/wording desconhecido — só o exit code identifica a causa.
+        Assert.Equal(expected, WingetErrorTranslator.Classify(exitCode, "Mensagem em outro idioma"));
+    }
+
+    [Fact]
+    public void Classify_TextoTemPrioridadeSobreExitCode()
+    {
+        // "não está instalado" também sai com 0x8A150014 — o texto é que distingue.
+        Assert.Equal(
+            WingetFailureReason.NoPackageFound,
+            WingetErrorTranslator.Classify(
+                unchecked((int)0x8A150014),
+                "No installed package found matching input criteria."));
     }
 }
 
