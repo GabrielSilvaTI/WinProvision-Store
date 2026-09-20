@@ -83,6 +83,51 @@ jobs:
               "$(pwd)/catalog-output/metrics-cache.json" \
               Store/Database/metrics-cache.json
 
+  sync-icons:
+    docker:
+      - image: cimg/python:3.12
+    resource_class: medium
+    steps:
+      - checkout
+
+      - run:
+          name: Instalar dependências
+          command: pip install boto3 pymszip pyyaml pillow
+
+      - run:
+          name: Sincronizar ícones (CDN winget -> R2)
+          # ICON_SYNC_LIVE precisa ser criada nas variáveis de ambiente do projeto,
+          # no CircleCI, para sair do modo simulação. Sem ela, roda em dry-run.
+          command: |
+            args=(--out sync-out --max-probes 0 --recheck-days 30)
+            if [ "$ICON_SYNC_LIVE" != "true" ]; then
+              args+=(--dry-run)
+            fi
+            python scripts/icons/sync_cdn_icons.py "${args[@]}"
+
+      - store_artifacts:
+          path: sync-out
+          destination: icon-sync
+
+      - run:
+          name: Disparar o sync-icon-manifest.yml no GitHub (só se algo foi enviado)
+          when: on_success
+          command: |
+            uploaded=$(python3 -c "import json; print(json.load(open('sync-out/report.json'))['status'].get('ok', 0))" 2>/dev/null || echo 0)
+            if [ "$ICON_SYNC_LIVE" != "true" ] || [ "$uploaded" = "0" ]; then
+              echo "Simulação ou nenhum ícone novo ($uploaded), não disparo o sync do manifesto."
+              exit 0
+            fi
+            status=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/GabrielSilvaTI/WinProvision-Store/actions/workflows/sync-icon-manifest.yml/dispatches \
+              -d '{"ref":"main"}')
+            if [ "$status" != "204" ]; then
+              echo "Aviso: disparo do sync-icon-manifest.yml falhou (HTTP $status). O agendamento das 07:00 UTC publica o manifest no dia seguinte."
+            fi
+
 workflows:
   winget-sync:
     # SEM este "when", o CircleCI dispara o workflow em TODO push de qualquer branch — e este job
@@ -95,3 +140,6 @@ workflows:
         - equal: [api, << pipeline.trigger_source >>]
     jobs:
       - sync-apps-json
+      - sync-icons:
+          requires:
+            - sync-apps-json
