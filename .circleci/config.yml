@@ -1,0 +1,71 @@
+version: 2.1
+
+jobs:
+  sync-apps-json:
+    docker:
+      - image: cimg/dotnet:10.0
+    resource_class: medium
+    steps:
+      - checkout
+
+      - run:
+          name: Instalar Python e boto3 (a imagem cimg/dotnet não vem com Python)
+          command: |
+            sudo apt-get update -y
+            sudo apt-get install -y python3 python3-pip
+            pip3 install --user boto3
+
+      - run:
+          name: Checkout esparso do winget-pkgs (só a pasta manifests)
+          command: |
+            git clone --depth 1 --filter=blob:none --sparse \
+              https://x-access-token:${GH_TOKEN}@github.com/microsoft/winget-pkgs.git \
+              winget-pkgs
+            cd winget-pkgs
+            git sparse-checkout set manifests
+
+      - run:
+          name: Restaurar metrics-cache.json do R2 (se existir)
+          command: |
+            mkdir -p catalog-output
+            python3 scripts/database/r2_download.py \
+              Store/Database/metrics-cache.json \
+              "$(pwd)/catalog-output/metrics-cache.json"
+
+      - run:
+          name: Restaurar apps.json anterior do R2 (reaproveitar tamanhos de instalador)
+          command: |
+            python3 scripts/database/r2_download.py \
+              Store/Database/apps.json \
+              "$(pwd)/catalog-output/apps.previous.json"
+
+      - run:
+          name: Rodar o Indexer
+          command: |
+            dotnet run --project src/WinProvision.Indexer -c Release -- \
+              "$(pwd)/winget-pkgs/manifests" \
+              "$(pwd)/catalog-output"
+          # GITHUB_TOKEN é lido pelo próprio Indexer internamente (métricas de estrelas/etc,
+          # se aplicável) — reaproveita a mesma variável GH_TOKEN cadastrada no projeto.
+          environment:
+            GITHUB_TOKEN: $GH_TOKEN
+
+      - run:
+          name: Publicar apps.json no R2
+          command: |
+            export APPS_JSON_SOURCE="$(pwd)/catalog-output/apps.json"
+            export PREVIOUS_APPS_JSON_URL="https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
+            python3 scripts/database/upload_apps_json.py
+
+      - run:
+          name: Devolver metrics-cache.json atualizado pro R2
+          when: always
+          command: |
+            python3 scripts/database/r2_upload.py \
+              "$(pwd)/catalog-output/metrics-cache.json" \
+              Store/Database/metrics-cache.json
+
+workflows:
+  winget-sync:
+    jobs:
+      - sync-apps-json
