@@ -141,7 +141,7 @@ public class WingetExecutor
         }
         if (result.FailureReason == WingetFailureReason.Unknown)
         {
-            result.FailureReason = WingetErrorTranslator.Classify(result.Output);
+            result.FailureReason = WingetErrorTranslator.Classify(result.ExitCode, result.Output);
         }
 
         // UserScopeElevationConflict só deve aparecer se a Store for lançada elevada por
@@ -164,7 +164,7 @@ public class WingetExecutor
                 return scopedResult;
             }
 
-            scopedResult.FailureReason = WingetErrorTranslator.Classify(scopedResult.Output);
+            scopedResult.FailureReason = WingetErrorTranslator.Classify(scopedResult.ExitCode, scopedResult.Output);
             if (scopedResult.FailureReason == WingetFailureReason.UserScopeElevationConflict)
             {
                 return scopedResult;
@@ -208,7 +208,7 @@ public class WingetExecutor
 
         if (byNameResult.FailureReason == WingetFailureReason.Unknown)
         {
-            byNameResult.FailureReason = WingetErrorTranslator.Classify(byNameResult.Output);
+            byNameResult.FailureReason = WingetErrorTranslator.Classify(byNameResult.ExitCode, byNameResult.Output);
         }
 
         return byNameResult.FailureReason is WingetFailureReason.UserScopeElevationConflict or WingetFailureReason.ElevationCanceled
@@ -258,7 +258,7 @@ public class WingetExecutor
             return result;
         }
 
-        result.FailureReason = WingetErrorTranslator.Classify(result.Output);
+        result.FailureReason = WingetErrorTranslator.Classify(result.ExitCode, result.Output);
         if (result.FailureReason != WingetFailureReason.ElevationRequired)
         {
             return result;
@@ -268,7 +268,7 @@ public class WingetExecutor
         var elevatedResult = await ElevatedProcessRunner.RunElevatedAsync("winget.exe", arguments, cancellationToken);
         if (!elevatedResult.Success && elevatedResult.FailureReason == WingetFailureReason.Unknown)
         {
-            elevatedResult.FailureReason = WingetErrorTranslator.Classify(elevatedResult.Output);
+            elevatedResult.FailureReason = WingetErrorTranslator.Classify(elevatedResult.ExitCode, elevatedResult.Output);
         }
 
         return elevatedResult;

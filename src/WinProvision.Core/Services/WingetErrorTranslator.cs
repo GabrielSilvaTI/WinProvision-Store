@@ -35,6 +35,14 @@ public enum WingetFailureReason
     InstallError,
     CatalogError,
     InternalError,
+
+    /// <summary>
+    /// "No package found matching input criteria." — o ID não existe no catálogo consultado
+    /// (winget install/update/show). Diferente de <see cref="NoPackageFound"/>, que é o caso
+    /// do uninstall/list ("No installed package found...", pacote não está INSTALADO).
+    /// Exit code do winget: 0x8A150014 (APPINSTALLER_CLI_ERROR_NO_APPLICATIONS_FOUND).
+    /// </summary>
+    PackageNotInCatalog,
 }
 
 /// <summary>
@@ -44,6 +52,47 @@ public enum WingetFailureReason
 /// </summary>
 public static class WingetErrorTranslator
 {
+    // HRESULTs do winget-cli (src/AppInstallerSharedLib/Public/AppInstallerErrors.h). O exit
+    // code NÃO depende do idioma em que o winget imprime o texto, então é a fonte mais
+    // confiável — o texto só serve pra desempatar o que o exit code sozinho não distingue
+    // (ex.: 0x8A150014 vale tanto pra "pacote não existe no catálogo" quanto pra "pacote
+    // não está instalado").
+    private const int NoApplicationsFound = unchecked((int)0x8A150014);
+    private const int NoApplicableInstaller = unchecked((int)0x8A150010);
+    private const int DownloadFailed = unchecked((int)0x8A150008);
+    private const int InstallerHashMismatch = unchecked((int)0x8A150011);
+    private const int PackageAgreementsNotAcceptedCode = unchecked((int)0x8A150041);
+    private const int InternalErrorCode = unchecked((int)0x8A150001);
+    private const int SourceDataMissing = unchecked((int)0x8A15000F);
+    private const int SourceOpenFailed = unchecked((int)0x8A150045);
+
+    /// <summary>
+    /// Classifica usando o texto E o exit code do winget. Prefira esta sobrecarga: o texto
+    /// (<see cref="Classify(string?)"/>) vem no idioma do sistema, o exit code não.
+    /// </summary>
+    public static WingetFailureReason Classify(int exitCode, string? output)
+    {
+        // 1) Texto primeiro: preserva o comportamento existente (e distingue, por exemplo,
+        //    "não instalado" de "não existe no catálogo", que compartilham o exit code).
+        var byText = Classify(output);
+        if (byText != WingetFailureReason.Unknown)
+        {
+            return byText;
+        }
+
+        // 2) Fallback pelo exit code — cobre winget em qualquer idioma / wording novo.
+        return exitCode switch
+        {
+            NoApplicationsFound => WingetFailureReason.PackageNotInCatalog,
+            NoApplicableInstaller => WingetFailureReason.NoApplicableInstallers,
+            DownloadFailed or InstallerHashMismatch => WingetFailureReason.DownloadError,
+            PackageAgreementsNotAcceptedCode => WingetFailureReason.PackageAgreementsNotAccepted,
+            SourceDataMissing or SourceOpenFailed => WingetFailureReason.CatalogError,
+            InternalErrorCode => WingetFailureReason.InternalError,
+            _ => WingetFailureReason.Unknown,
+        };
+    }
+
     public static WingetFailureReason Classify(string? output)
     {
         if (string.IsNullOrWhiteSpace(output))
@@ -63,6 +112,14 @@ public static class WingetErrorTranslator
             Contains(output, "Nenhum pacote instalado encontrado correspondendo aos critérios de entrada"))
         {
             return WingetFailureReason.NoPackageFound;
+        }
+
+        // Install/update de um ID que não existe no catálogo. Note a diferença pra frase acima:
+        // aqui NÃO tem a palavra "installed" ("No package found matching input criteria.").
+        if (Contains(output, "No package found matching input criteria") ||
+            Contains(output, "Nenhum pacote encontrado correspondendo aos critérios de entrada"))
+        {
+            return WingetFailureReason.PackageNotInCatalog;
         }
 
         if (Contains(output, "Access is denied") ||
@@ -89,6 +146,9 @@ public static class WingetErrorTranslator
 
         WingetFailureReason.NoPackageFound =>
             $"\"{appName}\" não foi encontrado como instalado (já removido, ou o ID mudou).",
+
+        WingetFailureReason.PackageNotInCatalog =>
+            $"Falha ao {verb} \"{appName}\": pacote não encontrado no catálogo do WinGet (o ID pode ter mudado ou sido removido).",
 
         WingetFailureReason.ElevationRequired =>
             $"Falha ao {verb} \"{appName}\": requer privilégios de administrador.",
