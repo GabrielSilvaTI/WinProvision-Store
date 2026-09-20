@@ -41,6 +41,7 @@ from urllib.parse import urlparse
 import yaml
 
 DEFAULT_CDN = "https://cdn.winget.microsoft.com/cache"
+DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
 UA = "WinProvisionStore-IconProbe/1.0"
 MAX_ICON_BYTES = 2 * 1024 * 1024
 PNG_MAX_SIDE = 256
@@ -538,7 +539,7 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--ids", default="", help="lista de PackageIdentifier separados por vírgula")
     ap.add_argument("--ids-file", default="", help="arquivo .txt (um id por linha) ou .json")
-    ap.add_argument("--apps-url", default="", help="URL do apps.json do catálogo")
+    ap.add_argument("--apps-url", default=DEFAULT_APPS_URL, help="URL do apps.json do catálogo (vazio = amostra aleatória do índice)")
     ap.add_argument("--cdn", default=os.environ.get("WINGET_CDN", DEFAULT_CDN))
     ap.add_argument("--msix-url", default="", help="padrão: <cdn>/source2.msix")
     args = ap.parse_args(argv)
