@@ -24,6 +24,35 @@ env:
   # ambos — ver installer/WinProvision.Store.iss. Só o ASSET_NAME acima é usado pelo Bootstrap.
 
 jobs:
+  # Checagem de build do Indexer, em job próprio para rodar em paralelo com o build do
+  # client (o do client já é coberto pelo publish abaixo, que compila o Core junto).
+  # É o "CI" que pega erro antes do cron do winget rodar.
+  build-indexer:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # Sem packages.lock.json no repo, então cacheia por hash dos .csproj em vez de
+      # usar o cache nativo do setup-dotnet (que exige lock file).
+      - name: Cache de pacotes NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Compilar o Indexer
+        run: dotnet build src/WinProvision.Indexer/WinProvision.Indexer.csproj -c Release
+
   build:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -39,6 +68,17 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "10.0.x"
+
+      # Sem packages.lock.json no repo, então cacheia por hash dos .csproj em vez de
+      # usar o cache nativo do setup-dotnet (que exige lock file). Isso também acelera
+      # o download do runtime pack usado no publish self-contained abaixo.
+      - name: Cache de pacotes NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
 
       # channel: nightly (push/manual na main) | stable (tag vX.Y.Z) |
       #          prerelease (tag com sufixo, ex.: v1.0.2-cli) | none (PR e outras branches: só compila)
@@ -89,11 +129,6 @@ jobs:
           "channel=$channel"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Versão: $version | FileVersion: $fileVersion | Canal: $channel"
 
-      # Checagem de build do Indexer (o do client já é coberta pelo publish abaixo,
-      # que compila o Core junto). É o "CI" que pega erro antes do cron do winget rodar.
-      - name: Compilar o Indexer
-        run: dotnet build src/WinProvision.Indexer/WinProvision.Indexer.csproj -c Release
-
       - name: Publicar o WinProvision.Store (single-file, self-contained, win-x64)
         run: >
           dotnet publish WinProvision.Store/WinProvision.Store.csproj
@@ -118,8 +153,10 @@ jobs:
       # ---- Instalador (Inno Setup) -------------------------------------------------
       # Gera dist/WinProvision.Store-Setup.exe ao lado do EXE cru. O EXE cru CONTINUA sendo
       # publicado (o Bootstrap baixa ele direto); o instalador é a via para pessoas.
-      # Roda também em PR (canal "none"): assim um erro no .iss aparece antes de virar release.
+      # Só roda quando o canal vai virar release (nightly/stable/prerelease) — em PR
+      # (canal "none") o instalador não seria publicado, então pular economiza tempo.
       - name: Instalar/atualizar o Inno Setup
+        if: steps.ver.outputs.channel != 'none'
         shell: pwsh
         run: |
           # "upgrade" instala se não existir e atualiza se a imagem do runner trouxer versão
@@ -132,6 +169,7 @@ jobs:
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Gerar o instalador (Inno Setup)
+        if: steps.ver.outputs.channel != 'none'
         shell: pwsh
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
@@ -154,6 +192,7 @@ jobs:
       # EXE, o atalho do Menu Iniciar e a entrada em "Aplicativos instalados" existem, depois
       # desinstala em silêncio e confere que tudo sumiu. O runner é descartável.
       - name: Testar o instalador (instalar e desinstalar em silêncio)
+        if: steps.ver.outputs.channel != 'none'
         shell: pwsh
         run: |
           $appId      = "{57E31A2E-BBE2-48F4-8902-CB249FE1D38C}"
@@ -194,7 +233,7 @@ jobs:
           retention-days: 14
 
   release:
-    needs: build
+    needs: [build, build-indexer]
     if: ${{ needs.build.outputs.channel != 'none' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
