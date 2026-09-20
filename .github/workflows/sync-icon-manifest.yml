@@ -1,0 +1,53 @@
+name: Sync icon manifest (R2 -> icon-manifest.json)
+
+# Gera o icon-manifest.json a partir dos objetos em Store/Icon_Database/ e
+# devolve o arquivo pro R2. Disparado pelo sync-cdn-icons.yml quando sobem
+# ícones novos, ou manualmente, ou pelo agendamento abaixo como rede de
+# segurança caso o disparo automático falhe.
+on:
+  schedule:
+    - cron: "0 7 * * *" # depois do sync-cdn-icons (agendamento comentado por enquanto)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: icon-manifest-sync
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar boto3
+        run: python -m pip install boto3
+
+      - name: Gerar icon-manifest.json a partir do R2
+        run: python scripts/icons/build_manifest_from_r2.py
+
+      - name: Publicar icon-manifest.json no R2
+        run: python scripts/icons/upload_manifest_ci.py
+
+      - name: Publicar arquivos gerados como artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: icon-manifest
+          path: |
+            icon-manifest.json
+            conflitos_extensao.json
+          retention-days: 14
+          if-no-files-found: ignore

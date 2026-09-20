@@ -10,7 +10,7 @@ on:
         default: "300"
       apps_url:
         description: "URL do apps.json do catálogo (vazio = amostra aleatória do índice do winget)"
-        default: "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/apps.json"
+        default: "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
       ids:
         description: "Opcional: PackageIdentifier separados por vírgula (substitui o apps.json)"
         default: ""

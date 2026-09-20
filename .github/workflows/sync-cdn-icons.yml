@@ -1,0 +1,81 @@
+name: Sync icons (CDN winget -> R2)
+
+# Baixa da CDN oficial do winget os ícones que faltam no R2 (Store/Icon_Database/)
+# e sobe os arquivos originais como <PackageIdentifier em minúsculas>.<ext>.
+# Nunca sobrescreve um ícone que já existe no bucket.
+on:
+  # Ative o agendamento só depois de validar uma execução manual (dry_run) e uma real.
+  # schedule:
+  #   - cron: "40 6 * * *" # depois do apps.json (06:00 UTC) e antes do sync-icon-manifest (07:00 UTC)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Simulação: baixa e valida, mas não envia nada ao R2"
+        type: boolean
+        default: true
+      max_probes:
+        description: "Máximo de apps testados nesta execução (0 = sem limite)"
+        default: "0"
+      recheck_days:
+        description: "Dias até testar de novo um app que não tem ícone na CDN"
+        default: "30"
+      dotless_alias:
+        description: "Gravar também a cópia sem pontos (ex.: microsoftpowertoys.ico), quando não há colisão"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write # para disparar o sync-icon-manifest depois do envio
+
+concurrency:
+  group: icon-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: python -m pip install boto3 pymszip pyyaml pillow
+
+      - name: Sincronizar ícones
+        id: sync
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+          MAX_PROBES: ${{ inputs.max_probes }}
+          RECHECK_DAYS: ${{ inputs.recheck_days }}
+          DOTLESS_ALIAS: ${{ inputs.dotless_alias }}
+        run: |
+          args=(--out sync-out --max-probes "${MAX_PROBES:-0}" --recheck-days "${RECHECK_DAYS:-30}")
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          if [ "$DOTLESS_ALIAS" = "true" ]; then args+=(--dotless-alias); fi
+          python scripts/icons/sync_cdn_icons.py "${args[@]}"
+
+      - name: Publicar relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: icon-sync
+          path: sync-out
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Atualizar o icon-manifest.json
+        if: ${{ steps.sync.outputs.uploaded != '' && steps.sync.outputs.uploaded != '0' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run sync-icon-manifest.yml --repo "${{ github.repository }}"
