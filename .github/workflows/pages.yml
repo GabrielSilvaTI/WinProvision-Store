@@ -1,0 +1,37 @@
+name: Deploy GitHub Pages
+
+# Só roda quando disparado manualmente. Sem "on: push": trocar a origem do
+# Pages em Settings > Pages para "GitHub Actions" (em vez de "Deploy from a
+# branch") é o que faz o site parar de republicar sozinho a cada push na main.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Publicar artifact do Pages (pasta docs/)
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - name: Deploy no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
