@@ -1,0 +1,76 @@
+name: Backup do repositório (git bundle -> R2 privado)
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 8 * * 0" # domingo ~05h Brasília (UTC-3)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Se chegarem vários commits em sequência, só o último precisa virar backup.
+concurrency:
+  group: repo-backup
+  cancel-in-progress: true
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      # De propósito NÃO usa o bucket "winprovision": ele tem URL pública (r2.dev) e o
+      # backup traz o código-fonte e o histórico inteiros. Use um bucket PRIVADO separado.
+      R2_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+
+    steps:
+      # O r2_upload.py cai no bucket público "winprovision" quando R2_BUCKET está vazio;
+      # aqui isso nunca pode acontecer, então falha antes de qualquer coisa.
+      - name: Exigir o bucket de backup privado
+        run: |
+          if [ -z "$R2_BUCKET" ]; then
+            echo "::error::Secret R2_BACKUP_BUCKET não configurado (nome de um bucket R2 privado, diferente do 'winprovision')."
+            exit 1
+          fi
+
+      - name: Checkout com todo o histórico
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gerar o bundle (todas as branches, tags e histórico)
+        run: |
+          git bundle create WinProvision-Store.bundle --all
+          git bundle verify WinProvision-Store.bundle
+          ls -lh WinProvision-Store.bundle
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar boto3
+        run: python -m pip install boto3
+
+      # Sobrescreve sempre a mesma chave: é o "estado mais recente do código".
+      - name: Enviar backup mais recente (a cada commit)
+        run: >
+          python scripts/database/r2_upload.py
+          WinProvision-Store.bundle
+          Backups/Repo/WinProvision-Store-latest.bundle
+
+      # Cópia datada só no cron semanal / execução manual, pra ter pontos no tempo
+      # (o "latest" sozinho não protege de um commit ruim que sobrescreva o bom).
+      - name: Enviar cópia semanal datada
+        if: ${{ github.event_name != 'push' }}
+        run: |
+          key="Backups/Repo/weekly/WinProvision-Store-$(date -u +%F).bundle"
+          python scripts/database/r2_upload.py WinProvision-Store.bundle "$key"
+
+      - name: Manter só as 8 cópias semanais mais recentes
+        if: ${{ github.event_name != 'push' }}
+        run: python scripts/backup/r2_prune.py Backups/Repo/weekly/ 8

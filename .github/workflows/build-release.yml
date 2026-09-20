@@ -1,0 +1,160 @@
+name: Build e publicação do EXE (WinProvision.Store)
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# Commit novo cancela o build do anterior (o nightly antigo já não interessa),
+# mas nunca cancela o build de uma tag de release.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  # Nome do arquivo no release. PRECISA ser o mesmo que o Bootstrap baixa
+  # (.../releases/latest/download/<ASSET_NAME>).
+  ASSET_NAME: WinProvision.Store.exe
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      channel: ${{ steps.ver.outputs.channel }}
+      version: ${{ steps.ver.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      # channel: nightly (push/manual na main) | stable (tag vX.Y.Z) |
+      #          prerelease (tag com sufixo, ex.: v1.0.2-cli) | none (PR e outras branches: só compila)
+      - name: Definir versão e canal
+        id: ver
+        shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          [xml]$proj = Get-Content WinProvision.Store/WinProvision.Store.csproj
+          $base = $proj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1
+          if ($base -notmatch '^(\d+\.\d+\.\d+)') { throw "Version do csproj inesperada: '$base'" }
+          $core = $Matches[1]
+
+          if ($REF_TYPE -eq 'tag') {
+            $version = $REF_NAME.TrimStart('v')
+            if ($version -notmatch '^(\d+\.\d+\.\d+)') { throw "Tag '$REF_NAME' não segue vX.Y.Z" }
+            $fileVersion = "$($Matches[1]).0"
+            $channel = if ($version.Contains('-')) { 'prerelease' } else { 'stable' }
+          }
+          elseif ($REF_NAME -eq 'main' -and $EVENT_NAME -in @('push', 'workflow_dispatch')) {
+            $version = "$core-nightly.$RUN_NUMBER"
+            $fileVersion = "$core.$RUN_NUMBER"
+            $channel = 'nightly'
+          }
+          else {
+            $version = "$core-ci.$RUN_NUMBER"
+            $fileVersion = "$core.$RUN_NUMBER"
+            $channel = 'none'
+          }
+
+          "version=$version"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "file_version=$fileVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "channel=$channel"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Versão: $version | FileVersion: $fileVersion | Canal: $channel"
+
+      # Checagem de build do Indexer (o do client já é coberta pelo publish abaixo,
+      # que compila o Core junto). É o "CI" que pega erro antes do cron do winget rodar.
+      - name: Compilar o Indexer
+        run: dotnet build src/WinProvision.Indexer/WinProvision.Indexer.csproj -c Release
+
+      - name: Publicar o WinProvision.Store (single-file, self-contained, win-x64)
+        run: >
+          dotnet publish WinProvision.Store/WinProvision.Store.csproj
+          -c Release -r win-x64
+          -p:Version=${{ steps.ver.outputs.version }}
+          -p:FileVersion=${{ steps.ver.outputs.file_version }}
+          -o publish
+
+      - name: Montar os arquivos do release
+        shell: pwsh
+        run: |
+          Get-ChildItem publish | Select-Object Name, Length | Format-Table -AutoSize
+          $exe = "publish/WinProvision.Store.exe"
+          if (-not (Test-Path $exe)) { throw "EXE não encontrado em '$exe' — confira o nome do assembly." }
+
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item $exe "dist/$env:ASSET_NAME"
+          $hash = (Get-FileHash "dist/$env:ASSET_NAME" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:ASSET_NAME" | Out-File "dist/$env:ASSET_NAME.sha256" -Encoding ascii -NoNewline
+          Write-Host "SHA256: $hash"
+
+      - name: Guardar como artefato do workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinProvision.Store-${{ steps.ver.outputs.version }}
+          path: dist/*
+          retention-days: 14
+
+  release:
+    needs: build
+    if: ${{ needs.build.outputs.channel != 'none' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # só este job pode criar/alterar releases
+
+    steps:
+      - name: Baixar os arquivos do build
+        uses: actions/download-artifact@v4
+        with:
+          name: WinProvision.Store-${{ needs.build.outputs.version }}
+          path: dist
+
+      # Nightly: um único pré-release rolante com a tag "nightly", recriado a cada
+      # commit. Pré-release nunca vira "latest", então o Bootstrap
+      # (releases/latest/download/...) continua pegando só a versão estável.
+      - name: Publicar nightly (pré-release rolante)
+        if: ${{ needs.build.outputs.channel == 'nightly' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          gh release delete nightly --repo "$REPO" --cleanup-tag --yes || true
+          gh release create nightly dist/* --repo "$REPO" --target "$SHA" --prerelease \
+            --title "Nightly ($VERSION)" \
+            --notes "Build automático do commit ${SHA::7}. Não é a versão estável — serve para testar antes de criar uma tag vX.Y.Z."
+
+      # Tag vX.Y.Z -> release estável (vira "latest"); tag com sufixo (v1.0.2-cli) -> pré-release.
+      - name: Publicar release da tag
+        if: ${{ needs.build.outputs.channel == 'stable' || needs.build.outputs.channel == 'prerelease' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          CHANNEL: ${{ needs.build.outputs.channel }}
+        run: |
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            # Release já criado manualmente pela interface: só anexa os arquivos.
+            gh release upload "$TAG" dist/* --repo "$REPO" --clobber
+          elif [ "$CHANNEL" = "prerelease" ]; then
+            gh release create "$TAG" dist/* --repo "$REPO" --verify-tag --generate-notes --title "$TAG" --prerelease
+          else
+            gh release create "$TAG" dist/* --repo "$REPO" --verify-tag --generate-notes --title "$TAG" --latest
+          fi
