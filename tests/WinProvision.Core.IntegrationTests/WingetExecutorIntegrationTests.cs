@@ -30,6 +30,13 @@ public class WingetExecutorIntegrationTests
         var executor = new WingetExecutor();
         var log = new List<string>();
 
+        // O runner windows-latest do GitHub pode já vir com o 7-Zip pré-instalado de
+        // fábrica (aconteceu — winget tenta "upgrade" em vez de instalar do zero, não
+        // acha versão nova, e reporta falha). Garante estado limpo aqui em vez de supor
+        // o que a imagem do runner tem hoje: resultado ignorado de propósito, porque
+        // "já não estava instalado" também é um resultado válido (NoPackageFound).
+        await executor.UninstallAppAsync(KnownGoodPackageId);
+
         var installResult = await executor.InstallAppAsync(
             KnownGoodPackageId,
             onLogReceived: line => log.Add(line));
