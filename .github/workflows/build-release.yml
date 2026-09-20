@@ -20,6 +20,8 @@ env:
   # Nome do arquivo no release. PRECISA ser o mesmo que o Bootstrap baixa
   # (.../releases/latest/download/<ASSET_NAME>).
   ASSET_NAME: WinProvision.Store.exe
+  # O release também leva WinProvision.Store-Setup.exe (instalador Inno Setup) e os .sha256 de
+  # ambos — ver installer/WinProvision.Store.iss. Só o ASSET_NAME acima é usado pelo Bootstrap.
 
 jobs:
   build:
@@ -112,6 +114,77 @@ jobs:
           $hash = (Get-FileHash "dist/$env:ASSET_NAME" -Algorithm SHA256).Hash.ToLower()
           "$hash  $env:ASSET_NAME" | Out-File "dist/$env:ASSET_NAME.sha256" -Encoding ascii -NoNewline
           Write-Host "SHA256: $hash"
+
+      # ---- Instalador (Inno Setup) -------------------------------------------------
+      # Gera dist/WinProvision.Store-Setup.exe ao lado do EXE cru. O EXE cru CONTINUA sendo
+      # publicado (o Bootstrap baixa ele direto); o instalador é a via para pessoas.
+      # Roda também em PR (canal "none"): assim um erro no .iss aparece antes de virar release.
+      - name: Instalar/atualizar o Inno Setup
+        shell: pwsh
+        run: |
+          # "upgrade" instala se não existir e atualiza se a imagem do runner trouxer versão
+          # antiga (o .iss usa x64compatible, que exige Inno Setup 6.3+).
+          choco upgrade innosetup -y --no-progress
+          if ($LASTEXITCODE -notin 0, 1641, 3010) { throw "choco falhou ao instalar o Inno Setup ($LASTEXITCODE)" }
+
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe não encontrado em '$iscc'" }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Gerar o instalador (Inno Setup)
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+          FILE_VERSION: ${{ steps.ver.outputs.file_version }}
+        run: |
+          $exe = (Resolve-Path "publish/WinProvision.Store.exe").Path
+          $out = (Resolve-Path "dist").Path
+
+          & $env:ISCC "/DAppVersion=$env:APP_VERSION" "/DFileVersion=$env:FILE_VERSION" "/DSourceExe=$exe" "/DOutputDir=$out" "installer/WinProvision.Store.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC falhou ($LASTEXITCODE)" }
+
+          $setup = "dist/WinProvision.Store-Setup.exe"
+          if (-not (Test-Path $setup)) { throw "Instalador não foi gerado em '$setup'" }
+
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          "$hash  WinProvision.Store-Setup.exe" | Out-File "$setup.sha256" -Encoding ascii -NoNewline
+          Write-Host "Instalador: $((Get-Item $setup).Length / 1MB) MB | SHA256: $hash"
+
+      # Teste de fumaça: instala em silêncio (só para o usuário atual, sem UAC), confere que o
+      # EXE, o atalho do Menu Iniciar e a entrada em "Aplicativos instalados" existem, depois
+      # desinstala em silêncio e confere que tudo sumiu. O runner é descartável.
+      - name: Testar o instalador (instalar e desinstalar em silêncio)
+        shell: pwsh
+        run: |
+          $appId      = "{57E31A2E-BBE2-48F4-8902-CB249FE1D38C}"
+          $uninstKey  = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\${appId}_is1"
+          $installDir = Join-Path $env:LOCALAPPDATA "Programs\WinProvision Store"
+          $shortcut   = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\WinProvision Store.lnk"
+
+          $setupExe = (Resolve-Path "dist/WinProvision.Store-Setup.exe").Path
+          $p = Start-Process -FilePath $setupExe -Wait -PassThru `
+                 -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CURRENTUSER", "/LOG=$env:RUNNER_TEMP\setup.log"
+          if ($p.ExitCode -ne 0) { throw "Instalador retornou $($p.ExitCode)" }
+
+          if (-not (Test-Path (Join-Path $installDir "WinProvision.Store.exe"))) { throw "EXE não foi instalado em '$installDir'" }
+          if (-not (Test-Path $shortcut))    { throw "Atalho do Menu Iniciar não foi criado" }
+          if (-not (Test-Path -LiteralPath $uninstKey))   { throw "Entrada de 'Aplicativos instalados' não foi criada ($uninstKey)" }
+          Write-Host "Instalação OK: $installDir"
+
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          if (-not (Test-Path $uninstaller)) { throw "Desinstalador não encontrado" }
+          Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+
+          # O desinstalador do Inno se relança a partir do %TEMP% e o processo original pode
+          # sair antes de terminar: espera (até 60 s) a entrada de "Aplicativos instalados"
+          # sumir — é a última coisa que ele remove — em vez de checar já.
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Test-Path -LiteralPath $uninstKey) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+
+          if (Test-Path (Join-Path $installDir "WinProvision.Store.exe")) { throw "EXE continua instalado após desinstalar" }
+          if (Test-Path $shortcut)  { throw "Atalho continua no Menu Iniciar após desinstalar" }
+          if (Test-Path -LiteralPath $uninstKey) { throw "Entrada de 'Aplicativos instalados' continua após desinstalar" }
+          Write-Host "Desinstalação OK"
 
       - name: Guardar como artefato do workflow
         uses: actions/upload-artifact@v4
