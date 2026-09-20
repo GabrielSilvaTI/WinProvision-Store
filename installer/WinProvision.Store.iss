@@ -72,7 +72,14 @@ UninstallDisplayName={#AppName}
 ; O EXE single-file já é comprimido; lzma2 aqui rende pouco, então prioriza velocidade de CI.
 Compression=lzma2/fast
 SolidCompression=yes
-WizardStyle=modern
+; windows11: estilo claro/escuro nativo do Inno Setup 6.6+, com cantos
+; arredondados e título da janela seguindo o tema do Windows. dynamic:
+; alterna sozinho entre claro e escuro conforme o tema do Windows.
+; Cores batendo com a paleta do app (App.xaml.cs, ApplyThemePalette):
+; fundo claro #F7F9FC, fundo escuro #101B2D.
+WizardStyle=modern dynamic windows11
+WizardBackColor=#F7F9FC
+WizardBackColorDynamicDark=#101B2D
 
 ; Se o app estiver aberto durante uma atualização, o instalador oferece fechá-lo.
 CloseApplications=yes
