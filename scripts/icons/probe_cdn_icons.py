@@ -36,7 +36,7 @@ import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import yaml
 
@@ -74,6 +74,10 @@ class SchemaError(Exception):
 
 def http_get(url, timeout=60, retries=3, max_bytes=None):
     """Devolve (status, bytes|None, erro). status 0 = falha de rede."""
+    # Alguns "rP" do índice do winget trazem espaço cru (ex.: pasta de versão
+    # "1, 36, 2, 0"). Python 3.12 rejeita URL com espaço bruto antes mesmo de
+    # abrir a conexão. Escapa sem mexer em % já codificado.
+    url = quote(url, safe=":/?&=%")
     last = "erro desconhecido"
     for attempt in range(retries):
         try:
