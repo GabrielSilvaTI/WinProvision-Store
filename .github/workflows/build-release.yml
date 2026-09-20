@@ -2,8 +2,7 @@ name: Build e publicação do EXE (WinProvision.Store)
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
+    tags: ["v*"] # só tag de release de verdade — commit solto na main não builda mais sozinho
   pull_request:
     branches: [main]
   workflow_dispatch: {}
