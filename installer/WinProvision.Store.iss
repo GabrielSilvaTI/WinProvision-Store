@@ -81,6 +81,14 @@ WizardStyle=modern dynamic windows11
 WizardBackColor=#F7F9FC
 WizardBackColorDynamicDark=#101B2D
 
+; Ícone do WinProvision Store (fundo transparente) nas páginas Welcome/Finished
+; e no canto superior das demais. WizardImageBackColor pinta o que sobra ao
+; redor, já que o PNG é quadrado e a área da imagem é alta e estreita.
+WizardImageFile=..\docs\assets\winprovision-icon.png
+WizardSmallImageFile=..\docs\assets\winprovision-icon.png
+WizardImageBackColor=#F7F9FC
+WizardImageBackColorDynamicDark=#101B2D
+
 ; Se o app estiver aberto durante uma atualização, o instalador oferece fechá-lo.
 CloseApplications=yes
 RestartApplications=no
