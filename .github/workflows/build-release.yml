@@ -132,12 +132,33 @@ jobs:
           "channel=$channel"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           Write-Host "Versão: $version | FileVersion: $fileVersion | Canal: $channel"
 
+      # Nightly builda sem ReadyToRun para ganhar velocidade a cada push na main — o
+      # cold-start do nightly fica mais lento, mas releases de verdade (stable/prerelease)
+      # continuam com R2R normalmente. Precisa religar o QuickJit porque o csproj o
+      # desliga em Release assumindo que o R2R já entrega o código pronto.
+      - name: Definir flags de publish do canal
+        id: pubflags
+        shell: pwsh
+        env:
+          CHANNEL: ${{ steps.ver.outputs.channel }}
+        run: |
+          if ($env:CHANNEL -eq 'nightly') {
+            $extra = '-p:PublishReadyToRun=false -p:TieredCompilationQuickJit=true -p:TieredCompilationQuickJitForLoops=true'
+          } else {
+            $extra = ''
+          }
+          "extra=$extra" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # -p:RuntimeIdentifiers=win-x64 sobrescreve o par "win-x64;win-arm64" do csproj para
+      # o restore, evitando baixar o runtime pack do arm64, que essa pipeline nunca publica.
       - name: Publicar o WinProvision.Store (single-file, self-contained, win-x64)
         run: >
           dotnet publish WinProvision.Store/WinProvision.Store.csproj
           -c Release -r win-x64
+          -p:RuntimeIdentifiers=win-x64
           -p:Version=${{ steps.ver.outputs.version }}
           -p:FileVersion=${{ steps.ver.outputs.file_version }}
+          ${{ steps.pubflags.outputs.extra }}
           -o publish
 
       - name: Montar os arquivos do release
