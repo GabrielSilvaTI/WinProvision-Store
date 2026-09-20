@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Só net10.0-windows (não multi-target como o Core): estes testes rodam o
+         winget.exe de verdade, então não faz sentido compilar pra net10.0 puro. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Evita que qualquer instalação real de teste rode em paralelo com outra: elas
+         mexem no estado real do Windows (Add/Remove Programs), não são isoladas. -->
+    <ParallelizeTestCollections>false</ParallelizeTestCollections>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\WinProvision.Core\WinProvision.Core.csproj" />
+  </ItemGroup>
+
+</Project>
