@@ -1,0 +1,100 @@
+name: Probe WinGet IconUrl (verbose log)
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_packages:
+        description: 'IDs de pacotes Win32 (exe/msi) conhecidos para testar, separados por vírgula'
+        required: false
+        default: '7zip.7zip,Notepad++.Notepad++,Mozilla.Firefox,Discord.Discord'
+
+permissions:
+  contents: read
+
+jobs:
+  probe-iconurl:
+    runs-on: windows-latest
+    steps:
+      - name: Versão do winget e local de logs
+        shell: pwsh
+        run: |
+          winget --version
+          winget --info
+
+      - name: Habilitar log verboso por padrão (settings.json)
+        shell: pwsh
+        run: |
+          $settingsPath = "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\settings.json"
+          $dir = Split-Path $settingsPath
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          '{ "$schema": "https://aka.ms/winget-settings.schema.json", "logging": { "level": "verbose" } }' | Set-Content -Path $settingsPath -Encoding utf8
+          Get-Content $settingsPath
+
+      - name: Atualizar fonte winget
+        shell: pwsh
+        run: winget source update
+        continue-on-error: true
+
+      - name: Rodar winget show --verbose-logs para cada pacote de teste
+        shell: pwsh
+        run: |
+          $pkgs = "${{ github.event.inputs.test_packages }}" -split ','
+          foreach ($id in $pkgs) {
+            $id = $id.Trim()
+            Write-Host "== winget show $id =="
+            winget show --id $id -e --verbose-logs --accept-source-agreements
+          }
+
+      - name: Rodar winget list --details --verbose-logs (apps já instalados no runner)
+        shell: pwsh
+        run: winget list --details --verbose-logs --accept-source-agreements
+        continue-on-error: true
+
+      - name: Localizar diretório de logs do winget
+        shell: pwsh
+        run: |
+          $logDir = "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir"
+          if (-not (Test-Path $logDir)) {
+            $logDir = "$env:LOCALAPPDATA\Microsoft\WinGet\Logs"
+          }
+          echo "LOG_DIR=$logDir" >> $env:GITHUB_ENV
+          Write-Host "Usando: $logDir"
+          Get-ChildItem $logDir -Recurse | Sort-Object LastWriteTime | Select-Object -Last 20
+
+      - name: Procurar URLs de icone nos logs
+        shell: pwsh
+        run: |
+          $hits = Get-ChildItem $env:LOG_DIR -Recurse -Filter *.log |
+            Select-String -Pattern 'icon' -SimpleMatch:$false -CaseSensitive:$false |
+            Where-Object { $_.Line -match 'https?://\S+' }
+
+          $summary = "## Linhas de log mencionando 'icon'`n"
+          if ($hits) {
+            foreach ($h in $hits) {
+              $summary += "``````n$($h.Line.Trim())`n``````n"
+            }
+          } else {
+            $summary += "Nenhuma linha com 'icon' encontrada nos logs.`n"
+          }
+
+          # Busca adicional: qualquer URL batendo com o padrão hash-based conhecido
+          $cdnHits = Get-ChildItem $env:LOG_DIR -Recurse -Filter *.log |
+            Select-String -Pattern 'cdn\.winget\.microsoft\.com/icons/'
+
+          $summary += "`n## URLs no padrao cdn.winget.microsoft.com/icons/`n"
+          if ($cdnHits) {
+            foreach ($h in $cdnHits) {
+              $summary += "``````n$($h.Line.Trim())`n``````n"
+            }
+          } else {
+            $summary += "Nenhuma URL nesse padrao encontrada.`n"
+          }
+
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Subir logs completos como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: winget-verbose-logs
+          path: ${{ env.LOG_DIR }}
+          retention-days: 7
