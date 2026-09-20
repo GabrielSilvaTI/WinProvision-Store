@@ -36,13 +36,18 @@
             <Setter Property="Foreground" Value="#F8FAFF" />
         </Style>
         <Style x:Key="AutoCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Background" Value="#3D0B172B" />
             <Setter Property="BorderBrush" Value="#3B557391" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="ui:Button">
-            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
         </Style>
     </ui:FluentWindow.Resources>
@@ -132,9 +137,9 @@
 
                         <!-- Global progress -->
                         <Grid Grid.Row="1" Height="8" Margin="0,29,0,29" ClipToBounds="True">
-                            <Border Background="#26364F" CornerRadius="4" />
+                            <Border Background="#26364F" CornerRadius="{StaticResource CompactCornerRadius}" />
                             <Border Background="#6DBBFF"
-                                    CornerRadius="4"
+                                    CornerRadius="{StaticResource CompactCornerRadius}"
                                     HorizontalAlignment="Stretch"
                                     RenderTransformOrigin="0,0.5"
                                     conv:AnimatedProgress.Percent="{Binding GlobalProgress}">
@@ -142,7 +147,7 @@
                                     <ScaleTransform ScaleX="0" />
                                 </Border.RenderTransform>
                             </Border>
-                            <Border Width="92" CornerRadius="4" Background="#BFE6FF" Opacity="0.18"
+                            <Border Width="92" CornerRadius="{StaticResource CompactCornerRadius}" Background="#BFE6FF" Opacity="0.18"
                                     HorizontalAlignment="Left">
                                 <Border.RenderTransform>
                                     <TranslateTransform X="-92" />
@@ -217,7 +222,7 @@
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Border Width="52" Height="52"
-                                    CornerRadius="14"
+                                    CornerRadius="{StaticResource OverlayCornerRadius}"
                                     Background="#3A2C3B52"
                                     BorderBrush="#3D4C68"
                                     BorderThickness="1"
@@ -391,7 +396,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Border Width="20" Height="20"
-                                CornerRadius="10"
+                                CornerRadius="{StaticResource OverlayCornerRadius}"
                                 BorderBrush="#8495AD"
                                 BorderThickness="1">
                             <Viewbox Width="11" Height="11"

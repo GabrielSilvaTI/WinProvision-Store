@@ -15,6 +15,27 @@ public class AppEntry : INotifyPropertyChanged
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Origem do pacote para fins de instalação: "winget" (padrão, veio de um manifesto
+    /// do winget-pkgs) ou "msstore" (curadoria manual via MsStoreCatalogService, ver
+    /// config/msstore-curated.json no Indexer — não existe listagem em massa pública da
+    /// Microsoft Store, então esses apps são adicionados um a um). O app cliente usa este
+    /// campo pra decidir o --source correto no fallback de CLI do WingetExecutor; a
+    /// instalação via COM (WinGetService) já resolve por Id sem precisar disso.
+    /// </summary>
+    [JsonPropertyName("source")]
+    public string Source { get; set; } = "winget";
+
+    /// <summary>
+    /// URL do ícone hospedado pela própria Microsoft Store, preenchida pelo
+    /// MsStoreCatalogService só para apps com <see cref="Source"/> "msstore". O manifesto
+    /// de ícones do R2 (ver IconService) não cobre esses apps porque não passam pelo
+    /// pipeline de captura de ícone do winget-pkgs; serve de fallback antes do ícone
+    /// genérico em IconService.ResolveIconUrl.
+    /// </summary>
+    [JsonPropertyName("storeIconUrl")]
+    public string? StoreIconUrl { get; set; }
+
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 

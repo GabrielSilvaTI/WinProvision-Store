@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "WinProvision.Store": {
+      "commandName": "Project",
+      "nativeDebugging": false,
+      "sqlDebugging": false,
+      "commandLineArgs": "",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

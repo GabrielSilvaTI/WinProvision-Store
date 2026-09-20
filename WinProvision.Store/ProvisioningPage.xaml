@@ -52,22 +52,32 @@
 
         <!-- Cartão Clássico (Para a Sidebar de Resumo) -->
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Padding" Value="20" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{StaticResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- NOVO: Cartão de Configurações (Estilo Lista do Win11, sem Padding interno para as linhas tocarem a borda) -->
         <Style x:Key="SettingsCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{StaticResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
             <Setter Property="Padding" Value="0" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="SettingsSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -79,7 +89,7 @@
         <!-- Estilo de Item do Menu de Contexto do Windows 11 -->
         <Style x:Key="Win11MenuItemStyle" TargetType="Border">
             <Setter Property="Height" Value="32" />
-            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="CornerRadius" Value="{StaticResource CompactCornerRadius}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="6,2" />
             <Setter Property="Cursor" Value="Hand" />
@@ -110,9 +120,9 @@
             <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,8" />
-            <Setter Property="Padding" Value="16" />
+            <Setter Property="Padding" Value="{StaticResource Spacing16}" />
             <Setter Property="MinHeight" Value="76" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -148,12 +158,13 @@
         </Style>
     </Page.Resources>
 
-    <Grid Margin="32,24" MaxWidth="1600" HorizontalAlignment="Stretch">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Border Background="Transparent" Margin="32,24" MaxWidth="1600" HorizontalAlignment="Stretch" CornerRadius="{StaticResource OverlayCornerRadius}">
+        <Grid Margin="32,24,32,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
         <!-- ================= Cabeçalho Global ================= -->
         <Grid Grid.Row="0" Margin="0,0,0,24">
@@ -163,7 +174,7 @@
             </Grid.ColumnDefinitions>
 
             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <ui:SymbolIcon Symbol="Desktop24" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center" />
+                <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE835;" />
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Provisionamento" Style="{StaticResource PageTitleStyle}" />
                     <TextBlock Text="Configure a máquina ou exporte um perfil."
@@ -172,7 +183,7 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:Button x:Name="ApplyButton" Content="Aplicar agora" Appearance="Primary" Click="ApplyButton_Click" CornerRadius="6" Height="36" Background="{DynamicResource SystemAccentColorPrimaryBrush}">
+                <ui:Button x:Name="ApplyButton" Content="Aplicar agora" Appearance="Primary" Click="ApplyButton_Click" CornerRadius="{StaticResource ControlCornerRadius}" Height="36" Background="{DynamicResource SystemAccentColorPrimaryBrush}">
                     <ui:Button.Icon>
                         <ui:SymbolIcon Symbol="PlayCircle24" FontSize="16" />
                     </ui:Button.Icon>
@@ -243,21 +254,6 @@
                             </Grid>
                         </ui:Button>
 
-                        <ui:Button x:Name="CliNavCard" Style="{StaticResource MenuCardButtonStyle}" Click="CliNavCard_Click">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0" Symbol="WindowConsole20" FontSize="24" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="Gerador de Comando CLI Nativo" Style="{StaticResource CardTitleStyle}" />
-                                    <TextBlock Text="Monte o comando de terminal para aplicar um perfil remoto." Style="{StaticResource CardSubtitleStyle}" FontSize="13" />
-                                </StackPanel>
-                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                            </Grid>
-                        </ui:Button>
                     </StackPanel>
                 </ScrollViewer>
 
@@ -270,7 +266,7 @@
 
                     <!-- Cabeçalho de Retorno Breadcrumb -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,24">
-                        <ui:Button Appearance="Transparent" Padding="8,6" CornerRadius="6" Click="BackToProfileButton_Click">
+                        <ui:Button Appearance="Transparent" Padding="8,6" CornerRadius="{StaticResource ControlCornerRadius}" Click="BackToProfileButton_Click">
                             <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="18" />
                         </ui:Button>
                         <TextBlock x:Name="SectionTitleText" Style="{StaticResource PageTitleStyle}" FontSize="20" VerticalAlignment="Center" Margin="12,0,0,0" />
@@ -283,7 +279,7 @@
                             <StackPanel x:Name="PersonalizationSectionPanel" Visibility="Collapsed">
 
                                 <!-- Bloco 1: Tema e Barra de Tarefas -->
-                                <Border Style="{StaticResource SettingsCardStyle}">
+                                <Border Style="{StaticResource SettingsCardStyle}" Visibility="Collapsed">
                                     <StackPanel>
 
                                         <!-- Tema -->
@@ -382,7 +378,7 @@
                                             </Grid.ColumnDefinitions>
 
                                             <!-- Thumbnail -->
-                                            <Border Grid.Column="0" Width="100" Height="64" CornerRadius="6" ClipToBounds="True" Background="#1AFFFFFF" Margin="0,0,16,0">
+                                            <Border Grid.Column="0" Width="100" Height="64" CornerRadius="{StaticResource ControlCornerRadius}" ClipToBounds="True" Background="#1AFFFFFF" Margin="0,0,16,0">
                                                 <Image x:Name="WallpaperPreviewImage" Stretch="UniformToFill" />
                                             </Border>
 
@@ -394,8 +390,8 @@
 
                                             <!-- Botões -->
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <ui:Button x:Name="ClearWallpaperButton" Content="Restaurar padrão" Appearance="Secondary" VerticalAlignment="Center" Click="ClearWallpaperButton_Click" CornerRadius="6" Margin="0,0,8,0" Visibility="Collapsed" />
-                                                <ui:Button x:Name="SelectWallpaperButton" Content="Alterar imagem" Appearance="Secondary" VerticalAlignment="Center" Click="SelectWallpaperButton_Click" CornerRadius="6" />
+                                                <ui:Button x:Name="ClearWallpaperButton" Content="Restaurar padrão" Appearance="Secondary" VerticalAlignment="Center" Click="ClearWallpaperButton_Click" CornerRadius="{StaticResource ControlCornerRadius}" Margin="0,0,8,0" Visibility="Collapsed" />
+                                                <ui:Button x:Name="SelectWallpaperButton" Content="Alterar imagem" Appearance="Secondary" VerticalAlignment="Center" Click="SelectWallpaperButton_Click" CornerRadius="{StaticResource ControlCornerRadius}" />
                                             </StackPanel>
                                         </Grid>
                                     </StackPanel>
@@ -421,23 +417,23 @@
 
                                                  <!-- Status do Ambiente Virtual -->
                                                  <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                     <Border Width="8" Height="8" CornerRadius="4" Background="#4CAF50" Margin="0,0,10,0" VerticalAlignment="Center">
+                                                     <Border Width="8" Height="8" CornerRadius="{StaticResource CompactCornerRadius}" Background="#4CAF50" Margin="0,0,10,0" VerticalAlignment="Center">
                                                          <Border.Effect>
-                                                             <DropShadowEffect Color="#4CAF50" BlurRadius="6" ShadowDepth="0" Opacity="0.8" />
+                                                             <DropShadowEffect Color="#36C875" BlurRadius="6" ShadowDepth="0" Opacity="0.8" />
                                                          </Border.Effect>
                                                      </Border>
                                                      <TextBlock Text="Ambiente Virtual • Simulação da Área de Trabalho" FontSize="12" FontWeight="SemiBold"
                                                                 FontFamily="Segoe UI Variable Display, Aptos Display, Segoe UI" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                                     <Border Margin="12,0,0,0" Background="#16FFFFFF" CornerRadius="4" Padding="6,2" VerticalAlignment="Center">
+                                                     <Border Margin="12,0,0,0" Background="#16FFFFFF" CornerRadius="{StaticResource CompactCornerRadius}" Padding="6,2" VerticalAlignment="Center">
                                                          <TextBlock x:Name="DesktopPreviewThemeTag" Text="Windows 11 (16:9 Widescreen)" FontSize="10" FontWeight="Medium" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                                      </Border>
                                                  </StackPanel>
 
                                                  <!-- Controles Decorativos da VM (Minimizar, Maximizar, Fechar) -->
                                                  <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                     <Border Width="10" Height="10" CornerRadius="5" Background="#26FFFFFF" Margin="0,0,6,0" />
-                                                     <Border Width="10" Height="10" CornerRadius="5" Background="#26FFFFFF" Margin="0,0,6,0" />
-                                                     <Border Width="10" Height="10" CornerRadius="5" Background="#26FFFFFF" />
+                                                     <Border Width="10" Height="10" CornerRadius="{StaticResource ControlCornerRadius}" Background="#26FFFFFF" Margin="0,0,6,0" />
+                                                     <Border Width="10" Height="10" CornerRadius="{StaticResource ControlCornerRadius}" Background="#26FFFFFF" Margin="0,0,6,0" />
+                                                     <Border Width="10" Height="10" CornerRadius="{StaticResource ControlCornerRadius}" Background="#26FFFFFF" />
                                                  </StackPanel>
                                              </Grid>
                                          </Border>
@@ -461,11 +457,11 @@
 
                                                      <StackPanel Grid.Column="0">
                                                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                             <ui:SymbolIcon Symbol="Apps24" FontSize="16" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" Margin="0,0,8,0" />
+                                                             <ui:SymbolIcon Symbol="Apps24" FontSize="16" Foreground="{DynamicResource TextFillColorPrimaryBrush}" Margin="0,0,8,0" />
                                                              <TextBlock Text="Aplicativos de Pacotes • Arraste para a Área de Trabalho" FontSize="13" FontWeight="SemiBold"
                                                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
-                                                             <Border Background="#200078D4" CornerRadius="10" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                                                                 <TextBlock x:Name="AvailablePackagesCountText" Text="0 aplicativo(s)" FontSize="11" Foreground="#60A5FA" FontWeight="Medium" />
+                                                             <Border Background="#200078D4" CornerRadius="{StaticResource OverlayCornerRadius}" Padding="8,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                 <TextBlock x:Name="AvailablePackagesCountText" Text="0 aplicativo(s)" FontSize="11" Foreground="{DynamicResource AppAccentBrush}" FontWeight="Medium" />
                                                              </Border>
                                                          </StackPanel>
                                                          <TextBlock Text="Arraste os aplicativos abaixo para a Área de Trabalho virtual para posicionar seus atalhos (ou clique no botão '+' para adicionar automaticamente na grade)."
@@ -508,7 +504,7 @@
                                                          <Canvas x:Name="DesktopIconsGroup" Width="1280" Height="672" Background="Transparent">
                                                              
                                                              <!-- Lixeira (Ícone oficial do Windows 11) -->
-                                                             <Border x:Name="DesktopIconRecycleBin" Width="76" Height="82" CornerRadius="4" Background="Transparent" Canvas.Left="16" Canvas.Top="16" Cursor="Hand"
+                                                             <Border x:Name="DesktopIconRecycleBin" Width="76" Height="82" CornerRadius="{StaticResource CompactCornerRadius}" Background="Transparent" Canvas.Left="16" Canvas.Top="16" Cursor="Hand"
                                                                      MouseLeftButtonDown="DesktopIcon_MouseLeftButtonDown"
                                                                      MouseMove="DesktopIcon_MouseMove"
                                                                      MouseLeftButtonUp="DesktopIcon_MouseLeftButtonUp"
@@ -524,7 +520,7 @@
                                                              </Border>
 
                                                              <!-- Microsoft Edge (Ícone oficial do Windows 11) -->
-                                                             <Border x:Name="DesktopIconEdge" Width="76" Height="82" CornerRadius="4" Background="Transparent" Canvas.Left="16" Canvas.Top="106" Cursor="Hand"
+                                                             <Border x:Name="DesktopIconEdge" Width="76" Height="82" CornerRadius="{StaticResource CompactCornerRadius}" Background="Transparent" Canvas.Left="16" Canvas.Top="106" Cursor="Hand"
                                                                      MouseLeftButtonDown="DesktopIcon_MouseLeftButtonDown"
                                                                      MouseMove="DesktopIcon_MouseMove"
                                                                      MouseLeftButtonUp="DesktopIcon_MouseLeftButtonUp"
@@ -551,35 +547,35 @@
                                                              <StackPanel x:Name="DesktopPreviewTaskbarIcons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                                  
                                                                  <!-- Botão Iniciar (Windows 11 oficial) -->
-                                                                 <Border Width="44" Height="44" CornerRadius="6" Background="Transparent" VerticalAlignment="Center">
+                                                                 <Border Width="44" Height="44" CornerRadius="{StaticResource ControlCornerRadius}" Background="Transparent" VerticalAlignment="Center">
                                                                      <Image Source="pack://application:,,,/Assets/Desktop/start.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                                                                  </Border>
 
                                                                  <!-- Caixa de Pesquisa Adaptável (&#xE721;) -->
                                                                  <!-- 1. Caixa Completa -->
-                                                                 <Border x:Name="DesktopPreviewSearchBoxFull" Width="200" Height="32" CornerRadius="16" Background="#26FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" VerticalAlignment="Center" Padding="12,0" Margin="4,0,2,0">
+                                                                 <Border x:Name="DesktopPreviewSearchBoxFull" Width="200" Height="32" CornerRadius="{StaticResource OverlayCornerRadius}" Background="#26FFFFFF" BorderBrush="#20FFFFFF" BorderThickness="1" VerticalAlignment="Center" Padding="12,0" Margin="4,0,2,0">
                                                                      <Grid VerticalAlignment="Center">
                                                                          <Grid.ColumnDefinitions>
                                                                              <ColumnDefinition Width="Auto" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Grid.Column="0" x:Name="DesktopPreviewSearchIcon" Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                                                         <TextBlock Grid.Column="0" x:Name="DesktopPreviewSearchIcon" Text="&#xE721;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" x:Name="DesktopPreviewSearchText" Text="Pesquisar" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
 
                                                                  <!-- 2. Apenas Ícone -->
-                                                                 <Border x:Name="DesktopPreviewSearchBoxIcon" Width="44" Height="44" CornerRadius="6" Background="Transparent" VerticalAlignment="Center" Visibility="Collapsed" Margin="4,0,2,0">
-                                                                     <TextBlock x:Name="DesktopPreviewSearchIconOnly" Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                                                 <Border x:Name="DesktopPreviewSearchBoxIcon" Width="44" Height="44" CornerRadius="{StaticResource ControlCornerRadius}" Background="Transparent" VerticalAlignment="Center" Visibility="Collapsed" Margin="4,0,2,0">
+                                                                     <TextBlock x:Name="DesktopPreviewSearchIconOnly" Text="&#xE721;" FontFamily="SegoeFluentIcons" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                                                  </Border>
 
                                                                  <!-- Explorador de Arquivos (Ícone oficial do Windows 11) -->
-                                                                 <Border Width="44" Height="44" CornerRadius="6" Background="Transparent" VerticalAlignment="Center">
+                                                                 <Border Width="44" Height="44" CornerRadius="{StaticResource ControlCornerRadius}" Background="Transparent" VerticalAlignment="Center">
                                                                      <Image Source="pack://application:,,,/Assets/Desktop/explorer.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                                                                  </Border>
 
                                                                  <!-- Microsoft Edge (Ícone oficial do Windows 11) -->
-                                                                 <Border Width="44" Height="44" CornerRadius="6" Background="Transparent" VerticalAlignment="Center">
+                                                                 <Border Width="44" Height="44" CornerRadius="{StaticResource ControlCornerRadius}" Background="Transparent" VerticalAlignment="Center">
                                                                      <Image Source="pack://application:,,,/Assets/Desktop/edge.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
                                                                  </Border>
 
@@ -589,7 +585,7 @@
                                                              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                                  <!-- Ícone de Chevron (ChevronUp: &#xE70E;) -->
                                                                  <Border Width="24" Height="36" Background="Transparent" VerticalAlignment="Center">
-                                                                     <TextBlock x:Name="DesktopPreviewTrayChevron" Text="&#xE70E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                     <TextBlock x:Name="DesktopPreviewTrayChevron" Text="&#xE70E;" FontFamily="SegoeFluentIcons" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                                  </Border>
                                                                  
                                                                  <!-- Indicador de Idioma (POR PTB2) -->
@@ -601,17 +597,17 @@
                                                                  </Border>
 
                                                                  <!-- Pílula de Configurações Rápidas (Rede e Som) -->
-                                                                 <Border Height="36" CornerRadius="4" Background="Transparent" Padding="6,0" VerticalAlignment="Center" Margin="2,0,2,0">
+                                                                 <Border Height="36" CornerRadius="{StaticResource CompactCornerRadius}" Background="Transparent" Padding="6,0" VerticalAlignment="Center" Margin="2,0,2,0">
                                                                      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                                          <!-- Ícone de Rede / Desktop (Monitor com cabo: &#xE839;) -->
-                                                                         <TextBlock x:Name="DesktopPreviewTrayWifi" Text="&#xE839;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                                         <TextBlock x:Name="DesktopPreviewTrayWifi" Text="&#xE839;" FontFamily="SegoeFluentIcons" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                                                          <!-- Ícone de Volume / Speaker (&#xE767;) -->
-                                                                         <TextBlock x:Name="DesktopPreviewTraySpeaker" Text="&#xE767;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+                                                                         <TextBlock x:Name="DesktopPreviewTraySpeaker" Text="&#xE767;" FontFamily="SegoeFluentIcons" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
                                                                      </StackPanel>
                                                                  </Border>
 
                                                                  <!-- Pílula de Relógio e Data -->
-                                                                 <Border Height="36" CornerRadius="4" Background="Transparent" Padding="6,0" VerticalAlignment="Center" Margin="2,0,4,0">
+                                                                 <Border Height="36" CornerRadius="{StaticResource CompactCornerRadius}" Background="Transparent" Padding="6,0" VerticalAlignment="Center" Margin="2,0,4,0">
                                                                      <StackPanel VerticalAlignment="Center">
                                                                          <TextBlock x:Name="DesktopPreviewClockText" Text="22:50" FontSize="11.5" FontWeight="SemiBold"
                                                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}" HorizontalAlignment="Right" />
@@ -638,7 +634,7 @@
                                                                  PreviewMouseRightButtonDown="DesktopMenuBackdrop_MouseDown" />
 
                                                          <!-- Menu Principal -->
-                                                         <Border x:Name="DesktopContextMenuMain" Width="240" CornerRadius="8" Background="#F2202020" BorderBrush="#33FFFFFF" BorderThickness="1" Padding="4" Canvas.Left="100" Canvas.Top="100">
+                                                         <Border x:Name="DesktopContextMenuMain" Width="240" CornerRadius="{StaticResource OverlayCornerRadius}" Background="#F2202020" BorderBrush="#33FFFFFF" BorderThickness="1" Padding="4" Canvas.Left="100" Canvas.Top="100">
                                                              <Border.Effect>
                                                                  <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Color="#000000" Opacity="0.55" />
                                                              </Border.Effect>
@@ -651,9 +647,9 @@
                                                                              <ColumnDefinition Width="*" />
                                                                              <ColumnDefinition Width="24" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE790;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE790;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Exibir" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
-                                                                         <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                                                         <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="SegoeFluentIcons" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
                                                                      </Grid>
                                                                  </Border>
 
@@ -665,9 +661,9 @@
                                                                              <ColumnDefinition Width="*" />
                                                                              <ColumnDefinition Width="24" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE8CB;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE8CB;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Classificar por" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
-                                                                         <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                                                         <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="SegoeFluentIcons" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
                                                                      </Grid>
                                                                  </Border>
 
@@ -678,7 +674,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE72C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE72C;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Atualizar" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -693,9 +689,9 @@
                                                                              <ColumnDefinition Width="*" />
                                                                              <ColumnDefinition Width="24" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE710;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE710;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Novo" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
-                                                                         <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                                                         <TextBlock Grid.Column="2" Text="&#xE76C;" FontFamily="SegoeFluentIcons" FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,6,0" />
                                                                      </Grid>
                                                                  </Border>
 
@@ -708,7 +704,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE7F4;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE7F4;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Configurações de exibição" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -720,7 +716,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE771;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE771;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Personalizar" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -733,7 +729,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock Text="&#xE74D;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="13" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                                                         <TextBlock Text="&#xE74D;" FontFamily="SegoeFluentIcons" FontSize="13" Foreground="#EF4444" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                                                          <TextBlock Grid.Column="1" Text="Remover atalho da área de trabalho" FontSize="12" Foreground="#FCA5A5" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -741,7 +737,7 @@
                                                          </Border>
 
                                                          <!-- Submenu de "Exibir" -->
-                                                         <Border x:Name="DesktopContextMenuSubExibir" Width="260" CornerRadius="8" Background="#F2202020" BorderBrush="#33FFFFFF" BorderThickness="1" Padding="4" Visibility="Collapsed" Canvas.Left="340" Canvas.Top="100">
+                                                         <Border x:Name="DesktopContextMenuSubExibir" Width="260" CornerRadius="{StaticResource OverlayCornerRadius}" Background="#F2202020" BorderBrush="#33FFFFFF" BorderThickness="1" Padding="4" Visibility="Collapsed" Canvas.Left="340" Canvas.Top="100">
                                                              <Border.Effect>
                                                                  <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Color="#000000" Opacity="0.55" />
                                                              </Border.Effect>
@@ -753,7 +749,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock x:Name="MenuCheckLarge" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
+                                                                         <TextBlock x:Name="MenuCheckLarge" Text="&#xE73E;" FontFamily="SegoeFluentIcons" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
                                                                          <TextBlock Grid.Column="1" Text="Ícones grandes" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -765,7 +761,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock x:Name="MenuCheckMedium" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Visible" />
+                                                                         <TextBlock x:Name="MenuCheckMedium" Text="&#xE73E;" FontFamily="SegoeFluentIcons" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Visible" />
                                                                          <TextBlock Grid.Column="1" Text="Ícones médios" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -777,7 +773,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock x:Name="MenuCheckSmall" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
+                                                                         <TextBlock x:Name="MenuCheckSmall" Text="&#xE73E;" FontFamily="SegoeFluentIcons" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
                                                                          <TextBlock Grid.Column="1" Text="Ícones pequenos" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -791,7 +787,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock x:Name="MenuCheckAutoArrange" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
+                                                                         <TextBlock x:Name="MenuCheckAutoArrange" Text="&#xE73E;" FontFamily="SegoeFluentIcons" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Collapsed" />
                                                                          <TextBlock Grid.Column="1" Text="Organizar ícones automaticamente" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -803,7 +799,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock x:Name="MenuCheckAlignToGrid" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Visible" />
+                                                                         <TextBlock x:Name="MenuCheckAlignToGrid" Text="&#xE73E;" FontFamily="SegoeFluentIcons" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Visible" />
                                                                          <TextBlock Grid.Column="1" Text="Alinhar ícones à grade" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -817,7 +813,7 @@
                                                                              <ColumnDefinition Width="28" />
                                                                              <ColumnDefinition Width="*" />
                                                                          </Grid.ColumnDefinitions>
-                                                                         <TextBlock x:Name="MenuCheckShowDesktopIcons" Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Visible" />
+                                                                         <TextBlock x:Name="MenuCheckShowDesktopIcons" Text="&#xE73E;" FontFamily="SegoeFluentIcons" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" Visibility="Visible" />
                                                                          <TextBlock Grid.Column="1" Text="Mostrar ícones da área de trabalho" FontSize="12" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" Margin="4,0,0,0" />
                                                                      </Grid>
                                                                  </Border>
@@ -839,7 +835,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <ui:SymbolIcon Symbol="Settings24"
                                                        FontSize="22"
-                                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                        Margin="0,0,10,0"
                                                        VerticalAlignment="Center" />
                                         <TextBlock Text="Sistema" Style="{StaticResource SettingsSectionHeaderStyle}" />
@@ -1032,7 +1028,7 @@
                                                 <TextBlock x:Name="CleanTempTaskStatusText" Text="Status da tarefa no sistema: Verificando…" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <ui:Button x:Name="ScheduleCleanTempNowButton" Content="Agendar Tarefa Agora" Appearance="Secondary" CornerRadius="6" Click="ScheduleCleanTempNowButton_Click">
+                                                <ui:Button x:Name="ScheduleCleanTempNowButton" Content="Agendar Tarefa Agora" Appearance="Secondary" CornerRadius="{StaticResource ControlCornerRadius}" Click="ScheduleCleanTempNowButton_Click">
                                                     <ui:Button.Icon>
                                                         <ui:SymbolIcon Symbol="CalendarClock24" />
                                                     </ui:Button.Icon>
@@ -1054,7 +1050,7 @@
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="Nome do Perfil" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Informação OEM" Style="{StaticResource SettingsRowTitleStyle}" />
                                             </StackPanel>
                                             <ui:TextBox x:Name="ProfileNameTextBox" Grid.Column="1" VerticalAlignment="Center" MaxLength="14" PlaceholderText="Sem nome" TextChanged="Field_Changed" />
                                         </Grid>
@@ -1067,7 +1063,7 @@
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="Criador" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Nome do Perfil" Style="{StaticResource SettingsRowTitleStyle}" />
                                             </StackPanel>
                                             <ui:TextBox x:Name="ProfileCreatorTextBox" Grid.Column="1" VerticalAlignment="Center" MaxLength="14" PlaceholderText="WinProvision" TextChanged="Field_Changed" />
                                         </Grid>
@@ -1096,16 +1092,16 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                 <TextBlock Text="Código JSON" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="JSON bruto gerado em tempo real." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                <TextBlock Text="Perfil completo, atualizado em tempo real." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                             </StackPanel>
-                                            <ui:Button x:Name="OpenFullEditorButton" Grid.Column="1" Content="Editor completo" Appearance="Secondary" VerticalAlignment="Center" Click="OpenFullEditorButton_Click" CornerRadius="6">
+                                            <ui:Button x:Name="OpenFullEditorButton" Grid.Column="1" Content="Editor completo" Appearance="Secondary" VerticalAlignment="Center" Click="OpenFullEditorButton_Click" CornerRadius="{StaticResource ControlCornerRadius}">
                                                 <ui:Button.Icon>
                                                     <ui:SymbolIcon Symbol="Notepad24" />
                                                 </ui:Button.Icon>
                                             </ui:Button>
                                         </Grid>
 
-                                        <Border CornerRadius="6" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{StaticResource AppBorderSubtleBrush}" BorderThickness="1">
+                                        <Border CornerRadius="{StaticResource ControlCornerRadius}" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1">
                                             <TextBox x:Name="JsonPreviewTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12" TextWrapping="NoWrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Height="260" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                         </Border>
 
@@ -1115,115 +1111,12 @@
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
                                             <TextBlock x:Name="ChangesDetectedText" Grid.Column="0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" />
-                                            <ui:Button Grid.Column="1" Content="Copiar JSON" Appearance="Secondary" Click="CopyJsonButton_Click" CornerRadius="6">
+                                            <ui:Button Grid.Column="1" Content="Copiar JSON" Appearance="Secondary" Click="CopyJsonButton_Click" CornerRadius="{StaticResource ControlCornerRadius}">
                                                 <ui:Button.Icon>
                                                     <ui:SymbolIcon Symbol="Copy24" />
                                                 </ui:Button.Icon>
                                             </ui:Button>
                                         </Grid>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <!-- ================= 5. CLI ================= -->
-                            <StackPanel x:Name="CliSectionPanel" Visibility="Collapsed">
-                                <Border Style="{StaticResource SettingsCardStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="24,16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="300" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="URL do Gist ou Caminho Local" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="De onde o arquivo JSON será lido." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                            </StackPanel>
-                                            <Grid Grid.Column="1">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <ui:TextBox x:Name="CliProfilePathTextBox" Grid.Column="0" PlaceholderText="https://gist..." TextChanged="CliField_Changed" />
-                                                <ui:Button x:Name="SyncGistUrlButton" Grid.Column="1" Appearance="Secondary" Margin="8,0,0,0" Click="SyncGistUrlButton_Click" CornerRadius="6" ToolTip="Sincronizar Gist">
-                                                    <ui:SymbolIcon Symbol="CloudSync24" />
-                                                </ui:Button>
-                                            </Grid>
-                                        </Grid>
-
-                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
-
-                                        <Grid Margin="24,16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="300" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="Gravar log de execução (/log)" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <CheckBox x:Name="CliLogCheckBox" Content="Habilitar Log Local" Checked="CliField_Changed" Unchecked="CliField_Changed" Margin="0,8,0,0" />
-                                            </StackPanel>
-                                            <ui:TextBox x:Name="CliLogPathTextBox" Grid.Column="1" VerticalAlignment="Center" PlaceholderText="C:\WinProvision\exec.log" IsEnabled="{Binding IsChecked, ElementName=CliLogCheckBox}" TextChanged="CliField_Changed" />
-                                        </Grid>
-
-                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
-
-                                        <Grid Margin="24,16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="300" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="Notificação via Webhook (/webhook)" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <CheckBox x:Name="CliWebhookCheckBox" Content="Habilitar Discord/Slack" Checked="CliField_Changed" Unchecked="CliField_Changed" Margin="0,8,0,0" />
-                                            </StackPanel>
-                                            <ui:PasswordBox x:Name="CliWebhookUrlPasswordBox" Grid.Column="1" VerticalAlignment="Center" PlaceholderText="https://discord.com/api..." IsEnabled="{Binding IsChecked, ElementName=CliWebhookCheckBox}" PasswordChanged="CliField_Changed" />
-                                        </Grid>
-
-                                        <Rectangle Height="1" Fill="#0DFFFFFF" />
-
-                                        <!-- Modo de Execução: UI Visível vs Silencioso (/silent) -->
-                                        <Grid Margin="24,16">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="300" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                <TextBlock Text="Modo de Execução" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Defina se a tela gráfica de progresso será exibida durante a execução." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <RadioButton x:Name="CliUiVisibleRadioButton" Content="UI visível" IsChecked="True" GroupName="CliExecutionMode" Checked="CliField_Changed" Margin="0,0,20,0" />
-                                                <RadioButton x:Name="CliSilentRadioButton" Content="Silencioso (/silent)" GroupName="CliExecutionMode" Checked="CliField_Changed" />
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                                <Border Style="{StaticResource SettingsCardStyle}">
-                                    <StackPanel>
-                                        <Grid Margin="24,16">
-                                            <StackPanel>
-                                                <TextBlock Text="Comando Gerado" Style="{StaticResource SettingsRowTitleStyle}" />
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <Border CornerRadius="6" Background="#1A000000" Padding="12" Margin="24,0,24,16" BorderBrush="{StaticResource AppBorderSubtleBrush}" BorderThickness="1">
-                                            <TextBox x:Name="CliCommandPreviewTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" FontFamily="Cascadia Mono, Consolas, Courier New" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                        </Border>
-
-                                        <StackPanel Orientation="Horizontal" Margin="24,0,24,16">
-                                            <ui:Button Content="Copiar comando" Appearance="Primary" Click="CopyCliCommandButton_Click" CornerRadius="6" Margin="0,0,12,0"
-                                                       Background="{StaticResource InstallActionBrush}" MouseOverBackground="{StaticResource InstallActionHoverBrush}" PressedBackground="{StaticResource InstallActionPressedBrush}"
-                                                       Foreground="White" PressedForeground="White">
-                                                <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="Copy24" />
-                                                </ui:Button.Icon>
-                                            </ui:Button>
-                                            <ui:Button Content="Salvar como padrão" Appearance="Secondary" Click="SaveCliDefaultsButton_Click" CornerRadius="6">
-                                                <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="DocumentSave24" />
-                                                </ui:Button.Icon>
-                                            </ui:Button>
-                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -1266,7 +1159,7 @@
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                            <ui:SymbolIcon x:Name="ProfileValidIcon" Symbol="CheckmarkCircle24" Foreground="{DynamicResource SystemFillColorSuccessBrush}" FontSize="18" Margin="0,0,8,0" />
+                            <ui:FontIcon x:Name="ProfileValidIcon" Glyph="&#xE930;" FontFamily="Segoe Fluent Icons" Foreground="{DynamicResource SystemFillColorSuccessBrush}" FontSize="18" Margin="0,0,8,0" />
                             <TextBlock x:Name="ProfileValidText" Text="Perfil válido" FontFamily="Segoe UI Variable Text" VerticalAlignment="Center" />
                         </StackPanel>
                     </StackPanel>
@@ -1303,4 +1196,5 @@
         <!-- ================= Rodapé ================= -->
         <TextBlock x:Name="StatusText" Grid.Row="2" Margin="4,8,4,0" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" />
     </Grid>
+    </Border>
 </Page>

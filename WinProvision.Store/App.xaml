@@ -15,6 +15,7 @@
                 <ResourceDictionary Source="Styles/InstallActionBrushes.xaml" />
                 <ResourceDictionary Source="Styles/VisualPolish.xaml" />
                 <ResourceDictionary Source="Styles/ComboBoxStyle.xaml" />
+                <ResourceDictionary Source="Styles/FluentSurface.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Ícones agora usam a attached property conv:AsyncImage.SourceUrl
@@ -25,6 +26,28 @@
             <conv:StageToSymbolConverter x:Key="StageToSymbolConverter" />
             <conv:StageStatusToFilledConverter x:Key="StageStatusToFilledConverter" />
             <conv:StageStatusToIconForegroundConverter x:Key="StageStatusToIconForegroundConverter" />
+
+            <!-- Dark navy palette: opaque tokens keep every page visually stable over Mica. -->
+            <SolidColorBrush x:Key="ApplicationBackgroundBrush" Color="#F0101B2D" />
+            <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#E8172A40" />
+            <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#E0263446" />
+            <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="#F02D4056" />
+            <SolidColorBrush x:Key="ControlFillColorTertiaryBrush" Color="#E01D3047" />
+            <SolidColorBrush x:Key="CardBackgroundFillColorDefaultBrush" Color="#E0263446" />
+            <SolidColorBrush x:Key="CardBackgroundFillColorSecondaryBrush" Color="#E02B3B50" />
+            <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="#8050657D" />
+            <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="#70475C75" />
+            <SolidColorBrush x:Key="SurfaceFillColorDefaultBrush" Color="#E01D3047" />
+            <SolidColorBrush x:Key="SurfaceFillColorSecondaryBrush" Color="#E02B3B50" />
+            <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#E02B3B50" />
+            <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#E01D3047" />
+            <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="#8050657D" />
+            <SolidColorBrush x:Key="RegionFillColorDefaultBrush" Color="#E8172A40" />
+            <SolidColorBrush x:Key="RegionFillColorSecondaryBrush" Color="#E0263446" />
+            <SolidColorBrush x:Key="SystemFillColorAttentionBrush" Color="#1688E8" />
+            <SolidColorBrush x:Key="SystemFillColorSuccessBrush" Color="#4CAF50" />
+            <SolidColorBrush x:Key="SystemFillColorCautionBrush" Color="#FFC107" />
+            <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#EF4444" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

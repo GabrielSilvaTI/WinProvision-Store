@@ -93,9 +93,8 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
     /// <summary>Extensão usada quando o nome original não traz uma extensão de imagem reconhecida.</summary>
     private const string DefaultWallpaperExtension = ".png";
 
-    // GUIDs oficiais dos planos de energia padrão do Windows (documentados pela Microsoft —
-    // ver "powercfg -list" ou learn.microsoft.com/windows-hardware/customize/desktop/unattend/
-    // microsoft-windows-powercpl-preferredplan). Usar o GUID em vez do alias (SCHEME_BALANCED
+    // GUIDs oficiais dos planos de energia padrão do Windows (documentados pela Microsoft).
+    // Usar o GUID em vez do alias (SCHEME_BALANCED
     // etc.) evita depender do locale do powercfg pra resolver o nome.
     private const string PowerSchemeBalanced = "381b4222-f694-41f0-9685-ff5bb260df2e";
     private const string PowerSchemeHighPerformance = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
@@ -115,7 +114,7 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
             Provisioning = manifest,
         };
 
-        string json = JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Default);
+        string json = JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Profile);
         await File.WriteAllTextAsync(filePath, json, ct);
     }
 
@@ -129,6 +128,12 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
     public async Task<ProvisioningManifest> ImportAsync(string filePath, CancellationToken ct = default)
     {
         string json = await ProfileSourceReader.ReadTextAsync(filePath, ct);
+        var validation = ProfileJsonValidator.Validate(json);
+        if (!validation.IsValid)
+            throw new InvalidDataException(
+                validation.Path is { Length: > 0 }
+                    ? $"{validation.Message} Campo: {validation.Path}"
+                    : validation.Message);
         var profile = ProfileManifestParser.Parse(json, Path.GetFileNameWithoutExtension(filePath));
 
         if (profile?.Provisioning is not { } manifest)

@@ -99,6 +99,10 @@ public class StoreService
     /// <summary>Catálogo completo já carregado em memória (o que LoadCatalogAsync populou).</summary>
     public IReadOnlyList<AppEntry> GetAll() => _cachedCatalog;
 
+    /// <summary>Momento em que o cache local do apps.json foi gravado pela última sincronização.</summary>
+    public DateTime? LastCatalogSyncUtc =>
+        File.Exists(_cacheFilePath) ? File.GetLastWriteTimeUtc(_cacheFilePath) : null;
+
     public IEnumerable<AppEntry> Search(string query)
     {
         if (string.IsNullOrWhiteSpace(query))

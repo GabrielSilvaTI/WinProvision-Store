@@ -33,11 +33,29 @@ public class PackageCollectionService
             IsDefault = Tabs.Count == 0 && string.Equals(name, "Perfil Padrão", StringComparison.OrdinalIgnoreCase)
         };
         Tabs.Add(tab);
-        tab.Items.CollectionChanged += (_, _) => Changed?.Invoke();
+        tab.Items.CollectionChanged += (_, args) =>
+        {
+            if (args.OldItems is not null)
+            {
+                foreach (AppEntry app in args.OldItems)
+                    app.PropertyChanged -= App_PropertyChanged;
+            }
+
+            if (args.NewItems is not null)
+            {
+                foreach (AppEntry app in args.NewItems)
+                    app.PropertyChanged += App_PropertyChanged;
+            }
+
+            Changed?.Invoke();
+        };
         ActiveTab = tab;
         Changed?.Invoke();
         return tab;
     }
+
+    private void App_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+        Changed?.Invoke();
 
     public void CloseTab(PackageProfileTab tab)
     {

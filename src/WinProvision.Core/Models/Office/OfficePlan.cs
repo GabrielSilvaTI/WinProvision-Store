@@ -231,4 +231,24 @@ public record OfficeRemoveRequest(
     IReadOnlyList<string>? ProductIds = null,
     OfficeDisplayLevel DisplayLevel = OfficeDisplayLevel.Silent,
     /// <summary>Também remove a edição da Microsoft Store (pacote AppX) do Office, se presente.</summary>
-    bool CleanStoreEdition = true);
+    bool CleanStoreEdition = true,
+    /// <summary>Usa RemoveMSI para remover instalações MSI do Office (método tradicional) que não são removidas pelo método padrão.</summary>
+    bool UseRemoveMSI = true,
+    /// <summary>Usa o método de desinstalação agressivo (GetHelpCmd) se o método padrão falhar.</summary>
+    bool UseAggressiveUninstall = true);
+
+/// <summary>Representa uma instalação do Office detectada no sistema.</summary>
+public record OfficeInstallation(string DisplayName, string UninstallString);
+
+/// <summary>Resultado de uma operação de desinstalação do Office.</summary>
+public enum OfficeUninstallOutcome
+{
+    /// <summary>Office não está instalado.</summary>
+    NotInstalled,
+    /// <summary>Removido com sucesso usando o método padrão.</summary>
+    RemovedByStandardMethod,
+    /// <summary>Removido com sucesso usando o método agressivo (GetHelpCmd).</summary>
+    RemovedByAggressiveMethod,
+    /// <summary>Falha na desinstalação.</summary>
+    Failed
+}

@@ -7,7 +7,7 @@ namespace WinProvision.Core.Models;
 /// ativa) — cada guia vira um <see cref="ProfileManifest"/> independente dentro de
 /// <see cref="Tabs"/>, preservando o nome de cada uma. É o formato usado tanto pelo
 /// backup local (<see cref="Services.Backup.LocalBackupService"/>) quanto pelo Gist
-/// (<see cref="Services.Backup.GitHubBackupService"/>) — distinto do ProfileManifest
+/// (<see cref="Services.Backup.CloudBackupService"/>) — distinto do ProfileManifest
 /// "solto" que ProfileService.ExportAsync/ImportAsync ainda usa para exportação manual
 /// de um único perfil via SaveFileDialog, que continua existindo sem mudanças.
 ///

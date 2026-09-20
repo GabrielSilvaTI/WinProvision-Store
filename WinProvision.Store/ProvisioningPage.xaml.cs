@@ -16,7 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
 using WinProvision.Core.Models.Provisioning;
 using WinProvision.Core.Services;
-using WinProvision.Core.Services.Backup;
+using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
 using WinProvision.Store.Converters;
 
@@ -25,11 +25,10 @@ namespace WinProvision.Store;
 public partial class ProvisioningPage : Page
 {
     private readonly ProvisioningService _provisioningService;
-    private readonly CliPresetsService _cliPresetsService;
-    private readonly GitHubBackupService _backupService;
     private readonly ScheduledTempCleanerService _scheduledTempCleanerService;
     private readonly PackageCollectionService _packageCollectionService;
     private readonly IconService _iconService;
+    private readonly ProfileService _profileService;
 
     // Guardados à parte (em vez de num controle de UI) porque o wallpaper é um arquivo, não um
     // valor editável — ficam aqui até o usuário exportar ou aplicar, e são preenchidos de volta
@@ -64,11 +63,12 @@ public partial class ProvisioningPage : Page
         InitializeComponent();
 
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
-        _cliPresetsService = App.Services.GetRequiredService<CliPresetsService>();
-        _backupService = App.Services.GetRequiredService<GitHubBackupService>();
         _scheduledTempCleanerService = App.Services.GetRequiredService<ScheduledTempCleanerService>();
         _packageCollectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _iconService = App.Services.GetRequiredService<IconService>();
+        _profileService = App.Services.GetRequiredService<ProfileService>();
+        _packageCollectionService.Changed += PackageCollectionChanged;
+        _profileService.ImportValidationChanged += ProfileImportValidationChanged;
 
         CurrentMachineNameText.Text = $"Nome atual: {Environment.MachineName}";
 
@@ -84,13 +84,6 @@ public partial class ProvisioningPage : Page
         _uiLoaded = true;
         RefreshProfileSummary();
         UpdateDesktopPreview();
-
-        // Preenche o gerador de CLI com o perfil/webhook salvos em Configurações → Conta,
-        // se os campos ainda estiverem vazios (nunca sobrescreve o que o usuário já digitou
-        // nesta sessão). Também escuta mudanças salvas em Configurações enquanto esta
-        // página (Singleton) já está aberta.
-        ApplyCliPresetsIfEmpty();
-        _cliPresetsService.Changed += () => Dispatcher.BeginInvoke(ApplyCliPresetsIfEmpty);
 
         _wheelAwareComboBoxes.Add(PowerPlanComboBox);
         _wheelAwareComboBoxes.Add(DisplayTimeoutAcComboBox);
@@ -141,7 +134,6 @@ public partial class ProvisioningPage : Page
         PersonalizationSectionPanel.Visibility = Visibility.Collapsed;
         AdvancedSectionPanel.Visibility = Visibility.Collapsed;
         JsonSectionPanel.Visibility = Visibility.Collapsed;
-        CliSectionPanel.Visibility = Visibility.Collapsed;
         sectionPanel.Visibility = Visibility.Visible;
 
         SectionTitleText.Text = title;
@@ -170,10 +162,16 @@ public partial class ProvisioningPage : Page
 
     private void JsonNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(JsonSectionPanel, "Visualização do JSON");
 
-    private void CliNavCard_Click(object sender, RoutedEventArgs e)
+    private void PackageCollectionChanged()
     {
-        ShowSection(CliSectionPanel, "Gerador de Comando CLI Nativo");
-        UpdateCliCommandPreview();
+        if (_uiLoaded)
+            RefreshProfileSummary();
+    }
+
+    private void ProfileImportValidationChanged()
+    {
+        if (_uiLoaded)
+            Dispatcher.Invoke(() => RefreshProfileSummary());
     }
 
     private void BackToProfileButton_Click(object sender, RoutedEventArgs e) => ShowProfileOverview();
@@ -187,7 +185,7 @@ public partial class ProvisioningPage : Page
     {
         manifest ??= BuildManifestFromUi();
 
-        // Nome/Criador não são forçados aqui de volta pro TextBox — são os próprios TextBox
+        // Nome/Informação OEM não são forçados aqui de volta pro TextBox — são os próprios TextBox
         // (ProfileNameTextBox/ProfileCreatorTextBox) que alimentam o manifesto, então
         // sobrescrever o texto a cada refresh atrapalharia o usuário digitando.
         ProfileCreatedAtText.Text = manifest.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
@@ -243,151 +241,58 @@ public partial class ProvisioningPage : Page
         ChangesListItemsControl.Visibility = friendlyChanges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NoChangesText.Visibility = friendlyChanges.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
 
-        if (warnings.Count == 0)
+        string profileJson = BuildProfileJson(manifest);
+        var jsonValidation = ProfileJsonValidator.Validate(profileJson);
+        if (_profileService.LastImportValidation is { IsValid: false } importValidation)
+            jsonValidation = importValidation;
+
+        if (!jsonValidation.IsValid)
         {
-            ProfileValidIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24;
+            ProfileValidIcon.Glyph = "\uEA39";
+            ProfileValidIcon.Foreground = (System.Windows.Media.Brush)FindResource("SystemFillColorCriticalBrush");
+            ProfileValidText.Text = jsonValidation.Path is { Length: > 0 }
+                ? $"JSON inválido em {jsonValidation.Path}: {jsonValidation.Message}"
+                : jsonValidation.Message;
+        }
+        else if (warnings.Count == 0)
+        {
+            ProfileValidIcon.Glyph = "\uE930";
             ProfileValidIcon.Foreground = (System.Windows.Media.Brush)FindResource("SystemFillColorSuccessBrush");
             ProfileValidText.Text = "Perfil válido";
         }
         else
         {
-            ProfileValidIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.Warning24;
+            ProfileValidIcon.Glyph = "\uEA39";
             ProfileValidIcon.Foreground = (System.Windows.Media.Brush)FindResource("SystemFillColorCautionBrush");
             ProfileValidText.Text = string.Join(" ", warnings);
         }
 
-        JsonPreviewTextBox.Text = BuildProfileJson(manifest);
+        JsonPreviewTextBox.Text = profileJson;
     }
 
-    /// <summary>Mesmo formato gravado por <see cref="ProvisioningService.ExportAsync"/> — um <see cref="ProfileManifest"/> com só a seção de provisionamento preenchida.</summary>
-    private static string BuildProfileJson(ProvisioningManifest manifest)
+    /// <summary>
+    /// Monta o perfil completo em tempo real: todos os aplicativos adicionados às abas
+    /// de pacotes, planos do Office e a configuração de provisionamento atual. O JSON
+    /// segue o mesmo critério da exportação do perfil completo.
+    /// </summary>
+    private string BuildProfileJson(ProvisioningManifest manifest)
     {
-        var profile = new ProfileManifest { Name = manifest.Name, Provisioning = manifest };
-        return JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Default);
+        var packageApps = _packageCollectionService.Tabs
+            .SelectMany(tab => tab.Items)
+            .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+        var profile = _profileService.BuildFromSelection(
+            packageApps,
+            manifest.Name,
+            manifest);
+        return JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Profile);
     }
 
     private void CopyJsonButton_Click(object sender, RoutedEventArgs e)
     {
         Clipboard.SetText(JsonPreviewTextBox.Text);
         StatusText.Text = "JSON copiado para a área de transferência.";
-    }
-
-    private void CliField_Changed(object sender, RoutedEventArgs e) => UpdateCliCommandPreview();
-
-    /// <summary>Remonta o comando de terminal (Row "Comando") a partir do caminho/URL do perfil
-    /// e, se marcadas, das flags /log e /webhook — mesmo formato lido por App.xaml.cs. Sempre
-    /// "/auto": é o único modo de CLI do app (aplica apps/Office/provisionamento — o que
-    /// estiver presente no JSON), então não há mais um seletor de modo pra ler aqui.</summary>
-    private void UpdateCliCommandPreview()
-    {
-        if (CliCommandPreviewTextBox is null) return;
-
-        string path = CliProfilePathTextBox.Text.Trim();
-        if (path.Length == 0)
-        {
-            path = "<caminho-ou-URL-do-perfil.json>";
-        }
-
-        var command = new StringBuilder(".\\WinProvision.Store.exe /auto \"")
-            .Append(path).Append('"');
-
-        if (CliSilentRadioButton?.IsChecked == true)
-        {
-            command.Append(" /silent");
-        }
-
-        if (CliLogCheckBox.IsChecked == true)
-        {
-            string logPath = CliLogPathTextBox.Text.Trim();
-            if (logPath.Length > 0)
-            {
-                command.Append(" /log \"").Append(logPath).Append('"');
-            }
-        }
-
-        if (CliWebhookCheckBox.IsChecked == true)
-        {
-            string webhookUrl = CliWebhookUrlPasswordBox.Password.Trim();
-            if (webhookUrl.Length > 0)
-            {
-                command.Append(" /webhook \"").Append(webhookUrl).Append('"');
-            }
-        }
-
-        CliCommandPreviewTextBox.Text = command.ToString();
-    }
-
-    private void CopyCliCommandButton_Click(object sender, RoutedEventArgs e)
-    {
-        Clipboard.SetText(CliCommandPreviewTextBox.Text);
-        StatusText.Text = "Comando copiado para a área de transferência.";
-    }
-
-    /// <summary>
-    /// Preenche "Caminho ou URL do perfil .json" com a URL "raw" do Gist de backup automático
-    /// da conta conectada (Configurações → Conta) — a mesma sincronização quase em tempo real
-    /// (guias de Pacotes + provisionamento) que já roda sozinha a cada instalação/remoção. Não
-    /// digita nada por conta própria: só busca o link e deixa a pré-visualização do comando
-    /// (<see cref="UpdateCliCommandPreview"/>, disparado pelo TextChanged) atualizar sozinha.
-    /// </summary>
-    private void SyncGistUrlButton_Click(object sender, RoutedEventArgs e)
-    {
-        string? url = _backupService.BackupRawUrl;
-
-        if (url is null)
-        {
-            StatusText.Text = _backupService.IsConnected
-                ? "Ainda não há um backup salvo no Gist desta conta — sincronize ao menos uma vez (Configurações → Backup → \"Sincronizar agora\", ou instale/remova algo) e tente de novo."
-                : "Vincule sua conta GitHub em Configurações → Conta para usar o Gist de backup automático aqui.";
-            return;
-        }
-
-        CliProfilePathTextBox.Text = url;
-        StatusText.Text = "Preenchido com a URL do Gist de backup automático (guias de Pacotes + provisionamento sincronizados quase em tempo real).";
-    }
-
-    /// <summary>Preenche o caminho/URL do perfil e a URL do webhook a partir do que está salvo
-    /// em Configurações → Conta — só nos campos que estiverem vazios agora, pra nunca
-    /// sobrescrever o que o usuário já digitou nesta sessão.</summary>
-    private void ApplyCliPresetsIfEmpty()
-    {
-        if (CliProfilePathTextBox.Text.Trim().Length == 0 && _cliPresetsService.ProfilePathOrUrl is { Length: > 0 } path)
-        {
-            CliProfilePathTextBox.Text = path;
-        }
-
-        if (CliWebhookUrlPasswordBox.Password.Trim().Length == 0 && _cliPresetsService.WebhookUrl is { Length: > 0 } webhook)
-        {
-            CliWebhookCheckBox.IsChecked = true;
-            CliWebhookUrlPasswordBox.Password = webhook;
-        }
-    }
-
-    /// <summary>Lê o caminho/URL do perfil e a URL do webhook preenchidos agora no gerador de
-    /// CLI — usado por Configurações → Conta ("Usar valores da tela de Provisionamento") pra
-    /// copiar sem precisar digitar de novo. Retorna null em cada posição vazia.</summary>
-    internal (string? ProfilePathOrUrl, string? WebhookUrl) GetCurrentCliFieldValues()
-    {
-        string path = CliProfilePathTextBox.Text.Trim();
-        string webhook = CliWebhookCheckBox.IsChecked == true ? CliWebhookUrlPasswordBox.Password.Trim() : string.Empty;
-
-        return (path.Length > 0 ? path : null, webhook.Length > 0 ? webhook : null);
-    }
-
-    /// <summary>Salva o que está preenchido agora como padrão (ver <see cref="CliPresetsService"/>)
-    /// — some volta a aparecer sozinho da próxima vez, tanto aqui quanto em Configurações.</summary>
-    private void SaveCliDefaultsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var (profilePathOrUrl, webhookUrl) = GetCurrentCliFieldValues();
-
-        _cliPresetsService.SaveProfilePathOrUrl(profilePathOrUrl);
-
-        if (webhookUrl is not null)
-        {
-            _cliPresetsService.SaveWebhookUrl(webhookUrl);
-        }
-
-        StatusText.Text = "Perfil/webhook salvos como padrão — vão preencher automaticamente da próxima vez.";
     }
 
     private void OpenFullEditorButton_Click(object sender, RoutedEventArgs e)
@@ -463,10 +368,10 @@ public partial class ProvisioningPage : Page
         var changes = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(ProfileNameTextBox.Text))
-            changes.Add($"Nome do Perfil: {ProfileNameTextBox.Text.Trim()}");
+            changes.Add($"Informação OEM: {ProfileNameTextBox.Text.Trim()}");
 
         if (!string.IsNullOrWhiteSpace(ProfileCreatorTextBox.Text))
-            changes.Add($"Criador: {ProfileCreatorTextBox.Text.Trim()}");
+            changes.Add($"Nome do Perfil: {ProfileCreatorTextBox.Text.Trim()}");
 
         if (GetSelectedContent(ThemeComboBox, "NaoDefinido") is { } theme)
             changes.Add($"Tema: {theme}");
@@ -1381,28 +1286,32 @@ public partial class ProvisioningPage : Page
                 return;
             }
 
-            var summary = new StringBuilder();
-            foreach (var step in result.Steps)
+            int failedSteps = result.Steps.Count(step => !step.Success);
+            if (failedSteps == 0)
             {
-                summary.AppendLine($"{(step.Success ? "✔" : "✘")} {step.Setting}: {step.Message}");
+                StatusText.Text = result.RestartRequired
+                    ? "Tudo certo! As configurações foram aplicadas. Reinicie o Windows para concluir."
+                    : "Tudo certo! As configurações foram aplicadas.";
             }
-
-            if (result.RestartRequired)
+            else
             {
-                summary.AppendLine();
-                summary.Append("Reinicie o Windows para que todos os ajustes tenham efeito.");
+                string failedSettings = string.Join(", ",
+                    result.Steps
+                        .Where(step => !step.Success)
+                        .Select(step => step.Setting));
+                StatusText.Text = failedSteps == 1
+                    ? $"A configuração \"{failedSettings}\" não pôde ser aplicada."
+                    : $"{failedSteps} configurações não puderam ser aplicadas.";
             }
-
-            StatusText.Text = summary.ToString().TrimEnd();
 
             if (manifest.MachineName is not null)
             {
                 CurrentMachineNameText.Text = $"Nome atual: {Environment.MachineName} (nome pendente: {manifest.MachineName})";
             }
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao aplicar: {ex.Message}";
+            StatusText.Text = "Não foi possível aplicar as configurações. Tente novamente.";
         }
         finally
         {

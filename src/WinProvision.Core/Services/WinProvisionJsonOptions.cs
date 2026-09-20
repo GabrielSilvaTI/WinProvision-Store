@@ -23,14 +23,15 @@ namespace WinProvision.Core.Services;
 ///   de <c>SystemThemeMode</c>, tudo fica errado. Como string (<c>"theme": "Escuro"</c>)
 ///   esse risco some. Desserialização ainda aceita tanto o int antigo (compatibilidade
 ///   retroativa) quanto a string nova.</description></item>
-/// <item><description><c>DefaultIgnoreCondition = WhenWritingNull</c>: deixa o JSON
-///   bem mais limpo e compacto (campos "não alterar" = null desaparecem) sem perder
-///   a semântica — o leitor continua interpretando ausência/null como "não mexer".</description></item>
+/// <item><description>Perfis exportados usam <see cref="Profile"/>, que mantém todos os
+///   campos do contrato e escreve <c>null</c> explicitamente. Isso torna perfis completos
+///   e parciais estruturalmente idênticos; caches internos continuam usando <see cref="Default"/>
+///   e podem omitir valores nulos.</description></item>
 /// </list>
 ///
 /// Todas as classes que serializam/desserializam QUALQUER arquivo .json do app —
 /// perfis/manifestos (ProfileService, ProvisioningService, ProfileManifestParser),
-/// backup (GitHubBackupService, LocalBackupService, BackupModels), presets/config
+/// backup (CloudBackupService, LocalBackupService), presets/config
 /// (CliPresetsService, SettingsPage, ProvisioningPage), caches internos
 /// (IconService, PackageMetricsService, IgnoredUpdatesService, StoreService) e o
 /// catálogo gerado pelo pipeline externo (WinProvision.Indexer/CatalogExporter) —
@@ -41,14 +42,21 @@ namespace WinProvision.Core.Services;
 /// </summary>
 public static class WinProvisionJsonOptions
 {
-    /// <summary>Opção usada para GRAVAR arquivos/perfis/json de preview na UI.</summary>
+    /// <summary>Opção usada para gravar caches e configurações internas.</summary>
     public static readonly JsonSerializerOptions Default = Build(indented: true);
 
+    /// <summary>
+    /// Contrato usado por perfis exportados e pelo visualizador JSON.
+    /// Valores nulos são omitidos para manter perfis parciais limpos e legíveis;
+    /// a ausência de um campo continua significando "não alterar".
+    /// </summary>
+    public static readonly JsonSerializerOptions Profile = Build(indented: true, omitNullValues: true);
+
     /// <summary>Variante compacta (sem indentação) — útil para payloads de API pequenos
-    /// (ex.: conta GitHub interna). Não substitui a Default em disco; é só um atalho.</summary>
+    /// (ex.: metadados internos). Não substitui a Default em disco; é só um atalho.</summary>
     public static readonly JsonSerializerOptions Compact = Build(indented: false);
 
-    private static JsonSerializerOptions Build(bool indented)
+    private static JsonSerializerOptions Build(bool indented, bool omitNullValues = true)
     {
         var opts = new JsonSerializerOptions
         {
@@ -57,7 +65,9 @@ public static class WinProvisionJsonOptions
             PropertyNameCaseInsensitive = true,
             AllowTrailingCommas = true,
             ReadCommentHandling = JsonCommentHandling.Skip,
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            DefaultIgnoreCondition = omitNullValues
+                ? JsonIgnoreCondition.WhenWritingNull
+                : JsonIgnoreCondition.Never,
             NumberHandling = JsonNumberHandling.AllowReadingFromString,
         };
 

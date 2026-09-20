@@ -1,4 +1,4 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using Wpf.Ui.Controls;
@@ -12,6 +12,8 @@ public partial class AutoWindow : FluentWindow
     private readonly AutoInstallCliService _cliService;
     private readonly AutoWindowViewModel _viewModel = new();
     private readonly TaskCompletionSource _closedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public int CurrentProgress => (int)_viewModel.GlobalProgress;
 
     public AutoWindow(AutoInstallCliService cliService)
     {

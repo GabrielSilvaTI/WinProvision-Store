@@ -15,7 +15,7 @@ namespace WinProvision.Core.Services;
 /// <item><description><see cref="ProfileBackupSet"/> — "conjunto de backup", com <c>tabs</c> na
 /// raiz (uma entrada por guia de Pacotes). É o formato salvo automaticamente pelo
 /// <see cref="Backup.BackupAutoSyncService"/> (local e no Gist secreto via
-/// <see cref="Backup.GitHubBackupService"/>) — sincronizado quase em tempo real a cada
+/// <see cref="Backup.CloudBackupService"/>) — sincronizado quase em tempo real a cada
 /// instalação/remoção ou ajuste de provisionamento.</description></item>
 /// </list>
 ///
@@ -54,10 +54,10 @@ public static class ProfileManifestParser
 
         if (!looksLikeBackupSet)
         {
-            return JsonSerializer.Deserialize<ProfileManifest>(json, WinProvisionJsonOptions.Default);
+            return JsonSerializer.Deserialize<ProfileManifest>(json, WinProvisionJsonOptions.Profile);
         }
 
-        var backupSet = JsonSerializer.Deserialize<ProfileBackupSet>(json, WinProvisionJsonOptions.Default);
+        var backupSet = JsonSerializer.Deserialize<ProfileBackupSet>(json, WinProvisionJsonOptions.Profile);
         if (backupSet is null)
         {
             return null;

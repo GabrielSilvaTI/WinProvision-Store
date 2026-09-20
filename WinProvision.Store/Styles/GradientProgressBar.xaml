@@ -31,14 +31,14 @@
                     <Grid x:Name="TemplateRoot" SnapsToDevicePixels="True">
 
                         <!-- Trilho de fundo -->
-                        <Border Background="{TemplateBinding Background}" CornerRadius="3" />
+                        <Border Background="{TemplateBinding Background}" CornerRadius="{StaticResource CompactCornerRadius}" />
 
                         <!-- Preenchimento determinado: WPF calcula a largura de PART_Indicator
                              automaticamente a partir de Value/Minimum/Maximum, desde que os
                              nomes PART_Track/PART_Indicator existam no template. -->
-                        <Border x:Name="PART_Track" Background="Transparent" CornerRadius="3" ClipToBounds="True">
+                        <Border x:Name="PART_Track" Background="Transparent" CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True">
                             <Decorator x:Name="PART_Indicator" HorizontalAlignment="Left">
-                                <Border CornerRadius="3" ClipToBounds="True" MinWidth="6">
+                                <Border CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True" MinWidth="6">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                             <GradientStop Color="{StaticResource GradientProgressColorA}" Offset="0.0" />
@@ -54,7 +54,7 @@
                         </Border>
 
                         <!-- Faixa deslizante para o modo indeterminado -->
-                        <Border x:Name="IndeterminateRoot" CornerRadius="3" ClipToBounds="True" Visibility="Collapsed">
+                        <Border x:Name="IndeterminateRoot" CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True" Visibility="Collapsed">
                             <Rectangle x:Name="PART_GlowRect" Width="140" HorizontalAlignment="Left">
                                 <Rectangle.Fill>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">

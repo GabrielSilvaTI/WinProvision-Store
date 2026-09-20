@@ -106,6 +106,16 @@ public static class OfficeConfigXmlBuilder
         var display = BuildDisplayElement(request.DisplayLevel, acceptEula: true);
         var configuration = new XElement("Configuration", remove, display);
 
+        // Adiciona RemoveMSI se solicitado - isso remove instalações MSI do Office
+        // que não são removidas pelo método padrão do ODT
+        if (request.UseRemoveMSI)
+        {
+            var removeMsi = new XElement("RemoveMSI",
+                new XAttribute("All", "TRUE"),
+                new XAttribute("IgnoreProduct", "FALSE"));
+            configuration.Add(removeMsi);
+        }
+
         return new XDocument(new XDeclaration("1.0", "utf-8", null), configuration);
     }
 

@@ -115,7 +115,45 @@ public class IconService
             return icon;
         }
 
+        // Apps "msstore" (ver AppEntry.Source) não passam pelo pipeline de captura de
+        // ícone do winget-pkgs, então nunca estarão no manifesto do R2 — usa o ícone
+        // que a própria Microsoft Store forneceu (ver MsStoreCatalogService) antes de
+        // cair no genérico.
+        if (!string.IsNullOrWhiteSpace(app.StoreIconUrl))
+        {
+            return app.StoreIconUrl;
+        }
+
         return DefaultIconPackUri;
+    }
+
+    /// <summary>
+    /// Mesma resolução de <see cref="ResolveIconUrl(AppEntry)"/>, mas recebendo só o
+    /// PackageIdentifier (winget Id) — usado por quem não tem (ou não quer montar) um
+    /// AppEntry completo, ex.: fallback de ícone dos Pacotes Instalados.
+    /// </summary>
+    public string ResolveIconUrl(string id)
+    {
+        string normalizedId = id.Trim().ToLowerInvariant();
+        if (normalizedId.Length > 0 && _iconManifest.TryGetValue(normalizedId, out var icon))
+        {
+            return icon;
+        }
+
+        return DefaultIconPackUri;
+    }
+
+    /// <summary>
+    /// Como <see cref="ResolveIconUrl(string)"/>, mas retorna null em vez do ícone
+    /// genérico quando o Id não está no manifesto do R2 — para quem ainda tem outro
+    /// fallback próprio (local) a tentar antes de cair no genérico.
+    /// </summary>
+    public string? TryResolveIconUrl(string id)
+    {
+        string normalizedId = id.Trim().ToLowerInvariant();
+        return normalizedId.Length > 0 && _iconManifest.TryGetValue(normalizedId, out var icon)
+            ? icon
+            : null;
     }
 
     /// <summary>

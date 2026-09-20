@@ -65,8 +65,8 @@ public partial class PackagesPage : Page
         int selected = active.Items.Count(a => a.IsSelectedForInstall);
         SelectionSummaryText.Text = $"{active.Items.Count} pacote(s) · {selected} selecionado(s)";
         StatusText.Text = active.Items.Count == 0
-            ? $"[{active.Title}] Perfil vazio."
-            : $"[{active.Title}] {active.Items.Count} aplicativo(s).";
+            ? $"{active.Title} vazio."
+            : $"{active.Title} · {active.Items.Count} aplicativo(s).";
 
         if (ToggleSelectAllButton != null)
         {
@@ -120,16 +120,22 @@ public partial class PackagesPage : Page
         UpdateStatus();
     }
 
-    private void CloseTabButton_Click(object sender, RoutedEventArgs e)
+    private async void CloseTabButton_Click(object sender, RoutedEventArgs e)
     {
         var tab = _collectionService.ActiveTab;
         if (tab is null || tab.IsDefault) return;
 
-        var result = MessageBox.Show(
-            $"Excluir o perfil '{tab.Title}'? Os aplicativos desta guia serão removidos da coleção, mas nenhum aplicativo será desinstalado do Windows.",
-            "Excluir perfil", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        var confirmDialog = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "Excluir perfil",
+            Content = $"Excluir o perfil '{tab.Title}'? Os aplicativos desta guia serão removidos da coleção, mas nenhum aplicativo será desinstalado do Windows.",
+            PrimaryButtonText = "Excluir",
+            CloseButtonText = "Cancelar"
+        };
 
-        if (result != MessageBoxResult.Yes) return;
+        var result = await confirmDialog.ShowDialogAsync();
+
+        if (result != Wpf.Ui.Controls.MessageBoxResult.Primary) return;
 
         _collectionService.CloseTab(tab);
         ProfileTabControl.SelectedItem = _collectionService.ActiveTab;
@@ -408,7 +414,7 @@ public partial class PackagesPage : Page
     {
         try
         {
-            var result = await OperationRunner.RunInstallAsync(_queue, _wingetExecutor, app.Id, app.Name, app.IconUrl);
+            var result = await OperationRunner.RunInstallAsync(_queue, _wingetExecutor, app.Id, app.Name, app.IconUrl, source: app.Source);
             return result.Success;
         }
         catch

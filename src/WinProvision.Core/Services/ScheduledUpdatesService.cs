@@ -5,12 +5,14 @@ namespace WinProvision.Core.Services;
 
 public sealed class ScheduledUpdatesService
 {
-    private const string TaskName = @"WinProvisionStore\AutoUpdate";
+    private const string TaskName = "AutoUpdate";
+    private const string TaskPath = @"\WinProvisionStore\";
+    private const string TaskFullName = @"\WinProvisionStore\AutoUpdate";
     private const string WingetArguments = "upgrade --all --accept-source-agreements --accept-package-agreements --silent --disable-interactivity";
 
     public async Task<bool> IsEnabledAsync(CancellationToken cancellationToken = default)
     {
-        var result = await RunSchtasksAsync($"/query /tn \"{TaskName}\"", cancellationToken);
+        var result = await RunSchtasksAsync($"/query /tn \"{TaskFullName}\"", cancellationToken);
         return result.Success;
     }
 
@@ -22,21 +24,33 @@ public sealed class ScheduledUpdatesService
         // Com -EncodedCommand (Base64 UTF-16LE), o argumento passado ao ElevatedProcessRunner
         // não contém nenhuma aspa — o script PS completo vai codificado.
         //
-        // O script registra a tarefa para rodar powershell.exe em segundo plano ao logon,
-        // executando winget silenciosamente sem abrir nenhuma janela.
+        // A tarefa usa wscript.exe em vez de iniciar powershell.exe diretamente no logon.
+        // Isso evita que o host do PowerShell pisque ou abra uma janela de console; o
+        // wrapper WScript executa o winget com janela 0 (oculta) e aguarda em silêncio.
         string psScript = string.Join("\n", [
             "$ErrorActionPreference = 'Stop'",
-            $"$action   = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-WindowStyle Hidden -NonInteractive -Command \"winget {WingetArguments}\"'",
+            "$ProgressPreference = 'SilentlyContinue'",
+            "$WarningPreference = 'SilentlyContinue'",
+            "$taskDirectory = Join-Path $env:ProgramData 'WinProvisionStore'",
+            "$scriptPath = Join-Path $taskDirectory 'AutoUpdate.vbs'",
+            "New-Item -ItemType Directory -Path $taskDirectory -Force | Out-Null",
+            $"$vbs = @'\r\nSet shell = CreateObject(\"WScript.Shell\")\r\nshell.Run \"winget {WingetArguments}\", 0, True\r\n'@",
+            "[IO.File]::WriteAllText($scriptPath, $vbs, [Text.Encoding]::ASCII)",
+            "$action   = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('//B //Nologo \"' + $scriptPath + '\"')",
             "$trigger   = New-ScheduledTaskTrigger -AtLogOn",
             "$settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew",
             "$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest",
-            $"Register-ScheduledTask -TaskName '{TaskName}' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null",
+            "$service = New-Object -ComObject Schedule.Service",
+            "$service.Connect()",
+            "$root = $service.GetFolder('\\')",
+            "try { $root.GetFolder('\\WinProvisionStore') | Out-Null } catch { $root.CreateFolder('WinProvisionStore', $null) | Out-Null }",
+            $"Register-ScheduledTask -TaskName '{TaskName}' -TaskPath '{TaskPath}' -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null",
         ]);
 
         string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(psScript));
         return await ElevatedProcessRunner.RunElevatedAsync(
             "powershell.exe",
-            $"-WindowStyle Hidden -NonInteractive -EncodedCommand {encoded}",
+            $"-NoProfile -WindowStyle Hidden -NonInteractive -EncodedCommand {encoded}",
             cancellationToken);
     }
 
@@ -44,13 +58,18 @@ public sealed class ScheduledUpdatesService
     {
         string psScript = string.Join("\n", [
             "$ErrorActionPreference = 'Stop'",
-            $"Unregister-ScheduledTask -TaskName '{TaskName}' -Confirm:$false",
+            "$ProgressPreference = 'SilentlyContinue'",
+            "$WarningPreference = 'SilentlyContinue'",
+            $"$task = Get-ScheduledTask -TaskName '{TaskName}' -TaskPath '{TaskPath}' -ErrorAction SilentlyContinue",
+            "if ($null -ne $task) { Unregister-ScheduledTask -InputObject $task -Confirm:$false -ErrorAction Stop | Out-Null }",
+            "$scriptPath = Join-Path $env:ProgramData 'WinProvisionStore\\AutoUpdate.vbs'",
+            "Remove-Item -LiteralPath $scriptPath -Force -ErrorAction SilentlyContinue | Out-Null",
         ]);
 
         string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(psScript));
         return await ElevatedProcessRunner.RunElevatedAsync(
             "powershell.exe",
-            $"-WindowStyle Hidden -NonInteractive -EncodedCommand {encoded}",
+            $"-NoProfile -WindowStyle Hidden -NonInteractive -EncodedCommand {encoded}",
             cancellationToken);
     }
 

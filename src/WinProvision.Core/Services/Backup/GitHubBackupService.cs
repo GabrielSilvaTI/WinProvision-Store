@@ -28,14 +28,15 @@ namespace WinProvision.Core.Services.Backup;
 public class GitHubBackupService
 {
     private const string ApiBase = "https://api.github.com";
-    private const string BackupFileName = "winprovision-profile.json";
+    private const string BackupFileName = "profile.json";
+    private const string LegacyBackupFileName = "winprovision-profile.json";
     private const string GistDescription = "WinProvision Store — backup automático de perfil (não editar manualmente)";
 
     // Mesmas opções usadas em todo o resto do app (ProfileService/ProvisioningService) — um
     // arquivo salvo por um lado sempre bate com o que o outro espera ao ler de volta.
     // (Anteriormente este serviço tinha sua própria referência a ManifestJsonOptions —
     //  agora usa a WinProvisionJsonOptions centralizada.)
-    private static readonly JsonSerializerOptions ManifestJsonOptions = WinProvisionJsonOptions.Default;
+    private static readonly JsonSerializerOptions ManifestJsonOptions = WinProvisionJsonOptions.Profile;
 
     private readonly HttpClient _http;
     private readonly string _accountInfoPath;
@@ -69,24 +70,58 @@ public class GitHubBackupService
 
     public string? ConnectedLogin => _account.Login;
 
+    public string? ConnectedAvatarUrl => _account.AvatarUrl
+        ?? (!string.IsNullOrEmpty(_account.Login) ? $"https://github.com/{_account.Login}.png" : null);
+
+    public string? ConnectedGistId => _account.GistId;
+
     public DateTime? LastSyncUtc => _account.LastSyncUtc;
 
     /// <summary>
-    /// URL "raw" pública e estável do Gist de backup automático — o mesmo arquivo (<see cref="ProfileBackupSet"/>)
-    /// que <see cref="UploadProfileAsync"/> mantém atualizado quase em tempo real a cada
-    /// instalação/remoção ou ajuste de provisionamento. Não exige token pra ler: mesmo o Gist
-    /// sendo criado como "secreto" (não listado no perfil público da conta), quem tiver o link
-    /// exato consegue baixar o conteúdo — é assim que o GitHub trata Gists secretos. Null se a
-    /// conta não estiver conectada ou se nenhum Gist tiver sido criado ainda nesta conta
-    /// (primeiro <see cref="UploadProfileAsync"/> bem-sucedido ainda não rodou). Usado pelo botão
-    /// "Sincronizar" do gerador de comando CLI (tela Provisionamento) — desde que
-    /// <see cref="ProfileManifestParser"/> trate esse formato como equivalente a um perfil único,
-    /// esta URL serve tanto para <c>/auto</c> quanto para <c>/Provision</c>.
+    /// URL "raw" estática e reentrante do Gist de backup automático (<see cref="ProfileBackupSet"/>).
+    /// Sem hash do commit — sempre aponta diretamente para a versão mais recente do arquivo no container:
+    /// https://gist.githubusercontent.com/{usuario}/{GistID}/raw/profile.json
+    /// Usada pelo app e pelo comando CLI /auto.
     /// </summary>
     public string? BackupRawUrl =>
         IsConnected && !string.IsNullOrEmpty(_account.GistId) && !string.IsNullOrEmpty(_account.Login)
-            ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.GistId}/raw"
+            ? $"https://gist.githubusercontent.com/{_account.Login}/{_account.GistId}/raw/profile.json"
             : null;
+
+    [SupportedOSPlatform("windows")]
+    private static void SaveGistIdToRegistry(string? gistId)
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\WinProvision");
+            if (string.IsNullOrEmpty(gistId))
+            {
+                key?.DeleteValue("GistId", throwOnMissingValue: false);
+            }
+            else
+            {
+                key?.SetValue("GistId", gistId, Microsoft.Win32.RegistryValueKind.String);
+            }
+        }
+        catch
+        {
+            // Melhor esforço — permissão restrita ou ambiente sem registro
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static string? LoadGistIdFromRegistry()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\WinProvision");
+            return key?.GetValue("GistId") as string;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     /// <summary>Carrega token (se existir e for descriptografável) e metadados salvos, sem chamar a rede.</summary>
     [SupportedOSPlatform("windows")]
@@ -103,6 +138,11 @@ public class GitHubBackupService
             {
                 _account = new BackupAccountInfo();
             }
+        }
+
+        if (OperatingSystem.IsWindows() && string.IsNullOrEmpty(_account.GistId))
+        {
+            _account.GistId = LoadGistIdFromRegistry();
         }
 
         string? token = SecureTokenStore.TryLoad(_tokenPath);
@@ -171,7 +211,9 @@ public class GitHubBackupService
         SecureTokenStore.Save(_tokenPath, token);
 
         _account.Login = user.Login;
-        _account.GistId = await TryFindGistIdAsync(GistDescription, BackupFileName, ct) ?? _account.GistId;
+        _account.AvatarUrl = user.AvatarUrl;
+        _account.GistId ??= LoadGistIdFromRegistry();
+        _account.GistId ??= await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
         PersistAccountInfo();
 
         return GitHubConnectResult.Ok(user.Login);
@@ -186,6 +228,7 @@ public class GitHubBackupService
             try { File.Delete(_accountInfoPath); } catch (IOException) { /* melhor esforço */ }
         }
 
+        SaveGistIdToRegistry(null);
         _account = new BackupAccountInfo();
         _http.DefaultRequestHeaders.Authorization = null;
     }
@@ -203,15 +246,23 @@ public class GitHubBackupService
 
             if (string.IsNullOrEmpty(_account.GistId))
             {
-                // O ID é a identidade permanente do Gist. Sempre tenta reencontrar o
-                // backup antes de criar outro, inclusive após limpar o estado local.
-                _account.GistId = await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
+                // Consulta a API ou chave de perfil para encontrar o Gist existente antes de criar um novo.
+                _account.GistId = LoadGistIdFromRegistry()
+                    ?? await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
             }
 
             bool success = await UpsertGistAsync(
                 BackupFileName, GistDescription, _account.GistId, json,
-                onIdChanged: id => _account.GistId = id,
-                onRecreateNeeded: () => _account.GistId = null,
+                onIdChanged: id =>
+                {
+                    _account.GistId = id;
+                    SaveGistIdToRegistry(id);
+                },
+                onRecreateNeeded: () =>
+                {
+                    _account.GistId = null;
+                    SaveGistIdToRegistry(null);
+                },
                 ct);
 
             if (!success)
@@ -244,6 +295,7 @@ public class GitHubBackupService
         // Perfil pode ter sido criado por outra instalação do app (outra máquina) que
         // nunca sincronizou por aqui — sempre reconfirma o GistId em vez de confiar só
         // no cache local, que pode estar vazio ou desatualizado.
+        _account.GistId ??= LoadGistIdFromRegistry();
         _account.GistId ??= await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
         if (string.IsNullOrEmpty(_account.GistId))
             return null;
@@ -255,7 +307,8 @@ public class GitHubBackupService
                 return null;
 
             var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
-            string? content = gist?.Files?.GetValueOrDefault(BackupFileName)?.Content;
+            string? content = gist?.Files?.GetValueOrDefault(BackupFileName)?.Content
+                ?? gist?.Files?.GetValueOrDefault(LegacyBackupFileName)?.Content;
             if (string.IsNullOrEmpty(content))
                 return null;
 
@@ -274,7 +327,7 @@ public class GitHubBackupService
 
     // Helper genérico para localizar e atualizar o Gist de backup do perfil.
 
-    /// <summary>Varre todos os gists da conta procurando um com a descrição ou o nome de arquivo dados.</summary>
+    /// <summary>Varre todos os gists da conta procurando um com o arquivo profile.json ou a descrição.</summary>
     private async Task<string?> TryFindGistIdAsync(string description, string fileName, CancellationToken ct)
     {
         try
@@ -290,8 +343,9 @@ public class GitHubBackupService
                     return null;
 
                 var match = gists.FirstOrDefault(g =>
-                    string.Equals(g.Description, description, StringComparison.Ordinal) ||
-                    (g.Files != null && g.Files.ContainsKey(fileName)));
+                    (g.Files != null && g.Files.ContainsKey(fileName)) ||
+                    (g.Files != null && g.Files.ContainsKey(LegacyBackupFileName)) ||
+                    string.Equals(g.Description, description, StringComparison.Ordinal));
 
                 if (match?.Id is not null)
                     return match.Id;
@@ -392,12 +446,20 @@ public class GitHubBackupService
         using var stream = new FileStream(_accountInfoPath, FileMode.Create, FileAccess.Write, FileShare.Read);
         stream.Write(bytes, 0, bytes.Length);
         stream.Flush();
+
+        if (OperatingSystem.IsWindows() && !string.IsNullOrEmpty(_account.GistId))
+        {
+            SaveGistIdToRegistry(_account.GistId);
+        }
     }
 
     private class GitHubUserResponse
     {
         [JsonPropertyName("login")]
         public string? Login { get; set; }
+
+        [JsonPropertyName("avatar_url")]
+        public string? AvatarUrl { get; set; }
     }
 
     private class GitHubGistResponse

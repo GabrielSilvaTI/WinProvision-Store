@@ -78,10 +78,16 @@ internal static class NativeConsole
 
         _attached = true;
 
-        var stdout = new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+        try
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+        }
+        catch { }
+
+        var stdout = new StreamWriter(Console.OpenStandardOutput(), System.Text.Encoding.UTF8) { AutoFlush = true };
         Console.SetOut(stdout);
 
-        var stderr = new StreamWriter(Console.OpenStandardError()) { AutoFlush = true };
+        var stderr = new StreamWriter(Console.OpenStandardError(), System.Text.Encoding.UTF8) { AutoFlush = true };
         Console.SetError(stderr);
     }
 

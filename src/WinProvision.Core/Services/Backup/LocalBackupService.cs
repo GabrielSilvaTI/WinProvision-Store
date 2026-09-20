@@ -12,7 +12,7 @@ namespace WinProvision.Core.Services.Backup;
 /// Backup local do perfil de seleção — cobre TODAS as guias abertas (ver
 /// <see cref="ProfileBackupSet"/>), não só a ativa —, gravado em disco
 /// independentemente de o usuário estar conectado ao GitHub — login é opcional (ver
-/// <see cref="GitHubBackupService"/>), mas o backup local sempre acontece, tanto pela
+/// <see cref="CloudBackupService"/>), mas o backup local sempre acontece, tanto pela
 /// rotina automática (<see cref="BackupAutoSyncService"/>) quanto pelo botão
 /// "Sincronizar agora" da tela de Configurações.
 ///
@@ -57,7 +57,7 @@ public class LocalBackupService
         {
             Directory.CreateDirectory(_backupDir);
 
-            string json = JsonSerializer.Serialize(backupSet, WinProvisionJsonOptions.Default);
+            string json = JsonSerializer.Serialize(backupSet, WinProvisionJsonOptions.Profile);
             await WriteAllTextUtf8NoBomAsync(_latestPath, json, ct);
 
             string snapshotPath = Path.Combine(_backupDir, $"profile-{DateTime.UtcNow:yyyyMMdd-HHmmss}.json");
@@ -80,7 +80,7 @@ public class LocalBackupService
         try
         {
             string json = await File.ReadAllTextAsync(_latestPath, ct);
-            return JsonSerializer.Deserialize<ProfileBackupSet>(json, WinProvisionJsonOptions.Default);
+            return JsonSerializer.Deserialize<ProfileBackupSet>(json, WinProvisionJsonOptions.Profile);
         }
         catch (JsonException)
         {

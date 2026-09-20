@@ -27,7 +27,7 @@ namespace WinProvision.Core.Services.Backup;
 /// dispara 15 eventos em sequência rápida; sem agrupar isso, seriam 15 escritas em
 /// disco e 15 chamadas à API do Gist para o mesmo resultado final. Só o backup local
 /// é obrigatório (não depende de login); o de nuvem só roda se
-/// <see cref="GitHubBackupService.IsConnected"/> — login continua 100% opcional.
+/// A sincronização local continua independente de qualquer conta externa.
 ///
 /// Registrado como singleton e resolvido ansiosamente uma vez no startup (ver
 /// App.xaml.cs) só para o construtor rodar e a assinatura dos eventos acontecer — a
@@ -98,7 +98,9 @@ public class BackupAutoSyncService : IDisposable
             await _localBackup.SaveAsync(backupSet, ct);
 
             if (_cloudBackup.IsConnected)
+            {
                 await _cloudBackup.UploadProfileAsync(backupSet, ct);
+            }
         }
         catch (Exception)
         {

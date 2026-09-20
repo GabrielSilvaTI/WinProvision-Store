@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using Microsoft.Win32;
 using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
@@ -27,6 +29,7 @@ public partial class AppDetailsOverlay : UserControl
     private readonly OperationsQueueService _queueService;
     private readonly InstalledAppsService _installedAppsService;
     private AppEntry? _app;
+    private string? _installLocation;
 
     public AppDetailsOverlay(AppDetailsOverlayService overlayService, PackageCollectionService collectionService,
         WingetExecutor wingetExecutor, OperationsQueueService queueService,
@@ -69,11 +72,21 @@ public partial class AppDetailsOverlay : UserControl
         SetupLinkButtons();
 
         StatusText.Text = string.Empty;
+        _installLocation = null;
+        SelectLocationButton.ToolTip = "Usar um local de instalação personalizado";
+        ClearLocationButton.Visibility = Visibility.Collapsed;
 
         _app.PropertyChanged += AppOnPropertyChanged;
         UpdateInstallActionsVisibility();
 
+        Scrim.BeginAnimation(UIElement.OpacityProperty, null);
+        Card.BeginAnimation(UIElement.OpacityProperty, null);
+        CardTransform.BeginAnimation(TranslateTransform.YProperty, null);
+        Scrim.Opacity = 0;
+        Card.Opacity = 0;
+        CardTransform.Y = 12;
         Visibility = Visibility.Visible;
+        AnimateIn();
         Focus();
     }
 
@@ -85,7 +98,48 @@ public partial class AppDetailsOverlay : UserControl
             _app = null;
         }
 
-        Visibility = Visibility.Collapsed;
+        AnimateOut();
+    }
+
+    private void AnimateIn()
+    {
+        var easing = new QuadraticEase { EasingMode = EasingMode.EaseOut };
+        Scrim.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(160))
+        {
+            EasingFunction = easing
+        });
+        Card.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(190))
+        {
+            EasingFunction = easing
+        });
+        CardTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = easing
+        });
+    }
+
+    private void AnimateOut()
+    {
+        var easing = new QuadraticEase { EasingMode = EasingMode.EaseIn };
+        var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(130))
+        {
+            EasingFunction = easing
+        };
+        fadeOut.Completed += (_, _) =>
+        {
+            Visibility = Visibility.Collapsed;
+            CardTransform.Y = 12;
+        };
+
+        Scrim.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(130))
+        {
+            EasingFunction = easing
+        });
+        Card.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        CardTransform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, 12, TimeSpan.FromMilliseconds(150))
+        {
+            EasingFunction = easing
+        });
     }
 
     private void AppDetailsOverlay_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -265,7 +319,8 @@ public partial class AppDetailsOverlay : UserControl
         try
         {
             var result = await OperationRunner.RunInstallAsync(
-                _queueService, _wingetExecutor, app.Id, app.Name, app.IconUrl, _installedAppsService);
+                _queueService, _wingetExecutor, app.Id, app.Name, app.IconUrl, _installedAppsService,
+                _installLocation, app.Source);
 
             if (result.Success)
             {
@@ -278,6 +333,7 @@ public partial class AppDetailsOverlay : UserControl
                     StatusText.Text = $"{app.Name} instalado.";
                 }
             }
+
             else if (_app == app)
             {
                 StatusText.Text = WingetErrorTranslator.ToMessage(result.FailureReason, "instalar", app.Name);
@@ -294,6 +350,31 @@ public partial class AppDetailsOverlay : UserControl
         {
             InstallButton.IsEnabled = true;
         }
+    }
+
+    private void SelectLocationButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Escolha o local de instalação",
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.FolderName))
+        {
+            return;
+        }
+
+        _installLocation = dialog.FolderName;
+        SelectLocationButton.ToolTip = _installLocation;
+        ClearLocationButton.Visibility = Visibility.Visible;
+    }
+
+    private void ClearLocationButton_Click(object sender, RoutedEventArgs e)
+    {
+        _installLocation = null;
+        SelectLocationButton.ToolTip = "Usar um local de instalação personalizado";
+        ClearLocationButton.Visibility = Visibility.Collapsed;
     }
 
     private async void UninstallButton_Click(object sender, RoutedEventArgs e)

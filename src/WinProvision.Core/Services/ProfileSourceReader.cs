@@ -43,7 +43,7 @@ public static class ProfileSourceReader
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
     /// <summary>
-    /// Acrescenta um cache-buster "?ts=&lt;unix-millis&gt;" (ou "&amp;ts=..." se a URL já tiver
+    /// Acrescenta um cache-buster "?t=&lt;unix-seconds&gt;" (ou "&amp;t=..." se a URL já tiver
     /// query string) à URL informada. Usado por <see cref="ReadTextAsync"/> antes de baixar o
     /// perfil. Retorna a URL sem alteração se não for uma URL absoluta válida.
     /// </summary>
@@ -53,8 +53,8 @@ public static class ProfileSourceReader
             return url;
 
         string sep = string.IsNullOrEmpty(uri.Query) ? "?" : "&";
-        long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        return $"{url}{sep}ts={ts}";
+        long t = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        return $"{url}{sep}t={t}";
     }
 
     /// <summary>

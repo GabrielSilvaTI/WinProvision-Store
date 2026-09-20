@@ -52,12 +52,17 @@
 
         <!-- Cartão "Mica-Friendly" -->
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Padding" Value="24" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="{StaticResource Spacing24}" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{StaticResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Ações Rápidas: Botões em Grade (Ícone em cima, texto embaixo) -->
@@ -66,7 +71,7 @@
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="VerticalAlignment" Value="Stretch" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
         </Style>
@@ -84,7 +89,7 @@
                     <ControlTemplate TargetType="ToggleButton">
                         <!-- CornerRadius aplicado diretamente no Border para evitar erros -->
                         <Border x:Name="ToggleRoot"
-                                CornerRadius="8"
+                                CornerRadius="{StaticResource OverlayCornerRadius}"
                                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                 BorderThickness="1">
@@ -136,7 +141,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="{StaticResource OverlayCornerRadius}"
                                 Padding="12">
                             <Grid>
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -182,9 +187,7 @@
 
         <!-- ================= Cabeçalho ================= -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,24">
-            <Border Width="48" Height="48" Margin="0,0,16,0" CornerRadius="10" ClipToBounds="True" VerticalAlignment="Center" Background="{StaticResource AppSurfaceElevatedBrush}" Padding="6">
-                <Image conv:AsyncImage.SourceUrl="https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png" Stretch="Uniform" />
-            </Border>
+            <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xEFDA;" />
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Office" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="Instale, repare, atualize ou remova o Office desta máquina." FontFamily="Segoe UI Variable Text" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0" />
@@ -305,7 +308,8 @@
                                 </StackPanel>
                             </Grid>
 
-                            <Expander Header="Opções avançadas" Margin="0,24,0,0" FontFamily="Segoe UI Variable Text">
+                            <Expander Header="Opções avançadas" Margin="0,24,0,0" FontFamily="Segoe UI Variable Text"
+                                      Style="{StaticResource SmoothExpanderStyle}">
                                 <StackPanel Margin="0,12,0,0">
                                     <TextBlock Text="Idiomas adicionais no mesmo produto" Style="{StaticResource FieldLabelStyle}" />
                                     <WrapPanel Margin="0,0,0,16">
@@ -346,7 +350,7 @@
                                 <TextBlock Text="Instalados" Style="{StaticResource CardTitleStyle}" />
                                 <TextBlock x:Name="InstalledSummaryText" Text="Status da máquina atual" Style="{StaticResource CardSubtitleStyle}" Margin="0,2,0,0" />
                             </StackPanel>
-                            <ui:Button Grid.Column="1" Appearance="Transparent" Padding="8" Click="RefreshInstalledButton_Click" ToolTip="Recarregar" CornerRadius="6" VerticalAlignment="Center">
+                            <ui:Button Grid.Column="1" Appearance="Transparent" Padding="8" Click="RefreshInstalledButton_Click" ToolTip="Recarregar" CornerRadius="{StaticResource ControlCornerRadius}" VerticalAlignment="Center">
                                 <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="18" />
                             </ui:Button>
                         </Grid>
@@ -452,7 +456,7 @@
 
         <!-- ================= Rodapé (Status) ================= -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="4,8,0,0">
-            <ui:SymbolIcon Symbol="Info24" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" FontSize="18" Margin="0,0,10,0" VerticalAlignment="Center" />
+            <ui:SymbolIcon Symbol="Info24" Foreground="{DynamicResource TextFillColorPrimaryBrush}" FontSize="18" Margin="0,0,10,0" VerticalAlignment="Center" />
             <TextBlock x:Name="StatusText" Text="Pronto. Selecione a configuração desejada e inicie a operação."
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontFamily="Segoe UI Variable Text" VerticalAlignment="Center" />
         </StackPanel>

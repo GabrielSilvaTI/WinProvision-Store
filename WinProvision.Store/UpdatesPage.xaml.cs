@@ -5,6 +5,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Services;
@@ -22,7 +24,6 @@ public partial class UpdatesPage : Page
 
     private readonly ObservableCollection<UpgradablePackage> _packages = new();
 
-    private bool _suppressSelectionSync;
     private bool _suppressAutoUpdateToggleEvent;
 
     public UpdatesPage()
@@ -37,6 +38,8 @@ public partial class UpdatesPage : Page
         _detailsOverlayService = App.Services.GetRequiredService<AppDetailsOverlayService>();
 
         UpdatesList.ItemsSource = _packages;
+        UpdatesListView.ItemsSource = _packages;
+        SetViewMode(list: false);
 
         Loaded += async (_, _) =>
         {
@@ -75,8 +78,7 @@ public partial class UpdatesPage : Page
             _suppressAutoUpdateToggleEvent = true;
             AutoUpdateToggle.IsChecked = false;
             _suppressAutoUpdateToggleEvent = false;
-            string detail = string.IsNullOrWhiteSpace(result.Output) ? "(sem saída)" : result.Output.Trim();
-            StatusText.Text = $"Falha ao ativar (código {result.ExitCode}): {detail}";
+            StatusText.Text = FormatScheduledTaskFailure("ativar", result);
         }
         else
         {
@@ -98,7 +100,7 @@ public partial class UpdatesPage : Page
             _suppressAutoUpdateToggleEvent = true;
             AutoUpdateToggle.IsChecked = true;
             _suppressAutoUpdateToggleEvent = false;
-            StatusText.Text = "Falha ao desativar atualizações automáticas (UAC recusado ou erro).";
+            StatusText.Text = FormatScheduledTaskFailure("desativar", result);
         }
         else
         {
@@ -108,11 +110,41 @@ public partial class UpdatesPage : Page
         AutoUpdateToggle.IsEnabled = true;
     }
 
+    private static string FormatScheduledTaskFailure(string action, WingetExecutionResult result)
+    {
+        if (result.FailureReason == WingetFailureReason.ElevationCanceled)
+            return $"Falha ao {action}: elevação (UAC) recusada.";
+
+        string detail = string.IsNullOrWhiteSpace(result.Output)
+            ? $"código {result.ExitCode}"
+            : result.Output.Trim().Replace(Environment.NewLine, " ");
+        return $"Falha ao {action}: {detail}";
+    }
+
     // ----------------------------------------------------------------
     // Verificar atualizações (winget upgrade)
     // ----------------------------------------------------------------
 
     private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e) => await CheckUpdatesAsync();
+
+    private void GridViewToggleButton_Click(object sender, RoutedEventArgs e) => SetViewMode(list: false);
+
+    private void ListViewToggleButton_Click(object sender, RoutedEventArgs e) => SetViewMode(list: true);
+
+    private void SetViewMode(bool list)
+    {
+        GridViewScrollViewer.Visibility = list ? Visibility.Collapsed : Visibility.Visible;
+        ListViewScrollViewer.Visibility = list ? Visibility.Visible : Visibility.Collapsed;
+        GridViewToggleButton.IsChecked = !list;
+        ListViewToggleButton.IsChecked = list;
+
+        Brush accent = TryFindResource("SystemAccentColorPrimaryBrush") as Brush ?? SystemColors.HighlightBrush;
+        Brush primaryText = TryFindResource("TextFillColorPrimaryBrush") as Brush ?? SystemColors.ControlTextBrush;
+        GridViewToggleButton.Background = !list ? accent : Brushes.Transparent;
+        ListViewToggleButton.Background = list ? accent : Brushes.Transparent;
+        GridViewToggleButton.Foreground = !list ? Brushes.White : primaryText;
+        ListViewToggleButton.Foreground = list ? Brushes.White : primaryText;
+    }
 
     private async Task CheckUpdatesAsync()
     {
@@ -150,7 +182,7 @@ public partial class UpdatesPage : Page
 
             StatusText.Text = _packages.Count == 0
                 ? "Nenhuma atualização disponível. Tudo em dia."
-                : $"{_packages.Count} atualização(ões) disponível(is).";
+                : FormatAvailableUpdatesMessage(_packages.Count);
         }
         catch (Exception ex)
         {
@@ -159,19 +191,56 @@ public partial class UpdatesPage : Page
         finally
         {
             CheckUpdatesButton.IsEnabled = true;
+            UpdateSelectedButton.IsEnabled = true;
             BusyIndicator.Visibility = Visibility.Collapsed;
             SyncSelectAllCheckBoxState();
         }
+    }
+
+    private static string FormatAvailableUpdatesMessage(int count)
+    {
+        return count == 1
+            ? "Há 1 atualização disponível."
+            : $"Há {count} atualizações disponíveis.";
     }
 
     // ----------------------------------------------------------------
     // Seleção (checkbox por item + "Selecionar todos")
     // ----------------------------------------------------------------
 
-    private void ItemCheckBox_Changed(object sender, RoutedEventArgs e)
+    private void UpdateItemCard_Click(object sender, MouseButtonEventArgs e)
     {
-        if (_suppressSelectionSync) return;
+        if (e.OriginalSource is DependencyObject source && FindVisualParent<Button>(source) is not null)
+        {
+            return;
+        }
+
+        if (sender is not FrameworkElement element
+            || element.DataContext is not UpgradablePackage package
+            || package.IsUpdating)
+        {
+            return;
+        }
+
+        package.IsSelectedForUpdate = !package.IsSelectedForUpdate;
         SyncSelectAllCheckBoxState();
+        e.Handled = true;
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child)
+        where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T parent)
+            {
+                return parent;
+            }
+
+            child = VisualTreeHelper.GetParent(child);
+        }
+
+        return null;
     }
 
     private void SelectAllCheckBox_Click(object sender, RoutedEventArgs e)
@@ -180,15 +249,12 @@ public partial class UpdatesPage : Page
 
         bool selectAll = !_packages.All(p => p.IsSelectedForUpdate);
 
-        _suppressSelectionSync = true;
         foreach (var package in _packages)
         {
             package.IsSelectedForUpdate = selectAll;
         }
-        _suppressSelectionSync = false;
 
         SetSelectAllButtonState(selectAll ? _packages.Count : 0);
-        UpdateSelectedButton.IsEnabled = selectAll;
     }
 
     private void SyncSelectAllCheckBoxState()
@@ -196,8 +262,6 @@ public partial class UpdatesPage : Page
         int selected = _packages.Count(p => p.IsSelectedForUpdate);
 
         SetSelectAllButtonState(selected);
-
-        UpdateSelectedButton.IsEnabled = selected > 0;
     }
 
     private void SetSelectAllButtonState(int selected)
@@ -265,6 +329,7 @@ public partial class UpdatesPage : Page
             : $"{succeeded} pacote(s) atualizado(s), {failed} falharam. Veja a fila de operações para detalhes.";
 
         SyncSelectAllCheckBoxState();
+        UpdateSelectedButton.IsEnabled = true;
         CheckUpdatesButton.IsEnabled = true;
     }
 

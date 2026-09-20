@@ -2,24 +2,42 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
+    <!-- Fluent geometry tokens from the WPF Gallery guidance. Keep all corners
+         within the compact 0–8px range and spacing on a 4px rhythm. -->
+    <CornerRadius x:Key="SurfaceCornerRadius">0</CornerRadius>
+    <CornerRadius x:Key="CompactCornerRadius">4</CornerRadius>
+    <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
+    <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+    <Thickness x:Key="Spacing4">4</Thickness>
+    <Thickness x:Key="Spacing8">8</Thickness>
+    <Thickness x:Key="Spacing12">12</Thickness>
+    <Thickness x:Key="Spacing16">16</Thickness>
+    <Thickness x:Key="Spacing20">20</Thickness>
+    <Thickness x:Key="Spacing24">24</Thickness>
+    <Thickness x:Key="Spacing32">32</Thickness>
+    <Thickness x:Key="Spacing40">40</Thickness>
+    <Thickness x:Key="Spacing48">48</Thickness>
+
     <!-- Visual language: dark Mica, restrained glass surfaces and Fluent accents. -->
-    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#0DFFFFFF" />
-    <SolidColorBrush x:Key="AppSurfaceElevatedBrush" Color="#14FFFFFF" />
-    <SolidColorBrush x:Key="AppSurfaceStrongBrush" Color="#1AFFFFFF" />
-    <SolidColorBrush x:Key="AppBorderBrush" Color="#18FFFFFF" />
-    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#0FFFFFFF" />
+    <!-- Mica base is supplied by FluentWindow; these alpha colors let it show
+         through while preserving a stable reading surface. -->
+    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#E01D3047" />
+    <SolidColorBrush x:Key="AppSurfaceElevatedBrush" Color="#E0263446" />
+    <SolidColorBrush x:Key="AppSurfaceStrongBrush" Color="#F02D4056" />
+    <SolidColorBrush x:Key="AppBorderBrush" Color="#8050657D" />
+    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#5050657D" />
     <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#F5F7FA" />
-    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#BCC5D2" />
-    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#8793A5" />
-    <SolidColorBrush x:Key="AppIconBrush" Color="#DDE7F5" />
-    <SolidColorBrush x:Key="AppIconMutedBrush" Color="#91A0B5" />
-    <SolidColorBrush x:Key="AppAccentBrush" Color="#4AA3FF" />
-    <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#264AA3FF" />
+    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#C6D1E0" />
+    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#95A5B9" />
+    <SolidColorBrush x:Key="AppIconBrush" Color="#E0E9F5" />
+    <SolidColorBrush x:Key="AppIconMutedBrush" Color="#9BAAC0" />
+    <SolidColorBrush x:Key="AppAccentBrush" Color="#1688E8" />
+    <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#254A8DCE" />
 
     <!-- Superfície comum dos cartões: translúcida para preservar o efeito Mica e
          adaptável aos temas claro/escuro do WPF-UI. -->
-    <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#0DFFFFFF" />
-    <SolidColorBrush x:Key="AppCardBorderBrush" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#E0263446" />
+    <SolidColorBrush x:Key="AppCardBorderBrush" Color="#8050657D" />
 
     <!-- Sem isso, o WPF usa o modo padrão de reamostragem de bitmap (que prioriza
          velocidade, não qualidade) pra reduzir os ícones — que chegam em alta resolução
@@ -63,11 +81,101 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
 
+    <Style TargetType="ui:FontIcon">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Opacity" Value="0.94" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <!-- Movimento curto e discreto para controles acionáveis. A escala é pequena
+         o bastante para comunicar resposta sem deslocar o layout. -->
+    <Style x:Key="SmoothControlTransitionStyle"
+           TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                             To="1.015" Duration="0:0:0.12" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                             To="1.015" Duration="0:0:0.12" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                             To="1" Duration="0:0:0.1" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                             To="1" Duration="0:0:0.1" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Expansão preserva o espaço do layout e anima apenas a entrada visual do
+         conteúdo, evitando saltos bruscos em painéis com muita informação. -->
+    <Style x:Key="SmoothExpanderStyle" TargetType="Expander">
+        <Setter Property="RenderTransformOrigin" Value="0.5,0" />
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1" ScaleY="1" />
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsExpanded" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="1" Duration="0:0:0.18" />
+                            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                             From="0.98" To="1" Duration="0:0:0.2" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+            </Trigger>
+            <Trigger Property="IsExpanded" Value="False">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="0.86" Duration="0:0:0.14" />
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PageHeaderIconStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
+        <Setter Property="FontSize" Value="32" />
+        <Setter Property="Width" Value="32" />
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+
     <Style x:Key="SelectAllButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="Appearance" Value="Secondary" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="Padding" Value="12,6" />
-        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -102,7 +210,7 @@
                 <ControlTemplate TargetType="ComboBoxItem">
                     <Border x:Name="ItemBorder"
                             Background="{TemplateBinding Background}"
-                            CornerRadius="4"
+                            CornerRadius="{StaticResource CompactCornerRadius}"
                             Margin="{TemplateBinding Margin}"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
@@ -137,6 +245,41 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="8,5" />
+        <Setter Property="Padding" Value="{StaticResource Spacing8}" />
+    </Style>
+
+    <!-- Estilo de Card com efeito Acrylic -->
+    <Style x:Key="AcrylicCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#000000" Opacity="0.24" BlurRadius="24" ShadowDepth="4" Direction="270" />
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Estilo de Surface com efeito Mica para páginas -->
+    <Style x:Key="MicaSurfaceStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        <Setter Property="CornerRadius" Value="{StaticResource SurfaceCornerRadius}" />
+    </Style>
+
+    <!-- In-app Acrylic: shared card treatment for pages that need a contained,
+         softly elevated surface without hiding the window backdrop. -->
+    <Style x:Key="InAppAcrylicCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="22" ShadowDepth="4" Direction="270" />
+            </Setter.Value>
+        </Setter>
     </Style>
 </ResourceDictionary>

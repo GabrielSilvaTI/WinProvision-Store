@@ -28,6 +28,13 @@ public enum WingetFailureReason
 
     /// <summary>Usuário recusou o prompt de UAC no retry elevado.</summary>
     ElevationCanceled,
+    BlockedByPolicy,
+    NoApplicableInstallers,
+    PackageAgreementsNotAccepted,
+    DownloadError,
+    InstallError,
+    CatalogError,
+    InternalError,
 }
 
 /// <summary>
@@ -88,6 +95,27 @@ public static class WingetErrorTranslator
 
         WingetFailureReason.ElevationCanceled =>
             $"{Capitalize(verb)} de \"{appName}\" cancelada: elevação (UAC) recusada.",
+
+        WingetFailureReason.BlockedByPolicy =>
+            $"Falha ao {verb} \"{appName}\": operação bloqueada por política do sistema.",
+
+        WingetFailureReason.NoApplicableInstallers =>
+            $"Falha ao {verb} \"{appName}\": não há instalador compatível para este dispositivo.",
+
+        WingetFailureReason.PackageAgreementsNotAccepted =>
+            $"Falha ao {verb} \"{appName}\": os acordos do pacote não foram aceitos.",
+
+        WingetFailureReason.DownloadError =>
+            $"Falha ao {verb} \"{appName}\": erro ao baixar o instalador.",
+
+        WingetFailureReason.InstallError =>
+            $"Falha ao {verb} \"{appName}\": o instalador retornou um erro.",
+
+        WingetFailureReason.CatalogError =>
+            $"Falha ao {verb} \"{appName}\": erro no catálogo do WinGet.",
+
+        WingetFailureReason.InternalError =>
+            $"Falha ao {verb} \"{appName}\": erro interno do WinGet.",
 
         _ => $"Falha ao {verb} \"{appName}\". Veja o log da operação para detalhes.",
     };

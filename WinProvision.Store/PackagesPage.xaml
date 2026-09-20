@@ -47,12 +47,17 @@
 
         <!-- Cartão Base "Mica-Friendly" -->
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Padding" Value="20" />
-            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{StaticResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Botões de Ação Uniformes -->
@@ -62,7 +67,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Margin" Value="3" />
             <Setter Property="Padding" Value="8,0" />
-            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
             <Setter Property="FontSize" Value="12" />
         </Style>
@@ -72,13 +77,13 @@
         <!-- TEMPLATE DO CARTÃO DO APLICATIVO (GRID VIEW) -->
         <!-- ========================================== -->
         <DataTemplate x:Key="AppGridCardTemplate">
-            <Border Width="214" Height="248" Padding="14" CornerRadius="12" 
+            <Border Width="214" Height="248" Padding="14" CornerRadius="{StaticResource OverlayCornerRadius}"
                     Margin="0,0,16,16"
                     Cursor="Hand" MouseLeftButtonUp="Card_Click" Tag="{Binding}">
                 <Border.Style>
                     <Style TargetType="Border">
-                        <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-                        <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}" />
+                        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -125,7 +130,7 @@
 
                     <!-- Centro: Ícone e Detalhes com respiro ajustado -->
                     <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <Border Width="56" Height="56" Margin="0,0,0,8" CornerRadius="12" ClipToBounds="True">
+                        <Border Width="56" Height="56" Margin="0,0,0,8" CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True">
                             <Grid>
                                 <ui:SymbolIcon Symbol="Box24" FontSize="34"
                                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -148,7 +153,7 @@
 
                     <!-- Base: Botão Remover -->
                     <ui:Button Grid.Row="2" HorizontalAlignment="Center" Appearance="Secondary" 
-                               Click="RemoveButton_Click" Tag="{Binding}" CornerRadius="6" Padding="12,6" ToolTip="Remover da coleção">
+                               Click="RemoveButton_Click" Tag="{Binding}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="12,6" ToolTip="Remover da coleção">
                         <ui:SymbolIcon Symbol="Dismiss24" FontSize="16" />
                     </ui:Button>
                 </Grid>
@@ -157,12 +162,12 @@
 
         <!-- Lista compacta: mesma informação do card com seleção verde idêntica -->
         <DataTemplate x:Key="AppListTemplate">
-            <Border Padding="12,10" Margin="0,0,0,6" CornerRadius="8"
+            <Border Padding="12,10" Margin="0,0,0,6" CornerRadius="{StaticResource OverlayCornerRadius}"
                     Cursor="Hand" MouseLeftButtonUp="Card_Click" Tag="{Binding}">
                 <Border.Style>
                     <Style TargetType="Border">
-                        <Setter Property="Background" Value="{StaticResource AppSurfaceBrush}" />
-                        <Setter Property="BorderBrush" Value="{StaticResource AppBorderSubtleBrush}" />
+                        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderSubtleBrush}" />
                         <Setter Property="BorderThickness" Value="1" />
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -204,7 +209,7 @@
                             </Style>
                         </ui:SymbolIcon.Style>
                     </ui:SymbolIcon>
-                    <Border Grid.Column="1" Width="36" Height="36" CornerRadius="8" ClipToBounds="True" Margin="0,0,12,0">
+                    <Border Grid.Column="1" Width="36" Height="36" CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True" Margin="0,0,12,0">
                         <Grid>
                             <ui:SymbolIcon Symbol="Box24" FontSize="22"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -220,7 +225,7 @@
                     </StackPanel>
                     <TextBlock Grid.Column="3" Text="{Binding Version}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     <TextBlock Grid.Column="4" Text="{Binding Id}" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <ui:Button Grid.Column="5" Appearance="Transparent" Padding="8" CornerRadius="6" Click="RemoveButton_Click" Tag="{Binding}" ToolTip="Remover da coleção">
+                    <ui:Button Grid.Column="5" Appearance="Transparent" Padding="8" CornerRadius="{StaticResource ControlCornerRadius}" Click="RemoveButton_Click" Tag="{Binding}" ToolTip="Remover da coleção">
                         <ui:SymbolIcon Symbol="Dismiss24" FontSize="16" />
                     </ui:Button>
                 </Grid>
@@ -237,8 +242,8 @@
         </Grid.RowDefinitions>
 
         <!-- ================= Cabeçalho ================= -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
-            <ui:SymbolIcon Symbol="AppsListDetail24" FontSize="32" Margin="0,0,16,0" />
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,24">
+            <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xF133;" />
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Coleção de Pacotes" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="Crie e gerencie seus perfis." FontSize="14" Style="{StaticResource CardSubtitleStyle}" Margin="0,4,0,0" />
@@ -251,11 +256,11 @@
             <StackPanel x:Name="ViewProfilePanel" Orientation="Horizontal">
                 <ComboBox x:Name="ProfileTabControl" Width="280" DisplayMemberPath="Title" SelectedIndex="0" Margin="0,0,8,0" SelectionChanged="ProfileTabControl_SelectionChanged" />
 
-                <ui:Button x:Name="RenameProfileButton" Appearance="Transparent" CornerRadius="6" Padding="8" Margin="0,0,4,0" ToolTip="Renomear perfil" Click="RenameProfileButton_Click" IsEnabled="False">
+                <ui:Button x:Name="RenameProfileButton" Appearance="Transparent" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8" Margin="0,0,4,0" ToolTip="Renomear perfil" Click="RenameProfileButton_Click" IsEnabled="False">
                     <ui:SymbolIcon Symbol="Edit24" FontSize="18" />
                 </ui:Button>
 
-                <ui:Button x:Name="CloseProfileButton" Appearance="Transparent" CornerRadius="6" Padding="8" ToolTip="Excluir perfil atual" Click="CloseTabButton_Click" IsEnabled="False">
+                <ui:Button x:Name="CloseProfileButton" Appearance="Transparent" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8" ToolTip="Excluir perfil atual" Click="CloseTabButton_Click" IsEnabled="False">
                     <ui:SymbolIcon Symbol="Dismiss24" FontSize="18" />
                 </ui:Button>
             </StackPanel>
@@ -264,11 +269,11 @@
             <StackPanel x:Name="EditProfilePanel" Orientation="Horizontal" Visibility="Collapsed">
                 <ui:TextBox x:Name="RenameProfileTextBox" Width="280" Margin="0,0,8,0" PlaceholderText="Novo nome do perfil..." KeyDown="RenameProfileTextBox_KeyDown" />
 
-                <ui:Button x:Name="SaveProfileNameButton" Appearance="Primary" CornerRadius="6" Padding="8" Margin="0,0,4,0" ToolTip="Salvar" Click="SaveProfileNameButton_Click">
+                <ui:Button x:Name="SaveProfileNameButton" Appearance="Primary" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8" Margin="0,0,4,0" ToolTip="Salvar" Click="SaveProfileNameButton_Click">
                     <ui:SymbolIcon Symbol="Checkmark24" FontSize="18" />
                 </ui:Button>
 
-                <ui:Button x:Name="CancelProfileNameButton" Appearance="Transparent" CornerRadius="6" Padding="8" ToolTip="Cancelar" Click="CancelProfileNameButton_Click">
+                <ui:Button x:Name="CancelProfileNameButton" Appearance="Transparent" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8" ToolTip="Cancelar" Click="CancelProfileNameButton_Click">
                     <ui:SymbolIcon Symbol="Dismiss24" FontSize="18" />
                 </ui:Button>
             </StackPanel>
@@ -478,7 +483,7 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Perfil ativo" VerticalAlignment="Center" FontFamily="Segoe UI Variable Text" />
-                            <Border Grid.Column="1" Background="#1A4CC2FF" BorderBrush="#334CC2FF" BorderThickness="1" CornerRadius="12" Padding="12,4">
+                            <Border Grid.Column="1" Background="#1A4CC2FF" BorderBrush="#334CC2FF" BorderThickness="1" CornerRadius="{StaticResource OverlayCornerRadius}" Padding="12,4">
                                 <TextBlock x:Name="ActiveProfileNameTextBlock" Text="{Binding ElementName=ProfileTabControl, Path=SelectedItem.Title, FallbackValue='Perfil Padrão'}" Foreground="#4CC2FF" FontSize="12" FontFamily="Segoe UI Variable Text" FontWeight="SemiBold" />
                             </Border>
                         </Grid>
@@ -494,7 +499,7 @@
                         </StackPanel>
 
                         <!-- Botão de Destaque -->
-                        <ui:Button x:Name="InstallSelectedButton" Content="Instalar" Height="44" HorizontalAlignment="Stretch" Margin="0,0,0,12" CornerRadius="6"
+                        <ui:Button x:Name="InstallSelectedButton" Content="Instalar" Height="44" HorizontalAlignment="Stretch" Margin="0,0,0,12" CornerRadius="{StaticResource ControlCornerRadius}"
                                    Background="{StaticResource InstallActionBrush}"
                                    MouseOverBackground="{StaticResource InstallActionHoverBrush}"
                                    PressedBackground="{StaticResource InstallActionPressedBrush}"
@@ -522,7 +527,7 @@
 
                         <Rectangle Height="1" Fill="#1AFFFFFF" Margin="0,12,0,12" />
 
-                        <ui:Button x:Name="ClearCollectionButton" Content="Limpar tudo" ToolTip="Remover todos os aplicativos deste perfil" Height="40" HorizontalAlignment="Stretch" Appearance="Secondary" CornerRadius="6" Click="ClearCollectionButton_Click">
+                        <ui:Button x:Name="ClearCollectionButton" Content="Limpar tudo" ToolTip="Remover todos os aplicativos deste perfil" Height="40" HorizontalAlignment="Stretch" Appearance="Secondary" CornerRadius="{StaticResource ControlCornerRadius}" Click="ClearCollectionButton_Click">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="Delete24" />
                             </ui:Button.Icon>

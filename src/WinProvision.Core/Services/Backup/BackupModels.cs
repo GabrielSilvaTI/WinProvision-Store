@@ -16,6 +16,7 @@ public record GitHubConnectResult(bool Success, string? ErrorMessage = null, str
 internal class BackupAccountInfo
 {
     public string? Login { get; set; }
+    public string? AvatarUrl { get; set; }
     public string? GistId { get; set; }
     public DateTime? LastSyncUtc { get; set; }
 }

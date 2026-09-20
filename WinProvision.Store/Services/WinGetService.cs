@@ -67,7 +67,8 @@ public sealed class WinGetService
         Action<string>? onLogReceived = null,
         CancellationToken cancellationToken = default,
         string? installLocation = null,
-        Action<InstallProgressUpdate>? onProgress = null)
+        Action<InstallProgressUpdate>? onProgress = null,
+        string source = "winget")
     {
         WinGetDiagnosticLog.Write(
             $"INSTALL ENTER packageId=\"{packageId}\" thread={Environment.CurrentManagedThreadId}");
@@ -78,11 +79,14 @@ public sealed class WinGetService
                 WinGetDiagnosticLog.Write("COM DESATIVADO NA SESSÃO: motivo=ativação anterior indisponível");
                 onLogReceived?.Invoke("API COM indisponível; usando winget.exe como fallback.");
                 return await _wingetExecutor.InstallAppAsync(
-                    packageId, onLogReceived, cancellationToken, installLocation).ConfigureAwait(false);
+                    packageId, onLogReceived, cancellationToken, installLocation, source).ConfigureAwait(false);
             }
 
+            // COM (InstallApiAsync) busca pelo Id direto no OpenWindowsCatalog, que já
+            // agrega winget + msstore num catálogo só — não precisa do "source" aqui,
+            // só nos dois fallbacks de CLI acima/abaixo (WingetExecutor fixa --source).
             return await Task.Run(
-                () => InstallApiAsync(packageId, onLogReceived, onProgress, cancellationToken, installLocation),
+                () => InstallApiAsync(packageId, onLogReceived, onProgress, cancellationToken, installLocation, source),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -102,7 +106,8 @@ public sealed class WinGetService
                 packageId,
                 onLogReceived,
                 cancellationToken,
-                installLocation).ConfigureAwait(false);
+                installLocation,
+                source).ConfigureAwait(false);
         }
     }
 
@@ -279,7 +284,8 @@ public sealed class WinGetService
         Action<string>? onLogReceived,
         Action<InstallProgressUpdate>? onProgress,
         CancellationToken cancellationToken,
-        string? installLocation)
+        string? installLocation,
+        string source)
     {
         var stopwatch = Stopwatch.StartNew();
         WinGetDiagnosticLog.Write("INSTALL COM stage=begin");
@@ -515,7 +521,8 @@ public sealed class WinGetService
                     packageId,
                     onLogReceived,
                     cancellationToken,
-                    installLocation).ConfigureAwait(false);
+                    installLocation,
+                    source).ConfigureAwait(false);
             }
 
             var failureReason = MapInstallFailure(installResult.Status);

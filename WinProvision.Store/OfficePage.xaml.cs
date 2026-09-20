@@ -357,13 +357,17 @@ public partial class OfficePage : Page
 
     private async void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = MessageBox.Show(
-            "Isso vai remover TODAS as instalações do Office (Click-to-Run) desta máquina, usando a tag RemoveAll do Office Deployment Tool. Continuar?",
-            "Desinstalar Office",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+        var confirmDialog = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "Desinstalar Office",
+            Content = "Isso vai remover TODAS as instalações do Office (Click-to-Run) desta máquina, usando a tag RemoveAll do Office Deployment Tool. Continuar?",
+            PrimaryButtonText = "Desinstalar",
+            CloseButtonText = "Cancelar"
+        };
 
-        if (confirm != MessageBoxResult.Yes)
+        var confirm = await confirmDialog.ShowDialogAsync();
+
+        if (confirm != Wpf.Ui.Controls.MessageBoxResult.Primary)
             return;
 
         bool silent = (InstallDisplayModeComboBox.SelectedItem as ComboBoxItem)?.Tag as string != "visible";
@@ -372,7 +376,9 @@ public partial class OfficePage : Page
         var request = new OfficeRemoveRequest(
             RemoveAll: true,
             DisplayLevel: silent ? OfficeDisplayLevel.Silent : OfficeDisplayLevel.Visible,
-            CleanStoreEdition: cleanStore);
+            CleanStoreEdition: cleanStore,
+            UseRemoveMSI: true,
+            UseAggressiveUninstall: true);
 
         StatusText.Text = "Removendo todas as instalações do Office... acompanhe na fila de operações.";
 

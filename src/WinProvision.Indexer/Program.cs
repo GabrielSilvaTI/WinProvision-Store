@@ -1,13 +1,27 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text.Json;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Indexing;
 
+if (args.Length >= 1 && args[0] == "--msstore")
+{
+    if (args.Length < 2)
+    {
+        Console.Error.WriteLine("Uso:");
+        Console.Error.WriteLine("  WinProvision.Indexer --msstore <pasta-de-saida>");
+        return 1;
+    }
+
+    return await RunMsStoreOnlyAsync(args[1]);
+}
+
 if (args.Length < 2)
 {
     Console.Error.WriteLine("Uso:");
     Console.Error.WriteLine("  WinProvision.Indexer <caminho-manifests-winget-pkgs> <pasta-de-saida>");
+    Console.Error.WriteLine("  WinProvision.Indexer --msstore <pasta-de-saida>");
     return 1;
 }
 
@@ -57,6 +71,19 @@ foreach (var bundle in bundles)
 
 Console.WriteLine($"      {discarded:N0} pacotes descartados como ruído");
 Console.WriteLine($"      {candidates.Count:N0} pacotes seguem para enriquecimento");
+
+// [+] Apps curados da Microsoft Store (source "msstore"). Não roda a consulta à
+// Display Catalog aqui — isso fica no workflow separado "Update msstore-catalog.json"
+// (mais leve, cadência própria, ver RunMsStoreOnlyAsync abaixo), que publica o
+// resultado em Store/Database/msstore-catalog.json no R2. Este passo só baixa esse
+// arquivo já pronto e mescla em "candidates", pra não acoplar a disponibilidade da
+// Display Catalog ao scan pesado do winget-pkgs (que roda todo dia). Curadoria manual
+// já cumpre o papel do NoiseFilter aqui; segue pra classificação regional e corte por
+// score como qualquer outro pacote.
+Console.WriteLine("\n[+] Baixando apps curados da Microsoft Store (R2)...");
+var msstoreApps = await DownloadMsStoreCatalogAsync();
+candidates.AddRange(msstoreApps);
+Console.WriteLine($"      {msstoreApps.Count:N0} apps da Microsoft Store mesclados");
 
 // 3. Classificação regional
 Console.WriteLine("\n[3/7] Classificando apelo regional...");
@@ -159,6 +186,60 @@ return 0;
 static NoiseRules LoadNoiseRules() => LoadConfig("noise-rules.json", NoiseRules.Default);
 
 static ScoringWeights LoadScoringWeights() => LoadConfig("scoring-weights.json", new ScoringWeights());
+
+static List<string> LoadMsStoreCuratedIds() => LoadConfig("msstore-curated.json", new List<string>());
+
+// URL pública do catálogo msstore, publicado pelo workflow separado (ver
+// RunMsStoreOnlyAsync). Mesmo bucket/padrão do apps.json principal.
+const string MsStoreCatalogR2Url =
+    "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json";
+
+static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync()
+{
+    try
+    {
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
+        return JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
+    }
+    catch (Exception ex)
+    {
+        // Não derruba o scan do winget-pkgs por causa disso — o catálogo msstore é um
+        // extra, publicado por um workflow independente; se estiver indisponível ou
+        // ainda não tiver rodado a primeira vez, o resto da pipeline segue normalmente.
+        Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2, seguindo sem ele: {ex.Message}");
+        return [];
+    }
+}
+
+/// <summary>
+/// Modo "--msstore": roda só a consulta à Display Catalog contra os IDs curados em
+/// config/msstore-curated.json e exporta o resultado em msstore-catalog.json — sem
+/// tocar no winget-pkgs. Chamado pelo workflow "Update msstore-catalog.json", separado
+/// do scan diário pesado (ver comentário no passo [+] acima).
+/// </summary>
+static async Task<int> RunMsStoreOnlyAsync(string outputDir)
+{
+    Console.WriteLine("==================================================");
+    Console.WriteLine("  WinProvision Store - Curadoria Microsoft Store");
+    Console.WriteLine("==================================================");
+
+    var curatedIds = LoadMsStoreCuratedIds();
+    Console.WriteLine($"\n[1/2] Consultando Display Catalog para {curatedIds.Count:N0} app(s) curado(s)...");
+    var apps = await new MsStoreCatalogService().FetchAsync(curatedIds);
+    Console.WriteLine($"      {apps.Count:N0} de {curatedIds.Count:N0} apps resolvidos");
+
+    Console.WriteLine("\n[2/2] Exportando msstore-catalog.json...");
+    Directory.CreateDirectory(outputDir);
+    string outputPath = Path.Combine(outputDir, "msstore-catalog.json");
+    await using (var stream = File.Create(outputPath))
+    {
+        await JsonSerializer.SerializeAsync(stream, apps, WinProvisionJsonOptions.Compact);
+    }
+    Console.WriteLine($"      {apps.Count:N0} apps publicados em '{outputPath}'.");
+
+    return 0;
+}
 
 static T LoadConfig<T>(string fileName, T fallback)
 {

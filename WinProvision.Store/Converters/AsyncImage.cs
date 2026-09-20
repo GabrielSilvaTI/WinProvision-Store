@@ -149,7 +149,12 @@ public static class AsyncImage
                 return await Task.Run(() => DecodeToBitmap(cachedBytes));
             }
 
-            byte[] bytes = await Client.GetByteArrayAsync(url);
+            string localPath = url.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
+                ? new Uri(url).LocalPath
+                : url;
+            byte[] bytes = File.Exists(localPath)
+                ? await File.ReadAllBytesAsync(localPath)
+                : await Client.GetByteArrayAsync(url);
             try
             {
                 await File.WriteAllBytesAsync(path, bytes);

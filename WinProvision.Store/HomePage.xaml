@@ -47,16 +47,21 @@
 
         <!-- Estilo base para os painéis e cartões -->
         <Style x:Key="DashboardCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Background" Value="{StaticResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AppCardBorderBrush}" />
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Template dos Banners em Destaque -->
         <DataTemplate x:Key="FeaturedAppTemplate">
-            <Border Height="184" Margin="0,0,12,12" CornerRadius="12" ClipToBounds="True" Cursor="Hand" MouseLeftButtonUp="AppCard_Click"
-                    Background="{StaticResource AppCardBackgroundBrush}" BorderBrush="{StaticResource AppCardBorderBrush}" BorderThickness="1">
+            <Border Height="184" Margin="0,0,12,12" CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True" Cursor="Hand" MouseLeftButtonUp="AppCard_Click"
+                    Background="{DynamicResource AppCardBackgroundBrush}" BorderBrush="{DynamicResource AppCardBorderBrush}" BorderThickness="1">
 
                 <Grid Margin="14">
                     <Grid.RowDefinitions>
@@ -67,7 +72,7 @@
 
                     <!-- Topo: Ícone e Badge "Destaque" -->
                     <Grid Grid.Row="0">
-                        <Border Width="40" Height="40" CornerRadius="8" ClipToBounds="True" HorizontalAlignment="Left">
+                        <Border Width="40" Height="40" CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True" HorizontalAlignment="Left">
                             <Grid>
                                 <ui:SymbolIcon Symbol="Box24" FontSize="20" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"
                                                Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=FeaturedIconImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
@@ -76,7 +81,7 @@
                             </Grid>
                         </Border>
 
-                        <Border Background="#1AFFFFFF" CornerRadius="6" Padding="7,4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0">
+                        <Border Background="#1AFFFFFF" CornerRadius="{StaticResource ControlCornerRadius}" Padding="7,4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,8,8,0">
                             <TextBlock Text="Destaque" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                         </Border>
                     </Grid>
@@ -98,6 +103,86 @@
                                Foreground="White" PressedForeground="White"
                                IsHitTestVisible="{Binding IsInstalled, Converter={StaticResource InverseBooleanConverter}}"
                                Click="InstallButton_Click" Tag="{Binding}">
+                        <ui:Button.Content>
+                            <MultiBinding Converter="{StaticResource InstallStateToLabelConverter}">
+                                <Binding Path="IsInstalled" />
+                                <Binding Path="IsInstalling" />
+                            </MultiBinding>
+                        </ui:Button.Content>
+                        <ui:Button.Icon>
+                            <MultiBinding Converter="{StaticResource InstallStateToIconConverter}">
+                                <Binding Path="IsInstalled" />
+                                <Binding Path="IsInstalling" />
+                            </MultiBinding>
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="AppListTemplate">
+            <Border Margin="0,0,0,8"
+                    Padding="12"
+                    Style="{StaticResource DashboardCardStyle}"
+                    Cursor="Hand"
+                    MouseLeftButtonUp="AppCard_Click">
+                <Grid MinHeight="64">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Width="40"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            CornerRadius="{StaticResource OverlayCornerRadius}"
+                            ClipToBounds="True"
+                            VerticalAlignment="Center">
+                        <Grid>
+                            <ui:SymbolIcon Symbol="Box24"
+                                           FontSize="18"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=ListIconImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                            <Image x:Name="ListIconImage"
+                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                   Stretch="Uniform"
+                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=ListIconImage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Publisher}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,2,0,0" />
+                        <TextBlock Text="{Binding Description}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ui:Button Grid.Column="2"
+                               Padding="14,6"
+                               Margin="12,0,0,0"
+                               VerticalAlignment="Center"
+                               Background="{StaticResource InstallActionBrush}"
+                               MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                               PressedBackground="{StaticResource InstallActionPressedBrush}"
+                               Foreground="White"
+                               PressedForeground="White"
+                               IsHitTestVisible="{Binding IsInstalled, Converter={StaticResource InverseBooleanConverter}}"
+                               Click="InstallButton_Click"
+                               Tag="{Binding}">
                         <ui:Button.Content>
                             <MultiBinding Converter="{StaticResource InstallStateToLabelConverter}">
                                 <Binding Path="IsInstalled" />
@@ -136,7 +221,7 @@
             </Grid.RowDefinitions>
 
             <!-- 1. CABEÇALHO + BUSCA RESPONSIVO -->
-            <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid Grid.Row="0" Margin="0,0,0,24">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="16" />
@@ -144,82 +229,141 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="Visão Geral" Style="{StaticResource PageTitleStyle}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE7BF;" />
+                        <TextBlock Text="Visão Geral" Style="{StaticResource PageTitleStyle}" />
+                    </StackPanel>
                     <TextBlock                     Text="Encontre e instale seus aplicativos."
                                FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0"
                                FontFamily="Segoe UI Variable Text" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
 
                 <!-- Campo de Busca embutido no topo direito com largura segura -->
-                <ui:TextBox x:Name="SearchBox" Grid.Column="2" VerticalAlignment="Center"
-                            Width="260" MinWidth="180" MaxWidth="340"
+                <ui:TextBox x:Name="SearchBox"
+                            Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Width="260"
+                            MinWidth="180"
+                            MaxWidth="340"
                             PlaceholderText="Pesquise apps, pacotes e mais..."
-                            Icon="{ui:SymbolIcon Search24}"
-                            TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown"
-                            Padding="12,8" />
+                            TextChanged="SearchBox_TextChanged"
+                            KeyDown="SearchBox_KeyDown"
+                            Padding="12,8">
+                    <ui:TextBox.Icon>
+                        <ui:FontIcon Glyph="&#xE721;" FontFamily="Segoe Fluent Icons" />
+                    </ui:TextBox.Icon>
+                </ui:TextBox>
             </Grid>
 
             <!-- 2. CHIPS DE CATEGORIA (WrapPanel para quebrar linha em meia tela sem cortar) -->
-            <ItemsControl Grid.Row="1" Margin="0,0,0,12" x:Name="CategoryList">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type local:CategoryChip}">
-                        <RadioButton GroupName="CategoryFilter" IsChecked="{Binding IsSelected, Mode=OneWay}"
-                                     Checked="CategoryChip_Checked" Tag="{Binding Tag}" Margin="0,0,8,8" Cursor="Hand">
-                            <RadioButton.Template>
-                                <ControlTemplate TargetType="RadioButton">
-                                    <Border x:Name="Chip" CornerRadius="16" Padding="16,8" Background="{StaticResource AppSurfaceBrush}" BorderThickness="1" BorderBrush="{StaticResource AppBorderSubtleBrush}">
-                                        <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="{Binding Icon}" Margin="0,0,8,0" FontSize="16"/>
-                                            <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="Medium"/>
-                                        </StackPanel>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsChecked" Value="True">
-                                            <Setter TargetName="Chip" Property="Background" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
-                                            <Setter TargetName="Chip" Property="BorderBrush" Value="Transparent"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </RadioButton.Template>
-                        </RadioButton>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <Grid Grid.Row="1" Margin="0,0,0,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <ItemsControl Grid.Column="0" x:Name="CategoryList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:CategoryChip}">
+                            <RadioButton GroupName="CategoryFilter" IsChecked="{Binding IsSelected, Mode=OneWay}"
+                                         Checked="CategoryChip_Checked" Tag="{Binding Tag}" Margin="0,0,8,8" Cursor="Hand">
+                                <RadioButton.Template>
+                                    <ControlTemplate TargetType="RadioButton">
+                                        <Border x:Name="Chip" CornerRadius="{StaticResource OverlayCornerRadius}" Padding="16,8" Background="{DynamicResource AppSurfaceBrush}" BorderThickness="1" BorderBrush="{DynamicResource AppBorderSubtleBrush}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:FontIcon Glyph="{Binding Icon}" FontFamily="Segoe Fluent Icons" Margin="0,0,8,0" FontSize="16"/>
+                                                <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="Medium"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="Chip" Property="Background" Value="{DynamicResource SystemAccentColorPrimaryBrush}"/>
+                                                <Setter TargetName="Chip" Property="BorderBrush" Value="Transparent"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </RadioButton.Template>
+                            </RadioButton>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Top"
+                            Margin="12,0,0,0">
+                    <ToggleButton x:Name="GridViewToggleButton"
+                                  IsChecked="True"
+                                  Padding="8,4"
+                                  Margin="0,0,4,8"
+                                  Click="GridViewToggleButton_Click"
+                                  ToolTip="Visualização em cartões"
+                                  VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="Grid24" FontSize="18" />
+                    </ToggleButton>
+                    <ToggleButton x:Name="ListViewToggleButton"
+                                  Padding="8,4"
+                                  Margin="0,0,0,8"
+                                  Click="ListViewToggleButton_Click"
+                                  ToolTip="Visualização em lista"
+                                  VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="List24" FontSize="18" />
+                    </ToggleButton>
+                </StackPanel>
+            </Grid>
 
             <!-- 3. ÁREA DE ROLAGEM (Destaques + Grade de Apps) -->
             <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
                 <StackPanel Margin="0,0,4,0">
 
-                    <!-- SEÇÃO: Destaques (Colunas adaptativas ao tamanho da janela) -->
-                    <ItemsControl x:Name="FeaturedAppsList" ItemsSource="{Binding FeaturedApps}" ItemTemplate="{StaticResource FeaturedAppTemplate}" Margin="0,0,0,16">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="{Binding FeaturedColumns, RelativeSource={RelativeSource AncestorType=local:HomePage}}" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
+                    <!-- SEÇÃO: Destaques (segue o mesmo modo de visualização da coleção) -->
+                    <Grid Margin="0,0,0,16">
+                        <ItemsControl x:Name="FeaturedAppsList"
+                                      ItemsSource="{Binding FeaturedApps}"
+                                      ItemTemplate="{StaticResource FeaturedAppTemplate}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="{Binding FeaturedColumns, RelativeSource={RelativeSource AncestorType=local:HomePage}}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+
+                        <ItemsControl x:Name="FeaturedAppsListView"
+                                      Visibility="Collapsed"
+                                      ItemsSource="{Binding FeaturedApps}"
+                                      ItemTemplate="{StaticResource AppListTemplate}" />
+                    </Grid>
 
                     <!-- SEÇÃO: Aplicativos em Destaque (Grade principal adaptativa) -->
                     <Grid Margin="0,0,0,12">
-                        <StackPanel>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
                             <TextBlock Text="Mais aplicativos" Style="{StaticResource CardTitleStyle}" FontSize="16" />
                             <TextBlock Text="Mais opções para você." FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
                         </StackPanel>
                     </Grid>
 
-                    <ItemsControl x:Name="AppsList" ItemsSource="{Binding Apps}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="{Binding AppsColumns, RelativeSource={RelativeSource AncestorType=local:HomePage}}" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                    <Grid>
+                        <ScrollViewer x:Name="AppsGridScrollViewer"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
+                            <ItemsControl x:Name="AppsList" ItemsSource="{Binding Apps}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <UniformGrid Columns="{Binding AppsColumns, RelativeSource={RelativeSource AncestorType=local:HomePage}}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
                                 <!-- Cartão Limpo e Compacto -->
                                 <Border Margin="0,0,12,12" Padding="14" Style="{StaticResource DashboardCardStyle}" Cursor="Hand" MouseLeftButtonUp="AppCard_Click">
                                     <Grid>
@@ -236,7 +380,7 @@
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
 
-                                            <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="8" ClipToBounds="True">
+                                            <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,12,0" CornerRadius="{StaticResource OverlayCornerRadius}" ClipToBounds="True">
                                                 <Grid>
                                                     <ui:SymbolIcon Symbol="Box24" FontSize="18" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" HorizontalAlignment="Center"
                                                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=CategoryIconImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
@@ -259,37 +403,41 @@
 
                                         <!-- Base: Botão Direita -->
                                         <ui:Button Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Bottom" Padding="16,6"
-                                                   IsHitTestVisible="{Binding IsInstalling, Converter={StaticResource InverseBooleanConverter}}"
+                                                   Background="{StaticResource InstallActionBrush}"
+                                                   MouseOverBackground="{StaticResource InstallActionHoverBrush}"
+                                                   PressedBackground="{StaticResource InstallActionPressedBrush}"
+                                                   Foreground="White" PressedForeground="White"
+                                                   IsHitTestVisible="{Binding IsInstalled, Converter={StaticResource InverseBooleanConverter}}"
                                                    Click="InstallButton_Click" Tag="{Binding}">
-                                            <ui:Button.Style>
-                                                <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                                    <Setter Property="Background" Value="{StaticResource InstallActionBrush}" />
-                                                    <Setter Property="MouseOverBackground" Value="{StaticResource InstallActionHoverBrush}" />
-                                                    <Setter Property="PressedBackground" Value="{StaticResource InstallActionPressedBrush}" />
-                                                    <Setter Property="Foreground" Value="White" />
-                                                    <Setter Property="PressedForeground" Value="White" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsInstalled}" Value="True">
-                                                            <Setter Property="Appearance" Value="Secondary" />
-                                                            <Setter Property="Background" Value="#0AFFFFFF" />
-                                                            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-                                                            <Setter Property="IsHitTestVisible" Value="False" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </ui:Button.Style>
                                             <ui:Button.Content>
                                                 <MultiBinding Converter="{StaticResource InstallStateToLabelConverter}">
                                                     <Binding Path="IsInstalled" />
                                                     <Binding Path="IsInstalling" />
                                                 </MultiBinding>
                                             </ui:Button.Content>
+                                            <ui:Button.Icon>
+                                                <MultiBinding Converter="{StaticResource InstallStateToIconConverter}">
+                                                    <Binding Path="IsInstalled" />
+                                                    <Binding Path="IsInstalling" />
+                                                </MultiBinding>
+                                            </ui:Button.Icon>
                                         </ui:Button>
                                     </Grid>
                                 </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <ScrollViewer x:Name="AppsListScrollViewer"
+                                      Visibility="Collapsed"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
+                            <ItemsControl ItemsSource="{Binding Apps}"
+                                          ItemTemplate="{StaticResource AppListTemplate}" />
+                        </ScrollViewer>
+                    </Grid>
 
                     <!-- Rodapé / Paginação -->
                     <Grid Margin="0,16,0,24">
@@ -344,11 +492,12 @@
                     </Grid>
 
                     <TextBlock Text="Última atualização" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="StatusText" Text="Hoje às 13:40" FontSize="12" Margin="0,2,0,16" />
+                    <TextBlock x:Name="LastCatalogSyncText" Text="Sincronização ainda não realizada" FontSize="12" Margin="0,2,0,16" />
+                    <TextBlock x:Name="StatusText" Visibility="Collapsed" />
 
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="14" Foreground="{DynamicResource SystemFillColorSuccessBrush}" Margin="0,0,8,0" />
-                        <TextBlock Text="Atualizado" FontSize="12" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                        <ui:FontIcon x:Name="CatalogStatusIcon" Glyph="&#xE930;" FontFamily="Segoe Fluent Icons" FontSize="14" Foreground="{DynamicResource SystemFillColorSuccessBrush}" Margin="0,0,8,0" />
+                        <TextBlock x:Name="CatalogStatusText" Text="Atualizado" FontSize="12" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -359,27 +508,27 @@
                     <TextBlock Text="Categorias populares" Style="{StaticResource CardTitleStyle}" Margin="0,0,0,16" />
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="Code24" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <ui:FontIcon Glyph="&#xE943;" FontFamily="Segoe Fluent Icons" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="Desenvolvimento" FontSize="13" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="Wrench24" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <ui:FontIcon Glyph="&#xEC7A;" FontFamily="Segoe Fluent Icons" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="Utilitários" FontSize="13" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="Document24" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <ui:FontIcon Glyph="&#xE7C3;" FontFamily="Segoe Fluent Icons" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="Produtividade" FontSize="13" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="Play24" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <ui:FontIcon Glyph="&#xE768;" FontFamily="Segoe Fluent Icons" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="Multimídia" FontSize="13" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="Shield24" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                        <ui:FontIcon Glyph="&#xE83D;" FontFamily="Segoe Fluent Icons" Width="24" FontSize="16" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,12,0" VerticalAlignment="Center" />
                         <TextBlock Text="Segurança" FontSize="13" VerticalAlignment="Center" />
                     </StackPanel>
                 </StackPanel>

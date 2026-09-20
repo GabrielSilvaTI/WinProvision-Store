@@ -34,6 +34,9 @@ public record ReconcileResult(
 /// </summary>
 public class ProfileService
 {
+    public ProfileJsonValidationResult? LastImportValidation { get; private set; }
+    public event Action? ImportValidationChanged;
+
     /// <summary>
     /// Constrói um ProfileManifest a partir da seleção atual do usuário na Store.
     /// <paramref name="provisioning"/> é opcional: quando informado (normalmente
@@ -73,7 +76,10 @@ public class ProfileService
     /// <summary>Serializa e grava o perfil em disco (ex.: via SaveFileDialog na UI).</summary>
     public async Task ExportAsync(ProfileManifest profile, string filePath, CancellationToken ct = default)
     {
-        var json = JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Default);
+        var json = JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Profile);
+        var validation = ProfileJsonValidator.Validate(json);
+        if (!validation.IsValid)
+            throw new InvalidDataException($"Não foi possível exportar: {validation.Message}");
         await File.WriteAllTextAsync(filePath, json, ct);
     }
 
@@ -86,18 +92,37 @@ public class ProfileService
     /// </summary>
     public async Task<ProfileManifest> ImportAsync(string filePath, CancellationToken ct = default)
     {
-        var json = await ProfileSourceReader.ReadTextAsync(filePath, ct);
-        var profile = ProfileManifestParser.Parse(json, Path.GetFileNameWithoutExtension(filePath));
+        try
+        {
+            var json = await ProfileSourceReader.ReadTextAsync(filePath, ct);
+            var validation = ProfileJsonValidator.Validate(json);
+            if (!validation.IsValid)
+                throw new InvalidDataException(
+                    validation.Path is { Length: > 0 }
+                        ? $"{validation.Message} Campo: {validation.Path}"
+                        : validation.Message);
+            var profile = ProfileManifestParser.Parse(json, Path.GetFileNameWithoutExtension(filePath));
 
-        if (profile is null)
-            throw new InvalidDataException($"Não foi possível interpretar o perfil em '{filePath}'.");
+            if (profile is null)
+                throw new InvalidDataException($"Não foi possível interpretar o perfil em '{filePath}'.");
 
-        // Schema ausente/zero => trata como legado; hoje só existe v1, mas o
-        // campo já fica pronto pra migração futura sem quebrar perfis antigos.
-        if (profile.SchemaVersion <= 0)
-            profile.SchemaVersion = 1;
+            // Schema ausente/zero => trata como legado; hoje só existe v1, mas o
+            // campo já fica pronto pra migração futura sem quebrar perfis antigos.
+            if (profile.SchemaVersion <= 0)
+                profile.SchemaVersion = 1;
 
-        return profile;
+            LastImportValidation = new ProfileJsonValidationResult(true, "Perfil válido.");
+            ImportValidationChanged?.Invoke();
+            return profile;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidDataException or FormatException
+            or InvalidOperationException or ArgumentException
+            or System.Reflection.TargetParameterCountException)
+        {
+            LastImportValidation = new ProfileJsonValidationResult(false, $"JSON inválido: {ex.Message}");
+            ImportValidationChanged?.Invoke();
+            throw;
+        }
     }
 
     /// <summary>

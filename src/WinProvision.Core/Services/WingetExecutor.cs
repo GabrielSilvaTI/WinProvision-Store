@@ -42,9 +42,15 @@ public class WingetExecutor
     }
 
     /// <summary>
-    /// Instala um pacote do Winget de forma silenciosa e reporta o progresso em tempo real.
+    /// Instala um pacote do Winget e reporta o progresso em tempo real. Por padrão mantém
+    /// a instalação silenciosa existente; installLocation é opcional.
     /// </summary>
-    public async Task<WingetExecutionResult> InstallAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default)
+    public async Task<WingetExecutionResult> InstallAppAsync(
+        string appId,
+        Action<string>? onLogReceived = null,
+        CancellationToken cancellationToken = default,
+        string? installLocation = null,
+        string source = "winget")
     {
         // Mesma garantia do /auto (ver WingetBootstrapper/AutoInstallCliService), só que pro
         // caminho da UI (usuário clicando "Instalar" no executável, sem CLI): a primeira
@@ -65,16 +71,25 @@ public class WingetExecutor
             };
         }
 
-        // --source winget: sem isso, o winget precisa resolver o --id consultando TODAS as
-        // sources configuradas (winget + msstore) antes de decidir qual usar. Em ambientes
-        // sem acesso íntegro aos serviços da Microsoft Store (ex.: Windows Sandbox, redes
-        // restritas), a pesquisa na source "msstore" falha ("Falha na pesquisa da origem:
-        // msstore") e derruba o comando inteiro mesmo quando o pacote existe na source
-        // "winget". UpdateAppAsync e o script exportado (PackagesPage) já fixam a source por
-        // esse mesmo motivo — faltava só aqui. --disable-interactivity evita qualquer prompt
-        // de confirmação de source ficar esperando input que nunca chega (stdin não é
-        // redirecionado nesse Process).
-        string args = $"install --id \"{appId}\" --exact --source winget --silent --disable-interactivity --accept-source-agreements --accept-package-agreements";
+        // --source fixo (default "winget"): sem isso, o winget precisa resolver o --id
+        // consultando TODAS as sources configuradas (winget + msstore) antes de decidir
+        // qual usar. Em ambientes sem acesso íntegro aos serviços da Microsoft Store (ex.:
+        // Windows Sandbox, redes restritas), a pesquisa na source "msstore" falha ("Falha
+        // na pesquisa da origem: msstore") e derruba o comando inteiro mesmo quando o
+        // pacote existe na source "winget". Pra apps com AppEntry.Source == "msstore" (ver
+        // MsStoreCatalogService), quem chama passa esse valor aqui pra fixar a source
+        // correta em vez do padrão. UpdateAppAsync e o script exportado (PackagesPage) já
+        // fixam a source por esse mesmo motivo — faltava só aqui. --disable-interactivity
+        // evita qualquer prompt de confirmação de source ficar esperando input que nunca
+        // chega (stdin não é redirecionado nesse Process).
+        string args = $"install --id \"{appId}\" --exact --source {source} --silent --disable-interactivity";
+
+        if (!string.IsNullOrWhiteSpace(installLocation))
+        {
+            args += $" --location \"{installLocation.Replace("\"", "\\\"")}\"";
+        }
+
+        args += " --accept-source-agreements --accept-package-agreements";
         return await ExecuteWithElevationFallbackAsync(args, onLogReceived, cancellationToken);
     }
 
@@ -208,7 +223,7 @@ public class WingetExecutor
     /// ele não consegue detectar com certeza) e --force (ignora hash mismatch/instalador
     /// já baixado em cache desatualizado).
     /// </summary>
-    public async Task<WingetExecutionResult> UpdateAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default)
+    public async Task<WingetExecutionResult> UpdateAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default, string source = "winget")
     {
         // Mesma garantia do InstallAppAsync (ver comentário lá) — cobre quem chega direto
         // na tela Atualizações antes de qualquer instalação ter disparado o bootstrap.
@@ -223,7 +238,7 @@ public class WingetExecutor
             };
         }
 
-        string args = $"update --id \"{appId}\" --exact --source winget --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force";
+        string args = $"update --id \"{appId}\" --exact --source {source} --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force";
         return await ExecuteWithElevationFallbackAsync(args, onLogReceived, cancellationToken);
     }
 

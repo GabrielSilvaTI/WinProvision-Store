@@ -1,10 +1,8 @@
-using Wpf.Ui.Controls;
-
 namespace WinProvision.Store;
 
 public sealed class CategoryChip
 {
-    public CategoryChip(string tag, string label, SymbolRegular icon, bool isSelected)
+    public CategoryChip(string tag, string label, string icon, bool isSelected)
     {
         Tag = tag;
         Label = label;
@@ -14,6 +12,6 @@ public sealed class CategoryChip
 
     public string Tag { get; }
     public string Label { get; }
-    public SymbolRegular Icon { get; }
+    public string Icon { get; }
     public bool IsSelected { get; }
 }

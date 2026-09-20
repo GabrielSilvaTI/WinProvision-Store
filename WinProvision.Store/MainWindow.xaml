@@ -10,6 +10,7 @@
         WindowStartupLocation="CenterScreen"
         ExtendsContentIntoTitleBar="True"
         WindowBackdropType="Mica"
+        Background="{DynamicResource AppSurfaceBrush}"
         FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
         TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
         TextElement.FontSize="14"
@@ -21,26 +22,41 @@
         SnapsToDevicePixels="True">
 
     <ui:FluentWindow.Resources>
+        <!-- Camadas da janela: Mica no backdrop nativo, Mica Alt na moldura/rail
+             e Acrylic opaco nas superfícies elevadas, como na referência visual. -->
+        <SolidColorBrush x:Key="MicaWindowBrush" Color="#F0101B2D" />
+        <SolidColorBrush x:Key="MicaAltSurfaceBrush" Color="#E0162941" />
+        <SolidColorBrush x:Key="AcrylicSurfaceBrush" Color="#E0263446" />
+        <SolidColorBrush x:Key="AcrylicSurfaceHoverBrush" Color="#F02D4056" />
+        <SolidColorBrush x:Key="WindowDividerBrush" Color="#8050657D" />
+
         <Style TargetType="ui:NavigationViewItem">
             <Setter Property="MinHeight" Value="42" />
             <Setter Property="Margin" Value="4,2" />
             <Setter Property="Padding" Value="12,0" />
             <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
         </Style>
     </ui:FluentWindow.Resources>
 
-    <Grid>
+    <Grid Background="{DynamicResource AppSurfaceBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
+        <Grid Grid.Row="0" Panel.ZIndex="2" Background="{DynamicResource AppSurfaceBrush}">
             <ui:TitleBar Title=" "
+                         Height="48"
+                         Background="{DynamicResource AppSurfaceBrush}"
+                         BorderBrush="{DynamicResource AppBorderBrush}"
+                         BorderThickness="0,0,0,1"
                          Icon="pack://application:,,,/Assets/app.ico">
                 <ui:TitleBar.TrailingContent>
                     <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
                         <ui:Button x:Name="QueueToggleButton"
+                                   Style="{StaticResource SmoothControlTransitionStyle}"
                                    Appearance="Transparent"
                                    Padding="8"
                                    VerticalAlignment="Center"
@@ -49,7 +65,7 @@
                             <Grid>
                                 <ui:SymbolIcon Symbol="ArrowDownload24" />
                                 <Border x:Name="QueueBadge"
-                                        Width="16" Height="16" CornerRadius="8"
+                                        Width="16" Height="16" CornerRadius="{StaticResource OverlayCornerRadius}"
                                         Background="{DynamicResource AccentFillColorDefaultBrush}"
                                         HorizontalAlignment="Right" VerticalAlignment="Top"
                                         Margin="0,-6,-8,0"
@@ -78,21 +94,21 @@
                         Orientation="Horizontal"
                         VerticalAlignment="Center"
                         HorizontalAlignment="Left"
-                        Margin="52,0,0,0"
+                        Margin="16,0,0,0"
                         IsHitTestVisible="False">
                 <Image Source="pack://application:,,,/Assets/app_icon_256.png"
                        Width="24"
                        Height="24"
                        VerticalAlignment="Center"
-                       Margin="0,0,10,0"
+                       Margin="0,0,8,0"
                        RenderOptions.BitmapScalingMode="Fant"
                        SnapsToDevicePixels="True"
                        UseLayoutRounding="True" />
                 <TextBlock Text="WinProvision Store"
                            VerticalAlignment="Center"
-                           FontSize="16"
+                           FontSize="14"
                            FontWeight="SemiBold"
-                           FontFamily="Segoe UI Variable Display, Aptos, Segoe UI"
+                           FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
                            TextOptions.TextFormattingMode="Ideal"
                            TextOptions.TextRenderingMode="ClearType"
                            RenderOptions.ClearTypeHint="Enabled"
@@ -100,63 +116,96 @@
             </StackPanel>
         </Grid>
 
-        <ui:NavigationView
-            x:Name="RootNavigation"
-            Grid.Row="1"
-            PaneDisplayMode="Left"
-            IsPaneOpen="True"
-            OpenPaneLength="224">
+        <Border Grid.Row="1"
+                Margin="0"
+                Background="{DynamicResource AppSurfaceBrush}"
+                BorderBrush="{DynamicResource AppBorderBrush}"
+                BorderThickness="0">
+            <ui:NavigationView
+                x:Name="RootNavigation"
+                Transition="FadeInWithSlide"
+                TransitionDuration="220"
+                PaneDisplayMode="Left"
+                IsPaneOpen="True"
+                OpenPaneLength="240"
+                CompactPaneLength="64"
+                IsPaneToggleVisible="True"
+                IsBackButtonVisible="Collapsed"
+                Background="Transparent"
+                BorderThickness="0"
+                BorderBrush="Transparent"
+                IsTopSeparatorVisible="False"
+                IsFooterSeparatorVisible="False">
+            <ui:NavigationView.Resources>
+                <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="Transparent" />
+                <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+            </ui:NavigationView.Resources>
 
             <!-- Itens Principais do Menu -->
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem Content="Visão Geral" TargetPageType="{x:Type local:HomePage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Home24" />
+                        <ui:FontIcon Glyph="&#xE7BF;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
                 <ui:NavigationViewItem Content="Pacotes" TargetPageType="{x:Type local:PackagesPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="AppsListDetail24" />
+                        <ui:FontIcon Glyph="&#xF133;" FontFamily="Segoe Fluent Icons" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
+                <ui:NavigationViewItem Content="Pacotes Instalados" TargetPageType="{x:Type local:InstalledPackagesPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE71D;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
                 <ui:NavigationViewItem Content="Atualizações" TargetPageType="{x:Type local:UpdatesPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                        <ui:FontIcon Glyph="&#xE895;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
                 <ui:NavigationViewItem Content="Office" TargetPageType="{x:Type local:OfficePage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="AppsAddIn24" />
+                        <ui:FontIcon Glyph="&#xEFDA;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
                 <ui:NavigationViewItem Content="Provisionamento" TargetPageType="{x:Type local:ProvisioningPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Desktop24" />
+                        <ui:FontIcon Glyph="&#xE835;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
             </ui:NavigationView.MenuItems>
 
             <!-- Itens do Rodapé -->
             <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Conta &amp; Sincronização" TargetPageType="{x:Type local:AccountSyncPage}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE77B;" FontFamily="Segoe Fluent Icons" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+
                 <ui:NavigationViewItem Content="Configurações" TargetPageType="{x:Type local:SettingsPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Settings24" />
+                        <ui:FontIcon Glyph="&#xE713;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
                 <ui:NavigationViewItem Content="Sobre" TargetPageType="{x:Type local:AboutPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="Info24" />
+                        <ui:FontIcon Glyph="&#xE946;" FontFamily="Segoe Fluent Icons" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
             </ui:NavigationView.FooterMenuItems>
 
-        </ui:NavigationView>
+            </ui:NavigationView>
+        </Border>
 
         <!-- Overlay de Detalhes do pacote: fica por cima de TUDO (TitleBar +
              NavigationView, daí o RowSpan="2") porque é declarado por último no Grid -

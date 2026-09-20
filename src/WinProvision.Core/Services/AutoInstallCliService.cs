@@ -25,7 +25,7 @@ namespace WinProvision.Core.Services;
 /// descrever: apps winget, planos de Office e, se presente, a seção
 /// <see cref="ProfileManifest.Provisioning"/> (tema, barra de tarefas, energia, nome da
 /// máquina, wallpaper) — um único arquivo cobre os dois casos, e é o mesmo formato usado
-/// pela sincronização via Gist (<see cref="Backup.GitHubBackupService"/>), então o que foi
+/// pela sincronização via Cloudflare Worker (<see cref="Backup.CloudBackupService"/>), então o que foi
 /// sincronizado na nuvem já é o que este modo aplica.
 ///
 /// Não depende de nenhuma peça de UI (OperationsQueueService/janelas) de propósito — isso
@@ -470,8 +470,11 @@ public class AutoInstallCliService
 
     private async Task<bool> InstallWingetAsync(ProfileAppRef appRef, List<AppEntry> catalog, CancellationToken ct, Action<double>? progress = null)
     {
-        string displayName = catalog.FirstOrDefault(a => string.Equals(a.Id, appRef.Id, StringComparison.OrdinalIgnoreCase))?.Name
-            ?? appRef.Id;
+        var catalogEntry = catalog.FirstOrDefault(a => string.Equals(a.Id, appRef.Id, StringComparison.OrdinalIgnoreCase));
+        string displayName = catalogEntry?.Name ?? appRef.Id;
+        // Perfis exportados antes do suporte a msstore não guardam Source — cai no
+        // default "winget" da própria assinatura de InstallAppAsync nesse caso.
+        string source = catalogEntry?.Source ?? "winget";
 
         _log($"[WinProvision] Instalando \"{displayName}\" ({appRef.Id})…");
 
@@ -482,7 +485,8 @@ public class AutoInstallCliService
                 var result = await _wingetExecutor.InstallAppAsync(
                     appRef.Id,
                     onLogReceived: line => { LogLine(displayName, line); if (TryParsePercent(line, out var pct)) progress?.Invoke(pct); },
-                    cancellationToken: ct);
+                    cancellationToken: ct,
+                    source: source);
 
                 if (!result.Success)
                     _log($"[WinProvision] \"{displayName}\": código de saída {result.ExitCode}.");

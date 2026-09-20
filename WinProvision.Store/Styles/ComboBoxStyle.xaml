@@ -38,7 +38,7 @@
                                 <Thumb x:Name="PART_Thumb">
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Border x:Name="ThumbBorder" CornerRadius="4" Width="4" HorizontalAlignment="Center"
+                                            <Border x:Name="ThumbBorder" CornerRadius="{StaticResource CompactCornerRadius}" Width="4" HorizontalAlignment="Center"
                                                     Background="{DynamicResource TextFillColorSecondaryBrush}" Opacity="0.45" />
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
@@ -83,7 +83,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6" />
+                                CornerRadius="{StaticResource ControlCornerRadius}" />
 
                         <ContentPresenter x:Name="ContentSite"
                                           Margin="{TemplateBinding Padding}"
@@ -96,7 +96,7 @@
 
                         <TextBlock x:Name="Chevron"
                                    Text="&#xE70D;"
-                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontFamily="Segoe Fluent Icons"
                                    FontSize="11"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    HorizontalAlignment="Right"
@@ -135,14 +135,14 @@
                             <Border x:Name="DropDownBorder"
                                     MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                     Margin="0,4,0,4"
-                                    CornerRadius="8"
+                                    CornerRadius="{StaticResource OverlayCornerRadius}"
                                     Background="{DynamicResource ApplicationBackgroundBrush}"
                                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                     BorderThickness="1">
                                 <Border.Effect>
                                     <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.35" Color="Black" />
                                 </Border.Effect>
-                                <Border CornerRadius="8" Background="{DynamicResource AppSurfaceBrush}">
+                                <Border CornerRadius="{StaticResource OverlayCornerRadius}" Background="{DynamicResource AppSurfaceBrush}">
                                     <!-- MaxHeight ligado ao MaxDropDownHeight do próprio ComboBox
                                          (mesmo mecanismo do template padrão do WPF) — é isso que
                                          faz a lista virar scroll em vez de esticar pra fora da

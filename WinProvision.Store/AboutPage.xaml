@@ -10,32 +10,36 @@
       UseLayoutRounding="True">
 
     <Canvas Margin="36,24,36,24">
-        <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
-              Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <Border Background="Transparent"
+                CornerRadius="{StaticResource OverlayCornerRadius}"
+                Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}">
+            <Grid Margin="36,24,36,24">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
-                <ui:SymbolIcon Symbol="Info24" FontSize="32" Margin="0,0,16,0" VerticalAlignment="Center" />
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Sobre o WinProvision Store"
-                               FontSize="26"
-                               FontWeight="SemiBold"
-                               FontFamily="Segoe UI Variable Display, Aptos, Segoe UI" />
-                    <TextBlock Text="O GitHub Pages do projeto, sempre atualizado."
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                               Margin="0,4,0,0" />
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,24">
+                    <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE946;" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Sobre o WinProvision Store"
+                                   FontSize="26"
+                                   FontWeight="SemiBold"
+                                   FontFamily="Segoe UI Variable Display, Aptos, Segoe UI" />
+                        <TextBlock Text="O GitHub Pages do projeto, sempre atualizado."
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
                 </StackPanel>
-            </StackPanel>
 
-            <Border Grid.Row="1"
-                    CornerRadius="12"
-                    BorderThickness="1"
-                    BorderBrush="{StaticResource AppCardBorderBrush}"
-                    Background="{StaticResource AppCardBackgroundBrush}"
-                    Padding="1">
+                <Border Grid.Row="1"
+                        CornerRadius="{StaticResource OverlayCornerRadius}"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource AppCardBorderBrush}"
+                        Background="{DynamicResource AppCardBackgroundBrush}"
+                        Padding="1"
+                        Margin="0,0,0,24">
                 <Grid>
                     <wv2:WebView2 x:Name="PagesBrowser"
                                   NavigationCompleted="PagesBrowser_NavigationCompleted" />
@@ -69,6 +73,7 @@
                     </Border>
                 </Grid>
             </Border>
-        </Grid>
+            </Grid>
+        </Border>
     </Canvas>
 </Page>

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
@@ -79,6 +80,7 @@ public partial class HomePage : Page
 
         // Define o contexto de dados para o XAML enxergar as listas Apps e FeaturedApps
         DataContext = this;
+        SetAppsViewMode(list: false);
 
         // Debounce: espera 300ms sem digitação antes de refiltrar/buscar
         _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
@@ -146,6 +148,7 @@ public partial class HomePage : Page
 
         _allApps = catalog.ToList();
         SyncInstalledFlags(_allApps);
+        UpdateCatalogSyncStatus();
         ApplyFilter();
     }
 
@@ -176,12 +179,12 @@ public partial class HomePage : Page
     {
         CategoryList.ItemsSource = new List<CategoryChip>
         {
-            new("all", "Todos", Wpf.Ui.Controls.SymbolRegular.Grid24, true),
-            new("productivity", "Produtividade", Wpf.Ui.Controls.SymbolRegular.Document24, false),
-            new("development", "Desenvolvimento", Wpf.Ui.Controls.SymbolRegular.Code24, false),
-            new("utilities", "Utilitários", Wpf.Ui.Controls.SymbolRegular.Wrench24, false),
-            new("multimedia", "Multimídia", Wpf.Ui.Controls.SymbolRegular.Play24, false),
-            new("security", "Segurança", Wpf.Ui.Controls.SymbolRegular.Shield24, false),
+            new("all", "Todos", "\uE8A9", true),
+            new("productivity", "Produtividade", "\uE7C3", false),
+            new("development", "Desenvolvimento", "\uE943", false),
+            new("utilities", "Utilitários", "\uEC7A", false),
+            new("multimedia", "Multimídia", "\uE768", false),
+            new("security", "Segurança", "\uE83D", false),
         };
     }
 
@@ -208,6 +211,7 @@ public partial class HomePage : Page
             SyncInstalledFlags(_allApps);
 
             _catalogLoaded = true;
+            UpdateCatalogSyncStatus();
             ApplyFilter();
         }
         catch (Exception ex)
@@ -246,6 +250,27 @@ public partial class HomePage : Page
 
         _debounceTimer.Stop();
         ApplyFilter();
+    }
+
+    private void GridViewToggleButton_Click(object sender, RoutedEventArgs e) => SetAppsViewMode(list: false);
+
+    private void ListViewToggleButton_Click(object sender, RoutedEventArgs e) => SetAppsViewMode(list: true);
+
+    private void SetAppsViewMode(bool list)
+    {
+        AppsGridScrollViewer.Visibility = list ? Visibility.Collapsed : Visibility.Visible;
+        AppsListScrollViewer.Visibility = list ? Visibility.Visible : Visibility.Collapsed;
+        FeaturedAppsList.Visibility = list ? Visibility.Collapsed : Visibility.Visible;
+        FeaturedAppsListView.Visibility = list ? Visibility.Visible : Visibility.Collapsed;
+        GridViewToggleButton.IsChecked = !list;
+        ListViewToggleButton.IsChecked = list;
+
+        Brush accent = TryFindResource("SystemAccentColorPrimaryBrush") as Brush ?? SystemColors.HighlightBrush;
+        Brush primaryText = TryFindResource("TextFillColorPrimaryBrush") as Brush ?? SystemColors.ControlTextBrush;
+        GridViewToggleButton.Background = !list ? accent : Brushes.Transparent;
+        ListViewToggleButton.Background = list ? accent : Brushes.Transparent;
+        GridViewToggleButton.Foreground = !list ? Brushes.White : primaryText;
+        ListViewToggleButton.Foreground = list ? Brushes.White : primaryText;
     }
 
     private static bool HasRealIcon(AppEntry app) =>
@@ -293,6 +318,30 @@ public partial class HomePage : Page
                 : $"{results.Count} resultado(s)";
     }
 
+    private void UpdateCatalogSyncStatus()
+    {
+        DateTime? syncedAt = _storeService.LastCatalogSyncUtc;
+        if (syncedAt is not { } utc)
+        {
+            LastCatalogSyncText.Text = "Sincronização ainda não realizada";
+            SetCatalogStatus(stale: true);
+            return;
+        }
+
+        LastCatalogSyncText.Text = $"Sincronizado em {utc.ToLocalTime():dd/MM/yyyy HH:mm}";
+        SetCatalogStatus(DateTime.UtcNow - utc > TimeSpan.FromHours(24));
+    }
+
+    private void SetCatalogStatus(bool stale)
+    {
+        CatalogStatusIcon.Glyph = stale ? "\uE946" : "\uE930";
+        var brush = (System.Windows.Media.Brush)FindResource(
+            stale ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush");
+        CatalogStatusIcon.Foreground = brush;
+        CatalogStatusText.Foreground = brush;
+        CatalogStatusText.Text = stale ? "Desatualizado" : "Atualizado";
+    }
+
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isRefreshing)
@@ -310,6 +359,7 @@ public partial class HomePage : Page
             await _installedAppsService.RefreshAsync();
             SyncInstalledFlags(_allApps);
             _catalogLoaded = true;
+            UpdateCatalogSyncStatus();
             ApplyFilter();
         }
         catch (Exception ex)
@@ -342,6 +392,38 @@ public partial class HomePage : Page
 
         app.IsInstalling = true;
         StatusText.Text = $"{app.Name} adicionado à fila de instalação.";
+
+        try
+        {
+            var result = await OperationRunner.RunInstallAsync(
+                _queueService,
+                _wingetExecutor,
+                app.Id,
+                app.Name,
+                app.IconUrl,
+                _installedAppsService,
+                source: app.Source);
+
+            // Reset installing flag after operation completes
+            app.IsInstalling = false;
+
+            if (result.Success)
+            {
+                app.IsInstalled = true;
+                StatusText.Text = $"{app.Name} instalado com sucesso.";
+            }
+            else
+            {
+                // Failure: status text may already be set by OperationRunner; provide a generic message
+                StatusText.Text = $"Falha ao instalar {app.Name}.";
+            }
+        }
+        catch (Exception ex)
+        {
+            // Ensure flag reset and report error
+            app.IsInstalling = false;
+            StatusText.Text = $"Erro ao instalar {app.Name}: {ex.Message}";
+        }
     }
 
     private void AppCard_Click(object sender, MouseButtonEventArgs e)

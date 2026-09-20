@@ -5,14 +5,14 @@ using System.Text;
 namespace WinProvision.Core.Services.Backup;
 
 /// <summary>
-/// Guarda o Personal Access Token do GitHub criptografado em disco via DPAPI
+/// Guarda segredos criptografados em disco via DPAPI
 /// (<see cref="ProtectedData"/>, escopo CurrentUser) — o mesmo mecanismo usado pelo
 /// Credential Manager do Windows por baixo dos panos. Isso mantém o token fora de
 /// texto puro no disco e amarrado ao usuário do Windows que o salvou: outra conta do
 /// Windows na mesma máquina não consegue descriptografar o arquivo.
 ///
-/// Deliberadamente separado de <see cref="BackupAccountInfo"/> (login/GistId/data),
-/// que não é sensível e pode ser lido/logado sem risco — só o token passa por aqui.
+/// Os metadados da conta não são sensíveis e podem ser lidos sem risco — só a
+/// API key passa por aqui.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class SecureTokenStore
