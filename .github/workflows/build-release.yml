@@ -22,6 +22,9 @@ env:
   ASSET_NAME: WinProvision.Store.exe
   # O release também leva WinProvision.Store-Setup.exe (instalador Inno Setup) e os .sha256 de
   # ambos — ver installer/WinProvision.Store.iss. Só o ASSET_NAME acima é usado pelo Bootstrap.
+  # Incremente para forçar reinstalação do Inno Setup via choco (ex.: ao querer uma versão nova),
+  # invalidando o cache abaixo.
+  INNOSETUP_CACHE_VERSION: "1"
 
 jobs:
   # Checagem de build do Indexer, em job próprio para rodar em paralelo com o build do
@@ -155,8 +158,19 @@ jobs:
       # publicado (o Bootstrap baixa ele direto); o instalador é a via para pessoas.
       # Só roda quando o canal vai virar release (nightly/stable/prerelease) — em PR
       # (canal "none") o instalador não seria publicado, então pular economiza tempo.
-      - name: Instalar/atualizar o Inno Setup
+      #
+      # A instalação do Inno Setup em si fica cacheada: o choco só roda de novo quando
+      # o cache não existe ainda ou quando INNOSETUP_CACHE_VERSION é incrementado.
+      - name: Cache do Inno Setup
         if: steps.ver.outputs.channel != 'none'
+        id: cache-innosetup
+        uses: actions/cache@v4
+        with:
+          path: 'C:\Program Files (x86)\Inno Setup 6'
+          key: innosetup-${{ runner.os }}-v${{ env.INNOSETUP_CACHE_VERSION }}
+
+      - name: Instalar o Inno Setup (cache miss)
+        if: steps.ver.outputs.channel != 'none' && steps.cache-innosetup.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           # "upgrade" instala se não existir e atualiza se a imagem do runner trouxer versão
@@ -164,8 +178,12 @@ jobs:
           choco upgrade innosetup -y --no-progress
           if ($LASTEXITCODE -notin 0, 1641, 3010) { throw "choco falhou ao instalar o Inno Setup ($LASTEXITCODE)" }
 
+      - name: Definir caminho do ISCC
+        if: steps.ver.outputs.channel != 'none'
+        shell: pwsh
+        run: |
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path $iscc)) { throw "ISCC.exe não encontrado em '$iscc'" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe não encontrado em '$iscc' (cache corrompido? tente incrementar INNOSETUP_CACHE_VERSION)" }
           "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Gerar o instalador (Inno Setup)
