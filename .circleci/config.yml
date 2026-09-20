@@ -3,17 +3,25 @@ version: 2.1
 jobs:
   sync-apps-json:
     docker:
-      - image: cimg/dotnet:10.0
+      # Não existe convenience image oficial cimg/dotnet na CircleCI (só um pedido em
+      # aberto na comunidade deles) — usa a imagem oficial da Microsoft. Roda como root,
+      # por isso os comandos abaixo não usam sudo.
+      - image: mcr.microsoft.com/dotnet/sdk:10.0
     resource_class: medium
     steps:
+      - run:
+          name: Instalar git (a imagem do .NET não vem com git, e o checkout do CircleCI precisa dele)
+          command: |
+            apt-get update -y
+            apt-get install -y git
+
       - checkout
 
       - run:
-          name: Instalar Python e boto3 (a imagem cimg/dotnet não vem com Python)
+          name: Instalar Python e boto3 (a imagem do .NET não vem com Python)
           command: |
-            sudo apt-get update -y
-            sudo apt-get install -y python3 python3-pip
-            pip3 install --user boto3
+            apt-get install -y python3 python3-pip
+            pip3 install --break-system-packages boto3
 
       - run:
           name: Checkout esparso do winget-pkgs (só a pasta manifests)
