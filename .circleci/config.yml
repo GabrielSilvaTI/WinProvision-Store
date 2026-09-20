@@ -25,12 +25,21 @@ jobs:
 
       - run:
           name: Checkout esparso do winget-pkgs (só a pasta manifests)
+          # O "sparse-checkout set" baixa e grava ~700 mil arquivos de manifest SEM imprimir nada
+          # durante minutos; o padrão do CircleCI mata o passo após 10 min sem saída.
+          no_output_timeout: 45m
           command: |
             git clone --depth 1 --filter=blob:none --sparse \
               https://x-access-token:${GH_TOKEN}@github.com/microsoft/winget-pkgs.git \
               winget-pkgs
             cd winget-pkgs
+
+            # Heartbeat: imprime uma linha por minuto enquanto o git trabalha em silêncio.
+            ( while true; do sleep 60; echo "  ... ainda baixando/gravando os manifests"; done ) &
+            HEARTBEAT_PID=$!
             git sparse-checkout set manifests
+            kill $HEARTBEAT_PID
+            echo "Manifests baixados: $(find manifests -name '*.yaml' | wc -l) arquivos .yaml"
 
       - run:
           name: Restaurar metrics-cache.json do R2 (se existir)
@@ -49,14 +58,15 @@ jobs:
 
       - run:
           name: Rodar o Indexer
+          no_output_timeout: 30m
+          # GITHUB_TOKEN é lido pelo próprio Indexer (métricas de estrelas etc.) — reaproveita
+          # a variável GH_TOKEN cadastrada no projeto. Precisa ser exportada aqui dentro: a chave
+          # "environment:" do CircleCI NÃO expande "$GH_TOKEN" (o Indexer recebia o texto literal).
           command: |
+            export GITHUB_TOKEN="$GH_TOKEN"
             dotnet run --project src/WinProvision.Indexer -c Release -- \
               "$(pwd)/winget-pkgs/manifests" \
               "$(pwd)/catalog-output"
-          # GITHUB_TOKEN é lido pelo próprio Indexer internamente (métricas de estrelas/etc,
-          # se aplicável) — reaproveita a mesma variável GH_TOKEN cadastrada no projeto.
-          environment:
-            GITHUB_TOKEN: $GH_TOKEN
 
       - run:
           name: Publicar apps.json no R2
@@ -75,5 +85,13 @@ jobs:
 
 workflows:
   winget-sync:
+    # SEM este "when", o CircleCI dispara o workflow em TODO push de qualquer branch — e este job
+    # é pesado (clona o winget-pkgs e roda o Indexer). Agora só roda:
+    #   - pelo agendamento (Project Settings > Triggers, ex.: diário 06:00 UTC), ou
+    #   - manualmente (botão "Trigger Pipeline" / API).
+    when:
+      or:
+        - equal: [scheduled_pipeline, << pipeline.trigger_source >>]
+        - equal: [api, << pipeline.trigger_source >>]
     jobs:
       - sync-apps-json
