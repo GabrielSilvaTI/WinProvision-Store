@@ -3,7 +3,11 @@ using System.Threading;
 
 namespace WinProvision.Core.Services.Indexing;
 
-public record ScanStats(int VersionFoldersFound, int PackagesAfterDedup, int ParseErrors);
+/// <param name="VersionFoldersFound">Total de pastas de versão no winget-pkgs (todas as versões de todos os pacotes).</param>
+/// <param name="PackagesAfterDedup">Pacotes únicos que sobraram (a versão mais recente de cada um).</param>
+/// <param name="ParseErrors">Manifestos que não puderam ser parseados (só conta as pastas de fato lidas).</param>
+/// <param name="FoldersParsed">Pastas de versão de fato abertas e parseadas (≈ 1 por pacote).</param>
+public record ScanStats(int VersionFoldersFound, int PackagesAfterDedup, int ParseErrors, int FoldersParsed = 0);
 
 public record RawManifestBundle(
     string PackageIdentifier,
@@ -30,27 +34,56 @@ public class ManifestScanner
             .Where(dir => Directory.EnumerateFiles(dir, "*.yaml").Any())
             .ToList();
 
+        // Ler e parsear YAML é o gargalo da pipeline, e o winget-pkgs guarda TODAS as
+        // versões de cada pacote (hoje ~690 mil arquivos .yaml em ~174 mil pastas de
+        // versão, para ~15 mil pacotes). Só a versão mais recente interessa, então ela é
+        // escolhida ANTES de abrir qualquer arquivo: a pasta de versão é sempre filha da
+        // pasta do pacote (manifests/<letra>/<Publisher>/<App>/<versão>/), e o nome da
+        // pasta é a própria versão. Isso reduz o parse em ~12x.
+        var candidatesPerPackage = versionFolders
+            .GroupBy(folder => Path.GetDirectoryName(folder) ?? folder, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(folder => Path.GetFileName(folder), VersionComparer.Instance)
+                .ToList())
+            .ToList();
+
         int parseErrors = 0;
+        int foldersParsed = 0;
         var bundles = new ConcurrentBag<RawManifestBundle>();
 
-        // O winget-pkgs tem centenas de milhares de pastas de versão; ler e parsear
-        // YAML uma pasta por vez em série é o principal gargalo da pipeline. É I/O-bound
-        // e cada pasta é independente, então paraleliza pelo número de núcleos do runner.
-        Parallel.ForEach(versionFolders, () => 0, (folder, _, localErrors) =>
+        // I/O-bound e cada pacote é independente: paraleliza pelo número de núcleos.
+        Parallel.ForEach(candidatesPerPackage, candidates =>
         {
-            var bundle = TryBuildBundle(folder, ref localErrors);
+            int errors = 0;
+            int parsed = 0;
+            RawManifestBundle? bundle = null;
+
+            // Normalmente a 1a pasta (a mais recente) já resolve. Se ela estiver
+            // quebrada/incompleta (sem locale, YAML inválido), cai pra versão anterior —
+            // mesmo resultado prático de antes, quando todas as versões eram lidas.
+            foreach (var folder in candidates)
+            {
+                parsed++;
+                bundle = TryBuildBundle(folder, ref errors);
+                if (bundle != null)
+                    break;
+            }
+
             if (bundle != null)
                 bundles.Add(bundle);
-            return localErrors;
-        },
-        localErrors => Interlocked.Add(ref parseErrors, localErrors));
 
+            Interlocked.Add(ref parseErrors, errors);
+            Interlocked.Add(ref foldersParsed, parsed);
+        });
+
+        // Rede de segurança: agrupa por PackageIdentifier (e não por pasta) e mantém a
+        // maior versão, como antes. Cobre o caso raro de o mesmo ID aparecer em duas pastas.
         var latestPerPackage = bundles
             .GroupBy(b => b.PackageIdentifier, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.OrderByDescending(b => b.PackageVersion, VersionComparer.Instance).First())
             .ToList();
 
-        var stats = new ScanStats(versionFolders.Count, latestPerPackage.Count, parseErrors);
+        var stats = new ScanStats(versionFolders.Count, latestPerPackage.Count, parseErrors, foldersParsed);
         return (latestPerPackage, stats);
     }
 

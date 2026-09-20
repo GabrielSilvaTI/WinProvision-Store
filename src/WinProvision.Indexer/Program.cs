@@ -35,6 +35,15 @@ Console.WriteLine("  WinProvision Store - Engine de Curadoria WinGet");
 Console.WriteLine("==================================================");
 
 var totalTimer = Stopwatch.StartNew();
+var stepTimer = Stopwatch.StartNew();
+
+// Marca quanto tempo cada etapa levou (aparece no log do Actions) — pra saber onde
+// está o gargalo sem precisar adivinhar.
+void Lap(string label)
+{
+    Console.WriteLine($"      [tempo] {label}: {stepTimer.Elapsed.TotalSeconds:N1}s");
+    stepTimer.Restart();
+}
 
 // 1. Varredura + dedup pela versão mais recente de cada pacote
 Console.WriteLine("\n[1/7] Varrendo manifests do winget-pkgs...");
@@ -43,6 +52,8 @@ var (bundles, scanStats) = scanner.Scan(manifestsRoot);
 Console.WriteLine($"      {scanStats.VersionFoldersFound:N0} pastas de versão encontradas");
 Console.WriteLine($"      {scanStats.ParseErrors:N0} manifestos com erro de parsing (ignorados)");
 Console.WriteLine($"      {scanStats.PackagesAfterDedup:N0} pacotes únicos após manter só a última versão");
+Console.WriteLine($"      {scanStats.FoldersParsed:N0} pastas de versão de fato lidas (só a mais recente de cada pacote)");
+Lap("varredura dos manifests");
 
 // 2. Mapeamento para AppEntry + filtro de ruído
 Console.WriteLine("\n[2/7] Aplicando filtro de ruído...");
@@ -71,6 +82,7 @@ foreach (var bundle in bundles)
 
 Console.WriteLine($"      {discarded:N0} pacotes descartados como ruído");
 Console.WriteLine($"      {candidates.Count:N0} pacotes seguem para enriquecimento");
+Lap("filtro de ruído");
 
 // [+] Apps curados da Microsoft Store (source "msstore"). Não roda a consulta à
 // Display Catalog aqui — isso fica no workflow separado "Update msstore-catalog.json"
@@ -84,6 +96,7 @@ Console.WriteLine("\n[+] Baixando apps curados da Microsoft Store (R2)...");
 var msstoreApps = await DownloadMsStoreCatalogAsync();
 candidates.AddRange(msstoreApps);
 Console.WriteLine($"      {msstoreApps.Count:N0} apps da Microsoft Store mesclados");
+Lap("catálogo msstore");
 
 // 3. Classificação regional
 Console.WriteLine("\n[3/7] Classificando apelo regional...");
@@ -133,6 +146,7 @@ if (githubService.RateLimitHit)
 }
 
 await SaveMetricsCacheAsync(cachePath, githubService.ExportCache());
+Lap("métricas do GitHub");
 
 // 5. Corte final por score mínimo
 Console.WriteLine("\n[5/7] Aplicando corte de score mínimo...");
@@ -151,12 +165,30 @@ Console.WriteLine($"      {published.Count:N0} pacotes seguem para o catálogo f
 // "winget show" nem HEAD/Range ao vivo pra maioria dos pacotes — só como fallback
 // para os que não resolverem aqui.
 Console.WriteLine("\n[6/7] Estimando tamanho dos instaladores (HTTP HEAD/Range)...");
+// Reaproveita o tamanho do catálogo anterior (apps.previous.json, baixado do R2 pelo
+// workflow, no mesmo estilo do metrics-cache.json): se o Id e a Version são os mesmos,
+// o instalador é o mesmo e não precisa de HEAD/Range de novo. Na prática só os pacotes
+// novos ou atualizados desde a última rodada fazem requisição de rede.
+var previousApps = LoadPreviousApps(Path.Combine(outputDir, "apps.previous.json"));
+Console.WriteLine($"      {previousApps.Count:N0} apps do catálogo anterior disponíveis para reaproveitar tamanhos");
+
 int sizeResolved = 0;
+int sizeReused = 0;
 await Parallel.ForEachAsync(
     published,
-    new ParallelOptions { MaxDegreeOfParallelism = 8 },
+    new ParallelOptions { MaxDegreeOfParallelism = 16 },
     async (app, ct) =>
     {
+        if (previousApps.TryGetValue(app.Id, out var previous)
+            && previous.InstallerSizeBytes is > 0
+            && string.Equals(previous.Version, app.Version, StringComparison.Ordinal))
+        {
+            app.InstallerSizeBytes = previous.InstallerSizeBytes;
+            Interlocked.Increment(ref sizeResolved);
+            Interlocked.Increment(ref sizeReused);
+            return;
+        }
+
         if (!installerUrlsByAppId.TryGetValue(app.Id, out var urls) || urls.Count == 0)
             return;
 
@@ -173,11 +205,14 @@ await Parallel.ForEachAsync(
     });
 
 Console.WriteLine($"      {sizeResolved:N0} de {published.Count:N0} pacotes com tamanho estimado ({(published.Count == 0 ? 0 : sizeResolved * 100.0 / published.Count):N1}%)");
+Console.WriteLine($"      {sizeReused:N0} reaproveitados do catálogo anterior, {sizeResolved - sizeReused:N0} consultados na rede");
+Lap("tamanhos dos instaladores");
 
 // 7. Exportação do catálogo
 Console.WriteLine("\n[7/7] Exportando catálogo...");
 var exporter = new CatalogExporter();
 await exporter.ExportAsync(published, outputDir);
+Lap("exportação");
 
 totalTimer.Stop();
 Console.WriteLine($"\n[SUCESSO] Pipeline concluída em {totalTimer.Elapsed.TotalSeconds:N1}s. {published.Count:N0} apps publicados em '{outputDir}'.");
@@ -277,5 +312,34 @@ static async Task SaveMetricsCacheAsync(string path, Dictionary<string, GitHubRe
 {
     Directory.CreateDirectory(Path.GetDirectoryName(path)!);
     string json = JsonSerializer.Serialize(cache);
-    await File.WriteAllTextAsync(path, json);
+
+    // Escrita atômica: se o job for cancelado/cair no meio, não deixa um JSON pela
+    // metade (que LoadMetricsCache descartaria, zerando o cache inteiro).
+    string tempPath = path + ".tmp";
+    await File.WriteAllTextAsync(tempPath, json);
+    File.Move(tempPath, path, overwrite: true);
+}
+
+static Dictionary<string, AppEntry> LoadPreviousApps(string path)
+{
+    var result = new Dictionary<string, AppEntry>(StringComparer.OrdinalIgnoreCase);
+    if (!File.Exists(path)) return result;
+
+    try
+    {
+        string json = File.ReadAllText(path);
+        var apps = JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
+        foreach (var app in apps)
+        {
+            if (!string.IsNullOrWhiteSpace(app.Id))
+                result.TryAdd(app.Id, app);
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"      [AVISO] Não foi possível ler o catálogo anterior, todos os tamanhos serão consultados: {ex.Message}");
+        result.Clear();
+    }
+
+    return result;
 }

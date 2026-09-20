@@ -56,6 +56,12 @@ jobs:
           Store/Database/metrics-cache.json
           "${{ github.workspace }}/catalog-output/metrics-cache.json"
 
+      - name: Restaurar apps.json anterior do R2 (reaproveitar tamanhos de instalador)
+        run: >
+          python scripts/database/r2_download.py
+          Store/Database/apps.json
+          "${{ github.workspace }}/catalog-output/apps.previous.json"
+
       - name: Rodar o Indexer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,6 +77,7 @@ jobs:
         run: python scripts/database/upload_apps_json.py
 
       - name: Devolver metrics-cache.json atualizado pro R2
+        if: ${{ always() }} # salva o cache mesmo se um passo posterior falhar
         run: >
           python scripts/database/r2_upload.py
           "${{ github.workspace }}/catalog-output/metrics-cache.json"

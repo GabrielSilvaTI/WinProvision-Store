@@ -17,8 +17,9 @@ namespace WinProvision.Core.Services.Indexing;
 /// quando o cache expira (7 dias) ou o pacote é novo no catálogo.
 ///
 /// Com GITHUB_TOKEN (injetado automaticamente pelo GitHub Actions), o limite sobe de
-/// 60 para 5.000 requisições/hora. Se o rate limit for atingido mesmo assim, a engine
-/// não falha: os pacotes restantes seguem com o score neutro (ver ScoringEngine).
+/// 60 para 1.000 requisições/hora (por repositório, no token do Actions; os 5.000/h são
+/// de um PAT/GitHub App). Se o rate limit for atingido mesmo assim, a engine não falha:
+/// os pacotes restantes usam o cache antigo ou o score neutro (ver ScoringEngine).
 /// </summary>
 public class GitHubMetricsService
 {
@@ -90,7 +91,12 @@ public class GitHubMetricsService
 
             if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
             {
-                _rateLimitHit = true;
+                // 403 também é o que o GitHub devolve para repositório bloqueado/desativado:
+                // só considera rate limit de verdade quando os headers dizem isso, senão um
+                // único repositório assim desligaria o enriquecimento do resto da rodada.
+                if (IsRateLimited(response))
+                    _rateLimitHit = true;
+
                 return hasCached ? cached : null;
             }
 
@@ -122,6 +128,20 @@ public class GitHubMetricsService
         {
             _throttle.Release();
         }
+    }
+
+    private static bool IsRateLimited(HttpResponseMessage response)
+    {
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            return true;
+
+        // Limite primário esgotado.
+        if (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining)
+            && remaining.FirstOrDefault() == "0")
+            return true;
+
+        // Limite secundário (abuso/concorrência): vem com Retry-After.
+        return response.Headers.RetryAfter is not null;
     }
 
     /// <summary>Retorna o cache atualizado para ser persistido em disco pelo chamador.</summary>
