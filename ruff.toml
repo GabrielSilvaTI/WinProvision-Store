@@ -1,0 +1,13 @@
+# Ruff: linter e formatador dos scripts Python (pasta scripts/).
+line-length = 120
+target-version = "py311"
+
+[lint]
+# E/W/F: pycodestyle e pyflakes. I: ordem dos imports. B: bugs comuns.
+# UP: sintaxe moderna. BLE: except amplo (os `# noqa: BLE001` já existem).
+select = ["E", "F", "W", "I", "B", "UP", "BLE"]
+ignore = [
+    "E501", # linhas longas: o formatador não quebra strings, então fica de fora
+    "E731", # lambda atribuída a variável (pct em sync_cdn_icons.py)
+    "E741", # variável `l` em uma compreensão de lista (probe_cdn_icons.py)
+]
