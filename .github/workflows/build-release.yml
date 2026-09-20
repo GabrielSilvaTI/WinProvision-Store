@@ -50,27 +50,38 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
+          # Variáveis de ambiente no PowerShell são $env:NOME (sem o "env:" viram variáveis vazias).
+          $refType   = $env:REF_TYPE
+          $refName   = $env:REF_NAME
+          $eventName = $env:EVENT_NAME
+          $runNumber = $env:RUN_NUMBER
+          if (-not $runNumber) { throw "RUN_NUMBER vazio" }
+
           [xml]$proj = Get-Content WinProvision.Store/WinProvision.Store.csproj
           $base = $proj.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1
           if ($base -notmatch '^(\d+\.\d+\.\d+)') { throw "Version do csproj inesperada: '$base'" }
           $core = $Matches[1]
 
-          if ($REF_TYPE -eq 'tag') {
-            $version = $REF_NAME.TrimStart('v')
-            if ($version -notmatch '^(\d+\.\d+\.\d+)') { throw "Tag '$REF_NAME' não segue vX.Y.Z" }
+          if ($refType -eq 'tag') {
+            $version = $refName.TrimStart('v')
+            if ($version -notmatch '^(\d+\.\d+\.\d+)') { throw "Tag '$refName' não segue vX.Y.Z" }
             $fileVersion = "$($Matches[1]).0"
             $channel = if ($version.Contains('-')) { 'prerelease' } else { 'stable' }
           }
-          elseif ($REF_NAME -eq 'main' -and $EVENT_NAME -in @('push', 'workflow_dispatch')) {
-            $version = "$core-nightly.$RUN_NUMBER"
-            $fileVersion = "$core.$RUN_NUMBER"
+          elseif ($refName -eq 'main' -and $eventName -in @('push', 'workflow_dispatch')) {
+            $version = "$core-nightly.$runNumber"
+            $fileVersion = "$core.$runNumber"
             $channel = 'nightly'
           }
           else {
-            $version = "$core-ci.$RUN_NUMBER"
-            $fileVersion = "$core.$RUN_NUMBER"
+            $version = "$core-ci.$runNumber"
+            $fileVersion = "$core.$runNumber"
             $channel = 'none'
           }
+
+          # Nunca deixa uma versão malformada (ex.: terminando em "." ou "-") chegar no dotnet publish.
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$') { throw "Versão inválida: '$version'" }
+          if ($fileVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw "FileVersion inválida: '$fileVersion'" }
 
           "version=$version"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "file_version=$fileVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
