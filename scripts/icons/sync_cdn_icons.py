@@ -15,6 +15,7 @@ Reaproveita as funções de probe_cdn_icons.py (mesma pasta).
 Credenciais: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET.
 Para testar sem R2 use --local-store <pasta>.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,7 +31,6 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import probe_cdn_icons as probe  # noqa: E402
@@ -38,8 +38,11 @@ import probe_cdn_icons as probe  # noqa: E402
 ICON_EXTS = {"ico", "png", "jpg", "jpeg", "svg", "gif", "webp"}
 FORMAT_EXT = {"ICO": "ico", "PNG": "png", "JPEG": "jpg", "GIF": "gif", "WEBP": "webp"}
 CONTENT_TYPES = {
-    "ico": "image/x-icon", "png": "image/png", "jpg": "image/jpeg",
-    "gif": "image/gif", "webp": "image/webp",
+    "ico": "image/x-icon",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
 }
 DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
 DEFAULT_PREFIX = "Store/Icon_Database/"
@@ -47,8 +50,12 @@ DEFAULT_STATE_KEY = "Store/Icon_Database/icon-sync-state.json"
 
 # Sem ícone na CDN: vale lembrar e só tentar de novo depois de --recheck-days.
 NEGATIVE_STATUS = {
-    "fora_do_indice", "sem_hash_no_indice", "sem_icons_no_manifest",
-    "icons_sem_url_https", "versiondata_http_404", "manifest_http_404",
+    "fora_do_indice",
+    "sem_hash_no_indice",
+    "sem_icons_no_manifest",
+    "icons_sem_url_https",
+    "versiondata_http_404",
+    "manifest_http_404",
 }
 
 
@@ -57,6 +64,7 @@ def is_negative(status: str) -> bool:
 
 
 # ---------------------------------------------------------------- armazenamento
+
 
 class R2Store:
     def __init__(self):
@@ -92,12 +100,12 @@ class R2Store:
         return json.loads(body.decode("utf-8-sig"))
 
     def put_json(self, key, obj):
-        self.put_bytes(key, json.dumps(obj, ensure_ascii=False, indent=1).encode("utf-8"),
-                       "application/json", cache="no-cache")
+        self.put_bytes(
+            key, json.dumps(obj, ensure_ascii=False, indent=1).encode("utf-8"), "application/json", cache="no-cache"
+        )
 
     def put_bytes(self, key, data, ctype, cache="public, max-age=86400"):
-        self.s3.put_object(Bucket=self.bucket, Key=key, Body=data,
-                           ContentType=ctype, CacheControl=cache)
+        self.s3.put_object(Bucket=self.bucket, Key=key, Body=data, ContentType=ctype, CacheControl=cache)
 
 
 class LocalStore:
@@ -129,6 +137,7 @@ class LocalStore:
 
 # ---------------------------------------------------------------- catálogo
 
+
 def norm_id(pkg_id: str) -> str:
     return unicodedata.normalize("NFC", pkg_id).lower()
 
@@ -152,7 +161,7 @@ def list_existing(store, prefix) -> dict[str, str]:
     """stem em minúsculas -> chave no bucket, só arquivos de imagem."""
     existing = {}
     for key in store.list_keys(prefix):
-        name = key[len(prefix):]
+        name = key[len(prefix) :]
         if not name or "/" in name or "." not in name:
             continue
         stem, ext = name.rsplit(".", 1)
@@ -162,6 +171,7 @@ def list_existing(store, prefix) -> dict[str, str]:
 
 
 # ---------------------------------------------------------------- CDN
+
 
 def validate_image(blob: bytes) -> str:
     from PIL import Image
@@ -237,6 +247,7 @@ def resolve_icon(pkg: dict, cdn: str) -> dict:
 
 # ---------------------------------------------------------------- principal
 
+
 def write_report(out: Path, meta, results, still_missing):
     counts = Counter(r["status"] for r in results)
     uploaded = counts.get("ok", 0)
@@ -244,7 +255,8 @@ def write_report(out: Path, meta, results, still_missing):
     pct = lambda n: f"{100.0 * n / total:.1f}%" if total else "n/a"
     mode = "SIMULAÇÃO (nada foi enviado ao R2)" if meta["dry_run"] else "envio real"
     lines = [
-        "# Sincronização de ícones (CDN winget -> R2)", "",
+        "# Sincronização de ícones (CDN winget -> R2)",
+        "",
         f"- Modo: {mode}",
         f"- Apps no catálogo: {total}",
         f"- Com ícone antes: {cov_before} ({pct(cov_before)})",
@@ -252,22 +264,35 @@ def write_report(out: Path, meta, results, still_missing):
         f"- Pulados por teste recente sem ícone: {meta['skipped_negative']}",
         f"- Testados nesta execução: {len(results)}"
         + (f" (limite de {meta['max_probes']} atingido)" if meta["limit_hit"] else ""),
-        "", "## Resultado dos testes", "", "| Status | Apps |", "|---|---:|",
+        "",
+        "## Resultado dos testes",
+        "",
+        "| Status | Apps |",
+        "|---|---:|",
     ]
     lines += [f"| {s} | {n} |" for s, n in counts.most_common()]
     errors = [r for r in results if r["status"] != "ok" and not is_negative(r["status"])]
     if errors:
-        lines += ["", "## Erros que não entram no cache (serão testados de novo)", "",
-                  "| Id | Status | Detalhe |", "|---|---|---|"]
+        lines += [
+            "",
+            "## Erros que não entram no cache (serão testados de novo)",
+            "",
+            "| Id | Status | Detalhe |",
+            "|---|---|---|",
+        ]
         lines += [f"| {r['id']} | {r['status']} | {r['detail'].replace('|', '/')} |" for r in errors[:20]]
     lines += ["", f"## Ainda sem ícone: {len(still_missing)} (primeiros 40 na ordem do apps.json)", ""]
     lines += [f"- {i}" for i in still_missing[:40]]
     text = "\n".join(lines) + "\n"
     (out / "summary.md").write_text(text, encoding="utf-8")
     (out / "missing-icons.json").write_text(json.dumps(still_missing, ensure_ascii=False, indent=1), encoding="utf-8")
-    (out / "results.json").write_text(json.dumps(
-        [{k: v for k, v in r.items() if k != "data"} for r in results], ensure_ascii=False, indent=1), encoding="utf-8")
-    (out / "report.json").write_text(json.dumps({**meta, "status": dict(counts)}, ensure_ascii=False, indent=1), encoding="utf-8")
+    (out / "results.json").write_text(
+        json.dumps([{k: v for k, v in r.items() if k != "data"} for r in results], ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+    (out / "report.json").write_text(
+        json.dumps({**meta, "status": dict(counts)}, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
     step = os.environ.get("GITHUB_STEP_SUMMARY")
     if step:
         with open(step, "a", encoding="utf-8") as fh:
@@ -285,8 +310,9 @@ def main(argv=None) -> int:
     ap.add_argument("--max-probes", type=int, default=0, help="máximo de apps testados por execução (0 = sem limite)")
     ap.add_argument("--recheck-days", type=int, default=30)
     ap.add_argument("--workers", type=int, default=8)
-    ap.add_argument("--dotless-alias", action="store_true",
-                    help="grava também a cópia sem pontos (só quando não há colisão)")
+    ap.add_argument(
+        "--dotless-alias", action="store_true", help="grava também a cópia sem pontos (só quando não há colisão)"
+    )
     ap.add_argument("--cdn", default=os.environ.get("WINGET_CDN", probe.DEFAULT_CDN))
     ap.add_argument("--local-store", default="", help="usa uma pasta local no lugar do R2 (testes)")
     args = ap.parse_args(argv)
@@ -332,7 +358,9 @@ def main(argv=None) -> int:
     limit_hit = bool(args.max_probes) and len(pending) > args.max_probes
     if args.max_probes:
         pending = pending[: args.max_probes]
-    print(f"Sem ícone: {len(without)} | em cache negativo: {len(skipped_negative)} | a testar: {len(pending)}", flush=True)
+    print(
+        f"Sem ícone: {len(without)} | em cache negativo: {len(skipped_negative)} | a testar: {len(pending)}", flush=True
+    )
 
     results: list[dict] = []
     if pending:
@@ -353,7 +381,15 @@ def main(argv=None) -> int:
         def work(pid: str) -> dict:
             pkg = index_map.get(norm_id(pid))
             if pkg is None:
-                res = {"id": pid, "status": "fora_do_indice", "detail": "", "url": "", "ext": "", "data": None, "version": ""}
+                res = {
+                    "id": pid,
+                    "status": "fora_do_indice",
+                    "detail": "",
+                    "url": "",
+                    "ext": "",
+                    "data": None,
+                    "version": "",
+                }
             else:
                 res = resolve_icon(pkg, cdn)
                 res["id"] = pid
@@ -389,14 +425,22 @@ def main(argv=None) -> int:
         if is_negative(r["status"]):
             new_negative[norm_id(r["id"])] = today.isoformat()
     if not args.dry_run:
-        store.put_json(args.state_key, {"version": 1, "updated": today.isoformat(), "no_icon": dict(sorted(new_negative.items()))})
+        store.put_json(
+            args.state_key, {"version": 1, "updated": today.isoformat(), "no_icon": dict(sorted(new_negative.items()))}
+        )
 
     covered_after = len(covered_before) + len(ok_ids)
     still_missing = [p for p in catalog if not has_icon(p) and norm_id(p) not in ok_ids]
     meta = {
-        "catalog": len(catalog), "covered_before": len(covered_before), "covered_after": covered_after,
-        "skipped_negative": len(skipped_negative), "max_probes": args.max_probes, "limit_hit": limit_hit,
-        "dry_run": args.dry_run, "recheck_days": args.recheck_days, "dotless_alias": args.dotless_alias,
+        "catalog": len(catalog),
+        "covered_before": len(covered_before),
+        "covered_after": covered_after,
+        "skipped_negative": len(skipped_negative),
+        "max_probes": args.max_probes,
+        "limit_hit": limit_hit,
+        "dry_run": args.dry_run,
+        "recheck_days": args.recheck_days,
+        "dotless_alias": args.dotless_alias,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     write_report(out, meta, results, still_missing)
@@ -408,7 +452,9 @@ def main(argv=None) -> int:
 
     errors = [r for r in results if r["status"] != "ok" and not is_negative(r["status"])]
     if len(results) >= 20 and len(errors) > 0.10 * len(results):
-        print(f"ERRO: {len(errors)} de {len(results)} testes falharam por motivo que não é 'sem ícone'.", file=sys.stderr)
+        print(
+            f"ERRO: {len(errors)} de {len(results)} testes falharam por motivo que não é 'sem ícone'.", file=sys.stderr
+        )
         return 1
     return 0
 

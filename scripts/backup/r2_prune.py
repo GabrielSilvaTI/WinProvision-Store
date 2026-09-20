@@ -46,7 +46,9 @@ def main() -> int:
         print("<quantos_manter> precisa ser >= 1.", file=sys.stderr)
         return 2
     if not prefix.endswith("/") or prefix.strip("/").count("/") < 1:
-        print("O prefixo precisa terminar em '/' e ter ao menos duas pastas (ex.: Backups/Repo/weekly/).", file=sys.stderr)
+        print(
+            "O prefixo precisa terminar em '/' e ter ao menos duas pastas (ex.: Backups/Repo/weekly/).", file=sys.stderr
+        )
         return 2
 
     bucket = os.environ.get("R2_BUCKET")

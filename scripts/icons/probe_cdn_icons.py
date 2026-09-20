@@ -16,6 +16,7 @@ png/, raw/ e debug/ (amostras do YAML para inspeção).
 
 Dependências: pyyaml, pillow, pymszip.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -72,6 +73,7 @@ class SchemaError(Exception):
 
 # ---------------------------------------------------------------- rede
 
+
 def http_get(url, timeout=60, retries=3, max_bytes=None):
     """Devolve (status, bytes|None, erro). status 0 = falha de rede."""
     # Alguns "rP" do índice do winget trazem espaço cru (ex.: pasta de versão
@@ -90,17 +92,18 @@ def http_get(url, timeout=60, retries=3, max_bytes=None):
         except urllib.error.HTTPError as exc:
             if exc.code in (429, 500, 502, 503, 504) and attempt < retries - 1:
                 last = f"HTTP {exc.code}"
-                time.sleep(2 ** attempt + random.random())
+                time.sleep(2**attempt + random.random())
                 continue
             return exc.code, None, f"HTTP {exc.code}"
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             last = f"{type(exc).__name__}: {exc}"
             if attempt < retries - 1:
-                time.sleep(2 ** attempt + random.random())
+                time.sleep(2**attempt + random.random())
     return 0, None, last
 
 
 # ---------------------------------------------------------------- decodificação
+
 
 def looks_like_text(data: bytes) -> bool:
     head = data[:256]
@@ -120,9 +123,7 @@ def decode_payload(data: bytes) -> tuple[str, str]:
     try:
         raw = pymszip.decompress(data)
     except Exception as exc:  # noqa: BLE001 - queremos o motivo no relatório
-        raise DecodeError(
-            f"MSZIP falhou ({type(exc).__name__}: {exc}); início={data[:16].hex()}"
-        ) from exc
+        raise DecodeError(f"MSZIP falhou ({type(exc).__name__}: {exc}); início={data[:16].hex()}") from exc
     try:
         return raw.decode("utf-8-sig"), "mszip"
     except UnicodeDecodeError as exc:
@@ -163,10 +164,7 @@ def find_icons(node):
 
 
 def pick_icon(icons):
-    cands = [
-        i for i in icons
-        if isinstance(i, dict) and str(i.get("IconUrl") or "").startswith(ALLOWED_SCHEMES)
-    ]
+    cands = [i for i in icons if isinstance(i, dict) and str(i.get("IconUrl") or "").startswith(ALLOWED_SCHEMES)]
     if not cands:
         return None
 
@@ -197,6 +195,7 @@ def to_png(data: bytes) -> bytes:
 
 
 # ---------------------------------------------------------------- índice
+
 
 def fetch_index(msix_url: str, work: Path) -> Path:
     print(f"Baixando {msix_url} ...", flush=True)
@@ -230,8 +229,7 @@ def to_hex(value) -> str:
 def read_packages(db_path: Path, schema_out: Path):
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
-        tables = [r[0] for r in con.execute(
-            "select name from sqlite_master where type='table' order by name")]
+        tables = [r[0] for r in con.execute("select name from sqlite_master where type='table' order by name")]
         schema = {t: [r[1] for r in con.execute(f'pragma table_info("{t}")')] for t in tables}
         lines = []
         for table, cols in schema.items():
@@ -251,18 +249,21 @@ def read_packages(db_path: Path, schema_out: Path):
             raise SchemaError(f"packages sem coluna de id/hash; colunas: {cols}")
         select = [f'"{id_col}"', f'"{hash_col}"'] + ([f'"{ver_col}"'] if ver_col else [])
         packages = []
-        for row in con.execute(f'select {", ".join(select)} from packages'):
-            packages.append({
-                "id": str(row[0]),
-                "hash": to_hex(row[1]),
-                "latest": str(row[2]) if ver_col and row[2] is not None else "",
-            })
+        for row in con.execute(f"select {', '.join(select)} from packages"):
+            packages.append(
+                {
+                    "id": str(row[0]),
+                    "hash": to_hex(row[1]),
+                    "latest": str(row[2]) if ver_col and row[2] is not None else "",
+                }
+            )
         return packages
     finally:
         con.close()
 
 
 # ---------------------------------------------------------------- amostra
+
 
 def extract_ids(node, out):
     if isinstance(node, dict):
@@ -312,7 +313,9 @@ def load_wanted_ids(args):
         text = path.read_text(encoding="utf-8-sig")
         if path.suffix.lower() == ".json":
             return dedupe(ids_from_json(json.loads(text))), f"arquivo {path.name}"
-        return dedupe([l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]), f"arquivo {path.name}"
+        return dedupe(
+            [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        ), f"arquivo {path.name}"
     if args.apps_url:
         status, data, err = http_get(args.apps_url, timeout=60)
         if data is None:
@@ -331,6 +334,7 @@ def load_wanted_ids(args):
 
 
 # ---------------------------------------------------------------- sondagem
+
 
 class Ctx:
     def __init__(self, cdn, out: Path, total: int):
@@ -366,10 +370,21 @@ def safe_name(value: str) -> str:
 
 def probe_one(pkg, ctx: Ctx):
     rec = {
-        "id": pkg["id"], "control": bool(pkg.get("control")), "status": "", "detail": "",
-        "version": "", "manifest_path": "", "n_icons": 0, "icon_url": "", "icon_host": "",
-        "icon_type": "", "icon_resolution": "", "icon_theme": "", "icon_bytes": 0,
-        "sha_ok": "", "png": False,
+        "id": pkg["id"],
+        "control": bool(pkg.get("control")),
+        "status": "",
+        "detail": "",
+        "version": "",
+        "manifest_path": "",
+        "n_icons": 0,
+        "icon_url": "",
+        "icon_host": "",
+        "icon_type": "",
+        "icon_resolution": "",
+        "icon_theme": "",
+        "icon_bytes": 0,
+        "sha_ok": "",
+        "png": False,
     }
 
     def fail(status, detail=""):
@@ -423,7 +438,8 @@ def probe_one(pkg, ctx: Ctx):
 
     url = str(icon["IconUrl"])
     rec.update(
-        icon_url=url, icon_host=urlparse(url).netloc,
+        icon_url=url,
+        icon_host=urlparse(url).netloc,
         icon_type=(icon.get("IconFileType") or "").lower(),
         icon_resolution=icon.get("IconResolution") or "",
         icon_theme=icon.get("IconTheme") or "",
@@ -454,6 +470,7 @@ def probe_one(pkg, ctx: Ctx):
 
 
 # ---------------------------------------------------------------- relatório
+
 
 def pct(part, whole):
     return f"{(100.0 * part / whole):.1f}%" if whole else "n/a"
@@ -535,6 +552,7 @@ def write_outputs(out: Path, records, meta):
 
 # ---------------------------------------------------------------- main
 
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="probe-out")
@@ -543,7 +561,11 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--ids", default="", help="lista de PackageIdentifier separados por vírgula")
     ap.add_argument("--ids-file", default="", help="arquivo .txt (um id por linha) ou .json")
-    ap.add_argument("--apps-url", default=DEFAULT_APPS_URL, help="URL do apps.json do catálogo (vazio = amostra aleatória do índice)")
+    ap.add_argument(
+        "--apps-url",
+        default=DEFAULT_APPS_URL,
+        help="URL do apps.json do catálogo (vazio = amostra aleatória do índice)",
+    )
     ap.add_argument("--cdn", default=os.environ.get("WINGET_CDN", DEFAULT_CDN))
     ap.add_argument("--msix-url", default="", help="padrão: <cdn>/source2.msix")
     args = ap.parse_args(argv)
@@ -589,8 +611,13 @@ def main(argv=None) -> int:
         records = list(ex.map(lambda p: probe_one(p, ctx), work))
 
     meta = {
-        "ids_source": source, "index_packages": len(packages), "with_hash": with_hash,
-        "unmatched": unmatched, "sample": args.sample, "seed": args.seed, "cdn": args.cdn,
+        "ids_source": source,
+        "index_packages": len(packages),
+        "with_hash": with_hash,
+        "unmatched": unmatched,
+        "sample": args.sample,
+        "seed": args.seed,
+        "cdn": args.cdn,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
     write_outputs(out, records, meta)

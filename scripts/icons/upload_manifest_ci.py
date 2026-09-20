@@ -3,6 +3,7 @@
 Sobe o icon-manifest.json gerado por build_manifest_from_r2.py de volta
 pro bucket R2. Credenciais vem de variaveis de ambiente.
 """
+
 import os
 
 import boto3

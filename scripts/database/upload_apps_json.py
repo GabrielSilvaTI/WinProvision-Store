@@ -5,6 +5,7 @@ pasta separada da dos ícones (Store/Database/, ao invés de Store/Icon_Database
 
 Credenciais vem de variaveis de ambiente (Secrets do GitHub Actions).
 """
+
 import os
 
 import boto3
