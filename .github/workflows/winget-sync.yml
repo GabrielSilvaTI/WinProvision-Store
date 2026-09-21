@@ -1,0 +1,157 @@
+name: winget-sync
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  sync-apps-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar boto3
+        run: pip install boto3
+
+      - name: Configurar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Checkout esparso do winget-pkgs (só a pasta manifests)
+        run: |
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/microsoft/winget-pkgs.git \
+            winget-pkgs
+          cd winget-pkgs
+          git sparse-checkout set manifests
+          echo "Manifests baixados: $(find manifests -name '*.yaml' | wc -l) arquivos .yaml"
+
+      - name: Restaurar metrics-cache.json do R2 (se existir)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          mkdir -p catalog-output
+          python3 scripts/database/r2_download.py \
+            Store/Database/metrics-cache.json \
+            "$(pwd)/catalog-output/metrics-cache.json"
+
+      - name: Restaurar apps.json anterior do R2 (reaproveitar tamanhos de instalador)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          python3 scripts/database/r2_download.py \
+            Store/Database/apps.json \
+            "$(pwd)/catalog-output/apps.previous.json"
+
+      - name: Restaurar estado de hashes da API anterior do R2 (comparar por pacote)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          mkdir -p catalog-output/api-previous
+          python3 scripts/database/r2_download.py \
+            Store/Api/v1/_state/package-hashes.json \
+            "$(pwd)/catalog-output/api-previous/package-hashes.json"
+
+      - name: Rodar o Indexer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet run --project src/WinProvision.Indexer -c Release -- \
+            "$(pwd)/winget-pkgs/manifests" \
+            "$(pwd)/catalog-output"
+
+      - name: Publicar apps.json no R2
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          APPS_JSON_SOURCE: ${{ github.workspace }}/catalog-output/apps.json
+          PREVIOUS_APPS_JSON_URL: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json
+        run: python3 scripts/database/upload_apps_json.py
+
+      - name: Publicar API no R2 (só pacotes com hash alterado)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          python3 scripts/database/upload_api_json.py \
+            "$(pwd)/catalog-output/api" \
+            "$(pwd)/catalog-output/api-previous/package-hashes.json" \
+            Store/Api/v1
+
+      - name: Devolver metrics-cache.json atualizado pro R2
+        if: always()
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          python3 scripts/database/r2_upload.py \
+            "$(pwd)/catalog-output/metrics-cache.json" \
+            Store/Database/metrics-cache.json
+
+  sync-icons:
+    needs: sync-apps-json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install boto3 pymszip pyyaml pillow
+
+      - name: Sincronizar ícones (CDN winget -> R2)
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          ICON_SYNC_LIVE: ${{ vars.ICON_SYNC_LIVE }}
+        run: |
+          args=(--out sync-out --max-probes 0 --recheck-days 30)
+          if [ "$ICON_SYNC_LIVE" != "true" ]; then
+            args+=(--dry-run)
+          fi
+          python scripts/icons/sync_cdn_icons.py "${args[@]}"
+
+      - name: Upload do relatório de sync
+        uses: actions/upload-artifact@v4
+        with:
+          name: icon-sync
+          path: sync-out
+
+      - name: Disparar o sync-icon-manifest.yml (só se algo foi enviado)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ICON_SYNC_LIVE: ${{ vars.ICON_SYNC_LIVE }}
+        run: |
+          uploaded=$(python3 -c "import json; print(json.load(open('sync-out/report.json'))['status'].get('ok', 0))" 2>/dev/null || echo 0)
+          if [ "$ICON_SYNC_LIVE" != "true" ] || [ "$uploaded" = "0" ]; then
+            echo "Simulação ou nenhum ícone novo ($uploaded), não disparo o sync do manifesto."
+            exit 0
+          fi
+          gh workflow run sync-icon-manifest.yml --repo GabrielSilvaTI/WinProvision-Store --ref main
