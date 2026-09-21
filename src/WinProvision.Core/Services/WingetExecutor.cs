@@ -472,6 +472,7 @@ public class WingetExecutor
 
     private static async Task<WingetExecutionResult> ExecuteWingetCommandAsync(string arguments, Action<string>? onLogReceived, CancellationToken cancellationToken)
     {
+        WingetCliAudit.Launch("winget.exe", arguments);
         var outputBuilder = new StringBuilder();
 
         var startInfo = new ProcessStartInfo

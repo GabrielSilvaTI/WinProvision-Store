@@ -109,6 +109,8 @@ public partial class App : Application
             $"exe=\"{executablePath}\" buildDate={buildDate:O} " +
             $"auto={isAuto} debugger={Debugger.IsAttached} " +
             $"relaunched={HasArgument(e.Args, RelaunchedUnelevatedArgument)}");
+        WingetCliAudit.Sink = WinGetDiagnosticLog.Write;
+        WinGetFactoryHelper.ConfigureMode(e.Args);
 
         if (isElevated &&
             !isAuto &&
@@ -171,6 +173,7 @@ public partial class App : Application
                     _host.Services.GetRequiredService<WinGetService>().InstallAsync);
                 WinGetDiagnosticLog.Write(
                     "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallAsync");
+                _ = WinGetFactoryHelper.ProbeAsync();
                 _host.Services.GetRequiredService<BackupAutoSyncService>();
 
                 string? autoInstallProfilePath = TryGetAutoInstallProfilePath(e.Args);
@@ -287,6 +290,7 @@ public partial class App : Application
             _host.Services.GetRequiredService<WinGetService>().InstallAsync);
         WinGetDiagnosticLog.Write(
             "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
+        _ = WinGetFactoryHelper.ProbeAsync();
         _host.Services.GetRequiredService<BackupAutoSyncService>();
 
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();

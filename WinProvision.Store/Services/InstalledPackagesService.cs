@@ -110,7 +110,7 @@ public sealed class InstalledPackageClassifier(OfficeInstalledProductsDetector d
 
 public sealed class InstalledPackagesService
 {
-    private static readonly TimeSpan ComTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ComTimeout = TimeSpan.FromSeconds(30);
     public async Task<IReadOnlyList<InstalledPackage>> ListAsync(CancellationToken cancellationToken = default)
     {
         if (!WinGetFactoryHelper.IsComDisabled)
@@ -123,21 +123,30 @@ public sealed class InstalledPackagesService
                 {
                     var comPackages = await comTask;
                     if (comPackages.Count > 0)
+                    {
+                        WinGetFactoryHelper.ReportComSuccess();
                         return comPackages;
+                    }
 
-                    WinGetFactoryHelper.ForceDisableComForSession("catálogo COM local retornou zero pacotes");
-                    WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM retornou zero pacotes");
+                    // Zero pacotes é um resultado válido (máquina limpa / Windows Sandbox):
+                    // usa o CLI só nesta chamada e mantém a COM ativa para as instalações.
+                    WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM retornou zero pacotes (COM segue ativa)");
                 }
                 else
                 {
-                    WinGetFactoryHelper.ForceDisableComForSession("lista COM excedeu o timeout");
-                    WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM timeout");
+                    // Timeout de listagem não invalida a ativação da COM.
+                    WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM timeout (COM segue ativa)");
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
+                // Só desativa a COM da sessão em falha de ativação (RPC indisponível / classe
+                // não registrada); o filtro de HRESULT fica dentro do DisableComForSession.
                 WinGetFactoryHelper.DisableComForSession(ex);
-                WinGetFactoryHelper.ForceDisableComForSession("falha ao listar pacotes via COM");
                 WinGetDiagnosticLog.Write($"INSTALLED LIST FALLBACK motivo=COM exception={ex}");
             }
         }
@@ -200,6 +209,7 @@ public sealed class InstalledPackagesService
             RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8
         };
+        global::WinProvision.Core.Services.WingetCliAudit.Launch(info.FileName, info.Arguments);
         using var process = Process.Start(info) ?? throw new InvalidOperationException("winget.exe não encontrado.");
         string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);

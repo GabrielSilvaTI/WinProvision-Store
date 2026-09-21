@@ -482,10 +482,12 @@ public class AutoInstallCliService
         {
             try
             {
-                var result = await _wingetExecutor.InstallAppAsync(
+                var result = await OperationRunner.InstallWithConfiguredHandlerAsync(
+                    _wingetExecutor,
                     appRef.Id,
                     onLogReceived: line => { LogLine(displayName, line); if (TryParsePercent(line, out var pct)) progress?.Invoke(pct); },
                     cancellationToken: ct,
+                    onProgress: update => { if (update.Percent is int percent) progress?.Invoke(percent); },
                     source: source);
 
                 if (!result.Success)

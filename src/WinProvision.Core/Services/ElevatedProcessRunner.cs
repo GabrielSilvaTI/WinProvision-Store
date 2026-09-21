@@ -25,6 +25,7 @@ public static class ElevatedProcessRunner
         string arguments,
         CancellationToken cancellationToken)
     {
+        WingetCliAudit.Launch($"{fileName} (elevado)", arguments);
         string tempFile = Path.Combine(Path.GetTempPath(), $"winprovision-elev-{Guid.NewGuid():N}.log");
 
         // "chcp 65001" evita mojibake em acentos: sem isso, o cmd.exe redireciona a saída

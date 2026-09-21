@@ -112,6 +112,7 @@ public class WingetBootstrapper
                 CreateNoWindow = true,
             };
 
+            WingetCliAudit.Launch(startInfo.FileName, startInfo.Arguments);
             process = Process.Start(startInfo);
             if (process is null) return false;
 
