@@ -1,4 +1,4 @@
-<Application x:Class="WinProvision.Store.App"
+﻿<Application x:Class="WinProvision.Store.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -8,7 +8,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <!-- Define o tema Dark padrão da WPF UI v4 -->
+                <!--  Define o tema Dark padrão da WPF UI v4  -->
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
                 <ResourceDictionary Source="Styles/GradientProgressBar.xaml" />
@@ -18,16 +18,18 @@
                 <ResourceDictionary Source="Styles/FluentSurface.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Ícones agora usam a attached property conv:AsyncImage.SourceUrl
-                 (download+decode assíncrono e cacheado) em vez de um converter
-                 síncrono na thread de UI — ver Converters/AsyncImage.cs -->
+            <!--
+                Ícones agora usam a attached property conv:AsyncImage.SourceUrl
+                (download+decode assíncrono e cacheado) em vez de um converter
+                síncrono na thread de UI — ver Converters/AsyncImage.cs
+            -->
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
             <conv:ProgressScaleConverter x:Key="ProgressScaleConverter" />
             <conv:StageToSymbolConverter x:Key="StageToSymbolConverter" />
             <conv:StageStatusToFilledConverter x:Key="StageStatusToFilledConverter" />
             <conv:StageStatusToIconForegroundConverter x:Key="StageStatusToIconForegroundConverter" />
 
-            <!-- Dark navy palette: opaque tokens keep every page visually stable over Mica. -->
+            <!--  Dark navy palette: opaque tokens keep every page visually stable over Mica.  -->
             <SolidColorBrush x:Key="ApplicationBackgroundBrush" Color="#F0101B2D" />
             <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#E8172A40" />
             <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#E0263446" />
