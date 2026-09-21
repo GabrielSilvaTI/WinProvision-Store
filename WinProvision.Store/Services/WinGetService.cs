@@ -20,6 +20,8 @@ public sealed class WinGetService
     private static readonly TimeSpan ProgressUpdateInterval = TimeSpan.FromMilliseconds(200);
     private readonly WingetExecutor _wingetExecutor;
     private readonly WinProvisionApiService _apiService;
+    private readonly WingetBootstrapper _bootstrapper;
+    private int _postProvisionHandled;
 
     private sealed class ComInstallTimeoutException(string message) : TimeoutException(message);
 
@@ -39,10 +41,83 @@ public sealed class WinGetService
         public void Report(T value) => handler(value);
     }
 
-    public WinGetService(WingetExecutor wingetExecutor, WinProvisionApiService apiService)
+    public WinGetService(
+        WingetExecutor wingetExecutor,
+        WinProvisionApiService apiService,
+        WingetBootstrapper bootstrapper)
     {
         _wingetExecutor = wingetExecutor;
         _apiService = apiService;
+        _bootstrapper = bootstrapper;
+    }
+
+    /// <summary>
+    /// Preparação da abertura do app (UI e /auto): PRIMEIRO provisiona o winget e suas
+    /// dependências, SÓ DEPOIS aquece/testa a API COM. Antes o autoteste da COM rodava em
+    /// paralelo, sem o App Installer, e abria o breaker com 0x80040154 pra sessão inteira.
+    /// Nunca lança.
+    /// </summary>
+    public async Task PrepareAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await EnsureWingetProvisionedAsync(WinGetDiagnosticLog.Write, cancellationToken).ConfigureAwait(false);
+
+            // SYSTEM nunca usa a COM (ver InstallAsync); o autoteste só geraria ruído.
+            if (!WinProvisionApiService.IsRunningAsSystem())
+            {
+                await WinGetFactoryHelper.ProbeAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Encerramento do app: nada a fazer.
+        }
+        catch (Exception ex)
+        {
+            WinGetDiagnosticLog.Write($"PREPARE falhou {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Passo ZERO de qualquer operação: garante o winget provisionado antes de COM, API
+    /// própria ou winget.exe. Falha NÃO aborta: a API própria não depende do winget, e o que
+    /// exigir o winget de verdade (winget.exe, ODT via winget) falha com mensagem própria.
+    /// </summary>
+    private async Task EnsureWingetProvisionedAsync(Action<string>? onLog, CancellationToken cancellationToken)
+    {
+        WingetBootstrapResult result;
+        try
+        {
+            result = await _bootstrapper.EnsureOnceAsync(onLog, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            WinGetDiagnosticLog.Write($"WINGET PROVISION exceção {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
+
+        if (!result.IsUsable)
+        {
+            WinGetDiagnosticLog.Write($"WINGET PROVISION falhou: {result.ErrorMessage}");
+            onLog?.Invoke(
+                "Winget indisponível e não foi possível provisioná-lo; seguindo com a API própria da WinProvision Store.");
+            return;
+        }
+
+        WinGetDiagnosticLog.Write($"WINGET PROVISION status={result.Status} exe={WingetLocator.ExecutablePath}");
+
+        // Só na PRIMEIRA vez que o winget aparece nesta sessão: falhas de COM anteriores
+        // (App Installer ausente) deixam de valer, então a COM ganha uma tentativa limpa.
+        if (result.Status == WingetBootstrapStatus.Bootstrapped &&
+            Interlocked.Exchange(ref _postProvisionHandled, 1) == 0)
+        {
+            WinGetFactoryHelper.ResetAfterProvisioning("winget provisionado nesta sessão");
+        }
     }
 
     public record WinGetPackageMatch(
@@ -56,6 +131,8 @@ public sealed class WinGetService
         string query,
         CancellationToken cancellationToken = default)
     {
+        await EnsureWingetProvisionedAsync(WinGetDiagnosticLog.Write, cancellationToken).ConfigureAwait(false);
+
         if (WinGetFactoryHelper.IsComDisabled)
         {
             WinGetDiagnosticLog.Write($"COM DESATIVADO NA SESSÃO: motivo={WinGetFactoryHelper.DisabledReason}");
@@ -98,6 +175,10 @@ public sealed class WinGetService
         Action<InstallProgressUpdate>? onProgress = null,
         string source = "winget")
     {
+        // Ordem fixa: 0) provisiona o winget + dependências; 1) COM (conforme o cenário);
+        // 2) API própria; 3) winget.exe. Sem o passo 0 nem o 1 nem o 3 funcionam.
+        await EnsureWingetProvisionedAsync(onLogReceived, cancellationToken).ConfigureAwait(false);
+
         WinGetDiagnosticLog.Write(
             $"INSTALL ENTER packageId=\"{packageId}\" source={source} mode={WinGetFactoryHelper.Mode} " +
             $"comDisabled={WinGetFactoryHelper.IsComDisabled} thread={Environment.CurrentManagedThreadId}");
@@ -271,7 +352,7 @@ public sealed class WinGetService
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = "winget.exe",
+            FileName = WingetLocator.ExecutablePath,
             Arguments = $"search \"{query}\" --accept-source-agreements",
             UseShellExecute = false,
             RedirectStandardOutput = true,

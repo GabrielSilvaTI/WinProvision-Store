@@ -27,8 +27,6 @@ public class WingetExecutionResult
 public class WingetExecutor
 {
     private readonly WingetBootstrapper? _bootstrapper;
-    private readonly object _bootstrapLock = new();
-    private Task<WingetBootstrapResult>? _bootstrapTask;
 
     /// <param name="bootstrapper">
     /// Opcional — quando presente (via injeção de dependência; ver App.xaml.cs), garante o
@@ -265,7 +263,7 @@ public class WingetExecutor
         }
 
         onLogReceived?.Invoke("Requer privilégios de administrador — solicitando elevação (UAC)...");
-        var elevatedResult = await ElevatedProcessRunner.RunElevatedAsync("winget.exe", arguments, cancellationToken);
+        var elevatedResult = await ElevatedProcessRunner.RunElevatedAsync(WingetLocator.ExecutablePath, arguments, cancellationToken);
         if (!elevatedResult.Success && elevatedResult.FailureReason == WingetFailureReason.Unknown)
         {
             elevatedResult.FailureReason = WingetErrorTranslator.Classify(elevatedResult.ExitCode, elevatedResult.Output);
@@ -443,17 +441,11 @@ public class WingetExecutor
     }
 
     /// <summary>
-    /// Dispara <see cref="WingetBootstrapper.EnsureWingetAsync"/> na primeira chamada e
-    /// cacheia a Task resultante pro resto da vida do processo — todas as instalações
-    /// seguintes (inclusive concorrentes, graças ao lock) reaproveitam o MESMO resultado em
-    /// vez de rodar "winget --version" de novo a cada clique em "Instalar". Isso cobre o
-    /// cenário do executável (WinProvision.Store.exe) sendo usado direto pelo usuário, sem
-    /// CLI — o /auto já tinha essa garantia via AutoInstallCliService.
-    ///
-    /// Usa CancellationToken.None pra Task compartilhada de propósito: se a PRIMEIRA
-    /// instalação que disparou o bootstrap for cancelada pelo usuário, isso não deve
-    /// interromper o download/instalação do winget em si nem invalidar o cache pras
-    /// próximas tentativas — só a instalação do app específico é cancelada.
+    /// Passa pela porta única de provisionamento (<see cref="WingetBootstrapper.EnsureOnceAsync"/>),
+    /// compartilhada com WinGetService, App e /auto: o winget é provisionado uma única vez
+    /// por sessão (sucesso em cache; falha reavaliada depois de um tempo), e quem chega
+    /// depois reaproveita o MESMO resultado em vez de rodar "winget --version" a cada clique.
+    /// O trabalho em si não é cancelado se a PRIMEIRA operação que o disparou for cancelada.
     /// </summary>
     private Task<WingetBootstrapResult> EnsureWingetBootstrappedOnceAsync(Action<string>? onLogReceived)
     {
@@ -463,21 +455,18 @@ public class WingetExecutor
             return Task.FromResult(new WingetBootstrapResult(WingetBootstrapStatus.AlreadyAvailable));
         }
 
-        lock (_bootstrapLock)
-        {
-            _bootstrapTask ??= _bootstrapper.EnsureWingetAsync(onLogReceived, CancellationToken.None);
-            return _bootstrapTask;
-        }
+        return _bootstrapper.EnsureOnceAsync(onLogReceived);
     }
 
     private static async Task<WingetExecutionResult> ExecuteWingetCommandAsync(string arguments, Action<string>? onLogReceived, CancellationToken cancellationToken)
     {
-        WingetCliAudit.Launch("winget.exe", arguments);
+        string wingetExecutable = WingetLocator.ExecutablePath;
+        WingetCliAudit.Launch(wingetExecutable, arguments);
         var outputBuilder = new StringBuilder();
 
         var startInfo = new ProcessStartInfo
         {
-            FileName = "winget.exe",
+            FileName = wingetExecutable,
             Arguments = arguments,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

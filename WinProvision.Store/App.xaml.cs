@@ -174,7 +174,7 @@ public partial class App : Application
                     _host.Services.GetRequiredService<WinGetService>().InstallAsync);
                 WinGetDiagnosticLog.Write(
                     "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallAsync");
-                _ = WinGetFactoryHelper.ProbeAsync();
+                _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
                 _host.Services.GetRequiredService<BackupAutoSyncService>();
 
                 string? autoInstallProfilePath = TryGetAutoInstallProfilePath(e.Args);
@@ -291,7 +291,7 @@ public partial class App : Application
             _host.Services.GetRequiredService<WinGetService>().InstallAsync);
         WinGetDiagnosticLog.Write(
             "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
-        _ = WinGetFactoryHelper.ProbeAsync();
+        _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
         _host.Services.GetRequiredService<BackupAutoSyncService>();
 
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();

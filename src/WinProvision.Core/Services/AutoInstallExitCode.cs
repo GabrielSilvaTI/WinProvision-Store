@@ -29,9 +29,10 @@ public enum AutoInstallExitCode
     /// <summary>
     /// O perfil tinha apps/Office pra instalar, o winget não estava disponível (comum logo
     /// após o primeiro logon) e o bootstrap automático (ver <see cref="WingetBootstrapper"/>)
-    /// não conseguiu deixá-lo funcional — nenhum item que depende do winget foi tentado.
-    /// Se o perfil também tinha uma seção de provisionamento, ela ainda foi aplicada
-    /// normalmente (não depende do winget).
+    /// não conseguiu deixá-lo funcional, e isso deixou itens sem instalar. Os itens ainda são
+    /// tentados pela API própria da WinProvision Store (que não depende do winget); este código
+    /// só sai se, mesmo assim, algum falhou. Se o perfil também tinha uma seção de
+    /// provisionamento, ela ainda foi aplicada normalmente (não depende do winget).
     /// </summary>
     WingetUnavailable = 6,
 }

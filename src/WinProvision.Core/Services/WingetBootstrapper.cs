@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -82,6 +83,23 @@ public class WingetBootstrapper
     private static readonly TimeSpan VersionCheckTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan AddAppxTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan ProvisionAppxTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan RegisterTimeout = TimeSpan.FromSeconds(60);
+
+    // Depois do install o alias/pasta do winget pode levar alguns segundos pra aparecer
+    // (relatado em microsoft/winget-cli discussions #1956), então reconfirma algumas vezes.
+    private const int PostInstallCheckAttempts = 5;
+    private static readonly TimeSpan PostInstallCheckDelay = TimeSpan.FromSeconds(2);
+
+    // Gate compartilhado (ver EnsureOnceAsync).
+    private static readonly TimeSpan FailureRetryAfter = TimeSpan.FromSeconds(60);
+    private readonly object _gate = new();
+    private readonly List<string> _logBuffer = new();
+    private readonly List<Action<string>> _logSinks = new();
+    private Task<WingetBootstrapResult>? _onceTask;
+    private Task<WingetBootstrapResult>? _retryTask;
+    private long _onceFailedAtTicks;
+    private bool _lateReplayDone;
 
     // Sem fallback de URL (as duas fontes já são os assets oficiais do winget-cli, via
     // redirect "/latest/download" do GitHub) — só retry simples, mesma ideia do
@@ -91,20 +109,43 @@ public class WingetBootstrapper
     private static readonly TimeSpan DownloadRetryDelay = TimeSpan.FromSeconds(2);
 
     /// <summary>
-    /// Roda "winget --version" e só considera disponível se o processo iniciar E retornar
+    /// Confirma que o winget roda: tenta o caminho atual (<see cref="WingetLocator.ExecutablePath"/>,
+    /// por padrão o alias "winget.exe") e, se falhar, o winget.exe do pacote App Installer em
+    /// "Program Files\WindowsApps" (SYSTEM não tem o alias por usuário). Quando só o pacote
+    /// responde, ele passa a ser o executável usado pelo app inteiro.
+    /// </summary>
+    public async Task<bool> IsWingetAvailableAsync(CancellationToken ct = default)
+    {
+        if (await CanRunWingetAsync(WingetLocator.ExecutablePath, ct))
+            return true;
+
+        string? packaged = WingetLocator.FindPackagedExecutable();
+        if (packaged is not null &&
+            !string.Equals(packaged, WingetLocator.ExecutablePath, StringComparison.OrdinalIgnoreCase) &&
+            await CanRunWingetAsync(packaged, ct))
+        {
+            WingetLocator.UsePackagedPath(packaged);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Roda "&lt;fileName&gt; --version" e só considera disponível se o processo iniciar E retornar
     /// código de saída 0 — cobre tanto "winget.exe não existe no PATH" (Process.Start lança)
     /// quanto "existe o stub da Store mas o App Installer de verdade ainda não terminou de
     /// provisionar por trás dele" (esse stub roda e falha rápido com código != 0, não trava
     /// esperando input, então o timeout aqui é só uma rede de segurança extra).
     /// </summary>
-    public async Task<bool> IsWingetAvailableAsync(CancellationToken ct = default)
+    private static async Task<bool> CanRunWingetAsync(string fileName, CancellationToken ct)
     {
         Process? process = null;
         try
         {
             var startInfo = new ProcessStartInfo
             {
-                FileName = "winget.exe",
+                FileName = fileName,
                 Arguments = "--version",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -145,6 +186,131 @@ public class WingetBootstrapper
     }
 
     /// <summary>
+    /// PORTA ÚNICA de provisionamento do winget: todo caminho que possa precisar dele (COM,
+    /// API própria, winget.exe, Office/ODT) espera por esta chamada ANTES de tentar qualquer
+    /// coisa. A primeira chamada dispara <see cref="EnsureWingetAsync"/>; as seguintes (mesmo
+    /// concorrentes) reaproveitam o mesmo resultado. Sucesso fica em cache pra sempre;
+    /// depois de uma falha, uma nova tentativa roda em segundo plano a cada
+    /// <see cref="FailureRetryAfter"/> (rede que ainda não subiu no primeiro logon não pode
+    /// condenar a sessão inteira, e quem chama nunca fica preso esperando essa nova tentativa).
+    ///
+    /// O log do provisionamento é bufferizado e repassado a cada chamador (inclusive quem
+    /// chega depois, com replay), então o /auto grava tudo no arquivo de log mesmo que o
+    /// provisionamento tenha começado antes de o logger existir. O trabalho em si usa
+    /// CancellationToken.None: cancelar quem chamou não interrompe o download/instalação.
+    /// </summary>
+    public async Task<WingetBootstrapResult> EnsureOnceAsync(Action<string>? log = null, CancellationToken ct = default)
+    {
+        Task<WingetBootstrapResult> task;
+        string[] replay = Array.Empty<string>();
+
+        lock (_gate)
+        {
+            if (_onceTask is null)
+            {
+                _onceTask = Task.Run(() => RunOnceAsync());
+            }
+            else
+            {
+                // Uma nova tentativa (só depois de uma falha antiga) roda em SEGUNDO PLANO:
+                // quem chama agora recebe o resultado anterior na hora, sem ficar preso
+                // esperando (a API própria não precisa do winget). Ao concluir, a próxima
+                // chamada adota o resultado da tentativa (sucesso ou nova falha).
+                if (_retryTask is { IsCompleted: true })
+                {
+                    _onceTask = _retryTask;
+                    _retryTask = null;
+                    _lateReplayDone = false;
+                }
+
+                if (_retryTask is null && IsStaleFailure(_onceTask))
+                {
+                    _retryTask = Task.Run(() => RunOnceAsync());
+                }
+            }
+
+            if (log is not null)
+            {
+                // Em andamento: replay + acompanha ao vivo. Já concluído: só o PRIMEIRO
+                // chamador com log recebe o replay (ex.: o /auto, cujo logger nasce depois do
+                // provisionamento ter começado); os demais não recebem o histórico de novo
+                // a cada instalação.
+                if (!_onceTask.IsCompleted)
+                {
+                    replay = _logBuffer.ToArray();
+                    _logSinks.Add(log);
+                }
+                else if (!_lateReplayDone)
+                {
+                    _lateReplayDone = true;
+                    replay = _logBuffer.ToArray();
+                }
+            }
+
+            task = _onceTask;
+        }
+
+        foreach (string line in replay)
+            SafeInvoke(log!, line);
+
+        try
+        {
+            return await task.WaitAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (log is not null)
+            {
+                lock (_gate) _logSinks.Remove(log);
+            }
+        }
+    }
+
+    private bool IsStaleFailure(Task<WingetBootstrapResult> task) =>
+        task.IsCompletedSuccessfully &&
+        task.Result.Status == WingetBootstrapStatus.Failed &&
+        Environment.TickCount64 - Interlocked.Read(ref _onceFailedAtTicks) >= (long)FailureRetryAfter.TotalMilliseconds;
+
+    private async Task<WingetBootstrapResult> RunOnceAsync()
+    {
+        WingetBootstrapResult result;
+        try
+        {
+            result = await EnsureWingetAsync(BufferedLog, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            BufferedLog($"[WinProvision] Erro inesperado ao provisionar o winget: {ex.Message}");
+            result = new WingetBootstrapResult(WingetBootstrapStatus.Failed, ex.Message);
+        }
+
+        if (result.Status == WingetBootstrapStatus.Failed)
+            Interlocked.Exchange(ref _onceFailedAtTicks, Environment.TickCount64);
+
+        return result;
+    }
+
+    private void BufferedLog(string message)
+    {
+        Trace.WriteLine(message);
+        Action<string>[] sinks;
+        lock (_gate)
+        {
+            _logBuffer.Add(message);
+            sinks = _logSinks.ToArray();
+        }
+
+        foreach (var sink in sinks)
+            SafeInvoke(sink, message);
+    }
+
+    private static void SafeInvoke(Action<string> sink, string message)
+    {
+        try { sink(message); }
+        catch { /* Um sink de log quebrado nunca pode derrubar o provisionamento. */ }
+    }
+
+    /// <summary>
     /// Garante que o winget está utilizável: se já estiver, não faz nada e retorna na hora.
     /// Se não estiver, baixa o pacote oficial de dependências + o instalador do winget (em
     /// paralelo), instala tudo na ordem certa e reconfirma no final.
@@ -156,6 +322,22 @@ public class WingetBootstrapper
         if (await IsWingetAvailableAsync(ct))
         {
             return new WingetBootstrapResult(WingetBootstrapStatus.AlreadyAvailable);
+        }
+
+        bool isSystem = WinProvisionApiService.IsRunningAsSystem();
+
+        // Atalho barato, sem download: o App Installer costuma já estar provisionado na imagem
+        // e só faltar registrar pro usuário (Add-AppxPackage -RegisterByFamilyName, documentado
+        // na Microsoft Learn). Não vale pra SYSTEM: o Windows rejeita esse registro pra Local System.
+        if (!isSystem)
+        {
+            Log("[WinProvision] Winget ainda não está disponível. Tentando registrar o App Installer já presente no Windows...");
+            var registerResult = await RegisterAppInstallerByFamilyNameAsync(ct);
+            if (registerResult.Success && await WaitForWingetAsync(ct))
+            {
+                Log("[WinProvision] Winget registrado e funcional.");
+                return new WingetBootstrapResult(WingetBootstrapStatus.Bootstrapped);
+            }
         }
 
         Log("[WinProvision] Winget ainda não está disponível (comum logo após o primeiro logon, " +
@@ -236,8 +418,15 @@ public class WingetBootstrapper
             // ordem entre os framework packages (ex.: VCLibs.UWPDesktop pode depender do VCLibs
             // "base" já estar resolvido na mesma transação; registrar cada um em chamadas
             // separadas, como antes, arrisca instalar fora de ordem).
-            Log("[WinProvision]   Instalando Microsoft.DesktopAppInstaller (winget) + dependências...");
-            var wingetResult = await AddAppxPackageAsync(bundlePath, dependencyPaths: dependencyAppxFiles, ct);
+            // Conta SYSTEM: Add-AppxPackage é rejeitado pelo Windows pra Local System, então o
+            // pacote é PROVISIONADO na imagem (Add-AppxProvisionedPackage -Online), o que também
+            // vale pros próximos usuários. Demais contas: registro por usuário, como sempre foi.
+            Log(isSystem
+                ? "[WinProvision]   Provisionando Microsoft.DesktopAppInstaller (winget) + dependências na imagem (conta SYSTEM)..."
+                : "[WinProvision]   Instalando Microsoft.DesktopAppInstaller (winget) + dependências...");
+            var wingetResult = isSystem
+                ? await ProvisionAppxPackageAsync(bundlePath, dependencyPaths: dependencyAppxFiles, ct)
+                : await AddAppxPackageAsync(bundlePath, dependencyPaths: dependencyAppxFiles, ct);
             if (!wingetResult.Success)
             {
                 string error = $"Falha ao instalar Microsoft.DesktopAppInstaller (winget): {wingetResult.Output}";
@@ -254,7 +443,7 @@ public class WingetBootstrapper
         // %LocalAppData%\Microsoft\WindowsApps, pasta que já costuma estar no PATH do
         // usuário por padrão mesmo antes de o arquivo existir lá dentro, então o processo
         // atual normalmente já enxerga o winget recém-instalado sem precisar reiniciar nada.
-        if (await IsWingetAvailableAsync(ct))
+        if (await WaitForWingetAsync(ct))
         {
             Log("[WinProvision] Winget instalado e funcional.");
             return new WingetBootstrapResult(WingetBootstrapStatus.Bootstrapped);
@@ -335,6 +524,26 @@ public class WingetBootstrapper
     }
 
     /// <summary>
+    /// Reconfirma o winget algumas vezes depois de instalar/registrar: o alias (ou a pasta do
+    /// pacote) pode levar alguns segundos pra aparecer logo após o deployment.
+    /// </summary>
+    private async Task<bool> WaitForWingetAsync(CancellationToken ct)
+    {
+        for (int attempt = 1; attempt <= PostInstallCheckAttempts; attempt++)
+        {
+            if (await IsWingetAvailableAsync(ct))
+                return true;
+
+            if (attempt < PostInstallCheckAttempts)
+                await Task.Delay(PostInstallCheckDelay, ct);
+        }
+
+        return false;
+    }
+
+    private static string PsQuote(string value) => $"'{value.Replace("'", "''")}'";
+
+    /// <summary>
     /// Instala um .appx/.msixbundle via "Add-AppxPackage" (PowerShell) — registra o pacote
     /// pro usuário atual, sem precisar de licença .xml nem da Store. Idempotente: rodar de
     /// novo com uma dependência que já está instalada não é um erro, o PowerShell só
@@ -346,18 +555,47 @@ public class WingetBootstrapper
     /// do App Installer junto com todas as dependências extraídas de uma vez (ver comentário
     /// em EnsureWingetAsync). Null/vazio omite o parâmetro por completo.
     /// </param>
-    private static async Task<(bool Success, string Output)> AddAppxPackageAsync(
+    private static Task<(bool Success, string Output)> AddAppxPackageAsync(
         string filePath, string[]? dependencyPaths, CancellationToken ct)
     {
-        string escapedPath = filePath.Replace("'", "''");
-        string command = $"$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path '{escapedPath}'";
+        string command = $"$ErrorActionPreference = 'Stop'; Add-AppxPackage -Path {PsQuote(filePath)}";
 
         if (dependencyPaths is { Length: > 0 })
-        {
-            string depArg = string.Join(",", dependencyPaths.Select(p => $"'{p.Replace("'", "''")}'"));
-            command += $" -DependencyPath {depArg}";
-        }
+            command += $" -DependencyPath {string.Join(",", dependencyPaths.Select(PsQuote))}";
 
+        return RunPowerShellAsync(command, AddAppxTimeout, "Add-AppxPackage", ct);
+    }
+
+    /// <summary>
+    /// Provisiona o bundle + dependências na imagem do Windows ("Add-AppxProvisionedPackage
+    /// -Online"), único caminho que funciona na conta SYSTEM. Precisa de privilégio de
+    /// administrador (SYSTEM tem). -SkipLicense evita depender do License1.xml do release.
+    /// </summary>
+    private static Task<(bool Success, string Output)> ProvisionAppxPackageAsync(
+        string filePath, string[]? dependencyPaths, CancellationToken ct)
+    {
+        string command = $"$ErrorActionPreference = 'Stop'; Add-AppxProvisionedPackage -Online -PackagePath {PsQuote(filePath)} -SkipLicense";
+
+        if (dependencyPaths is { Length: > 0 })
+            command += $" -DependencyPackagePath {string.Join(",", dependencyPaths.Select(PsQuote))}";
+
+        return RunPowerShellAsync(command, ProvisionAppxTimeout, "Add-AppxProvisionedPackage", ct);
+    }
+
+    /// <summary>
+    /// Registra o App Installer já provisionado no Windows pro usuário atual, sem baixar nada.
+    /// Falha rápido (e sem consequência) se o pacote não estiver na imagem.
+    /// </summary>
+    private static Task<(bool Success, string Output)> RegisterAppInstallerByFamilyNameAsync(CancellationToken ct) =>
+        RunPowerShellAsync(
+            "$ErrorActionPreference = 'Stop'; Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe",
+            RegisterTimeout,
+            "Add-AppxPackage -RegisterByFamilyName",
+            ct);
+
+    private static async Task<(bool Success, string Output)> RunPowerShellAsync(
+        string command, TimeSpan timeout, string label, CancellationToken ct)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = "powershell.exe",
@@ -381,7 +619,7 @@ public class WingetBootstrapper
             process.BeginErrorReadLine();
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeoutCts.CancelAfter(AddAppxTimeout);
+            timeoutCts.CancelAfter(timeout);
 
             await process.WaitForExitAsync(timeoutCts.Token);
 
@@ -392,7 +630,7 @@ public class WingetBootstrapper
             TryKill(process);
             return (false, ct.IsCancellationRequested
                 ? "Operação cancelada."
-                : "Tempo esgotado esperando o Add-AppxPackage.");
+                : $"Tempo esgotado esperando o {label}.");
         }
         catch (Exception ex)
         {

@@ -265,6 +265,28 @@ public static class WinGetFactoryHelper
             $"nova-tentativa-em={cooldown.TotalSeconds:0}s");
     }
 
+    /// <summary>
+    /// Chamado quando o winget acabou de ser provisionado nesta sessão: qualquer falha de COM
+    /// registrada ANTES disso (ex.: 0x80040154 "classe não registrada" do autoteste da
+    /// abertura, que roda sem o App Installer) deixou de valer. Zera o breaker e, se nenhuma
+    /// estratégia de ativação chegou a conectar, volta à primeira.
+    /// </summary>
+    public static void ResetAfterProvisioning(string reason)
+    {
+        Interlocked.Exchange(ref _consecutiveActivationFailures, 0);
+        Interlocked.Exchange(ref _breakerOpenUntilTicks, 0);
+        Volatile.Write(ref _disabledReason, null);
+        lock (StrategyGate)
+        {
+            if (!_strategyConfirmed)
+            {
+                _strategyIndex = 0;
+            }
+        }
+
+        WinGetDiagnosticLog.Write($"COM RESET: {reason}");
+    }
+
     /// <summary>Chamado após qualquer ativação/conexão COM bem-sucedida: zera o breaker.</summary>
     public static void ReportComSuccess()
     {

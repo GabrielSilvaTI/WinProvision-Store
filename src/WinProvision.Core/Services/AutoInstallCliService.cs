@@ -313,83 +313,82 @@ public class AutoInstallCliService
         void StageProgress(AutoInstallStage stage, double progress, string? detail = null)
             => Stage(stage, AutoInstallStageState.InProgress, progress, detail);
 
-        // Checa o winget uma única vez antes de qualquer app/Office.
+        // PRIMEIRO PASSO de qualquer instalação: provisionar o winget e suas dependências,
+        // mesmo que COM ou a API própria venham a instalar os apps (COM e winget.exe dependem
+        // dele; o ODT também tem o winget como fallback). A mesma porta única é usada pelo
+        // WinGetService, então isto não repete o trabalho.
+        //
+        // Falhar aqui NÃO aborta o perfil: a API própria da WinProvision Store instala sem o
+        // winget. Só o que realmente exigir o winget vai falhar, item a item, com o motivo no log.
         if (manifest.Apps.Count > 0)
         {
-            var bootstrapResult = await _wingetBootstrapper.EnsureWingetAsync(_log, ct);
+            var bootstrapResult = await _wingetBootstrapper.EnsureOnceAsync(_log, ct);
             if (!bootstrapResult.IsUsable)
             {
-                _log($"[WinProvision] ERRO: winget não está disponível e o bootstrap automático não conseguiu " +
-                     $"deixá-lo funcional ({bootstrapResult.ErrorMessage}). Pulando {manifest.Apps.Count} " +
-                     "item(ns) de app/Office — todos dependem do winget.");
-                failed += manifest.Apps.Count;
+                _log($"[WinProvision] AVISO: winget não está disponível e o provisionamento automático não conseguiu " +
+                     $"deixá-lo funcional ({bootstrapResult.ErrorMessage}). Seguindo com a API própria da " +
+                     "WinProvision Store; itens que exigirem o winget podem falhar.");
                 wingetUnavailable = true;
-
-                if (stages.Contains(AutoInstallStage.PackagesAndApps)) Stage(AutoInstallStage.PackagesAndApps, AutoInstallStageState.Failed);
-                if (stages.Contains(AutoInstallStage.MicrosoftOffice)) Stage(AutoInstallStage.MicrosoftOffice, AutoInstallStageState.Failed);
             }
         }
 
         List<AppEntry> catalog = new();
-        if (!wingetUnavailable && manifest.Apps.Count > 0)
+        if (manifest.Apps.Count > 0)
         {
             try { catalog = await _storeService.LoadCatalogAsync(false, ct); }
             catch { /* segue pelo Id */ }
         }
 
-        if (!wingetUnavailable)
+        var packageApps = manifest.Apps.Where(a => a.OfficeOptions is null).ToList();
+        var officeApps = manifest.Apps.Where(a => a.OfficeOptions is not null).ToList();
+
+        if (packageApps.Count > 0)
         {
-            var packageApps = manifest.Apps.Where(a => a.OfficeOptions is null).ToList();
-            var officeApps = manifest.Apps.Where(a => a.OfficeOptions is not null).ToList();
-
-            if (packageApps.Count > 0)
+            // Progresso em degraus: cada app concluído preenche 1/N da barra (25% pra
+            // 4 apps, e assim por diante). Não tentamos mais acompanhar o percentual
+            // interno do winget (baseProgress + p/N) — a saída dele quando redirecionada
+            // chega em rajadas, então aquele percentual só fazia a barra parecer travada
+            // e pular de vez; o degrau por item concluído é o dado confiável que temos.
+            // Enquanto o item atual instala, a barra fica no degrau anterior (a
+            // AutoWindowViewModel mostra "indeterminado" só no primeiro item, com 0
+            // concluído — ver AutoStageViewModel.IsIndeterminate).
+            StageProgress(AutoInstallStage.PackagesAndApps, 0, $"Preparando {packageApps.Count} pacote(s)…");
+            bool allSucceeded = true;
+            for (int i = 0; i < packageApps.Count; i++)
             {
-                // Progresso em degraus: cada app concluído preenche 1/N da barra (25% pra
-                // 4 apps, e assim por diante). Não tentamos mais acompanhar o percentual
-                // interno do winget (baseProgress + p/N) — a saída dele quando redirecionada
-                // chega em rajadas, então aquele percentual só fazia a barra parecer travada
-                // e pular de vez; o degrau por item concluído é o dado confiável que temos.
-                // Enquanto o item atual instala, a barra fica no degrau anterior (a
-                // AutoWindowViewModel mostra "indeterminado" só no primeiro item, com 0
-                // concluído — ver AutoStageViewModel.IsIndeterminate).
-                StageProgress(AutoInstallStage.PackagesAndApps, 0, $"Preparando {packageApps.Count} pacote(s)…");
-                bool allSucceeded = true;
-                for (int i = 0; i < packageApps.Count; i++)
-                {
-                    var appRef = packageApps[i];
-                    string label = appRef.Name ?? appRef.Id;
-                    if (i > 0) StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Instalando {label}…");
-                    bool ok = await InstallWingetAsync(appRef, catalog, ct);
-                    allSucceeded &= ok;
-                    if (ok) succeeded++; else failed++;
-                    StageProgress(AutoInstallStage.PackagesAndApps, (i + 1) * 100d / packageApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
-                }
-                Stage(AutoInstallStage.PackagesAndApps, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
+                var appRef = packageApps[i];
+                string label = appRef.Name ?? appRef.Id;
+                if (i > 0) StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Instalando {label}…");
+                bool ok = await InstallWingetAsync(appRef, catalog, ct);
+                allSucceeded &= ok;
+                if (ok) succeeded++; else failed++;
+                StageProgress(AutoInstallStage.PackagesAndApps, (i + 1) * 100d / packageApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
             }
+            Stage(AutoInstallStage.PackagesAndApps, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
+        }
 
-            if (officeApps.Count > 0)
+        if (officeApps.Count > 0)
+        {
+            // O Click-to-Run não dá um percentual confiável durante a instalação (às
+            // vezes fica mudo por minutos, às vezes pula direto pro fim), então não
+            // tentamos degrau nenhum aqui — a etapa fica indeterminada (spinner/shimmer)
+            // do início ao fim de cada item e só avança quando o item de fato termina.
+            // Com 2+ itens de Office no perfil, o avanço por item concluído ainda
+            // acontece (mesmo cálculo de degrau dos pacotes), só sem meio-termo dentro
+            // de um item individual.
+            StageProgress(AutoInstallStage.MicrosoftOffice, 0, $"Preparando {officeApps.Count} instalação(ões) do Office…");
+            bool allSucceeded = true;
+            for (int i = 0; i < officeApps.Count; i++)
             {
-                // O Click-to-Run não dá um percentual confiável durante a instalação (às
-                // vezes fica mudo por minutos, às vezes pula direto pro fim), então não
-                // tentamos degrau nenhum aqui — a etapa fica indeterminada (spinner/shimmer)
-                // do início ao fim de cada item e só avança quando o item de fato termina.
-                // Com 2+ itens de Office no perfil, o avanço por item concluído ainda
-                // acontece (mesmo cálculo de degrau dos pacotes), só sem meio-termo dentro
-                // de um item individual.
-                StageProgress(AutoInstallStage.MicrosoftOffice, 0, $"Preparando {officeApps.Count} instalação(ões) do Office…");
-                bool allSucceeded = true;
-                for (int i = 0; i < officeApps.Count; i++)
-                {
-                    var appRef = officeApps[i];
-                    string label = appRef.Name ?? appRef.OfficeOptions!.ProductId;
-                    if (i > 0) StageProgress(AutoInstallStage.MicrosoftOffice, i * 100d / officeApps.Count, $"Instalando {label}…");
-                    bool ok = await InstallOfficeAsync(appRef, appRef.OfficeOptions!, ct);
-                    allSucceeded &= ok;
-                    if (ok) succeeded++; else failed++;
-                    StageProgress(AutoInstallStage.MicrosoftOffice, (i + 1) * 100d / officeApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
-                }
-                Stage(AutoInstallStage.MicrosoftOffice, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
+                var appRef = officeApps[i];
+                string label = appRef.Name ?? appRef.OfficeOptions!.ProductId;
+                if (i > 0) StageProgress(AutoInstallStage.MicrosoftOffice, i * 100d / officeApps.Count, $"Instalando {label}…");
+                bool ok = await InstallOfficeAsync(appRef, appRef.OfficeOptions!, ct);
+                allSucceeded &= ok;
+                if (ok) succeeded++; else failed++;
+                StageProgress(AutoInstallStage.MicrosoftOffice, (i + 1) * 100d / officeApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
             }
+            Stage(AutoInstallStage.MicrosoftOffice, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
         }
 
         if (manifest.Provisioning is { } provisioning)
@@ -463,9 +462,11 @@ public class AutoInstallCliService
         if (restartRequired)
             _log("[WinProvision] AVISO: reinicie o Windows para que todos os ajustes de provisionamento tenham efeito.");
 
-        return wingetUnavailable
-            ? AutoInstallExitCode.WingetUnavailable
-            : failed == 0 ? AutoInstallExitCode.Success : AutoInstallExitCode.CompletedWithFailures;
+        // WingetUnavailable só quando o winget não pôde ser provisionado E isso custou itens:
+        // se a API própria instalou tudo, o perfil foi cumprido.
+        return failed == 0
+            ? AutoInstallExitCode.Success
+            : wingetUnavailable ? AutoInstallExitCode.WingetUnavailable : AutoInstallExitCode.CompletedWithFailures;
     }
 
     private async Task<bool> InstallWingetAsync(ProfileAppRef appRef, List<AppEntry> catalog, CancellationToken ct, Action<double>? progress = null)

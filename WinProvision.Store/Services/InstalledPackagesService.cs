@@ -111,8 +111,34 @@ public sealed class InstalledPackageClassifier(OfficeInstalledProductsDetector d
 public sealed class InstalledPackagesService
 {
     private static readonly TimeSpan ComTimeout = TimeSpan.FromSeconds(30);
+    private readonly WingetBootstrapper _bootstrapper;
+
+    public InstalledPackagesService(WingetBootstrapper bootstrapper)
+    {
+        _bootstrapper = bootstrapper;
+    }
+
     public async Task<IReadOnlyList<InstalledPackage>> ListAsync(CancellationToken cancellationToken = default)
     {
+        // Passo zero: winget provisionado antes da COM ou do winget.exe. Falha não aborta;
+        // a listagem cai no que estiver disponível, como antes.
+        try
+        {
+            var provisioned = await _bootstrapper.EnsureOnceAsync(WinGetDiagnosticLog.Write, cancellationToken);
+            if (!provisioned.IsUsable)
+            {
+                WinGetDiagnosticLog.Write($"INSTALLED LIST winget indisponível: {provisioned.ErrorMessage}");
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            WinGetDiagnosticLog.Write($"INSTALLED LIST provisionamento falhou {ex.GetType().Name}: {ex.Message}");
+        }
+
         if (!WinGetFactoryHelper.IsComDisabled)
         {
             try
@@ -201,7 +227,7 @@ public sealed class InstalledPackagesService
     {
         var info = new ProcessStartInfo
         {
-            FileName = "winget.exe",
+            FileName = WingetLocator.ExecutablePath,
             Arguments = "list --disable-interactivity --accept-source-agreements",
             UseShellExecute = false,
             CreateNoWindow = true,
