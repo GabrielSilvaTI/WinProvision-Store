@@ -3,11 +3,15 @@
 ;
 ; Gerado no CI pelo build-release.yml. Uso manual (a partir da raiz do repo):
 ;   ISCC.exe /DAppVersion=1.0.2 /DFileVersion=1.0.2.0 ^
-;            /DSourceExe=C:\caminho\publish\WinProvision.Store.exe ^
+;            /DSourceDir=C:\caminho\publish ^
 ;            /DOutputDir=C:\caminho\dist installer\WinProvision.Store.iss
 ;
-; O EXE cru (WinProvision.Store.exe) continua sendo publicado no release: o
-; Bootstrap baixa ele direto (releases/latest/download/WinProvision.Store.exe).
+; O publish deixou de ser single-file (PublishSingleFile quebra a ativação COM
+; do winget — ver histórico do repo): agora é self-contained multi-arquivo, e
+; o instalador empacota a pasta inteira. Por isso o Bootstrap não pode mais
+; baixar um EXE solto de releases/latest/download/... — precisa baixar e rodar
+; o instalador (WinProvision.Store-Setup.exe) em modo silencioso (ver nota no
+; workflow sobre o que isso muda no lado do Bootstrap).
 ; Este instalador é a via "para pessoas": atalho no Menu Iniciar, entrada em
 ; "Aplicativos instalados" e desinstalador de verdade.
 ; ============================================================================
@@ -18,8 +22,8 @@
 #ifndef FileVersion
   #define FileVersion "0.0.0.0"
 #endif
-#ifndef SourceExe
-  #define SourceExe "..\publish\WinProvision.Store.exe"
+#ifndef SourceDir
+  #define SourceDir "..\publish"
 #endif
 #ifndef OutputDir
   #define OutputDir "..\dist"
@@ -70,7 +74,9 @@ SetupIconFile=..\WinProvision.Store\Assets\app.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 
-; O EXE single-file já é comprimido; lzma2 aqui rende pouco, então prioriza velocidade de CI.
+; lzma2/fast prioriza velocidade de CI; com a pasta multi-arquivo (não mais
+; single-file) o ganho de comprimir mais forte tende a compensar mais do que
+; compensava antes — pode valer testar lzma2/max/ultra se o tempo de CI sobrar.
 Compression=lzma2/fast
 SolidCompression=yes
 ; windows11: estilo claro/escuro nativo do Inno Setup 6.6+, com cantos
@@ -103,7 +109,10 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "{#SourceExe}"; DestDir: "{app}"; Flags: ignoreversion
+; Pasta inteira do publish (self-contained multi-arquivo): DLLs, .deps.json,
+; runtimeconfig.json etc., junto com o WinProvision.Store.exe. recursesubdirs
+; pega os runtimes nativos que o publish costuma colocar em subpastas.
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"

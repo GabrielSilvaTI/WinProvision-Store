@@ -19,7 +19,11 @@ concurrency:
 env:
   # Nome do arquivo no release. PRECISA ser o mesmo que o Bootstrap baixa
   # (.../releases/latest/download/<ASSET_NAME>).
-  ASSET_NAME: WinProvision.Store.exe
+  # Deixou de ser o EXE solto (WinProvision.Store.exe): sem PublishSingleFile
+  # (quebra a ativação COM do winget — ver histórico do repo) o publish é uma
+  # pasta inteira, então o asset "cru" agora é um .zip dela. O Bootstrap
+  # precisa baixar e extrair, não mais baixar-e-rodar direto.
+  ASSET_NAME: WinProvision.Store-win-x64.zip
   # O release também leva WinProvision.Store-Setup.exe (instalador Inno Setup) e os .sha256 de
   # ambos — ver installer/WinProvision.Store.iss. Só o ASSET_NAME acima é usado pelo Bootstrap.
   # Incremente para forçar reinstalação do Inno Setup via choco (ex.: ao querer uma versão nova),
@@ -151,7 +155,12 @@ jobs:
 
       # -p:RuntimeIdentifiers=win-x64 sobrescreve o par "win-x64;win-arm64" do csproj para
       # o restore, evitando baixar o runtime pack do arm64, que essa pipeline nunca publica.
-      - name: Publicar o WinProvision.Store (single-file, self-contained, win-x64)
+      # SEM PublishSingleFile: o host single-file inicializa o WinRT de um jeito diferente do
+      # apphost normal (ver dotnet/runtime#63533) e isso faz o CoCreateInstance do PackageManager
+      # do winget falhar com 0x80073D54 (APPMODEL_ERROR_NO_PACKAGE) mesmo com CLSCTX_ALLOW_LOWER_
+      # TRUST_REGISTRATION — reproduzido e isolado nesta máquina; self-contained multi-arquivo
+      # funciona igual. O csproj já publica PublishSingleFile=false por padrão agora.
+      - name: Publicar o WinProvision.Store (self-contained multi-arquivo, win-x64)
         run: >
           dotnet publish WinProvision.Store/WinProvision.Store.csproj
           -c Release -r win-x64
@@ -169,7 +178,11 @@ jobs:
           if (-not (Test-Path $exe)) { throw "EXE não encontrado em '$exe' — confira o nome do assembly." }
 
           New-Item -ItemType Directory -Path dist -Force | Out-Null
-          Copy-Item $exe "dist/$env:ASSET_NAME"
+          # ASSET_NAME agora é um .zip da pasta publish inteira (sem single-file o exe cru
+          # sozinho não roda: precisa das DLLs ao lado). Compress-Archive parte do *conteúdo*
+          # de publish/ (publish/*), não da pasta em si, pra não duplicar um nível "publish/"
+          # dentro do zip.
+          Compress-Archive -Path "publish/*" -DestinationPath "dist/$env:ASSET_NAME" -CompressionLevel Optimal
           $hash = (Get-FileHash "dist/$env:ASSET_NAME" -Algorithm SHA256).Hash.ToLower()
           "$hash  $env:ASSET_NAME" | Out-File "dist/$env:ASSET_NAME.sha256" -Encoding ascii -NoNewline
           Write-Host "SHA256: $hash"
@@ -214,10 +227,10 @@ jobs:
           APP_VERSION: ${{ steps.ver.outputs.version }}
           FILE_VERSION: ${{ steps.ver.outputs.file_version }}
         run: |
-          $exe = (Resolve-Path "publish/WinProvision.Store.exe").Path
+          $srcDir = (Resolve-Path "publish").Path
           $out = (Resolve-Path "dist").Path
 
-          & $env:ISCC "/DAppVersion=$env:APP_VERSION" "/DFileVersion=$env:FILE_VERSION" "/DSourceExe=$exe" "/DOutputDir=$out" "installer/WinProvision.Store.iss"
+          & $env:ISCC "/DAppVersion=$env:APP_VERSION" "/DFileVersion=$env:FILE_VERSION" "/DSourceDir=$srcDir" "/DOutputDir=$out" "installer/WinProvision.Store.iss"
           if ($LASTEXITCODE -ne 0) { throw "ISCC falhou ($LASTEXITCODE)" }
 
           $setup = "dist/WinProvision.Store-Setup.exe"

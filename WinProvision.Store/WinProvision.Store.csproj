@@ -18,7 +18,15 @@
 		<PlatformTarget>x64</PlatformTarget>
 		<TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
 		<SelfContained>true</SelfContained>
-		<PublishSingleFile>true</PublishSingleFile>
+		<!-- DESLIGADO DE PROPÓSITO: o host single-file inicializa o WinRT diferente do apphost
+		     normal (dotnet/runtime#63533) e isso faz o CoCreateInstance do PackageManager do
+		     winget falhar com 0x80073D54 (APPMODEL_ERROR_NO_PACKAGE) mesmo com
+		     CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION — reproduzido e isolado nesta máquina;
+		     self-contained multi-arquivo funciona normalmente. Não reative sem testar de novo
+		     a ativação COM do winget primeiro. -->
+		<PublishSingleFile>false</PublishSingleFile>
+		<!-- Inertes com PublishSingleFile=false; mantidas prontas caso single-file seja
+		     religado no futuro (ex.: se a causa acima for corrigida do lado do .NET/winget). -->
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
 		<EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 
