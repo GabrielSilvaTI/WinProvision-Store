@@ -1,0 +1,159 @@
+name: Formatar XAML (abre PR)
+
+# Manual. Roda o XAML Styler, confere o resultado e abre um pull request com as
+# mudanças. Nunca commita na main: o diff é revisado antes de ser aceito.
+# Depende do Settings.XamlStyler na raiz e do job xaml do ci-lint.yml.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: format-xaml
+  cancel-in-progress: false
+
+jobs:
+  format:
+    name: Formatar e abrir PR
+    # Só roda a partir da main, para o PR sempre sair dela.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # empurrar a branch nova
+      pull-requests: write # abrir o PR
+      actions: write # disparar ci-lint e build na branch nova
+    env:
+      GH_TOKEN: ${{ github.token }}
+      XSTYLER_VERSION: "3.2501.8"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Instalar XAML Styler
+        run: |
+          test -f Settings.XamlStyler || { echo "::error::Settings.XamlStyler não está na raiz do repositório."; exit 1; }
+          dotnet tool install --global XamlStyler.Console --version "$XSTYLER_VERSION"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      # Duas passadas: o XAML Styler às vezes só estabiliza na segunda.
+      - name: Formatar
+        run: |
+          xstyler --recursive --directory WinProvision.Store --config Settings.XamlStyler
+          xstyler --recursive --directory WinProvision.Store --config Settings.XamlStyler
+
+      - name: Conferir que o resultado é estável
+        run: xstyler --passive --recursive --directory WinProvision.Store --config Settings.XamlStyler
+
+      - name: Conferir que só mudou XAML
+        id: scope
+        run: |
+          changed="$(git diff --name-only)"
+          if [ -z "$changed" ]; then
+            echo "Nenhum XAML precisava de formatação."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qv '\.xaml$'; then
+            echo "::error::A formatação alterou arquivos que não são .xaml:"
+            printf '%s\n' "$changed" | grep -v '\.xaml$'
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          git diff --shortstat
+
+      # Compara a árvore XML de antes e depois. Ignora só espaços e vírgulas nos
+      # valores dos atributos, porque o XAML Styler normaliza Thickness e
+      # markup extensions. Elemento, atributo ou texto que mude derruba o job.
+      - name: Conferir que a estrutura do XAML não mudou
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          python3 - <<'PY'
+          import re
+          import subprocess
+          import sys
+          import xml.etree.ElementTree as ET
+
+
+          def value(v):
+              return re.sub(r"[\s,]+", "", v)
+
+
+          def text(t):
+              return re.sub(r"\s+", " ", t or "").strip()
+
+
+          def signature(node):
+              return (
+                  node.tag,
+                  sorted((k, value(v)) for k, v in node.attrib.items()),
+                  text(node.text),
+                  text(node.tail),
+                  [signature(c) for c in node],
+              )
+
+
+          out = subprocess.run(["git", "diff", "--name-only", "-z"], capture_output=True, text=True, check=True).stdout
+          files = [p for p in out.split("\0") if p]
+          bad = []
+          for path in files:
+              old = subprocess.run(["git", "show", f"HEAD:{path}"], capture_output=True, check=True).stdout
+              with open(path, "rb") as fh:
+                  new = fh.read()
+              if signature(ET.fromstring(old)) != signature(ET.fromstring(new)):
+                  bad.append(path)
+          if bad:
+              print("::error::A formatação mudou a estrutura destes XAML:")
+              for p in bad:
+                  print(f"  {p}")
+              sys.exit(1)
+          print(f"Estrutura idêntica em {len(files)} arquivos.")
+          PY
+
+      - name: Criar branch e commit
+        id: commit
+        if: steps.scope.outputs.changed == 'true'
+        run: |
+          branch="chore/format-xaml-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -- '*.xaml'
+          git commit -m "chore: formatar XAML com o XAML Styler"
+          git push origin "$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Abrir pull request
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          BRANCH: ${{ steps.commit.outputs.branch }}
+        run: |
+          stat="$(git diff --shortstat HEAD~1 HEAD)"
+          body="Formatação automática dos XAML com o XAML Styler ${XSTYLER_VERSION}, usando o Settings.XamlStyler da raiz.
+
+          ${stat}
+
+          Antes de aceitar:
+          - Veja o diff. Deve ser só quebra de linha, indentação e atributos.
+          - Espere o check do build passar e abra o app nas telas com XAML mais denso.
+          - Se o diff ficou grande demais, feche este PR, aumente AttributesTolerance no Settings.XamlStyler e rode este workflow de novo."
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore: formatar XAML com o XAML Styler" \
+            --body "$body" \
+            || echo "::warning::Não consegui abrir o PR. Abra em https://github.com/${GITHUB_REPOSITORY}/compare/${BRANCH}"
+
+      # Push feito com o token do workflow não dispara outros workflows sozinho.
+      # Fora da main o build-release não publica nada (canal none).
+      - name: Disparar os checks na branch
+        if: steps.scope.outputs.changed == 'true'
+        env:
+          BRANCH: ${{ steps.commit.outputs.branch }}
+        run: |
+          gh workflow run ci-lint.yml --ref "$BRANCH" || echo "::warning::Não consegui disparar o ci-lint."
+          gh workflow run build-release.yml --ref "$BRANCH" || echo "::warning::Não consegui disparar o build."

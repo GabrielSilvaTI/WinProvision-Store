@@ -1,7 +1,7 @@
 name: Lint
 
-# Confere o estilo do C# (dotnet format), do Python (ruff) e dos workflows
-# (actionlint). Só lê o repositório, não publica nada.
+# Confere o estilo do C# (dotnet format), do XAML (XAML Styler), do Python
+# (ruff) e dos workflows (actionlint). Só lê o repositório, não publica nada.
 on:
   pull_request:
     branches: [main]
@@ -35,6 +35,29 @@ jobs:
       # define de espaços, chaves, charset e ordem dos usings.
       - name: Verificar formatação
         run: dotnet format whitespace . --folder --verify-no-changes --verbosity normal
+
+  xaml:
+    name: XAML (XAML Styler)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Instalar XAML Styler
+        run: |
+          dotnet tool install --global XamlStyler.Console --version 3.2501.8
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      # --passive só confere. Não altera arquivo e sai com código diferente de 0
+      # se algum XAML precisar de formatação. As regras ficam em Settings.XamlStyler.
+      - name: Verificar formatação
+        run: xstyler --passive --recursive --directory WinProvision.Store --config Settings.XamlStyler
 
   python:
     name: Python (ruff)
