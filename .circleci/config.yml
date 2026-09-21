@@ -57,6 +57,14 @@ jobs:
               "$(pwd)/catalog-output/apps.previous.json"
 
       - run:
+          name: Restaurar estado de hashes da API anterior do R2 (comparar por pacote)
+          command: |
+            mkdir -p catalog-output/api-previous
+            python3 scripts/database/r2_download.py \
+              Store/Api/v1/_state/package-hashes.json \
+              "$(pwd)/catalog-output/api-previous/package-hashes.json"
+
+      - run:
           name: Rodar o Indexer
           no_output_timeout: 30m
           # GITHUB_TOKEN é lido pelo próprio Indexer (métricas de estrelas etc.) — reaproveita
@@ -74,6 +82,16 @@ jobs:
             export APPS_JSON_SOURCE="$(pwd)/catalog-output/apps.json"
             export PREVIOUS_APPS_JSON_URL="https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
             python3 scripts/database/upload_apps_json.py
+
+      - run:
+          # O Indexer (passo [8/8], InstallerApiExporter) grava catalog-output/api/index.json
+          # e catalog-output/api/packages/*.json; nenhum argumento novo no dotnet run.
+          name: Publicar API no R2 (só pacotes com hash alterado)
+          command: |
+            python3 scripts/database/upload_api_json.py \
+              "$(pwd)/catalog-output/api" \
+              "$(pwd)/catalog-output/api-previous/package-hashes.json" \
+              Store/Api/v1
 
       - run:
           name: Devolver metrics-cache.json atualizado pro R2

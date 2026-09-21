@@ -46,7 +46,7 @@ void Lap(string label)
 }
 
 // 1. Varredura + dedup pela versão mais recente de cada pacote
-Console.WriteLine("\n[1/7] Varrendo manifests do winget-pkgs...");
+Console.WriteLine("\n[1/8] Varrendo manifests do winget-pkgs...");
 var scanner = new ManifestScanner();
 var (bundles, scanStats) = scanner.Scan(manifestsRoot);
 Console.WriteLine($"      {scanStats.VersionFoldersFound:N0} pastas de versão encontradas");
@@ -56,10 +56,13 @@ Console.WriteLine($"      {scanStats.FoldersParsed:N0} pastas de versão de fato
 Lap("varredura dos manifests");
 
 // 2. Mapeamento para AppEntry + filtro de ruído
-Console.WriteLine("\n[2/7] Aplicando filtro de ruído...");
+Console.WriteLine("\n[2/8] Aplicando filtro de ruído...");
 var noiseFilter = new NoiseFilter(LoadNoiseRules());
 var candidates = new List<AppEntry>();
 var installerUrlsByAppId = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+// Bundle bruto de cada pacote que passou pelo filtro de ruído. O passo [8/8] lê daqui o
+// InstallerManifest (hash, switches, tipo) sem reparsear YAML.
+var bundlesByAppId = new Dictionary<string, RawManifestBundle>(StringComparer.OrdinalIgnoreCase);
 int discarded = 0;
 
 foreach (var bundle in bundles)
@@ -78,6 +81,7 @@ foreach (var bundle in bundles)
     // pra evitar reabrir/reparsear os YAMLs quando formos estimar o tamanho do
     // instalador dos pacotes que sobreviverem ao corte de score.
     installerUrlsByAppId[app.Id] = ManifestMapper.GetInstallerUrls(bundle);
+    bundlesByAppId[app.Id] = bundle;
 }
 
 Console.WriteLine($"      {discarded:N0} pacotes descartados como ruído");
@@ -99,7 +103,7 @@ Console.WriteLine($"      {msstoreApps.Count:N0} apps da Microsoft Store mesclad
 Lap("catálogo msstore");
 
 // 3. Classificação regional
-Console.WriteLine("\n[3/7] Classificando apelo regional...");
+Console.WriteLine("\n[3/8] Classificando apelo regional...");
 var regionalClassifier = new RegionalClassifier();
 foreach (var app in candidates)
 {
@@ -108,7 +112,7 @@ foreach (var app in candidates)
 Console.WriteLine($"      {candidates.Count(a => a.RegionTags.Count > 0):N0} pacotes com tag regional");
 
 // 4. Enriquecimento via API do GitHub (com cache em disco) + cálculo do score
-Console.WriteLine("\n[4/7] Consultando métricas do GitHub (stars/forks/atividade)...");
+Console.WriteLine("\n[4/8] Consultando métricas do GitHub (stars/forks/atividade)...");
 var existingCache = LoadMetricsCache(cachePath);
 var githubService = new GitHubMetricsService(githubToken, existingCache);
 var scoringWeights = LoadScoringWeights();
@@ -149,7 +153,7 @@ await SaveMetricsCacheAsync(cachePath, githubService.ExportCache());
 Lap("métricas do GitHub");
 
 // 5. Corte final por score mínimo
-Console.WriteLine("\n[5/7] Aplicando corte de score mínimo...");
+Console.WriteLine("\n[5/8] Aplicando corte de score mínimo...");
 var published = candidates.Where(a => a.Score >= scoringWeights.MinimumScoreThreshold).ToList();
 int cutByScore = candidates.Count - published.Count;
 Console.WriteLine($"      {cutByScore:N0} pacotes descartados por score < {scoringWeights.MinimumScoreThreshold}");
@@ -164,7 +168,7 @@ Console.WriteLine($"      {published.Count:N0} pacotes seguem para o catálogo f
 // apps.json, então o app cliente (WinProvision.Store) não precisa mais rodar
 // "winget show" nem HEAD/Range ao vivo pra maioria dos pacotes — só como fallback
 // para os que não resolverem aqui.
-Console.WriteLine("\n[6/7] Estimando tamanho dos instaladores (HTTP HEAD/Range)...");
+Console.WriteLine("\n[6/8] Estimando tamanho dos instaladores (HTTP HEAD/Range)...");
 // Reaproveita o tamanho do catálogo anterior (apps.previous.json, baixado do R2 pelo
 // workflow, no mesmo estilo do metrics-cache.json): se o Id e a Version são os mesmos,
 // o instalador é o mesmo e não precisa de HEAD/Range de novo. Na prática só os pacotes
@@ -209,10 +213,20 @@ Console.WriteLine($"      {sizeReused:N0} reaproveitados do catálogo anterior, 
 Lap("tamanhos dos instaladores");
 
 // 7. Exportação do catálogo
-Console.WriteLine("\n[7/7] Exportando catálogo...");
+Console.WriteLine("\n[7/8] Exportando catálogo...");
 var exporter = new CatalogExporter();
 await exporter.ExportAsync(published, outputDir);
 Lap("exportação");
+
+// 8. Exportação da API de instaladores (index.json + packages/<id>.json). Sai em
+// <pasta-de-saida>/api, que é o diretório que o upload_api_json.py publica no R2.
+Console.WriteLine("\n[8/8] Exportando API de instaladores...");
+var apiExporter = new InstallerApiExporter();
+var apiStats = await apiExporter.ExportAsync(published, bundlesByAppId, Path.Combine(outputDir, "api"));
+Console.WriteLine($"      {apiStats.Packages:N0} pacotes e {apiStats.Installers:N0} instaladores exportados");
+Console.WriteLine($"      {apiStats.InstallersWithoutSilent:N0} instaladores sem instalação silenciosa suportada (silentSupported=false)");
+Console.WriteLine($"      {apiStats.SkippedNoInstaller:N0} pacotes ignorados por não terem instalador com URL, {apiStats.SkippedInvalidId:N0} por ID inválido como nome de arquivo");
+Lap("exportação da API");
 
 totalTimer.Stop();
 Console.WriteLine($"\n[SUCESSO] Pipeline concluída em {totalTimer.Elapsed.TotalSeconds:N1}s. {published.Count:N0} apps publicados em '{outputDir}'.");
