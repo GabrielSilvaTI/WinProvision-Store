@@ -126,6 +126,16 @@ public sealed class WinGetService
             }
             catch (Exception ex)
             {
+                // Falha de ativação/identidade ANTES de a instalação ser entregue ao servidor COM: tenta a
+                // próxima estratégia (lower-trust -> empacotado) antes de desistir da COM.
+                if (!state.Started && WinGetFactoryHelper.TryAdvanceStrategy(ex))
+                {
+                    WinGetDiagnosticLog.Write(
+                        $"INSTALL COM repetindo com a estratégia {WinGetFactoryHelper.CurrentStrategy} " +
+                        $"(falha anterior 0x{ex.HResult:X8})");
+                    continue;
+                }
+
                 WinGetFactoryHelper.DisableComForSession(ex);
                 WinGetDiagnosticLog.Write(
                     $"INSTALL COM FALHOU attempt={attempt}/{MaxPreflightAttempts} started={state.Started} " +

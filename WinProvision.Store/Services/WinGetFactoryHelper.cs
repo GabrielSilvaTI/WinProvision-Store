@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Microsoft.Management.Deployment;
@@ -18,6 +19,9 @@ public static class WinGetFactoryHelper
     private const int RpcDisconnected = unchecked((int)0x80010108);     // RPC_E_DISCONNECTED
     private const int RpcServerFault = unchecked((int)0x80010105);      // RPC_E_SERVERFAULT
     private const int RpcCallFailed = unchecked((int)0x800706BE);       // RPC_S_CALL_FAILED
+    private const int NoPackageIdentity = unchecked((int)0x80073D54);   // APPMODEL_ERROR_NO_PACKAGE
+    private const int InterfaceNotRegistered = unchecked((int)0x80040155); // REGDB_E_IIDNOTREG
+    private const int NoInterface = unchecked((int)0x80004002);         // E_NOINTERFACE
 
     // Estado da COM = circuit breaker com recuperação (antes era uma flag permanente por sessão:
     // uma única falha de ativação, por exemplo o App Installer ainda não provisionado no primeiro
@@ -30,6 +34,17 @@ public static class WinGetFactoryHelper
     private static int _consecutiveActivationFailures;
     private static string? _disabledReason;
     private static WinGetMode _mode = ReadModeFromEnvironment();
+
+    // Estratégias de ativação da COM. LowerTrust vem primeiro porque é a que já foi validada neste app
+    // (instalações via COM funcionando sem elevação, build Debug x64) e é a única que funciona com o
+    // processo elevado. Packaged (CLSCTX_LOCAL_SERVER puro, igual ao WindowsPackageManagerStandardFactory
+    // da Microsoft e ao modo "packaged COM registration" do UniGetUI) fica como reserva, caso a flag
+    // lower-trust seja recusada em algum contexto. A estratégia que conectar ao catálogo é fixada para a
+    // sessão inteira: PackageManager, InstallOptions, FindPackagesOptions etc. precisam usar a mesma.
+    private static readonly object StrategyGate = new();
+    private static WinGetComStrategy[] _strategies = [WinGetComStrategy.LowerTrust, WinGetComStrategy.Packaged];
+    private static int _strategyIndex;
+    private static bool _strategyConfirmed;
 
     [Flags]
     private enum CLSCTX : uint
@@ -106,7 +121,29 @@ public static class WinGetFactoryHelper
             }
         }
 
-        WinGetDiagnosticLog.Write($"WINGET MODE={_mode} (auto=COM com fallback CLI, com=só COM, cli=só winget.exe)");
+        foreach (var arg in args)
+        {
+            var separator = arg.IndexOf('=');
+            if (separator <= 0 ||
+                !arg[..separator].TrimStart('/', '-').Equals("winget-com", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            switch (arg[(separator + 1)..].Trim().ToLowerInvariant())
+            {
+                case "packaged":
+                    _strategies = [WinGetComStrategy.Packaged];
+                    break;
+                case "lowertrust":
+                    _strategies = [WinGetComStrategy.LowerTrust];
+                    break;
+            }
+        }
+
+        WinGetDiagnosticLog.Write(
+            $"WINGET MODE={_mode} (auto=COM com fallback CLI, com=só COM, cli=só winget.exe) " +
+            $"estratégias-COM={string.Join(">", _strategies)}");
     }
 
     private static WinGetMode ReadModeFromEnvironment() =>
@@ -127,7 +164,66 @@ public static class WinGetFactoryHelper
 
     /// <summary>Falha de ativação/servidor: a COM inteira está indisponível (não é erro de um pacote).</summary>
     public static bool IsActivationFailure(Exception exception) =>
-        exception.HResult is RpcServerUnavailable or ClassNotRegistered or ServerExecFailure or AccessDenied;
+        exception.HResult is RpcServerUnavailable or ClassNotRegistered or ServerExecFailure or AccessDenied
+            or NoPackageIdentity or InterfaceNotRegistered or NoInterface;
+
+    /// <summary>
+    /// Falha que indica que a ESTRATÉGIA de ativação atual não serve nesta máquina/contexto
+    /// (classe não registrada, sem identidade de pacote, acesso negado ao servidor...), e não um
+    /// problema de um pacote ou uma queda passageira de RPC (essas seguem o fluxo normal de retry).
+    /// </summary>
+    private static bool IsStrategyFailure(Exception exception)
+    {
+        if (exception is OperationCanceledException or WinGetComPreflightException)
+        {
+            return false;
+        }
+
+        return exception is InvalidCastException ||
+               exception.HResult is NoPackageIdentity or ClassNotRegistered or InterfaceNotRegistered
+                   or NoInterface or AccessDenied or ServerExecFailure;
+    }
+
+    /// <summary>Estratégia de ativação em uso (fixada para a sessão assim que uma conexão funciona).</summary>
+    public static WinGetComStrategy CurrentStrategy
+    {
+        get
+        {
+            lock (StrategyGate)
+            {
+                return _strategies[_strategyIndex];
+            }
+        }
+    }
+
+    /// <summary>
+    /// Passa para a próxima estratégia de ativação quando a atual falhou por um motivo que só ela explica.
+    /// Retorna true se há outra estratégia para tentar (o chamador deve repetir a operação).
+    /// Nunca troca depois que uma estratégia já conectou com sucesso (falha posterior não é culpa dela).
+    /// </summary>
+    public static bool TryAdvanceStrategy(Exception exception)
+    {
+        if (_mode == WinGetMode.CliOnly || !IsStrategyFailure(exception))
+        {
+            return false;
+        }
+
+        lock (StrategyGate)
+        {
+            if (_strategyConfirmed || _strategyIndex >= _strategies.Length - 1)
+            {
+                return false;
+            }
+
+            var failed = _strategies[_strategyIndex];
+            _strategyIndex++;
+            WinGetDiagnosticLog.Write(
+                $"COM ESTRATÉGIA falhou: {failed} HRESULT=0x{exception.HResult:X8} " +
+                $"tipo={exception.GetType().FullName} mensagem=\"{exception.Message}\"; " +
+                $"tentando {_strategies[_strategyIndex]}");
+            return true;
+        }
+    }
 
     /// <summary>Falha provavelmente passageira (servidor COM reiniciou, RPC caiu): vale repetir com nova ativação.</summary>
     public static bool IsTransient(Exception exception) =>
@@ -137,6 +233,12 @@ public static class WinGetFactoryHelper
     public static void DisableComForSession(Exception exception)
     {
         if (!IsActivationFailure(exception))
+        {
+            return;
+        }
+
+        // Ainda há outra estratégia de ativação para testar: não é hora de desistir da COM.
+        if (TryAdvanceStrategy(exception))
         {
             return;
         }
@@ -166,6 +268,15 @@ public static class WinGetFactoryHelper
     /// <summary>Chamado após qualquer ativação/conexão COM bem-sucedida: zera o breaker.</summary>
     public static void ReportComSuccess()
     {
+        lock (StrategyGate)
+        {
+            if (!_strategyConfirmed)
+            {
+                _strategyConfirmed = true;
+                WinGetDiagnosticLog.Write($"COM ESTRATÉGIA confirmada: {_strategies[_strategyIndex]}");
+            }
+        }
+
         var hadFailures = Interlocked.Exchange(ref _consecutiveActivationFailures, 0) != 0;
         var wasOpen = Interlocked.Exchange(ref _breakerOpenUntilTicks, 0) != 0;
         if (hadFailures || wasOpen)
@@ -179,40 +290,74 @@ public static class WinGetFactoryHelper
     /// Aquece o servidor COM (a primeira ativação é a mais lenta) e deixa no log, logo no início,
     /// se a COM está saudável ou por que não está.
     /// </summary>
-    public static async Task ProbeAsync(CancellationToken cancellationToken = default)
+    public static Task ProbeAsync(CancellationToken cancellationToken = default) =>
+        // Task.Run: a ativação (CoCreateInstance) pode levar segundos e não deve rodar na thread da UI
+        // (App.OnStartup chama isto sem await); também mantém o mesmo apartamento (MTA) do fluxo de instalação.
+        Task.Run(() => ProbeCoreAsync(cancellationToken), cancellationToken);
+
+    private static async Task ProbeCoreAsync(CancellationToken cancellationToken)
     {
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        try
+        var stopwatch = Stopwatch.StartNew();
+        while (true)
         {
-            var packageManager = CreateResilientPackageManager();
-            var reference = packageManager.GetPredefinedPackageCatalog(
-                PredefinedPackageCatalog.OpenWindowsCatalog);
-            reference.AcceptSourceAgreements = true;
-
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(90));
-            var connect = await reference.ConnectAsync().AsTask(timeout.Token).ConfigureAwait(false);
-
-            WinGetDiagnosticLog.Write(
-                $"COM PROBE status={connect.Status} elapsed={stopwatch.Elapsed} mode={_mode}");
-            if (connect.Status == ConnectResultStatus.Ok)
+            try
             {
-                ReportComSuccess();
-            }
+                var packageManager = CreateResilientPackageManager();
+                // As classes auxiliares são ativadas com a mesma estratégia; falha aqui = estratégia ruim.
+                _ = CreateFindPackagesOptions();
+                _ = CreatePackageMatchFilter();
+                var reference = packageManager.GetPredefinedPackageCatalog(
+                    PredefinedPackageCatalog.OpenWindowsCatalog);
+                reference.AcceptSourceAgreements = true;
 
-            WinGetDiagnosticLog.WriteComServerInfo();
-        }
-        catch (Exception ex)
-        {
-            DisableComForSession(ex);
-            WinGetDiagnosticLog.Write(
-                $"COM PROBE falhou HRESULT=0x{ex.HResult:X8} elapsed={stopwatch.Elapsed} " +
-                $"mode={_mode} exception={ex}");
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(90));
+                var connect = await reference.ConnectAsync().AsTask(timeout.Token).ConfigureAwait(false);
+
+                WinGetDiagnosticLog.Write(
+                    $"COM PROBE status={connect.Status} strategy={CurrentStrategy} " +
+                    $"elapsed={stopwatch.Elapsed} mode={_mode}");
+                if (connect.Status == ConnectResultStatus.Ok)
+                {
+                    ReportComSuccess();
+                }
+
+                WinGetDiagnosticLog.WriteComServerInfo();
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && TryAdvanceStrategy(ex))
+            {
+                // Estratégia atual não serve; o laço tenta a próxima (já registrada no log).
+            }
+            catch (Exception ex)
+            {
+                DisableComForSession(ex);
+                WinGetDiagnosticLog.Write(
+                    $"COM PROBE falhou strategy={CurrentStrategy} HRESULT=0x{ex.HResult:X8} " +
+                    $"elapsed={stopwatch.Elapsed} mode={_mode} exception={ex}");
+                return;
+            }
         }
     }
 
-    public static PackageManager CreateResilientPackageManager() =>
-        CreateInstance<PackageManager>(ClsidPackageManager, IidPackageManager);
+    /// <summary>
+    /// Ativa o PackageManager. Se a estratégia atual falhar na própria ativação (classe não registrada,
+    /// sem identidade de pacote...), passa para a próxima antes de devolver o erro.
+    /// </summary>
+    public static PackageManager CreateResilientPackageManager()
+    {
+        while (true)
+        {
+            try
+            {
+                return CreateInstance<PackageManager>(ClsidPackageManager, IidPackageManager);
+            }
+            catch (Exception ex) when (TryAdvanceStrategy(ex))
+            {
+                // Próxima estratégia na próxima volta.
+            }
+        }
+    }
 
     public static FindPackagesOptions CreateFindPackagesOptions() =>
         CreateInstance<FindPackagesOptions>(ClsidFindPackagesOptions, IidFindPackagesOptions);
@@ -234,29 +379,35 @@ public static class WinGetFactoryHelper
     public static T CreateInstance<T>(Guid clsid, Guid iid)
     {
         IntPtr pUnknown = IntPtr.Zero;
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stopwatch = Stopwatch.StartNew();
+        var strategy = CurrentStrategy;
         try
         {
-            const CLSCTX ctx = CLSCTX.CLSCTX_LOCAL_SERVER | CLSCTX.CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION;
+            var ctx = CLSCTX.CLSCTX_LOCAL_SERVER;
+            if (strategy == WinGetComStrategy.LowerTrust)
+            {
+                ctx |= CLSCTX.CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION;
+            }
 
             WinGetDiagnosticLog.Write(
-                $"COM ACTIVATION type={typeof(T).Name} strategy=CoCreateInstance " +
+                $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} " +
                 $"CLSID={clsid} IID={iid} CLSCTX=0x{(uint)ctx:X8}");
             int hr = CoCreateInstance(ref clsid, IntPtr.Zero, ctx, ref iid, out pUnknown);
             WinGetDiagnosticLog.Write(
-                $"COM ACTIVATION type={typeof(T).Name} CoCreateInstance " +
+                $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} CoCreateInstance " +
                 $"HRESULT=0x{hr:X8} elapsed={stopwatch.Elapsed}");
             Marshal.ThrowExceptionForHR(hr);
 
             var instance = MarshalGeneric<T>.FromAbi(pUnknown);
             WinGetDiagnosticLog.Write(
-                $"COM ACTIVATION type={typeof(T).Name} FromAbi=success elapsed={stopwatch.Elapsed}");
+                $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} FromAbi=success " +
+                $"elapsed={stopwatch.Elapsed}");
             return instance;
         }
         catch (Exception ex)
         {
             WinGetDiagnosticLog.Write(
-                $"COM ACTIVATION type={typeof(T).Name} failed " +
+                $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} failed " +
                 $"HRESULT=0x{ex.HResult:X8} elapsed={stopwatch.Elapsed} exception={ex}");
             throw;
         }
@@ -269,6 +420,16 @@ public static class WinGetFactoryHelper
             }
         }
     }
+}
+
+/// <summary>Como o processo ativa as classes COM do WinGet (ver comentário em WinGetFactoryHelper).</summary>
+public enum WinGetComStrategy
+{
+    /// <summary>Registro COM empacotado do App Installer (CLSCTX_LOCAL_SERVER).</summary>
+    Packaged,
+
+    /// <summary>Registro COM lower-trust (CLSCTX_LOCAL_SERVER | CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION).</summary>
+    LowerTrust
 }
 
 public enum WinGetMode
