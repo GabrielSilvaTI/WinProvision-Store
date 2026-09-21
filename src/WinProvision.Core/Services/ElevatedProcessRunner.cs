@@ -65,6 +65,10 @@ public static class ElevatedProcessRunner
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) // ERROR_CANCELLED — usuário clicou "Não" no UAC.
         {
+            // Marca a sessão: próximas instalações (ver WinGetService.InstallAsync) pulam a
+            // API COM e não tentam pedir UAC de novo — vão direto pra API própria da
+            // WinProvision Store, já que o usuário demonstrou que não vai aprovar o prompt.
+            WinProvisionElevationState.MarkFailed();
             return new WingetExecutionResult
             {
                 Success = false,

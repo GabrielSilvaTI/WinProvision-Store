@@ -45,6 +45,7 @@ public partial class App : Application
             services.AddSingleton<IconService>();
             services.AddSingleton<StoreService>();
             services.AddSingleton<WingetExecutor>();
+            services.AddSingleton<WinProvisionApiService>();
             services.AddSingleton<PackageMetricsService>();
             services.AddSingleton<CacheService>();
             services.AddSingleton<WingetBootstrapper>();
