@@ -36,7 +36,7 @@ public sealed class WinGetService
     {
         if (WinGetFactoryHelper.IsComDisabled)
         {
-            WinGetDiagnosticLog.Write("COM DESATIVADO NA SESSÃO: motivo=ativação anterior indisponível");
+            WinGetDiagnosticLog.Write($"COM DESATIVADO NA SESSÃO: motivo={WinGetFactoryHelper.DisabledReason}");
             return await SearchCliFallbackAsync(query, cancellationToken).ConfigureAwait(false);
         }
 
@@ -76,7 +76,7 @@ public sealed class WinGetService
         {
             if (WinGetFactoryHelper.IsComDisabled)
             {
-                WinGetDiagnosticLog.Write("COM DESATIVADO NA SESSÃO: motivo=ativação anterior indisponível");
+                WinGetDiagnosticLog.Write($"COM DESATIVADO NA SESSÃO: motivo={WinGetFactoryHelper.DisabledReason}");
                 onLogReceived?.Invoke("API COM indisponível; usando winget.exe como fallback.");
                 return await _wingetExecutor.InstallAppAsync(
                     packageId, onLogReceived, cancellationToken, installLocation, source).ConfigureAwait(false);

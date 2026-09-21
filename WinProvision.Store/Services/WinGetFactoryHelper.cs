@@ -14,6 +14,7 @@ public static class WinGetFactoryHelper
     private const int RpcServerUnavailable = unchecked((int)0x800706BA);
     private const int ClassNotRegistered = unchecked((int)0x80040154);
     private static int _comDisabled;
+    private static string? _disabledReason;
 
     [Flags]
     private enum CLSCTX : uint
@@ -58,6 +59,9 @@ public static class WinGetFactoryHelper
 
     public static bool IsComDisabled => Volatile.Read(ref _comDisabled) != 0;
 
+    /// <summary>Motivo real pelo qual a COM foi desativada na sessão (para o log de diagnóstico).</summary>
+    public static string DisabledReason => Volatile.Read(ref _disabledReason) ?? "desconhecido";
+
     public static void DisableComForSession(Exception exception)
     {
         if (exception.HResult is not (RpcServerUnavailable or ClassNotRegistered) ||
@@ -66,6 +70,8 @@ public static class WinGetFactoryHelper
             return;
         }
 
+        Volatile.Write(ref _disabledReason,
+            $"0x{exception.HResult:X8} {exception.GetType().Name}");
         WinGetDiagnosticLog.Write(
             $"COM DESATIVADO NA SESSÃO: motivo=0x{exception.HResult:X8} " +
             $"tipo={exception.GetType().FullName} mensagem=\"{exception.Message}\"");
@@ -74,7 +80,10 @@ public static class WinGetFactoryHelper
     public static void ForceDisableComForSession(string reason)
     {
         if (Interlocked.Exchange(ref _comDisabled, 1) == 0)
+        {
+            Volatile.Write(ref _disabledReason, reason);
             WinGetDiagnosticLog.Write($"COM DESATIVADO NA SESSÃO: motivo={reason}");
+        }
     }
 
     public static PackageManager CreateResilientPackageManager() =>

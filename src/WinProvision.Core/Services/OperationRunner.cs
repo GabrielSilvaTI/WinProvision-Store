@@ -20,6 +20,25 @@ public static partial class OperationRunner
         _installHandler = installHandler ?? throw new ArgumentNullException(nameof(installHandler));
     }
 
+    /// <summary>
+    /// Instala usando o handler configurado (API COM do WinGet, com fallback interno para a
+    /// CLI). Sem handler configurado, usa o <see cref="WingetExecutor"/> diretamente. Usado
+    /// também pelo modo /auto, para que ele não rode sempre o winget.exe.
+    /// </summary>
+    public static Task<WingetExecutionResult> InstallWithConfiguredHandlerAsync(
+        WingetExecutor executor,
+        string appId,
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken,
+        string? installLocation = null,
+        Action<InstallProgressUpdate>? onProgress = null,
+        string source = "winget")
+    {
+        return _installHandler is null
+            ? executor.InstallAppAsync(appId, onLogReceived, cancellationToken, installLocation, source)
+            : _installHandler(appId, onLogReceived, cancellationToken, installLocation, onProgress, source);
+    }
+
     public static async Task<WingetExecutionResult> RunInstallAsync(
         OperationsQueueService queue,
         WingetExecutor executor,
