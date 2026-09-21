@@ -745,20 +745,36 @@ public sealed class WinGetService
                 $"installerErrorCode=0x{installerErrorCode:X8} ({installerErrorCode}) " +
                 $"extendedErrorCode=0x{extendedErrorCode:X8} ({extendedErrorCode})");
 
-            if ((installerErrorCode == 740 || extendedErrorCode == unchecked((int)0x800702E4)) &&
-                WinGetFactoryHelper.CliFallbackAllowed)
+            bool requiresElevation =
+                installerErrorCode == 740 || extendedErrorCode == unchecked((int)0x800702E4);
+
+            // O instalador chegou a rodar e devolveu o próprio código de erro: repetir por outro
+            // caminho executaria o mesmo instalador de novo (risco de instalação dupla/parcial).
+            bool installerFailedItself = installerErrorCode != 0 && !requiresElevation;
+
+            // Política bloqueando o pacote: contornar pela API própria seria burlar a política.
+            bool blockedByPolicy = installResult.Status == InstallResultStatus.BlockedByPolicy;
+
+            // Qualquer outra falha da COM (download, dependências do pacote, catálogo, erro
+            // interno, sem instalador aplicável...) cai pra API própria e depois pro winget.exe.
+            // Antes só a elevação caía; o resto voltava como falha final, sem fallback.
+            if (WinGetFactoryHelper.CliFallbackAllowed && !installerFailedItself && !blockedByPolicy)
             {
-                WinGetDiagnosticLog.Write(
-                    "FALLBACK PARA API PRÓPRIA: motivo=COM install requer elevação");
-                onLogReceived?.Invoke(
-                    "A instalação requer privilégios de administrador; usando a API própria da WinProvision Store.");
+                string reason = requiresElevation
+                    ? "COM-requer-elevação"
+                    : $"COM-status-{installResult.Status}(0x{extendedErrorCode:X8})";
+
+                WinGetDiagnosticLog.Write($"FALLBACK PARA API PRÓPRIA: motivo={reason}");
+                onLogReceived?.Invoke(requiresElevation
+                    ? "A instalação requer privilégios de administrador; usando a API própria da WinProvision Store."
+                    : $"A API COM falhou ({installResult.Status}); usando a API própria da WinProvision Store.");
                 return await TryWinProvisionApiThenCliAsync(
                     packageId,
                     onLogReceived,
                     cancellationToken,
                     installLocation,
                     source,
-                    "COM-requer-elevação").ConfigureAwait(false);
+                    reason).ConfigureAwait(false);
             }
 
             var failureReason = MapInstallFailure(installResult.Status);
