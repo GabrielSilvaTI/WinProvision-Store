@@ -10,12 +10,17 @@ jobs:
     resource_class: medium
     steps:
       - run:
-          name: Instalar git e ssh (a imagem do .NET não vem com eles, e o checkout do CircleCI precisa)
+          name: Instalar git (a imagem do .NET não vem com git)
           command: |
             apt-get update -y
-            apt-get install -y git openssh-client ca-certificates
+            apt-get install -y git ca-certificates
 
-      - checkout
+      - run:
+          name: Checkout via HTTPS com GH_TOKEN (o checkout embutido do CircleCI usa SSH e este projeto não tem deploy key SSH configurada)
+          command: |
+            git clone --no-checkout \
+              https://x-access-token:${GH_TOKEN}@github.com/GabrielSilvaTI/WinProvision-Store.git .
+            git checkout "$CIRCLE_SHA1"
 
       - run:
           name: Instalar Python e boto3 (a imagem do .NET não vem com Python)
