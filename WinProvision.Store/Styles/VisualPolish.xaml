@@ -1,9 +1,11 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
-    <!-- Fluent geometry tokens from the WPF Gallery guidance. Keep all corners
-         within the compact 0–8px range and spacing on a 4px rhythm. -->
+    <!--
+        Fluent geometry tokens from the WPF Gallery guidance. Keep all corners
+        within the compact 0–8px range and spacing on a 4px rhythm.
+    -->
     <CornerRadius x:Key="SurfaceCornerRadius">0</CornerRadius>
     <CornerRadius x:Key="CompactCornerRadius">4</CornerRadius>
     <CornerRadius x:Key="ControlCornerRadius">6</CornerRadius>
@@ -18,9 +20,11 @@
     <Thickness x:Key="Spacing40">40</Thickness>
     <Thickness x:Key="Spacing48">48</Thickness>
 
-    <!-- Visual language: dark Mica, restrained glass surfaces and Fluent accents. -->
-    <!-- Mica base is supplied by FluentWindow; these alpha colors let it show
-         through while preserving a stable reading surface. -->
+    <!--  Visual language: dark Mica, restrained glass surfaces and Fluent accents.  -->
+    <!--
+        Mica base is supplied by FluentWindow; these alpha colors let it show
+        through while preserving a stable reading surface.
+    -->
     <SolidColorBrush x:Key="AppSurfaceBrush" Color="#E01D3047" />
     <SolidColorBrush x:Key="AppSurfaceElevatedBrush" Color="#E0263446" />
     <SolidColorBrush x:Key="AppSurfaceStrongBrush" Color="#F02D4056" />
@@ -34,19 +38,23 @@
     <SolidColorBrush x:Key="AppAccentBrush" Color="#1688E8" />
     <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#254A8DCE" />
 
-    <!-- Superfície comum dos cartões: translúcida para preservar o efeito Mica e
-         adaptável aos temas claro/escuro do WPF-UI. -->
+    <!--
+        Superfície comum dos cartões: translúcida para preservar o efeito Mica e
+        adaptável aos temas claro/escuro do WPF-UI.
+    -->
     <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#E0263446" />
     <SolidColorBrush x:Key="AppCardBorderBrush" Color="#8050657D" />
 
-    <!-- Sem isso, o WPF usa o modo padrão de reamostragem de bitmap (que prioriza
-         velocidade, não qualidade) pra reduzir os ícones — que chegam em alta resolução
-         (o .ico do winget costuma trazer até 256x256, ver IconBitmapDecoder em
-         Converters/AsyncImage.cs) até o tamanho pequeno exibido nas listas (24-64px). O
-         resultado é serrilhado/blocado, mais perceptível em ícones com bordas finas ou
-         curvas. HighQuality troca pra um reamostrador bicúbico — mesmo efeito de nitidez
-         que o Explorer do Windows usa pra miniaturas. Implícito (sem x:Key), então cobre
-         toda Image do app automaticamente, sem precisar tocar em cada .xaml. -->
+    <!--
+        Sem isso, o WPF usa o modo padrão de reamostragem de bitmap (que prioriza
+        velocidade, não qualidade) pra reduzir os ícones — que chegam em alta resolução
+        (o .ico do winget costuma trazer até 256x256, ver IconBitmapDecoder em
+        Converters/AsyncImage.cs) até o tamanho pequeno exibido nas listas (24-64px). O
+        resultado é serrilhado/blocado, mais perceptível em ícones com bordas finas ou
+        curvas. HighQuality troca pra um reamostrador bicúbico — mesmo efeito de nitidez
+        que o Explorer do Windows usa pra miniaturas. Implícito (sem x:Key), então cobre
+        toda Image do app automaticamente, sem precisar tocar em cada .xaml.
+    -->
     <Style TargetType="Image">
         <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
     </Style>
@@ -60,20 +68,22 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
 
-    <!-- WPF-UI's SymbolIcon is a FontIcon; color it consistently instead of leaving
-         individual pages with mismatched white/blue glyphs. Explicit Foreground values
-         on action buttons still win when an accent icon is intentional.
-
-         Sem x:Key, este Style é IMPLÍCITO e substitui por completo o Style padrão que o
-         próprio WPF-UI registra pra ui:SymbolIcon (mesmo mecanismo que apagava o
-         Foreground correto dos títulos — ver PageTitleStyle/CardTitleStyle nas páginas).
-         Sem um Foreground aqui, o Foreground herdado (propriedade de dependência
-         "inherited") cai no valor padrão do WPF (preto), em vez do branco/tema que o
-         WPF-UI usaria. Usa TextFillColorPrimaryBrush — o mesmo token (reage a Dark/Light
-         automaticamente) usado no Foreground global de TextBlock logo abaixo — em vez do
-         AppIconBrush definido no topo deste arquivo: aquele é uma cor fixa (#DDE7F5, quase-
-         branca sempre) que sofreria exatamente do mesmo problema já corrigido pro texto
-         (sumiria no tema Claro, ver comentário no Style de TextBlock). -->
+    <!--
+        WPF-UI's SymbolIcon is a FontIcon; color it consistently instead of leaving
+        individual pages with mismatched white/blue glyphs. Explicit Foreground values
+        on action buttons still win when an accent icon is intentional.
+        
+        Sem x:Key, este Style é IMPLÍCITO e substitui por completo o Style padrão que o
+        próprio WPF-UI registra pra ui:SymbolIcon (mesmo mecanismo que apagava o
+        Foreground correto dos títulos — ver PageTitleStyle/CardTitleStyle nas páginas).
+        Sem um Foreground aqui, o Foreground herdado (propriedade de dependência
+        "inherited") cai no valor padrão do WPF (preto), em vez do branco/tema que o
+        WPF-UI usaria. Usa TextFillColorPrimaryBrush — o mesmo token (reage a Dark/Light
+        automaticamente) usado no Foreground global de TextBlock logo abaixo — em vez do
+        AppIconBrush definido no topo deste arquivo: aquele é uma cor fixa (#DDE7F5, quase-
+        branca sempre) que sofreria exatamente do mesmo problema já corrigido pro texto
+        (sumiria no tema Claro, ver comentário no Style de TextBlock).
+    -->
     <Style TargetType="ui:SymbolIcon">
         <Setter Property="FontSize" Value="20" />
         <Setter Property="Opacity" Value="0.94" />
@@ -88,8 +98,10 @@
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
 
-    <!-- Movimento curto e discreto para controles acionáveis. A escala é pequena
-         o bastante para comunicar resposta sem deslocar o layout. -->
+    <!--
+        Movimento curto e discreto para controles acionáveis. A escala é pequena
+        o bastante para comunicar resposta sem deslocar o layout.
+    -->
     <Style x:Key="SmoothControlTransitionStyle"
            TargetType="ui:Button"
            BasedOn="{StaticResource {x:Type ui:Button}}">
@@ -105,9 +117,11 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
-                                             To="1.015" Duration="0:0:0.12" />
+                                             To="1.015"
+                                             Duration="0:0:0.12" />
                             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                             To="1.015" Duration="0:0:0.12" />
+                                             To="1.015"
+                                             Duration="0:0:0.12" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -115,9 +129,11 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
-                                             To="1" Duration="0:0:0.1" />
+                                             To="1"
+                                             Duration="0:0:0.1" />
                             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                             To="1" Duration="0:0:0.1" />
+                                             To="1"
+                                             Duration="0:0:0.1" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.ExitActions>
@@ -125,8 +141,10 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Expansão preserva o espaço do layout e anima apenas a entrada visual do
-         conteúdo, evitando saltos bruscos em painéis com muita informação. -->
+    <!--
+        Expansão preserva o espaço do layout e anima apenas a entrada visual do
+        conteúdo, evitando saltos bruscos em painéis com muita informação.
+    -->
     <Style x:Key="SmoothExpanderStyle" TargetType="Expander">
         <Setter Property="RenderTransformOrigin" Value="0.5,0" />
         <Setter Property="RenderTransform">
@@ -140,9 +158,12 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                             To="1" Duration="0:0:0.18" />
+                                             To="1"
+                                             Duration="0:0:0.18" />
                             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                             From="0.98" To="1" Duration="0:0:0.2" />
+                                             From="0.98"
+                                             To="1"
+                                             Duration="0:0:0.2" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -152,7 +173,8 @@
                     <BeginStoryboard>
                         <Storyboard>
                             <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                             To="0.86" Duration="0:0:0.14" />
+                                             To="0.86"
+                                             Duration="0:0:0.14" />
                         </Storyboard>
                     </BeginStoryboard>
                 </Trigger.EnterActions>
@@ -160,7 +182,9 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="PageHeaderIconStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+    <Style x:Key="PageHeaderIconStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontFamily" Value="Segoe Fluent Icons" />
         <Setter Property="FontSize" Value="32" />
         <Setter Property="Width" Value="32" />
@@ -171,7 +195,9 @@
     </Style>
 
 
-    <Style x:Key="SelectAllButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+    <Style x:Key="SelectAllButtonStyle"
+           TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="Appearance" Value="Secondary" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="Padding" Value="12,6" />
@@ -181,30 +207,34 @@
         <Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
-    <!-- ComboBoxItem (o item individual dentro da lista suspensa de qualquer ComboBox
-         puro do app — Tema/Barra de tarefas/Busca/Região/Plano de energia em
-         Provisionamento, Categoria/Plano/Canal/Arquitetura/Idioma no Office, guias em
-         Pacotes) não tinha estilo próprio em lugar nenhum do app. Sem isso, o item cai no
-         template padrão do WPF, cujo texto sai no preto/cinza-escuro clássico do Windows
-         (SystemColors.ControlTextBrush) em vez de acompanhar o tema escuro — feio e
-         difícil de ler contra o popup translúcido/com blur (a legibilidade varia com o
-         que está atrás, dando a impressão de mudar "com o ângulo"). Aqui força o mesmo
-         token de texto usado no resto do app (branco/quase-branco no tema Dark, preto no
-         Light — sempre correto pro tema atual) e um destaque sutil de fundo ao passar o
-         mouse/selecionar, usando os brushes de vidro já definidos acima. -->
+    <!--
+        ComboBoxItem (o item individual dentro da lista suspensa de qualquer ComboBox
+        puro do app — Tema/Barra de tarefas/Busca/Região/Plano de energia em
+        Provisionamento, Categoria/Plano/Canal/Arquitetura/Idioma no Office, guias em
+        Pacotes) não tinha estilo próprio em lugar nenhum do app. Sem isso, o item cai no
+        template padrão do WPF, cujo texto sai no preto/cinza-escuro clássico do Windows
+        (SystemColors.ControlTextBrush) em vez de acompanhar o tema escuro — feio e
+        difícil de ler contra o popup translúcido/com blur (a legibilidade varia com o
+        que está atrás, dando a impressão de mudar "com o ângulo"). Aqui força o mesmo
+        token de texto usado no resto do app (branco/quase-branco no tema Dark, preto no
+        Light — sempre correto pro tema atual) e um destaque sutil de fundo ao passar o
+        mouse/selecionar, usando os brushes de vidro já definidos acima.
+    -->
     <Style TargetType="ComboBoxItem">
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Padding" Value="10,8" />
         <Setter Property="Margin" Value="4,1" />
-        <!-- Template próprio (em vez de só sobrescrever Background/Foreground em
-             cima do template padrão) porque o template padrão do ComboBoxItem é um
-             Border sem CornerRadius exposto — dava um retângulo de destaque
-             encostado nas duas bordas, o "quadradão" clássico do Win10. Aqui o
-             destaque é um Border arredondado com respiro nas laterais (Margin no
-             ComboBoxItem, Padding no Border interno), igual ao recorte de item de
-             menu que o próprio app já usa no mock do menu de contexto do Win11
-             (ver Win11MenuItemStyle em ProvisioningPage.xaml). -->
+        <!--
+            Template próprio (em vez de só sobrescrever Background/Foreground em
+            cima do template padrão) porque o template padrão do ComboBoxItem é um
+            Border sem CornerRadius exposto — dava um retângulo de destaque
+            encostado nas duas bordas, o "quadradão" clássico do Win10. Aqui o
+            destaque é um Border arredondado com respiro nas laterais (Margin no
+            ComboBoxItem, Padding no Border interno), igual ao recorte de item de
+            menu que o próprio app já usa no mock do menu de contexto do Win11
+            (ver Win11MenuItemStyle em ProvisioningPage.xaml).
+        -->
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
@@ -232,12 +262,14 @@
         </Setter>
     </Style>
 
-    <!-- Sem Background/Foreground explícitos aqui, o ToolTip usava o chrome claro padrão
-         do Windows (fundo branco) + o Foreground quase-branco herdado do Style global de
-         TextBlock acima (usado pelo TextBlock interno que o WPF gera pra um ToolTip de
-         string simples) — texto branco sobre fundo branco, ilegível no tema Escuro. Aqui
-         fixamos os mesmos tokens do WPF-UI/Fluent usados no resto do app (superfície e
-         texto primário), que já reagem à troca de tema em runtime. -->
+    <!--
+        Sem Background/Foreground explícitos aqui, o ToolTip usava o chrome claro padrão
+        do Windows (fundo branco) + o Foreground quase-branco herdado do Style global de
+        TextBlock acima (usado pelo TextBlock interno que o WPF gera pra um ToolTip de
+        string simples) — texto branco sobre fundo branco, ilegível no tema Escuro. Aqui
+        fixamos os mesmos tokens do WPF-UI/Fluent usados no resto do app (superfície e
+        texto primário), que já reagem à troca de tema em runtime.
+    -->
     <Style TargetType="ToolTip">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
         <Setter Property="FontSize" Value="12" />
@@ -248,7 +280,7 @@
         <Setter Property="Padding" Value="{StaticResource Spacing8}" />
     </Style>
 
-    <!-- Estilo de Card com efeito Acrylic -->
+    <!--  Estilo de Card com efeito Acrylic  -->
     <Style x:Key="AcrylicCardStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
@@ -257,19 +289,25 @@
         <Setter Property="Padding" Value="{StaticResource Spacing20}" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect Color="#000000" Opacity="0.24" BlurRadius="24" ShadowDepth="4" Direction="270" />
+                <DropShadowEffect Color="#000000"
+                                  Opacity="0.24"
+                                  BlurRadius="24"
+                                  ShadowDepth="4"
+                                  Direction="270" />
             </Setter.Value>
         </Setter>
     </Style>
 
-    <!-- Estilo de Surface com efeito Mica para páginas -->
+    <!--  Estilo de Surface com efeito Mica para páginas  -->
     <Style x:Key="MicaSurfaceStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
         <Setter Property="CornerRadius" Value="{StaticResource SurfaceCornerRadius}" />
     </Style>
 
-    <!-- In-app Acrylic: shared card treatment for pages that need a contained,
-         softly elevated surface without hiding the window backdrop. -->
+    <!--
+        In-app Acrylic: shared card treatment for pages that need a contained,
+        softly elevated surface without hiding the window backdrop.
+    -->
     <Style x:Key="InAppAcrylicCardStyle" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
@@ -278,7 +316,11 @@
         <Setter Property="Padding" Value="{StaticResource Spacing20}" />
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect Color="#000000" Opacity="0.22" BlurRadius="22" ShadowDepth="4" Direction="270" />
+                <DropShadowEffect Color="#000000"
+                                  Opacity="0.22"
+                                  BlurRadius="22"
+                                  ShadowDepth="4"
+                                  Direction="270" />
             </Setter.Value>
         </Setter>
     </Style>
