@@ -29,14 +29,11 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Checkout esparso do winget-pkgs (só a pasta manifests)
+      - name: Checkout esparso do winget-pkgs (via Tarball ultra-rápido)
         run: |
-          git clone --depth 1 --filter=blob:none --sparse \
-            https://github.com/microsoft/winget-pkgs.git \
-            winget-pkgs
-          cd winget-pkgs
-          git sparse-checkout set manifests
-          echo "Manifests baixados: $(find manifests -name '*.yaml' | wc -l) arquivos .yaml"
+          mkdir -p winget-pkgs
+          curl -sL https://github.com/microsoft/winget-pkgs/archive/refs/heads/master.tar.gz | tar -xz -C winget-pkgs --strip-components=1 "winget-pkgs-master/manifests"
+          echo "Manifests baixados: $(find winget-pkgs/manifests -name '*.yaml' | wc -l) arquivos .yaml"
 
       - name: Restaurar metrics-cache.json do R2 (se existir)
         env:
