@@ -10,10 +10,10 @@ jobs:
     resource_class: medium
     steps:
       - run:
-          name: Instalar git (a imagem do .NET não vem com git, e o checkout do CircleCI precisa dele)
+          name: Instalar git e ssh (a imagem do .NET não vem com eles, e o checkout do CircleCI precisa)
           command: |
             apt-get update -y
-            apt-get install -y git
+            apt-get install -y git openssh-client ca-certificates
 
       - checkout
 
