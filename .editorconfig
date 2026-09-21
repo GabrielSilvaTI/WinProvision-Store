@@ -17,6 +17,10 @@ indent_size = 2
 [*.md]
 trim_trailing_whitespace = false
 
+# O XAML Styler grava BOM. Sem isso o editor pode remover o BOM ao salvar.
+[*.xaml]
+charset = utf-8-bom
+
 [*.py]
 max_line_length = 120
 
