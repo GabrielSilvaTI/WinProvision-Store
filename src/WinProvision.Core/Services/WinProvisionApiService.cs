@@ -79,6 +79,7 @@ public enum WinProvisionInstallOutcome
     Success,
     PackageNotFound,
     NoCompatibleInstaller,
+    SilentInstallNotSupported,
     DownloadFailed,
     HashMismatch,
     InstallProcessFailed
@@ -179,11 +180,19 @@ public sealed class WinProvisionApiService
 
         foreach (var arch in order)
         {
-            var match = manifest.Installers.FirstOrDefault(i =>
-                string.Equals(i.Architecture, arch, StringComparison.OrdinalIgnoreCase));
-            if (match is not null) return match;
+            // Dentro da mesma arquitetura, prefere um installer com silentSupported=true
+            // (ex.: pacote que publica tanto um .exe quanto um .zip pra mesma arch) —
+            // evita escolher por acaso um tipo que a API própria não sabe instalar sem
+            // interação quando existe alternativa silenciosa disponível.
+            var candidates = manifest.Installers
+                .Where(i => string.Equals(i.Architecture, arch, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(i => i.SilentSupported)
+                .ToList();
+            if (candidates.Count > 0) return candidates[0];
         }
-        return manifest.Installers.FirstOrDefault();
+        return manifest.Installers
+            .OrderByDescending(i => i.SilentSupported)
+            .FirstOrDefault();
     }
 
     /// <summary>
@@ -205,6 +214,16 @@ public sealed class WinProvisionApiService
         if (installer is null)
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.NoCompatibleInstaller,
                 Message: $"Nenhum installer compatível para '{packageId}'.");
+
+        // O catálogo (InstallerApiExporter) já marca silentSupported=false pra tipos que
+        // não sabe instalar sem interação (zip, msix, appx, portable, exe sem switch
+        // declarado no manifesto). Baixar e tentar EXECUTAR esse arquivo sempre falha (ex.:
+        // um .zip não tem cabeçalho PE, "not a valid application for this OS platform") —
+        // melhor falhar aqui, ANTES do download, e deixar o nível 3 (winget.exe) cuidar
+        // desses tipos, já que o próprio winget sabe extrair zip/portable corretamente.
+        if (!installer.SilentSupported)
+            return new WinProvisionInstallResult(WinProvisionInstallOutcome.SilentInstallNotSupported,
+                Message: $"Installer tipo '{installer.Type}' de '{packageId}' não suporta instalação silenciosa pela API própria.");
 
         var tempFile = Path.Combine(Path.GetTempPath(),
             $"winprovision_{packageId}_{Guid.NewGuid():N}{Path.GetExtension(installer.Url)}");
