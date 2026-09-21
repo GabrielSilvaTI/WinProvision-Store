@@ -1,18 +1,17 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!--
         Barra de progresso com degradê animado ("dinâmico"), no lugar da barra amarela
         sólida do UnigetUI. Dois modos, controlados pela propriedade padrão IsIndeterminate:
-
-          - IsIndeterminate = True  -> uma faixa de degradê desliza continuamente da
-            esquerda para a direita sobre o trilho inteiro. Use enquanto a etapa não
-            tem percentual conhecido (ex.: "Na fila...", "Preparando...").
-          - IsIndeterminate = False -> a barra preenche até Value/Maximum normalmente
-            (aproveitando o comportamento nativo do ProgressBar via PART_Track/PART_Indicator),
-            só que o preenchimento em si tem um "shimmer" de degradê correndo por dentro,
-            então continua parecendo vivo mesmo com progresso real.
-
+        
+        - IsIndeterminate = True  -> uma faixa de degradê desliza continuamente da
+        esquerda para a direita sobre o trilho inteiro. Use enquanto a etapa não
+        tem percentual conhecido (ex.: "Na fila...", "Preparando...").
+        - IsIndeterminate = False -> a barra preenche até Value/Maximum normalmente
+        (aproveitando o comportamento nativo do ProgressBar via PART_Track/PART_Indicator),
+        só que o preenchimento em si tem um "shimmer" de degradê correndo por dentro,
+        então continua parecendo vivo mesmo com progresso real.
+        
         Ajuste as cores abaixo para casar com o accent do app.
     -->
 
@@ -30,15 +29,22 @@
                 <ControlTemplate TargetType="ProgressBar">
                     <Grid x:Name="TemplateRoot" SnapsToDevicePixels="True">
 
-                        <!-- Trilho de fundo -->
+                        <!--  Trilho de fundo  -->
                         <Border Background="{TemplateBinding Background}" CornerRadius="{StaticResource CompactCornerRadius}" />
 
-                        <!-- Preenchimento determinado: WPF calcula a largura de PART_Indicator
-                             automaticamente a partir de Value/Minimum/Maximum, desde que os
-                             nomes PART_Track/PART_Indicator existam no template. -->
-                        <Border x:Name="PART_Track" Background="Transparent" CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True">
+                        <!--
+                            Preenchimento determinado: WPF calcula a largura de PART_Indicator
+                            automaticamente a partir de Value/Minimum/Maximum, desde que os
+                            nomes PART_Track/PART_Indicator existam no template.
+                        -->
+                        <Border x:Name="PART_Track"
+                                Background="Transparent"
+                                CornerRadius="{StaticResource CompactCornerRadius}"
+                                ClipToBounds="True">
                             <Decorator x:Name="PART_Indicator" HorizontalAlignment="Left">
-                                <Border CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True" MinWidth="6">
+                                <Border CornerRadius="{StaticResource CompactCornerRadius}"
+                                        ClipToBounds="True"
+                                        MinWidth="6">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                             <GradientStop Color="{StaticResource GradientProgressColorA}" Offset="0.0" />
@@ -53,9 +59,14 @@
                             </Decorator>
                         </Border>
 
-                        <!-- Faixa deslizante para o modo indeterminado -->
-                        <Border x:Name="IndeterminateRoot" CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True" Visibility="Collapsed">
-                            <Rectangle x:Name="PART_GlowRect" Width="140" HorizontalAlignment="Left">
+                        <!--  Faixa deslizante para o modo indeterminado  -->
+                        <Border x:Name="IndeterminateRoot"
+                                CornerRadius="{StaticResource CompactCornerRadius}"
+                                ClipToBounds="True"
+                                Visibility="Collapsed">
+                            <Rectangle x:Name="PART_GlowRect"
+                                       Width="140"
+                                       HorizontalAlignment="Left">
                                 <Rectangle.Fill>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                         <GradientStop Color="Transparent" Offset="0.0" />
@@ -79,22 +90,23 @@
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="IndeterminateStoryboard">
                                     <Storyboard>
-                                        <!-- "To" precisa ser um valor fixo (não um Binding): o Storyboard é
-                                             compartilhado entre árvores visuais diferentes (ex.: painel dentro
-                                             de um Popup), e o WPF tenta "congelar" o Storyboard para isso -
-                                             uma animação com propriedade vinculada a Binding não pode ser
-                                             congelada, o que gera XamlParseException/InvalidOperationException
-                                             ao abrir o Popup. Como PART_GlowRect está dentro de um Border com
-                                             ClipToBounds="True", ultrapassar a largura real não tem efeito
-                                             visual - só precisamos de um valor grande o bastante para cobrir
-                                             qualquer largura razoável da barra. -->
-                                        <DoubleAnimation
-                                            Storyboard.TargetName="IndeterminateTransform"
-                                            Storyboard.TargetProperty="X"
-                                            From="-140"
-                                            To="900"
-                                            Duration="0:0:1.4"
-                                            RepeatBehavior="Forever" />
+                                        <!--
+                                            "To" precisa ser um valor fixo (não um Binding): o Storyboard é
+                                            compartilhado entre árvores visuais diferentes (ex.: painel dentro
+                                            de um Popup), e o WPF tenta "congelar" o Storyboard para isso -
+                                            uma animação com propriedade vinculada a Binding não pode ser
+                                            congelada, o que gera XamlParseException/InvalidOperationException
+                                            ao abrir o Popup. Como PART_GlowRect está dentro de um Border com
+                                            ClipToBounds="True", ultrapassar a largura real não tem efeito
+                                            visual - só precisamos de um valor grande o bastante para cobrir
+                                            qualquer largura razoável da barra.
+                                        -->
+                                        <DoubleAnimation Storyboard.TargetName="IndeterminateTransform"
+                                                         Storyboard.TargetProperty="X"
+                                                         From="-140"
+                                                         To="900"
+                                                         Duration="0:0:1.4"
+                                                         RepeatBehavior="Forever" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
@@ -107,12 +119,12 @@
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="DeterminateStoryboard">
                                     <Storyboard>
-                                        <DoubleAnimation
-                                            Storyboard.TargetName="DeterminateShimmerTransform"
-                                            Storyboard.TargetProperty="X"
-                                            From="-1.5" To="1.5"
-                                            Duration="0:0:1.6"
-                                            RepeatBehavior="Forever" />
+                                        <DoubleAnimation Storyboard.TargetName="DeterminateShimmerTransform"
+                                                         Storyboard.TargetProperty="X"
+                                                         From="-1.5"
+                                                         To="1.5"
+                                                         Duration="0:0:1.6"
+                                                         RepeatBehavior="Forever" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
