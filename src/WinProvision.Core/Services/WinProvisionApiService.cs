@@ -15,14 +15,16 @@
 //         ...
 //       ] }
 //
-// Este arquivo é standalone (só depende de System.Net.Http.Json e System.Text.Json)
-// pra você colar dentro de WinProvision.Core/Services e ajustar namespace/usings
-// conforme a estrutura real do projeto.
+// Este arquivo é standalone (só depende de System.Net.Http.Json e System.Text.Json,
+// além de System.IO.Compression pra instaladores empacotados em zip) pra você colar
+// dentro de WinProvision.Core/Services e ajustar namespace/usings conforme a
+// estrutura real do projeto.
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.IO.Compression;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
@@ -62,7 +64,10 @@ public sealed class PackageManifest
 public sealed class PackageInstaller
 {
     [JsonPropertyName("architecture")] public string Architecture { get; set; } = "";
-    [JsonPropertyName("type")] public string Type { get; set; } = "";           // nullsoft, inno, msi, burn, exe...
+    [JsonPropertyName("type")] public string Type { get; set; } = "";           // nullsoft, inno, msi, burn, exe, zip...
+    // Só vem preenchido quando Type == "zip": tipo/caminho do instalador real de dentro do pacote.
+    [JsonPropertyName("nestedType")] public string? NestedType { get; set; }
+    [JsonPropertyName("nestedInstallerFile")] public string? NestedInstallerFile { get; set; }
     [JsonPropertyName("scope")] public string Scope { get; set; } = "";         // user | machine
     [JsonPropertyName("url")] public string Url { get; set; } = "";
     [JsonPropertyName("sha256")] public string Sha256 { get; set; } = "";
@@ -70,6 +75,11 @@ public sealed class PackageInstaller
     [JsonPropertyName("silentSource")] public string SilentSource { get; set; } = "";
     [JsonPropertyName("silentSupported")] public bool SilentSupported { get; set; }
     [JsonPropertyName("productCode")] public string? ProductCode { get; set; }
+
+    /// <summary>Atalho: true quando este instalador é um zip com instalador aninhado resolvido pela API.</summary>
+    [JsonIgnore]
+    public bool IsZipWithNestedInstaller =>
+        string.Equals(Type, "zip", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(NestedInstallerFile);
 }
 
 #endregion
@@ -82,6 +92,7 @@ public enum WinProvisionInstallOutcome
     SilentInstallNotSupported,
     DownloadFailed,
     HashMismatch,
+    ExtractionFailed,
     InstallProcessFailed
 }
 
@@ -216,17 +227,19 @@ public sealed class WinProvisionApiService
                 Message: $"Nenhum installer compatível para '{packageId}'.");
 
         // O catálogo (InstallerApiExporter) já marca silentSupported=false pra tipos que
-        // não sabe instalar sem interação (zip, msix, appx, portable, exe sem switch
-        // declarado no manifesto). Baixar e tentar EXECUTAR esse arquivo sempre falha (ex.:
-        // um .zip não tem cabeçalho PE, "not a valid application for this OS platform") —
+        // não sabe instalar sem interação (msix, appx, portable, exe sem switch declarado
+        // no manifesto, ou um zip cujo NestedInstallerType/NestedInstallerFiles não foi
+        // resolvido). Baixar e tentar EXECUTAR esse arquivo sempre falha nesses casos —
         // melhor falhar aqui, ANTES do download, e deixar o nível 3 (winget.exe) cuidar
-        // desses tipos, já que o próprio winget sabe extrair zip/portable corretamente.
+        // deles, já que o próprio winget sabe lidar com zip/portable/msix nativamente.
         if (!installer.SilentSupported)
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.SilentInstallNotSupported,
                 Message: $"Installer tipo '{installer.Type}' de '{packageId}' não suporta instalação silenciosa pela API própria.");
 
         var tempFile = Path.Combine(Path.GetTempPath(),
             $"winprovision_{packageId}_{Guid.NewGuid():N}{Path.GetExtension(installer.Url)}");
+        // Só usado quando o instalador vem dentro de um zip (extraído aqui, apagado no final).
+        string? extractDir = null;
 
         try
         {
@@ -241,8 +254,34 @@ public sealed class WinProvisionApiService
                         Message: "Hash do instalador baixado não confere com o manifest.");
             }
 
+            // O que de fato roda: o próprio arquivo baixado, ou (quando o pacote é um zip
+            // com instalador aninhado) o instalador extraído de dentro dele.
+            string runnablePath = tempFile;
+
+            if (installer.IsZipWithNestedInstaller)
+            {
+                onLog?.Report($"[WinProvisionAPI] Extraindo {installer.NestedInstallerFile} do pacote zip...");
+                extractDir = Path.Combine(Path.GetTempPath(), $"winprovision_{packageId}_{Guid.NewGuid():N}");
+
+                string? extractedPath;
+                try
+                {
+                    extractedPath = ExtractNestedInstaller(tempFile, extractDir, installer.NestedInstallerFile!);
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+                {
+                    return new WinProvisionInstallResult(WinProvisionInstallOutcome.ExtractionFailed, Message: ex.Message);
+                }
+
+                if (extractedPath is null)
+                    return new WinProvisionInstallResult(WinProvisionInstallOutcome.ExtractionFailed,
+                        Message: $"'{installer.NestedInstallerFile}' não encontrado dentro do zip de '{packageId}'.");
+
+                runnablePath = extractedPath;
+            }
+
             onLog?.Report($"[WinProvisionAPI] Instalando (silent: {installer.SilentArgs})...");
-            var exitCode = await RunInstallerAsync(tempFile, installer.SilentArgs, ct);
+            var exitCode = await RunInstallerAsync(runnablePath, installer.SilentArgs, ct);
 
             // A maioria dos instaladores silenciosos usa 0 = sucesso;
             // 3010 = sucesso com reboot pendente (comum em MSI/Burn).
@@ -259,7 +298,33 @@ public sealed class WinProvisionApiService
         finally
         {
             TryDeleteFile(tempFile);
+            TryDeleteDirectory(extractDir);
         }
+    }
+
+    /// <summary>
+    /// Extrai só o instalador aninhado (não o zip inteiro) para uma pasta temporária
+    /// dedicada. <paramref name="relativePath"/> vem tal como publicado no manifesto
+    /// (winget-pkgs usa "\" como separador); comparação por sufixo de caminho normalizado
+    /// tolera zips onde o entry vem prefixado por uma pasta-raiz extra.
+    /// </summary>
+    private static string? ExtractNestedInstaller(string zipPath, string extractDir, string relativePath)
+    {
+        string normalizedTarget = relativePath.Replace('\', '/').TrimStart('/');
+
+        using var archive = ZipFile.OpenRead(zipPath);
+        var entry = archive.Entries.FirstOrDefault(e =>
+                e.FullName.Replace('\', '/').Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+            ?? archive.Entries.FirstOrDefault(e =>
+                e.FullName.Replace('\', '/').EndsWith("/" + normalizedTarget, StringComparison.OrdinalIgnoreCase));
+
+        if (entry is null)
+            return null;
+
+        Directory.CreateDirectory(extractDir);
+        string destination = Path.Combine(extractDir, Path.GetFileName(entry.FullName));
+        entry.ExtractToFile(destination, overwrite: true);
+        return destination;
     }
 
     private async Task DownloadFileAsync(string url, string destination, CancellationToken ct)
@@ -309,5 +374,11 @@ public sealed class WinProvisionApiService
     private static void TryDeleteFile(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort */ }
+    }
+
+    private static void TryDeleteDirectory(string? path)
+    {
+        if (path is null) return;
+        try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); } catch { /* best-effort */ }
     }
 }

@@ -37,8 +37,11 @@ public class InstallerApiExporter
 
     private static readonly JsonSerializerOptions JsonOptions = WinProvisionJsonOptions.Compact;
 
-    // Tipos que a API trata como EXE/MSI. Fora disso (msix, appx, zip, portable, pwa...)
-    // o instalador é exportado, mas com silentSupported=false.
+    // Tipos que a API trata como EXE/MSI. Fora disso (msix, appx, portable, pwa...) o
+    // instalador é exportado, mas com silentSupported=false. "zip" não entra aqui de
+    // propósito: é resolvido à parte em BuildInstallers via NestedInstallerType (o tipo
+    // real do instalador de dentro do pacote), que é o valor efetivamente checado contra
+    // este conjunto.
     private static readonly HashSet<string> SupportedTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "msi", "wix", "burn", "nullsoft", "inno", "exe"
@@ -160,24 +163,56 @@ public class InstallerApiExporter
 
             string? type = Clean(Pick(item, root, "InstallerType"))?.ToLowerInvariant();
 
+            // "zip" não é um instalador em si: o executável/MSI de verdade vem dentro do
+            // pacote (winget-pkgs documenta isso via NestedInstallerType/NestedInstallerFiles).
+            // Resolvemos aqui o tipo e o caminho relativo de dentro do zip para o cliente
+            // saber o que extrair e rodar, sem precisar reparsear o manifesto.
+            string? nestedType = null;
+            string? nestedRelativePath = null;
+            if (string.Equals(type, "zip", StringComparison.OrdinalIgnoreCase))
+            {
+                nestedType = Clean(Pick(item, root, "NestedInstallerType"))?.ToLowerInvariant();
+                var nestedFiles = item.ContainsKey("NestedInstallerFiles")
+                    ? item.GetObjectList("NestedInstallerFiles")
+                    : root.GetObjectList("NestedInstallerFiles");
+                // Normalmente há só uma entrada relevante (o instalador real); quando o
+                // manifesto lista mais de uma, a primeira é o suficiente para o nosso uso.
+                nestedRelativePath = Clean(nestedFiles.FirstOrDefault()?.GetString("RelativeFilePath"));
+            }
+
+            // Pra fins de suporte a instalação silenciosa, o tipo que importa é o de
+            // dentro do zip (quando existir) — "zip" nunca está em SupportedTypes, então
+            // sem isso todo zip cairia em silentSupported=false mesmo quando o conteúdo
+            // é um Inno/NSIS/MSI perfeitamente silencioso.
+            string? effectiveTypeForSilent = nestedType ?? type;
+
             var switches = new Dictionary<string, string>(rootSwitches, StringComparer.OrdinalIgnoreCase);
             foreach (var (key, value) in ReadSwitches(item))
                 switches[key] = value;
 
             var modes = item.ContainsKey("InstallModes") ? item.GetStringList("InstallModes") : rootModes;
-            var silent = ResolveSilent(type, switches, modes);
+            var silent = ResolveSilent(effectiveTypeForSilent, switches, modes);
+
+            // Um zip sem NestedInstallerType/NestedInstallerFiles resolvíveis não tem o
+            // que o cliente extraia e rode — mesmo que o tipo aninhado fosse suportado,
+            // sem o caminho do arquivo não dá pra montar o comando.
+            bool hasUsableNestedFile = !string.Equals(type, "zip", StringComparison.OrdinalIgnoreCase)
+                || !string.IsNullOrEmpty(nestedRelativePath);
+            bool supported = silent.Supported && hasUsableNestedFile;
 
             result.Add(new ApiInstaller
             {
                 Architecture = Clean(Pick(item, root, "Architecture"))?.ToLowerInvariant(),
                 Type = type,
+                NestedType = nestedType,
+                NestedInstallerFile = nestedRelativePath,
                 Scope = Clean(Pick(item, root, "Scope"))?.ToLowerInvariant(),
                 Locale = Clean(Pick(item, root, "InstallerLocale")),
                 Url = url,
                 Sha256 = Clean(Pick(item, root, "InstallerSha256"))?.ToUpperInvariant(),
-                SilentArgs = silent.Args,
-                SilentSource = silent.Source,
-                SilentSupported = silent.Supported,
+                SilentArgs = supported ? silent.Args : null,
+                SilentSource = supported ? silent.Source : "none",
+                SilentSupported = supported,
                 ProductCode = Clean(Pick(item, root, "ProductCode"))
             });
         }
@@ -299,7 +334,12 @@ public class ApiPackage
 public class ApiInstaller
 {
     [JsonPropertyName("architecture")] public string? Architecture { get; set; }
+    /// <summary>Tipo do instalador publicado (msi, wix, burn, nullsoft, inno, exe, zip, msix...).</summary>
     [JsonPropertyName("type")] public string? Type { get; set; }
+    /// <summary>Só preenchido quando <see cref="Type"/> é "zip": o InstallerType real de dentro do pacote.</summary>
+    [JsonPropertyName("nestedType")] public string? NestedType { get; set; }
+    /// <summary>Só preenchido quando <see cref="Type"/> é "zip": caminho relativo, dentro do zip, do instalador a extrair e rodar.</summary>
+    [JsonPropertyName("nestedInstallerFile")] public string? NestedInstallerFile { get; set; }
     [JsonPropertyName("scope")] public string? Scope { get; set; }
     [JsonPropertyName("locale")] public string? Locale { get; set; }
     [JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
