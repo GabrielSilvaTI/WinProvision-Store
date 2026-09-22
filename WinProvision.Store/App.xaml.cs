@@ -102,16 +102,16 @@ public partial class App : Application
     {
         var executablePath = Environment.ProcessPath ?? AppContext.BaseDirectory;
         bool isAuto = HasAutoFlag(e.Args);
-        bool isElevated = WinGetDiagnosticLog.IsElevated();
+        bool isElevated = WinProvisionLog.IsElevated();
         var buildDate = File.Exists(executablePath)
             ? File.GetLastWriteTime(executablePath)
             : DateTime.MinValue;
-        WinGetDiagnosticLog.Write(
+        WinProvisionLog.Write(
             $"STARTUP elevated={isElevated} " +
             $"exe=\"{executablePath}\" buildDate={buildDate:O} " +
             $"auto={isAuto} debugger={Debugger.IsAttached} " +
             $"relaunched={HasArgument(e.Args, RelaunchedUnelevatedArgument)}");
-        WingetCliAudit.Sink = WinGetDiagnosticLog.Write;
+        WingetCliAudit.Sink = WinProvisionLog.Write;
         WinGetFactoryHelper.ConfigureMode(e.Args);
 
         if (isElevated &&
@@ -122,42 +122,42 @@ public partial class App : Application
         {
             if (TryRelaunchUnelevated(executablePath, e.Args))
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     "STARTUP decision=relaunch-unelevated result=started; exiting elevated instance");
                 Shutdown();
                 return;
             }
 
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 "STARTUP decision=relaunch-unelevated result=failed; continuing elevated");
         }
         else if (isAuto)
         {
-            WinGetDiagnosticLog.Write("STARTUP decision=auto-exception");
+            WinProvisionLog.Write("STARTUP decision=auto-exception");
         }
         else if (HasArgument(e.Args, RelaunchedUnelevatedArgument))
         {
             if (isElevated)
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     "STARTUP decision=loop-protection; relaunched process is still elevated");
             }
             else
             {
-                WinGetDiagnosticLog.Write("STARTUP decision= relaunched-unelevated accepted");
+                WinProvisionLog.Write("STARTUP decision= relaunched-unelevated accepted");
             }
         }
         else if (HasArgument(e.Args, AllowElevatedArgument))
         {
-            WinGetDiagnosticLog.Write("STARTUP decision=allow-elevated-exception");
+            WinProvisionLog.Write("STARTUP decision=allow-elevated-exception");
         }
         else if (Debugger.IsAttached)
         {
-            WinGetDiagnosticLog.Write("STARTUP decision=debugger-exception");
+            WinProvisionLog.Write("STARTUP decision=debugger-exception");
         }
         else
         {
-            WinGetDiagnosticLog.Write("STARTUP decision=interactive-user-context");
+            WinProvisionLog.Write("STARTUP decision=interactive-user-context");
         }
 
         ApplicationThemeManager.Changed += ApplicationThemeManager_Changed;
@@ -175,9 +175,9 @@ public partial class App : Application
                     _host.Services.GetRequiredService<WinGetService>().InstallAsync);
                 OperationRunner.ConfigureUpdateHandler(
                     _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallAsync");
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     "UPDATE HANDLER CONFIGURED startupPath=auto handler=WinGetService.UpdateAsync");
                 _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
                 _host.Services.GetRequiredService<BackupAutoSyncService>();
@@ -296,9 +296,9 @@ public partial class App : Application
             _host.Services.GetRequiredService<WinGetService>().InstallAsync);
         OperationRunner.ConfigureUpdateHandler(
             _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
-        WinGetDiagnosticLog.Write(
+        WinProvisionLog.Write(
             "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
-        WinGetDiagnosticLog.Write(
+        WinProvisionLog.Write(
             "UPDATE HANDLER CONFIGURED startupPath=interactive handler=WinGetService.UpdateAsync");
         _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
         _host.Services.GetRequiredService<BackupAutoSyncService>();
@@ -370,12 +370,12 @@ public partial class App : Application
             previousTick = now;
             if (delay > TimeSpan.FromSeconds(2))
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"UI THREAD DELAY delay={delay} sinceLastTick={now}");
             }
         };
         _uiResponsivenessTimer.Start();
-        WinGetDiagnosticLog.Write("UI THREAD MONITOR started interval=1s threshold=2s");
+        WinProvisionLog.Write("UI THREAD MONITOR started interval=1s threshold=2s");
     }
 
     private static bool HasAutoFlag(string[] args) =>
@@ -389,7 +389,7 @@ public partial class App : Application
         IntPtr shellWindow = GetShellWindow();
         if (shellWindow == IntPtr.Zero)
         {
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 "STARTUP relaunch failed stage=get-shell-window win32=0");
             return false;
         }
@@ -397,7 +397,7 @@ public partial class App : Application
         GetWindowThreadProcessId(shellWindow, out uint shellProcessId);
         if (shellProcessId == 0)
         {
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 "STARTUP relaunch failed stage=get-shell-process win32=0");
             return false;
         }
@@ -419,7 +419,7 @@ public partial class App : Application
                     TokenDuplicate | TokenAssignPrimary | TokenQuery,
                     out shellToken))
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"STARTUP relaunch failed stage=open-shell-token win32={Marshal.GetLastWin32Error()}");
                 return false;
             }
@@ -432,14 +432,14 @@ public partial class App : Application
                 TokenPrimary,
                 out primaryToken))
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"STARTUP relaunch failed stage=duplicate-token win32={Marshal.GetLastWin32Error()}");
                 return false;
             }
 
             if (!CreateEnvironmentBlock(out environment, primaryToken, false))
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"STARTUP relaunch failed stage=create-environment win32={Marshal.GetLastWin32Error()}");
                 return false;
             }
@@ -467,12 +467,12 @@ public partial class App : Application
                 ref startupInfo,
                 out processInfo))
             {
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"STARTUP relaunch failed stage=create-process win32={Marshal.GetLastWin32Error()}");
                 return false;
             }
 
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 $"STARTUP relaunch process-started pid={processInfo.dwProcessId} " +
                 $"shellPid={shellProcessId} args={commandLine}");
             return true;

@@ -13,12 +13,19 @@ public static class WingetCliAudit
 {
     public static Action<string>? Sink { get; set; }
 
-    public static void Launch(string fileName, string arguments)
+    /// <summary>
+    /// Registra o início da execução e devolve um cronômetro já rodando — passe-o pra
+    /// <see cref="Result"/> quando o processo terminar, pra fechar a mesma linha com exit
+    /// code e tempo decorrido. Chamadores que não precisam do resultado (ex.: buscas) podem
+    /// ignorar o retorno normalmente.
+    /// </summary>
+    public static Stopwatch Launch(string fileName, string arguments)
     {
+        var stopwatch = Stopwatch.StartNew();
         var sink = Sink;
         if (sink is null)
         {
-            return;
+            return stopwatch;
         }
 
         try
@@ -33,6 +40,31 @@ public static class WingetCliAudit
                     .Distinct()
                     .Take(6));
             sink($"WINGET.EXE LAUNCH file={fileName} args=\"{arguments}\" origem={chain}");
+        }
+        catch
+        {
+            // Auditoria nunca pode alterar o comportamento da execução.
+        }
+
+        return stopwatch;
+    }
+
+    /// <summary>
+    /// Fecha a linha aberta por <see cref="Launch"/>: sem isso, um "WINGET.EXE LAUNCH" sem
+    /// resultado correspondente no log não deixa saber se aquele processo terminou bem ou
+    /// mal — quem lê o log precisava ficar de olho na UI pra descobrir.
+    /// </summary>
+    public static void Result(string fileName, int exitCode, bool success, Stopwatch stopwatch)
+    {
+        var sink = Sink;
+        if (sink is null)
+        {
+            return;
+        }
+
+        try
+        {
+            sink($"WINGET.EXE RESULT file={fileName} exitCode={exitCode} success={success} elapsed={stopwatch.Elapsed}");
         }
         catch
         {

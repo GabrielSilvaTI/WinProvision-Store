@@ -141,7 +141,7 @@ public static class WinGetFactoryHelper
             }
         }
 
-        WinGetDiagnosticLog.Write(
+        WinProvisionLog.Write(
             $"WINGET MODE={_mode} (auto=COM com fallback CLI, com=só COM, cli=só winget.exe) " +
             $"estratégias-COM={string.Join(">", _strategies)}");
     }
@@ -217,7 +217,7 @@ public static class WinGetFactoryHelper
 
             var failed = _strategies[_strategyIndex];
             _strategyIndex++;
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 $"COM ESTRATÉGIA falhou: {failed} HRESULT=0x{exception.HResult:X8} " +
                 $"tipo={exception.GetType().FullName} mensagem=\"{exception.Message}\"; " +
                 $"tentando {_strategies[_strategyIndex]}");
@@ -260,7 +260,7 @@ public static class WinGetFactoryHelper
             ref _breakerOpenUntilTicks,
             Environment.TickCount64 + (long)cooldown.TotalMilliseconds);
         Volatile.Write(ref _disabledReason, reason);
-        WinGetDiagnosticLog.Write(
+        WinProvisionLog.Write(
             $"COM INDISPONÍVEL: motivo={reason} falhas-consecutivas={failures} " +
             $"nova-tentativa-em={cooldown.TotalSeconds:0}s");
     }
@@ -284,7 +284,7 @@ public static class WinGetFactoryHelper
             }
         }
 
-        WinGetDiagnosticLog.Write($"COM RESET: {reason}");
+        WinProvisionLog.Write($"COM RESET: {reason}");
     }
 
     /// <summary>Chamado após qualquer ativação/conexão COM bem-sucedida: zera o breaker.</summary>
@@ -295,7 +295,7 @@ public static class WinGetFactoryHelper
             if (!_strategyConfirmed)
             {
                 _strategyConfirmed = true;
-                WinGetDiagnosticLog.Write($"COM ESTRATÉGIA confirmada: {_strategies[_strategyIndex]}");
+                WinProvisionLog.Write($"COM ESTRATÉGIA confirmada: {_strategies[_strategyIndex]}");
             }
         }
 
@@ -303,7 +303,7 @@ public static class WinGetFactoryHelper
         var wasOpen = Interlocked.Exchange(ref _breakerOpenUntilTicks, 0) != 0;
         if (hadFailures || wasOpen)
         {
-            WinGetDiagnosticLog.Write("COM RECUPERADA: ativação bem-sucedida; voltando a usar a API COM");
+            WinProvisionLog.Write("COM RECUPERADA: ativação bem-sucedida; voltando a usar a API COM");
         }
     }
 
@@ -336,7 +336,7 @@ public static class WinGetFactoryHelper
                 timeout.CancelAfter(TimeSpan.FromSeconds(90));
                 var connect = await reference.ConnectAsync().AsTask(timeout.Token).ConfigureAwait(false);
 
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"COM PROBE status={connect.Status} strategy={CurrentStrategy} " +
                     $"elapsed={stopwatch.Elapsed} mode={_mode}");
                 if (connect.Status == ConnectResultStatus.Ok)
@@ -344,7 +344,7 @@ public static class WinGetFactoryHelper
                     ReportComSuccess();
                 }
 
-                WinGetDiagnosticLog.WriteComServerInfo();
+                WinProvisionLog.WriteComServerInfo();
                 return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException && TryAdvanceStrategy(ex))
@@ -354,7 +354,7 @@ public static class WinGetFactoryHelper
             catch (Exception ex)
             {
                 DisableComForSession(ex);
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"COM PROBE falhou strategy={CurrentStrategy} HRESULT=0x{ex.HResult:X8} " +
                     $"elapsed={stopwatch.Elapsed} mode={_mode} exception={ex}");
                 return;
@@ -411,24 +411,24 @@ public static class WinGetFactoryHelper
                 ctx |= CLSCTX.CLSCTX_ALLOW_LOWER_TRUST_REGISTRATION;
             }
 
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} " +
                 $"CLSID={clsid} IID={iid} CLSCTX=0x{(uint)ctx:X8}");
             int hr = CoCreateInstance(ref clsid, IntPtr.Zero, ctx, ref iid, out pUnknown);
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} CoCreateInstance " +
                 $"HRESULT=0x{hr:X8} elapsed={stopwatch.Elapsed}");
             Marshal.ThrowExceptionForHR(hr);
 
             var instance = MarshalGeneric<T>.FromAbi(pUnknown);
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} FromAbi=success " +
                 $"elapsed={stopwatch.Elapsed}");
             return instance;
         }
         catch (Exception ex)
         {
-            WinGetDiagnosticLog.Write(
+            WinProvisionLog.Write(
                 $"COM ACTIVATION type={typeof(T).Name} strategy={strategy} failed " +
                 $"HRESULT=0x{ex.HResult:X8} elapsed={stopwatch.Elapsed} exception={ex}");
             throw;

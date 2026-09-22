@@ -310,13 +310,13 @@ public sealed class WinProvisionApiService
     /// </summary>
     private static string? ExtractNestedInstaller(string zipPath, string extractDir, string relativePath)
     {
-        string normalizedTarget = relativePath.Replace('\', '/').TrimStart('/');
+        string normalizedTarget = relativePath.Replace('\\', '/').TrimStart('/');
 
         using var archive = ZipFile.OpenRead(zipPath);
         var entry = archive.Entries.FirstOrDefault(e =>
-                e.FullName.Replace('\', '/').Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                e.FullName.Replace('\\', '/').Equals(normalizedTarget, StringComparison.OrdinalIgnoreCase))
             ?? archive.Entries.FirstOrDefault(e =>
-                e.FullName.Replace('\', '/').EndsWith("/" + normalizedTarget, StringComparison.OrdinalIgnoreCase));
+                e.FullName.Replace('\\', '/').EndsWith("/" + normalizedTarget, StringComparison.OrdinalIgnoreCase));
 
         if (entry is null)
             return null;

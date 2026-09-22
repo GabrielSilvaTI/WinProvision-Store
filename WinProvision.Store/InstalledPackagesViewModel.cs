@@ -91,7 +91,7 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
             var failures = new List<string>();
             if (office.Length > 0)
             {
-                WinProvision.Store.Services.WinGetDiagnosticLog.Write(
+                WinProvision.Store.Services.WinProvisionLog.Write(
                     $"INSTALLED UNINSTALL office-group count={office.Length} ids=\"{string.Join(",", office.Select(x => x.Id))}\"");
                 var request = new OfficeRemoveRequest(true, DisplayLevel: OfficeDisplayLevel.Silent, CleanStoreEdition: true, UseRemoveMSI: true, UseAggressiveUninstall: true);
                 bool officeSuccess = await OperationRunner.RunOfficeRemoveAsync(_queue, _office, request, "Remover todas as versões do Office");
@@ -100,25 +100,25 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
                 else
                 {
                     failures.Add("Office: falha ao remover todas as versões.");
-                    WinProvision.Store.Services.WinGetDiagnosticLog.Write("INSTALLED UNINSTALL office-group result=failed");
+                    WinProvision.Store.Services.WinProvisionLog.Write("INSTALLED UNINSTALL office-group result=failed");
                 }
                 if (officeSuccess)
-                    WinProvision.Store.Services.WinGetDiagnosticLog.Write("INSTALLED UNINSTALL office-group result=success");
+                    WinProvision.Store.Services.WinProvisionLog.Write("INSTALLED UNINSTALL office-group result=success");
             }
             foreach (var item in nonOffice)
             {
-                WinProvision.Store.Services.WinGetDiagnosticLog.Write($"INSTALLED UNINSTALL id=\"{item.Id}\" name=\"{item.Name}\"");
+                WinProvision.Store.Services.WinProvisionLog.Write($"INSTALLED UNINSTALL id=\"{item.Id}\" name=\"{item.Name}\"");
                 var result = await OperationRunner.RunUninstallAsync(_queue, _executor, item.Id, item.Name, item.IconUrl);
                 if (result.Success)
                 {
                     successCount++;
-                    WinProvision.Store.Services.WinGetDiagnosticLog.Write(
+                    WinProvision.Store.Services.WinProvisionLog.Write(
                         $"INSTALLED UNINSTALL result=success id=\"{item.Id}\" exitCode={result.ExitCode}");
                 }
                 else
                 {
                     failures.Add($"{item.Name}: {result.FailureReason}");
-                    WinProvision.Store.Services.WinGetDiagnosticLog.Write(
+                    WinProvision.Store.Services.WinProvisionLog.Write(
                         $"INSTALLED UNINSTALL result=failed id=\"{item.Id}\" exitCode={result.ExitCode} reason={result.FailureReason}");
                 }
             }

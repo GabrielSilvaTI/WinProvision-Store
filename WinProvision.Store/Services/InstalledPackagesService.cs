@@ -124,10 +124,10 @@ public sealed class InstalledPackagesService
         // a listagem cai no que estiver disponível, como antes.
         try
         {
-            var provisioned = await _bootstrapper.EnsureOnceAsync(WinGetDiagnosticLog.Write, cancellationToken);
+            var provisioned = await _bootstrapper.EnsureOnceAsync(WinProvisionLog.Write, cancellationToken);
             if (!provisioned.IsUsable)
             {
-                WinGetDiagnosticLog.Write($"INSTALLED LIST winget indisponível: {provisioned.ErrorMessage}");
+                WinProvisionLog.Write($"INSTALLED LIST winget indisponível: {provisioned.ErrorMessage}");
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -136,7 +136,7 @@ public sealed class InstalledPackagesService
         }
         catch (Exception ex)
         {
-            WinGetDiagnosticLog.Write($"INSTALLED LIST provisionamento falhou {ex.GetType().Name}: {ex.Message}");
+            WinProvisionLog.Write($"INSTALLED LIST provisionamento falhou {ex.GetType().Name}: {ex.Message}");
         }
 
         if (!WinGetFactoryHelper.IsComDisabled)
@@ -156,12 +156,12 @@ public sealed class InstalledPackagesService
 
                     // Zero pacotes é um resultado válido (máquina limpa / Windows Sandbox):
                     // usa o CLI só nesta chamada e mantém a COM ativa para as instalações.
-                    WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM retornou zero pacotes (COM segue ativa)");
+                    WinProvisionLog.Write("INSTALLED LIST FALLBACK motivo=COM retornou zero pacotes (COM segue ativa)");
                 }
                 else
                 {
                     // Timeout de listagem não invalida a ativação da COM.
-                    WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM timeout (COM segue ativa)");
+                    WinProvisionLog.Write("INSTALLED LIST FALLBACK motivo=COM timeout (COM segue ativa)");
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -173,12 +173,12 @@ public sealed class InstalledPackagesService
                 // Só desativa a COM da sessão em falha de ativação (RPC indisponível / classe
                 // não registrada); o filtro de HRESULT fica dentro do DisableComForSession.
                 WinGetFactoryHelper.DisableComForSession(ex);
-                WinGetDiagnosticLog.Write($"INSTALLED LIST FALLBACK motivo=COM exception={ex}");
+                WinProvisionLog.Write($"INSTALLED LIST FALLBACK motivo=COM exception={ex}");
             }
         }
         else
         {
-            WinGetDiagnosticLog.Write("INSTALLED LIST FALLBACK motivo=COM desabilitado na sessão");
+            WinProvisionLog.Write("INSTALLED LIST FALLBACK motivo=COM desabilitado na sessão");
         }
 
         return await ListCliAsync(cancellationToken);
@@ -219,7 +219,7 @@ public sealed class InstalledPackagesService
                 string.Empty,
                 string.Empty));
         }
-        WinGetDiagnosticLog.Write($"INSTALLED LIST COM count={result.Count}");
+        WinProvisionLog.Write($"INSTALLED LIST COM count={result.Count}");
         return result;
     }
 
@@ -240,7 +240,7 @@ public sealed class InstalledPackagesService
         string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
         var rows = ParseCliOutput(output);
-        WinGetDiagnosticLog.Write($"INSTALLED LIST FALLBACK count={rows.Count}");
+        WinProvisionLog.Write($"INSTALLED LIST FALLBACK count={rows.Count}");
         return rows;
     }
 
@@ -387,7 +387,7 @@ public sealed class InstalledPackagesService
                     failures.Add("f:ícone genérico");
                 else Interlocked.Increment(ref withIcon);
 
-                WinGetDiagnosticLog.Write(
+                WinProvisionLog.Write(
                     $"INSTALLED ICON item=\"{package.Name}\" id=\"{package.Id}\" method={method} " +
                     $"status={(iconUrl is null ? "missing" : "ok")} " +
                     $"failures=\"{string.Join(" | ", failures)}\"");
@@ -401,7 +401,7 @@ public sealed class InstalledPackagesService
             finally { gate.Release(); }
         }));
 
-        WinGetDiagnosticLog.Write($"INSTALLED ICON SUMMARY with={withIcon} without={source.Length - withIcon}");
+        WinProvisionLog.Write($"INSTALLED ICON SUMMARY with={withIcon} without={source.Length - withIcon}");
         return resolved;
     }
 
@@ -491,7 +491,7 @@ public sealed class InstalledPackagesService
             }
             catch (Exception ex)
             {
-                WinGetDiagnosticLog.Write($"INSTALLED APPX read failed view={view} error={ex.Message}");
+                WinProvisionLog.Write($"INSTALLED APPX read failed view={view} error={ex.Message}");
             }
         }
 
@@ -515,7 +515,7 @@ public sealed class InstalledPackagesService
         }
         catch (Exception ex)
         {
-            WinGetDiagnosticLog.Write($"INSTALLED APPX per-user read failed error={ex.Message}");
+            WinProvisionLog.Write($"INSTALLED APPX per-user read failed error={ex.Message}");
         }
 
         return result
@@ -696,7 +696,7 @@ public sealed class InstalledPackagesService
             }
             catch (Exception ex)
             {
-                WinGetDiagnosticLog.Write($"INSTALLED SHORTCUTS read failed root=\"{root}\" error={ex.Message}");
+                WinProvisionLog.Write($"INSTALLED SHORTCUTS read failed root=\"{root}\" error={ex.Message}");
             }
         }
         return result;
@@ -766,7 +766,7 @@ public sealed class InstalledPackagesService
         }
         catch (Exception ex)
         {
-            WinGetDiagnosticLog.Write($"APPSFOLDER AUMID read failed error={ex.Message}");
+            WinProvisionLog.Write($"APPSFOLDER AUMID read failed error={ex.Message}");
         }
         return map;
     }
@@ -853,7 +853,7 @@ public sealed class InstalledPackagesService
         }
         catch (Exception ex)
         {
-            WinGetDiagnosticLog.Write($"INSTALLED SHORTCUT resolve failed path=\"{lnkPath}\" error={ex.Message}");
+            WinProvisionLog.Write($"INSTALLED SHORTCUT resolve failed path=\"{lnkPath}\" error={ex.Message}");
             return false;
         }
         finally
@@ -1194,7 +1194,7 @@ public sealed class InstalledPackagesService
         }
         catch (Exception ex)
         {
-            WinGetDiagnosticLog.Write($"INSTALLED EXE scan failed folder=\"{folder}\" error={ex.Message}");
+            WinProvisionLog.Write($"INSTALLED EXE scan failed folder=\"{folder}\" error={ex.Message}");
             return null;
         }
     }
@@ -1349,7 +1349,7 @@ public sealed class InstalledPackagesService
                 }
                 catch (Exception ex)
                 {
-                    WinGetDiagnosticLog.Write($"INSTALLED ARP read failed hive={hiveName} view={viewName} error={ex.Message}");
+                    WinProvisionLog.Write($"INSTALLED ARP read failed hive={hiveName} view={viewName} error={ex.Message}");
                 }
             }
         return result;

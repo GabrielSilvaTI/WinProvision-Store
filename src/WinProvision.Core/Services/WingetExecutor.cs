@@ -461,7 +461,7 @@ public class WingetExecutor
     private static async Task<WingetExecutionResult> ExecuteWingetCommandAsync(string arguments, Action<string>? onLogReceived, CancellationToken cancellationToken)
     {
         string wingetExecutable = WingetLocator.ExecutablePath;
-        WingetCliAudit.Launch(wingetExecutable, arguments);
+        var auditTimer = WingetCliAudit.Launch(wingetExecutable, arguments);
         var outputBuilder = new StringBuilder();
 
         var startInfo = new ProcessStartInfo
@@ -500,6 +500,7 @@ public class WingetExecutor
 
             await process.WaitForExitAsync(cancellationToken);
 
+            WingetCliAudit.Result(wingetExecutable, process.ExitCode, process.ExitCode == 0, auditTimer);
             return new WingetExecutionResult
             {
                 Success = process.ExitCode == 0,
@@ -512,6 +513,7 @@ public class WingetExecutor
             // Cancelamento vindo do orquestrador (WPF/PowerShell): mata o processo
             // em vez de deixar o winget.exe orfão rodando em segundo plano.
             TryKill(process);
+            WingetCliAudit.Result(wingetExecutable, -1, success: false, auditTimer);
             return new WingetExecutionResult
             {
                 Success = false,
@@ -522,6 +524,7 @@ public class WingetExecutor
         catch (Exception ex)
         {
             TryKill(process);
+            WingetCliAudit.Result(wingetExecutable, -1, success: false, auditTimer);
             return new WingetExecutionResult
             {
                 Success = false,

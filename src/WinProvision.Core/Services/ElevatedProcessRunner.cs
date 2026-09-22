@@ -25,7 +25,7 @@ public static class ElevatedProcessRunner
         string arguments,
         CancellationToken cancellationToken)
     {
-        WingetCliAudit.Launch($"{fileName} (elevado)", arguments);
+        var auditTimer = WingetCliAudit.Launch($"{fileName} (elevado)", arguments);
         string tempFile = Path.Combine(Path.GetTempPath(), $"winprovision-elev-{Guid.NewGuid():N}.log");
 
         // "chcp 65001" evita mojibake em acentos: sem isso, o cmd.exe redireciona a saída
@@ -45,6 +45,7 @@ public static class ElevatedProcessRunner
             using var process = Process.Start(startInfo);
             if (process is null)
             {
+                WingetCliAudit.Result($"{fileName} (elevado)", -1, success: false, auditTimer);
                 return new WingetExecutionResult
                 {
                     Success = false,
@@ -56,6 +57,7 @@ public static class ElevatedProcessRunner
             await process.WaitForExitAsync(cancellationToken);
             string output = File.Exists(tempFile) ? await File.ReadAllTextAsync(tempFile, cancellationToken) : string.Empty;
 
+            WingetCliAudit.Result($"{fileName} (elevado)", process.ExitCode, process.ExitCode == 0, auditTimer);
             return new WingetExecutionResult
             {
                 Success = process.ExitCode == 0,
@@ -69,6 +71,7 @@ public static class ElevatedProcessRunner
             // API COM e não tentam pedir UAC de novo — vão direto pra API própria da
             // WinProvision Store, já que o usuário demonstrou que não vai aprovar o prompt.
             WinProvisionElevationState.MarkFailed();
+            WingetCliAudit.Result($"{fileName} (elevado)", -1, success: false, auditTimer);
             return new WingetExecutionResult
             {
                 Success = false,
