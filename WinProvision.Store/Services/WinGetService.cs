@@ -298,6 +298,124 @@ public sealed class WinGetService
         }
     }
 
+    /// <summary>
+    /// Atualiza um pacote já instalado. Não existe upgrade via API COM neste serviço
+    /// (InstallApiAsync só cobre instalação "fresh" — ver comentário em InstallAsync), então
+    /// a ordem é: 1) winget.exe update (WingetExecutor.UpdateAppAsync, caminho já validado);
+    /// 2) se falhar (e não for um caso em que insistir por outra via não ajudaria — política
+    /// bloqueando o pacote, ou o próprio usuário recusou o UAC), tenta a API própria da
+    /// WinProvision Store como alternativa. TryInstallAsync baixa e roda o instalador da
+    /// versão mais recente do catálogo silenciosamente; para os tipos que ela aceita
+    /// (Inno/NSIS/MSI etc., os "silentSupported"), isso ATUALIZA o app em vez de reinstalar
+    /// do zero — o instalador detecta a instalação existente e sobrescreve só o necessário,
+    /// preservando configurações/dados do usuário, exatamente como "winget upgrade" faz ao
+    /// rodar por baixo dos panos o instalador mais novo. SYSTEM e reelevação-já-falhada
+    /// pulam direto pra API própria, sem tentar o winget.exe primeiro (mesmo critério de
+    /// <see cref="InstallAsync"/>, já que nesses cenários o winget.exe tende a falhar de novo
+    /// pelo mesmo motivo).
+    /// </summary>
+    public async Task<WingetExecutionResult> UpdateAsync(
+        string packageId,
+        Action<string>? onLogReceived = null,
+        CancellationToken cancellationToken = default,
+        string source = "winget")
+    {
+        await EnsureWingetProvisionedAsync(onLogReceived, cancellationToken).ConfigureAwait(false);
+
+        WinGetDiagnosticLog.Write(
+            $"UPDATE ENTER packageId=\"{packageId}\" source={source} thread={Environment.CurrentManagedThreadId}");
+
+        if (WinProvisionApiService.IsRunningAsSystem() || WinProvisionElevationState.HasFailedThisSession)
+        {
+            var bypassReason = WinProvisionApiService.IsRunningAsSystem() ? "SYSTEM" : "reelevação-falhou-antes";
+            WinGetDiagnosticLog.Write($"UPDATE BYPASS CLI: motivo={bypassReason}");
+            onLogReceived?.Invoke("Pulando winget.exe; usando a API própria da WinProvision Store para atualizar.");
+            return await TryApiUpdateAsync(packageId, onLogReceived, cancellationToken, bypassReason)
+                    .ConfigureAwait(false)
+                ?? await _wingetExecutor.UpdateAppAsync(packageId, onLogReceived, cancellationToken, source)
+                    .ConfigureAwait(false);
+        }
+
+        var cliResult = await _wingetExecutor.UpdateAppAsync(packageId, onLogReceived, cancellationToken, source)
+            .ConfigureAwait(false);
+        if (cliResult.Success || cancellationToken.IsCancellationRequested)
+        {
+            return cliResult;
+        }
+
+        // BlockedByPolicy: contornar pela API própria seria burlar a política, igual ao
+        // InstallAsync. ElevationCanceled: o usuário já recusou o UAC pra esse pacote nesta
+        // tentativa; insistir por outra via sem perguntar de novo não respeitaria a escolha.
+        if (cliResult.FailureReason is WingetFailureReason.BlockedByPolicy or WingetFailureReason.ElevationCanceled)
+        {
+            WinGetDiagnosticLog.Write($"UPDATE CLI FALHOU SEM FALLBACK: motivo={cliResult.FailureReason}");
+            return cliResult;
+        }
+
+        WinGetDiagnosticLog.Write(
+            $"FALLBACK PARA API PRÓPRIA: motivo=CLI-update-falhou({cliResult.FailureReason})");
+        onLogReceived?.Invoke(
+            $"A atualização via winget.exe falhou ({cliResult.FailureReason}); tentando a API própria da WinProvision Store.");
+
+        var apiResult = await TryApiUpdateAsync(
+            packageId, onLogReceived, cancellationToken, $"CLI-falhou({cliResult.FailureReason})")
+            .ConfigureAwait(false);
+
+        // API própria não resolveu (pacote fora do catálogo, sem installer silencioso, hash
+        // divergente, etc.): devolve a falha original do winget.exe, que já tem uma mensagem
+        // classificada em pt-BR pronta para a UI mostrar.
+        return apiResult ?? cliResult;
+    }
+
+    /// <summary>
+    /// Tenta atualizar via <see cref="WinProvisionApiService.TryInstallAsync"/> (mesmo
+    /// endpoint usado para instalar — o catálogo próprio só conhece a versão mais recente de
+    /// cada pacote, então "instalar" e "atualizar para a última versão" são a mesma operação
+    /// do ponto de vista da API). Retorna null quando a API própria não resolveu, para o
+    /// chamador decidir o que fazer em seguida (nunca lança).
+    /// </summary>
+    private async Task<WingetExecutionResult?> TryApiUpdateAsync(
+        string packageId, Action<string>? onLogReceived, CancellationToken cancellationToken, string reason)
+    {
+        WinGetDiagnosticLog.Write($"UPDATE API-PROPRIA tentativa packageId=\"{packageId}\" motivo={reason}");
+
+        WinProvisionInstallResult apiResult;
+        try
+        {
+            apiResult = await _apiService.TryInstallAsync(
+                packageId,
+                onLogReceived is null ? null : new Progress<string>(onLogReceived),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            WinGetDiagnosticLog.Write(
+                $"UPDATE API-PROPRIA exceção packageId=\"{packageId}\" {ex.GetType().Name}: {ex.Message}");
+            return null;
+        }
+
+        if (apiResult.Outcome == WinProvisionInstallOutcome.Success)
+        {
+            WinGetDiagnosticLog.Write(
+                $"UPDATE API-PROPRIA sucesso packageId=\"{packageId}\" exitCode={apiResult.ExitCode}");
+            onLogReceived?.Invoke("Atualização concluída via API própria da WinProvision Store.");
+            return new WingetExecutionResult
+            {
+                Success = true,
+                ExitCode = apiResult.ExitCode ?? 0,
+                Output = "Atualizado via API própria da WinProvision Store."
+            };
+        }
+
+        WinGetDiagnosticLog.Write(
+            $"UPDATE API-PROPRIA falhou packageId=\"{packageId}\" outcome={apiResult.Outcome} msg=\"{apiResult.Message}\"");
+        return null;
+    }
+
     private static async Task<IReadOnlyList<WinGetPackageMatch>> SearchApiAsync(
         string query,
         CancellationToken cancellationToken)

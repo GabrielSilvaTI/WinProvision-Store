@@ -13,11 +13,24 @@ namespace WinProvision.Core.Services;
 public static partial class OperationRunner
 {
     private static Func<string, Action<string>?, CancellationToken, string?, Action<InstallProgressUpdate>?, string, Task<WingetExecutionResult>>? _installHandler;
+    private static Func<string, Action<string>?, CancellationToken, string, Task<WingetExecutionResult>>? _updateHandler;
 
     public static void ConfigureInstallHandler(
         Func<string, Action<string>?, CancellationToken, string?, Action<InstallProgressUpdate>?, string, Task<WingetExecutionResult>> installHandler)
     {
         _installHandler = installHandler ?? throw new ArgumentNullException(nameof(installHandler));
+    }
+
+    /// <summary>
+    /// Configura o handler de atualização (API COM/CLI do WinGet, com fallback interno para a
+    /// API própria da WinProvision Store — ver WinGetService.UpdateAsync). Sem handler
+    /// configurado, RunUpdateAsync usa WingetExecutor.UpdateAppAsync diretamente (winget.exe
+    /// puro, sem a API própria como alternativa).
+    /// </summary>
+    public static void ConfigureUpdateHandler(
+        Func<string, Action<string>?, CancellationToken, string, Task<WingetExecutionResult>> updateHandler)
+    {
+        _updateHandler = updateHandler ?? throw new ArgumentNullException(nameof(updateHandler));
     }
 
     /// <summary>
@@ -123,11 +136,18 @@ public static partial class OperationRunner
 
         try
         {
-            var result = await executor.UpdateAppAsync(
-                appId,
-                onLogReceived: line => ReportProgress(item, line),
-                cancellationToken: item.CancellationTokenSource.Token,
-                source: source);
+            var onLogReceived = new Action<string>(line => ReportProgress(item, line));
+            var result = _updateHandler is null
+                ? await executor.UpdateAppAsync(
+                    appId,
+                    onLogReceived,
+                    cancellationToken: item.CancellationTokenSource.Token,
+                    source: source)
+                : await _updateHandler(
+                    appId,
+                    onLogReceived,
+                    item.CancellationTokenSource.Token,
+                    source);
 
             item.Progress = 100;
             item.State = result.Success

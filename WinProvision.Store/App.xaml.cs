@@ -173,8 +173,12 @@ public partial class App : Application
                 await _host.StartAsync();
                 OperationRunner.ConfigureInstallHandler(
                     _host.Services.GetRequiredService<WinGetService>().InstallAsync);
+                OperationRunner.ConfigureUpdateHandler(
+                    _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
                 WinGetDiagnosticLog.Write(
                     "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallAsync");
+                WinGetDiagnosticLog.Write(
+                    "UPDATE HANDLER CONFIGURED startupPath=auto handler=WinGetService.UpdateAsync");
                 _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
                 _host.Services.GetRequiredService<BackupAutoSyncService>();
 
@@ -290,8 +294,12 @@ public partial class App : Application
         await _host.StartAsync();
         OperationRunner.ConfigureInstallHandler(
             _host.Services.GetRequiredService<WinGetService>().InstallAsync);
+        OperationRunner.ConfigureUpdateHandler(
+            _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
         WinGetDiagnosticLog.Write(
             "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
+        WinGetDiagnosticLog.Write(
+            "UPDATE HANDLER CONFIGURED startupPath=interactive handler=WinGetService.UpdateAsync");
         _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
         _host.Services.GetRequiredService<BackupAutoSyncService>();
 
