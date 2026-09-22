@@ -603,7 +603,12 @@ public sealed class WinGetService
         InstallAttemptState attemptState)
     {
         var stopwatch = Stopwatch.StartNew();
-        WinGetDiagnosticLog.Write("INSTALL COM stage=begin");
+        // Rótulo usado em toda esta operação COM: "INSTALL COM" numa instalação nova,
+        // "UPDATE COM" numa atualização — antes ficava fixo em "INSTALL COM" mesmo
+        // durante updates, o que deixava o log de atualização com linhas do tipo
+        // "INSTALL COM stage=install-dispatched" (confuso: parecia instalação, era update).
+        string comTag = opKind == ComOperationKind.Install ? "INSTALL COM" : "UPDATE COM";
+        WinGetDiagnosticLog.Write($"{comTag} stage=begin");
 
         // Callbacks da UI nunca devem derrubar o pipeline COM (uma exceção aqui viraria "falha da COM").
         var userOnProgress = onProgress;
@@ -612,7 +617,7 @@ public sealed class WinGetService
             onProgress = update =>
             {
                 try { userOnProgress(update); }
-                catch (Exception ex) { WinGetDiagnosticLog.Write($"INSTALL COM onProgress lançou {ex.GetType().Name}: {ex.Message}"); }
+                catch (Exception ex) { WinGetDiagnosticLog.Write($"{comTag} onProgress lançou {ex.GetType().Name}: {ex.Message}"); }
             };
         }
 
@@ -622,12 +627,12 @@ public sealed class WinGetService
             onLogReceived = line =>
             {
                 try { userOnLog(line); }
-                catch (Exception ex) { WinGetDiagnosticLog.Write($"INSTALL COM onLog lançou {ex.GetType().Name}: {ex.Message}"); }
+                catch (Exception ex) { WinGetDiagnosticLog.Write($"{comTag} onLog lançou {ex.GetType().Name}: {ex.Message}"); }
             };
         }
         Trace.WriteLine("WinGet COM install: creating resilient PackageManager.");
         var packageManager = WinGetFactoryHelper.CreateResilientPackageManager();
-        WinGetDiagnosticLog.Write($"INSTALL COM stage=packageManager-created elapsed={stopwatch.Elapsed}");
+        WinGetDiagnosticLog.Write($"{comTag} stage=packageManager-created elapsed={stopwatch.Elapsed}");
         Trace.WriteLine($"WinGet COM install: PackageManager created in {stopwatch.Elapsed}.");
         // OpenWindowsCatalog = fonte "winget". Apps da Microsoft Store (source=msstore) ficam no
         // catálogo MicrosoftStore; se não achar lá, ainda tenta o catálogo winget.
@@ -647,7 +652,7 @@ public sealed class WinGetService
             var connectResult = await packageCatalogReference.ConnectAsync()
                 .AsTask(cancellationToken).ConfigureAwait(false);
             WinGetDiagnosticLog.Write(
-                $"INSTALL COM stage=connect-completed catalog={kind} status={connectResult.Status} " +
+                $"{comTag} stage=connect-completed catalog={kind} status={connectResult.Status} " +
                 $"elapsed={stopwatch.Elapsed} connect={stopwatch.Elapsed - connectStarted}");
             if (connectResult.Status != ConnectResultStatus.Ok || connectResult.PackageCatalog is null)
             {
@@ -671,7 +676,7 @@ public sealed class WinGetService
                 .AsTask(cancellationToken).ConfigureAwait(false);
             matchedPackage = findResult.Matches.ToArray().FirstOrDefault()?.CatalogPackage;
             WinGetDiagnosticLog.Write(
-                $"INSTALL COM stage=package-lookup-completed catalog={kind} found={matchedPackage is not null} " +
+                $"{comTag} stage=package-lookup-completed catalog={kind} found={matchedPackage is not null} " +
                 $"elapsed={stopwatch.Elapsed} lookup={stopwatch.Elapsed - findStarted}");
         }
 
@@ -696,7 +701,7 @@ public sealed class WinGetService
 
         onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing));
         attemptState.Started = true;
-        WinGetDiagnosticLog.Write($"INSTALL COM stage=install-dispatched elapsed={stopwatch.Elapsed}");
+        WinGetDiagnosticLog.Write($"{comTag} stage=install-dispatched elapsed={stopwatch.Elapsed}");
         var installOperation = opKind == ComOperationKind.Install
             ? packageManager.InstallPackageAsync(matchedPackage, installOptions)
             : packageManager.UpgradePackageAsync(matchedPackage, installOptions);
@@ -729,7 +734,7 @@ public sealed class WinGetService
             if (Interlocked.Exchange(ref firstProgress, 1) == 0)
             {
                 WinGetDiagnosticLog.Write(
-                    $"INSTALL COM stage=first-progress state={state} " +
+                    $"{comTag} stage=first-progress state={state} " +
                     $"download={downloadProgress} install={installationProgress} " +
                     $"dispatcher=false elapsed={stopwatch.Elapsed}");
                 Trace.WriteLine(
@@ -746,7 +751,7 @@ public sealed class WinGetService
             {
                 Interlocked.Exchange(ref lastLoggedPercent, percentForLog);
                 WinGetDiagnosticLog.Write(
-                    $"INSTALL COM progress callback={callbackNumber} state={state} " +
+                    $"{comTag} progress callback={callbackNumber} state={state} " +
                     $"download={downloadProgress} install={installationProgress} " +
                     $"dispatcher=false elapsed={stopwatch.Elapsed}");
             }
@@ -828,6 +833,7 @@ public sealed class WinGetService
             stopwatch);
         WinGetDiagnosticLog.WriteComServerInfo();
         var heartbeat = MonitorComHeartbeatAsync(
+            comTag,
             heartbeatCts.Token,
             () => (lastProgressState, lastDownloadProgress, lastInstallationProgress),
             () => Stopwatch.GetElapsedTime(Volatile.Read(ref lastProgress)),
@@ -855,7 +861,7 @@ public sealed class WinGetService
 
         var output = $"Resultado da API COM: {installResult.Status}.";
         WinGetDiagnosticLog.Write(
-            $"INSTALL COM stage=result status={installResult.Status} " +
+            $"{comTag} stage=result status={installResult.Status} " +
             $"reboot={installResult.RebootRequired} elapsed={stopwatch.Elapsed}");
         Trace.WriteLine($"WinGet COM install result: {installResult.Status}.");
         Trace.WriteLine($"WinGet COM install completed in {stopwatch.Elapsed}.");
@@ -869,7 +875,7 @@ public sealed class WinGetService
             int installerErrorCode = unchecked((int)installResult.InstallerErrorCode);
             int extendedErrorCode = installResult.ExtendedErrorCode?.HResult ?? 0;
             WinGetDiagnosticLog.Write(
-                $"INSTALL COM failure status={installResult.Status} " +
+                $"{comTag} failure status={installResult.Status} " +
                 $"installerErrorCode=0x{installerErrorCode:X8} ({installerErrorCode}) " +
                 $"extendedErrorCode=0x{extendedErrorCode:X8} ({extendedErrorCode})");
 
@@ -967,6 +973,7 @@ public sealed class WinGetService
     }
 
     private static async Task MonitorComHeartbeatAsync(
+        string comTag,
         CancellationToken cancellationToken,
         Func<(PackageInstallProgressState State, double Download, double Install)> getProgress,
         Func<TimeSpan> elapsedSinceProgress,
@@ -980,7 +987,7 @@ public sealed class WinGetService
                     .ConfigureAwait(false);
                 var progress = getProgress();
                 WinGetDiagnosticLog.Write(
-                    $"INSTALL COM heartbeat state={progress.State} " +
+                    $"{comTag} heartbeat state={progress.State} " +
                     $"download={progress.Download} install={progress.Install} " +
                     $"sinceLastCallback={elapsedSinceProgress()} elapsed={stopwatch.Elapsed}");
             }
