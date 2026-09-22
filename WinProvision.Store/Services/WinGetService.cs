@@ -202,10 +202,9 @@ public sealed class WinGetService
         string packageId,
         Action<string>? onLogReceived = null,
         CancellationToken cancellationToken = default,
-        string source = "winget",
-        Action<InstallProgressUpdate>? onProgress = null)
+        string source = "winget")
         => RunInstallOrUpgradeAsync(
-            ComOperationKind.Upgrade, packageId, onLogReceived, cancellationToken, null, onProgress, source);
+            ComOperationKind.Upgrade, packageId, onLogReceived, cancellationToken, null, null, source);
 
     /// <summary>
     /// Corpo comum de <see cref="InstallAsync"/> e <see cref="UpdateAsync"/> — mesma ordem fixa
