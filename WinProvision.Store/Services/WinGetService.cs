@@ -25,6 +25,15 @@ public sealed class WinGetService
 
     private sealed class ComInstallTimeoutException(string message) : TimeoutException(message);
 
+    /// <summary>
+    /// Qual operação COM disparar em <see cref="RunComPackageOperationAsync"/>:
+    /// <see cref="Install"/> chama PackageManager.InstallPackageAsync (instalação "fresh");
+    /// <see cref="Upgrade"/> chama PackageManager.UpgradePackageAsync no mesmo CatalogPackage
+    /// (atualização de uma instalação existente) — mesmo InstallOptions, mesmo InstallResult/
+    /// InstallProgress, só o método da COM que muda.
+    /// </summary>
+    private enum ComOperationKind { Install, Upgrade }
+
     /// <summary>Marca o instante em que a instalação foi entregue ao servidor COM (a partir daí não se repete).</summary>
     private sealed class InstallAttemptState
     {
@@ -167,20 +176,58 @@ public sealed class WinGetService
         }
     }
 
-    public async Task<WingetExecutionResult> InstallAsync(
+    public Task<WingetExecutionResult> InstallAsync(
         string packageId,
         Action<string>? onLogReceived = null,
         CancellationToken cancellationToken = default,
         string? installLocation = null,
         Action<InstallProgressUpdate>? onProgress = null,
         string source = "winget")
+        => RunInstallOrUpgradeAsync(
+            ComOperationKind.Install, packageId, onLogReceived, cancellationToken, installLocation, onProgress, source);
+
+    /// <summary>
+    /// Atualiza um pacote já instalado. Mesma cadeia de fallback e mesma robustez de
+    /// <see cref="InstallAsync"/> (COM com retry/watchdog/heartbeat -&gt; API própria -&gt; CLI),
+    /// trocando só a chamada COM final: <see cref="RunComPackageOperationAsync"/> despacha para
+    /// PackageManager.UpgradePackageAsync em vez de InstallPackageAsync quando
+    /// <see cref="ComOperationKind.Upgrade"/>. A API própria entra como nível 2 chamando o mesmo
+    /// <see cref="WinProvisionApiService.TryInstallAsync"/> do install — o catálogo próprio só
+    /// conhece a versão mais recente de cada pacote, então "instalar" e "atualizar pra última
+    /// versão" são a mesma operação do ponto de vista dela (baixa e roda o instalador mais novo
+    /// silenciosamente; pra Inno/NSIS/MSI isso atualiza em cima da instalação existente, sem
+    /// desinstalar/reinstalar do zero).
+    /// </summary>
+    public Task<WingetExecutionResult> UpdateAsync(
+        string packageId,
+        Action<string>? onLogReceived = null,
+        CancellationToken cancellationToken = default,
+        string source = "winget",
+        Action<InstallProgressUpdate>? onProgress = null)
+        => RunInstallOrUpgradeAsync(
+            ComOperationKind.Upgrade, packageId, onLogReceived, cancellationToken, null, onProgress, source);
+
+    /// <summary>
+    /// Corpo comum de <see cref="InstallAsync"/> e <see cref="UpdateAsync"/> — mesma ordem fixa
+    /// pros dois: 0) provisiona o winget + dependências; 1) COM (conforme o cenário); 2) API
+    /// própria; 3) winget.exe. Sem o passo 0 nem o 1 nem o 3 funcionam.
+    /// </summary>
+    private async Task<WingetExecutionResult> RunInstallOrUpgradeAsync(
+        ComOperationKind opKind,
+        string packageId,
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken,
+        string? installLocation,
+        Action<InstallProgressUpdate>? onProgress,
+        string source)
     {
-        // Ordem fixa: 0) provisiona o winget + dependências; 1) COM (conforme o cenário);
-        // 2) API própria; 3) winget.exe. Sem o passo 0 nem o 1 nem o 3 funcionam.
         await EnsureWingetProvisionedAsync(onLogReceived, cancellationToken).ConfigureAwait(false);
 
+        string logTag = opKind == ComOperationKind.Install ? "INSTALL" : "UPDATE";
+        string actionLower = opKind == ComOperationKind.Install ? "instalação" : "atualização";
+
         WinGetDiagnosticLog.Write(
-            $"INSTALL ENTER packageId=\"{packageId}\" source={source} mode={WinGetFactoryHelper.Mode} " +
+            $"{logTag} ENTER packageId=\"{packageId}\" source={source} mode={WinGetFactoryHelper.Mode} " +
             $"comDisabled={WinGetFactoryHelper.IsComDisabled} thread={Environment.CurrentManagedThreadId}");
 
         // Gatilhos que pulam a API COM inteiramente: execução como SYSTEM (sem desktop
@@ -191,18 +238,19 @@ public sealed class WinGetService
         if (WinProvisionApiService.IsRunningAsSystem() || WinProvisionElevationState.HasFailedThisSession)
         {
             var bypassReason = WinProvisionApiService.IsRunningAsSystem() ? "SYSTEM" : "reelevação-falhou-antes";
-            WinGetDiagnosticLog.Write($"INSTALL BYPASS COM: motivo={bypassReason}");
+            WinGetDiagnosticLog.Write($"{logTag} BYPASS COM: motivo={bypassReason}");
             onLogReceived?.Invoke("Pulando API COM do WinGet; usando a API própria da WinProvision Store.");
-            return await TryWinProvisionApiThenCliAsync(
-                packageId, onLogReceived, cancellationToken, installLocation, source, bypassReason).ConfigureAwait(false);
+            return await RunApiThenCliFallbackAsync(
+                opKind, packageId, onLogReceived, cancellationToken, installLocation, source, bypassReason)
+                .ConfigureAwait(false);
         }
 
         if (WinGetFactoryHelper.IsComDisabled)
         {
             WinGetDiagnosticLog.Write($"FALLBACK PARA CLI: motivo={WinGetFactoryHelper.DisabledReason}");
             onLogReceived?.Invoke("API COM indisponível; usando a API própria da WinProvision Store.");
-            return await TryWinProvisionApiThenCliAsync(
-                packageId, onLogReceived, cancellationToken, installLocation, source,
+            return await RunApiThenCliFallbackAsync(
+                opKind, packageId, onLogReceived, cancellationToken, installLocation, source,
                 $"COM-desativada-sessão({WinGetFactoryHelper.DisabledReason})").ConfigureAwait(false);
         }
 
@@ -211,11 +259,11 @@ public sealed class WinGetService
         {
             try
             {
-                // COM (InstallApiAsync) resolve o pacote pelo Id nos catálogos predefinidos
-                // (OpenWindowsCatalog e, para source=msstore, MicrosoftStore).
+                // COM (RunComPackageOperationAsync) resolve o pacote pelo Id nos catálogos
+                // predefinidos (OpenWindowsCatalog e, para source=msstore, MicrosoftStore).
                 return await Task.Run(
-                    () => InstallApiAsync(
-                        packageId, onLogReceived, onProgress, cancellationToken, installLocation, source, state),
+                    () => RunComPackageOperationAsync(
+                        opKind, packageId, onLogReceived, onProgress, cancellationToken, installLocation, source, state),
                     cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -224,36 +272,36 @@ public sealed class WinGetService
             }
             catch (Exception ex)
             {
-                // Falha de ativação/identidade ANTES de a instalação ser entregue ao servidor COM: tenta a
+                // Falha de ativação/identidade ANTES de a operação ser entregue ao servidor COM: tenta a
                 // próxima estratégia (lower-trust -> empacotado) antes de desistir da COM.
                 if (!state.Started && WinGetFactoryHelper.TryAdvanceStrategy(ex))
                 {
                     WinGetDiagnosticLog.Write(
-                        $"INSTALL COM repetindo com a estratégia {WinGetFactoryHelper.CurrentStrategy} " +
+                        $"{logTag} COM repetindo com a estratégia {WinGetFactoryHelper.CurrentStrategy} " +
                         $"(falha anterior 0x{ex.HResult:X8})");
                     continue;
                 }
 
                 WinGetFactoryHelper.DisableComForSession(ex);
                 WinGetDiagnosticLog.Write(
-                    $"INSTALL COM FALHOU attempt={attempt}/{MaxPreflightAttempts} started={state.Started} " +
+                    $"{logTag} COM FALHOU attempt={attempt}/{MaxPreflightAttempts} started={state.Started} " +
                     $"exception={ex.GetType().FullName} hresult=0x{ex.HResult:X8} " +
                     $"message=\"{ex.Message}\" stack={ex}");
 
                 var noProgressTimeout = ex is ComInstallTimeoutException;
 
-                // Instalação JÁ entregue ao servidor COM: nunca reexecuta sozinha (evita instalar
-                // duas vezes / competir com um instalador ainda rodando). Exceção: timeout antes do
-                // primeiro progresso, quando nada foi baixado ainda.
+                // Operação JÁ entregue ao servidor COM: nunca reexecuta sozinha (evita
+                // instalar/atualizar duas vezes / competir com um instalador ainda rodando).
+                // Exceção: timeout antes do primeiro progresso, quando nada foi baixado ainda.
                 if (state.Started && !noProgressTimeout)
                 {
                     onLogReceived?.Invoke(
-                        $"A API COM falhou durante a instalação ({ex.Message}); não será repetida automaticamente.");
+                        $"A API COM falhou durante a {actionLower} ({ex.Message}); não será repetida automaticamente.");
                     return new WingetExecutionResult
                     {
                         Success = false,
                         ExitCode = ex.HResult,
-                        Output = $"Falha na API COM durante a instalação: {ex.Message}",
+                        Output = $"Falha na API COM durante a {actionLower}: {ex.Message}",
                         FailureReason = WingetFailureReason.InternalError
                     };
                 }
@@ -266,7 +314,7 @@ public sealed class WinGetService
                     !WinGetFactoryHelper.IsComDisabled)
                 {
                     var delay = TimeSpan.FromSeconds(attempt * 2);
-                    WinGetDiagnosticLog.Write($"INSTALL COM nova tentativa em {delay.TotalSeconds:0}s");
+                    WinGetDiagnosticLog.Write($"{logTag} COM nova tentativa em {delay.TotalSeconds:0}s");
                     await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                     continue;
                 }
@@ -284,10 +332,11 @@ public sealed class WinGetService
                 }
 
                 WinGetDiagnosticLog.Write(
-                    $"FALLBACK PARA API PRÓPRIA: motivo=COM install exception ({ex.GetType().Name} 0x{ex.HResult:X8})");
-                Trace.WriteLine($"WinGet COM install failed; falling back to WinProvision API: {ex}");
+                    $"FALLBACK PARA API PRÓPRIA: motivo=COM {opKind} exception ({ex.GetType().Name} 0x{ex.HResult:X8})");
+                Trace.WriteLine($"WinGet COM {opKind} failed; falling back to WinProvision API: {ex}");
                 onLogReceived?.Invoke("API COM indisponível; usando a API própria da WinProvision Store.");
-                return await TryWinProvisionApiThenCliAsync(
+                return await RunApiThenCliFallbackAsync(
+                    opKind,
                     packageId,
                     onLogReceived,
                     cancellationToken,
@@ -299,83 +348,34 @@ public sealed class WinGetService
     }
 
     /// <summary>
-    /// Atualiza um pacote já instalado. Não existe upgrade via API COM neste serviço
-    /// (InstallApiAsync só cobre instalação "fresh" — ver comentário em InstallAsync), então
-    /// a ordem é: 1) winget.exe update (WingetExecutor.UpdateAppAsync, caminho já validado);
-    /// 2) se falhar (e não for um caso em que insistir por outra via não ajudaria — política
-    /// bloqueando o pacote, ou o próprio usuário recusou o UAC), tenta a API própria da
-    /// WinProvision Store como alternativa. TryInstallAsync baixa e roda o instalador da
-    /// versão mais recente do catálogo silenciosamente; para os tipos que ela aceita
-    /// (Inno/NSIS/MSI etc., os "silentSupported"), isso ATUALIZA o app em vez de reinstalar
-    /// do zero — o instalador detecta a instalação existente e sobrescreve só o necessário,
-    /// preservando configurações/dados do usuário, exatamente como "winget upgrade" faz ao
-    /// rodar por baixo dos panos o instalador mais novo. SYSTEM e reelevação-já-falhada
-    /// pulam direto pra API própria, sem tentar o winget.exe primeiro (mesmo critério de
-    /// <see cref="InstallAsync"/>, já que nesses cenários o winget.exe tende a falhar de novo
-    /// pelo mesmo motivo).
+    /// Nível 2 da cadeia de fallback, despachado por <paramref name="opKind"/>: instalação usa
+    /// <see cref="TryWinProvisionApiThenCliAsync"/> (fallback final winget.exe install);
+    /// atualização usa <see cref="TryApiUpdateThenCliAsync"/> (fallback final winget.exe update).
     /// </summary>
-    public async Task<WingetExecutionResult> UpdateAsync(
+    private Task<WingetExecutionResult> RunApiThenCliFallbackAsync(
+        ComOperationKind opKind,
         string packageId,
-        Action<string>? onLogReceived = null,
-        CancellationToken cancellationToken = default,
-        string source = "winget")
-    {
-        await EnsureWingetProvisionedAsync(onLogReceived, cancellationToken).ConfigureAwait(false);
-
-        WinGetDiagnosticLog.Write(
-            $"UPDATE ENTER packageId=\"{packageId}\" source={source} thread={Environment.CurrentManagedThreadId}");
-
-        if (WinProvisionApiService.IsRunningAsSystem() || WinProvisionElevationState.HasFailedThisSession)
-        {
-            var bypassReason = WinProvisionApiService.IsRunningAsSystem() ? "SYSTEM" : "reelevação-falhou-antes";
-            WinGetDiagnosticLog.Write($"UPDATE BYPASS CLI: motivo={bypassReason}");
-            onLogReceived?.Invoke("Pulando winget.exe; usando a API própria da WinProvision Store para atualizar.");
-            return await TryApiUpdateAsync(packageId, onLogReceived, cancellationToken, bypassReason)
-                    .ConfigureAwait(false)
-                ?? await _wingetExecutor.UpdateAppAsync(packageId, onLogReceived, cancellationToken, source)
-                    .ConfigureAwait(false);
-        }
-
-        var cliResult = await _wingetExecutor.UpdateAppAsync(packageId, onLogReceived, cancellationToken, source)
-            .ConfigureAwait(false);
-        if (cliResult.Success || cancellationToken.IsCancellationRequested)
-        {
-            return cliResult;
-        }
-
-        // BlockedByPolicy: contornar pela API própria seria burlar a política, igual ao
-        // InstallAsync. ElevationCanceled: o usuário já recusou o UAC pra esse pacote nesta
-        // tentativa; insistir por outra via sem perguntar de novo não respeitaria a escolha.
-        if (cliResult.FailureReason is WingetFailureReason.BlockedByPolicy or WingetFailureReason.ElevationCanceled)
-        {
-            WinGetDiagnosticLog.Write($"UPDATE CLI FALHOU SEM FALLBACK: motivo={cliResult.FailureReason}");
-            return cliResult;
-        }
-
-        WinGetDiagnosticLog.Write(
-            $"FALLBACK PARA API PRÓPRIA: motivo=CLI-update-falhou({cliResult.FailureReason})");
-        onLogReceived?.Invoke(
-            $"A atualização via winget.exe falhou ({cliResult.FailureReason}); tentando a API própria da WinProvision Store.");
-
-        var apiResult = await TryApiUpdateAsync(
-            packageId, onLogReceived, cancellationToken, $"CLI-falhou({cliResult.FailureReason})")
-            .ConfigureAwait(false);
-
-        // API própria não resolveu (pacote fora do catálogo, sem installer silencioso, hash
-        // divergente, etc.): devolve a falha original do winget.exe, que já tem uma mensagem
-        // classificada em pt-BR pronta para a UI mostrar.
-        return apiResult ?? cliResult;
-    }
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken,
+        string? installLocation,
+        string source,
+        string reason)
+        => opKind == ComOperationKind.Install
+            ? TryWinProvisionApiThenCliAsync(packageId, onLogReceived, cancellationToken, installLocation, source, reason)
+            : TryApiUpdateThenCliAsync(packageId, onLogReceived, cancellationToken, source, reason);
 
     /// <summary>
-    /// Tenta atualizar via <see cref="WinProvisionApiService.TryInstallAsync"/> (mesmo
-    /// endpoint usado para instalar — o catálogo próprio só conhece a versão mais recente de
-    /// cada pacote, então "instalar" e "atualizar para a última versão" são a mesma operação
-    /// do ponto de vista da API). Retorna null quando a API própria não resolveu, para o
-    /// chamador decidir o que fazer em seguida (nunca lança).
+    /// Tenta atualizar via <see cref="WinProvisionApiService.TryInstallAsync"/> (mesmo endpoint
+    /// usado para instalar — ver comentário em <see cref="UpdateAsync"/>); só recorre ao
+    /// winget.exe (<see cref="_wingetExecutor"/>) se a API própria também não resolver. Mesmo
+    /// papel de <see cref="TryWinProvisionApiThenCliAsync"/>, só que pro lado da atualização.
     /// </summary>
-    private async Task<WingetExecutionResult?> TryApiUpdateAsync(
-        string packageId, Action<string>? onLogReceived, CancellationToken cancellationToken, string reason)
+    private async Task<WingetExecutionResult> TryApiUpdateThenCliAsync(
+        string packageId,
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken,
+        string source,
+        string reason)
     {
         WinGetDiagnosticLog.Write($"UPDATE API-PROPRIA tentativa packageId=\"{packageId}\" motivo={reason}");
 
@@ -393,9 +393,13 @@ public sealed class WinGetService
         }
         catch (Exception ex)
         {
+            // A API própria nunca deve derrubar o pipeline: qualquer exceção inesperada (rede
+            // fora do ar, R2 indisponível, etc.) é tratada como "não resolveu" e cai pro
+            // winget.exe normalmente, igual a um WinProvisionInstallOutcome de falha.
             WinGetDiagnosticLog.Write(
                 $"UPDATE API-PROPRIA exceção packageId=\"{packageId}\" {ex.GetType().Name}: {ex.Message}");
-            return null;
+            apiResult = new WinProvisionInstallResult(
+                WinProvisionInstallOutcome.DownloadFailed, Message: ex.Message);
         }
 
         if (apiResult.Outcome == WinProvisionInstallOutcome.Success)
@@ -412,8 +416,12 @@ public sealed class WinGetService
         }
 
         WinGetDiagnosticLog.Write(
-            $"UPDATE API-PROPRIA falhou packageId=\"{packageId}\" outcome={apiResult.Outcome} msg=\"{apiResult.Message}\"");
-        return null;
+            $"UPDATE API-PROPRIA falhou packageId=\"{packageId}\" outcome={apiResult.Outcome} " +
+            $"msg=\"{apiResult.Message}\" — caindo pro winget.exe (nível 3)");
+        onLogReceived?.Invoke(
+            $"API própria não conseguiu atualizar ({apiResult.Outcome}); usando winget.exe como último recurso.");
+        return await _wingetExecutor.UpdateAppAsync(
+            packageId, onLogReceived, cancellationToken, source).ConfigureAwait(false);
     }
 
     private static async Task<IReadOnlyList<WinGetPackageMatch>> SearchApiAsync(
@@ -585,7 +593,8 @@ public sealed class WinGetService
         return (name, id, version, source);
     }
 
-    private async Task<WingetExecutionResult> InstallApiAsync(
+    private async Task<WingetExecutionResult> RunComPackageOperationAsync(
+        ComOperationKind opKind,
         string packageId,
         Action<string>? onLogReceived,
         Action<InstallProgressUpdate>? onProgress,
@@ -689,7 +698,9 @@ public sealed class WinGetService
         onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing));
         attemptState.Started = true;
         WinGetDiagnosticLog.Write($"INSTALL COM stage=install-dispatched elapsed={stopwatch.Elapsed}");
-        var installOperation = packageManager.InstallPackageAsync(matchedPackage, installOptions);
+        var installOperation = opKind == ComOperationKind.Install
+            ? packageManager.InstallPackageAsync(matchedPackage, installOptions)
+            : packageManager.UpgradePackageAsync(matchedPackage, installOptions);
         using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var watchdogCts = new CancellationTokenSource();
         using var heartbeatCts = new CancellationTokenSource();
@@ -883,10 +894,12 @@ public sealed class WinGetService
                     : $"COM-status-{installResult.Status}(0x{extendedErrorCode:X8})";
 
                 WinGetDiagnosticLog.Write($"FALLBACK PARA API PRÓPRIA: motivo={reason}");
+                string actionLower = opKind == ComOperationKind.Install ? "instalação" : "atualização";
                 onLogReceived?.Invoke(requiresElevation
-                    ? "A instalação requer privilégios de administrador; usando a API própria da WinProvision Store."
+                    ? $"A {actionLower} requer privilégios de administrador; usando a API própria da WinProvision Store."
                     : $"A API COM falhou ({installResult.Status}); usando a API própria da WinProvision Store.");
-                return await TryWinProvisionApiThenCliAsync(
+                return await RunApiThenCliFallbackAsync(
+                    opKind,
                     packageId,
                     onLogReceived,
                     cancellationToken,
@@ -911,10 +924,11 @@ public sealed class WinGetService
             };
         }
 
+        string actionCap = opKind == ComOperationKind.Install ? "Instalação" : "Atualização";
         onLogReceived?.Invoke(
             installResult.RebootRequired
-                ? "Instalação concluída via API COM; reinicialização necessária."
-                : "Instalação concluída via API COM do WinGet.");
+                ? $"{actionCap} concluída via API COM; reinicialização necessária."
+                : $"{actionCap} concluída via API COM do WinGet.");
         return new WingetExecutionResult
         {
             Success = true,
