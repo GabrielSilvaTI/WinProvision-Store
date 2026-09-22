@@ -78,6 +78,7 @@ public partial class App : Application
             services.AddSingleton<GitHubBackupService>();
             services.AddSingleton<CloudBackupService>();
             services.AddSingleton<BackupAutoSyncService>();
+            services.AddSingleton<AppUpdateService>();
 
             // UI
             services.AddSingleton<MainWindow>();

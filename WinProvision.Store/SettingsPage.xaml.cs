@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
+using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 
 namespace WinProvision.Store;
@@ -13,12 +14,15 @@ namespace WinProvision.Store;
 public partial class SettingsPage : Page
 {
     private readonly CacheService _cacheService;
+    private readonly AppUpdateService _updateService;
+    private AppUpdateCheckResult? _pendingUpdate;
 
     public SettingsPage()
     {
         InitializeComponent();
 
         _cacheService = App.Services.GetRequiredService<CacheService>();
+        _updateService = App.Services.GetRequiredService<AppUpdateService>();
 
         RefreshThemeButtonsUi();
         VersionText.Text = $"Versão {GetApplicationVersion()}";
@@ -34,6 +38,85 @@ public partial class SettingsPage : Page
     {
         var version = Assembly.GetEntryAssembly()?.GetName().Version;
         return version is null ? "desconhecida" : version.ToString(3);
+    }
+
+    // -------------------------------------------------------------
+    // ATUALIZAÇÕES DO APP (independente do provisionamento de pacotes)
+    // -------------------------------------------------------------
+
+    private async void CheckUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdateButton.IsEnabled = false;
+        UpdateAvailablePanel.Visibility = Visibility.Collapsed;
+        _pendingUpdate = null;
+        UpdateSubtitleText.Text = "Verificando no GitHub...";
+
+        try
+        {
+            var result = await _updateService.CheckForUpdateAsync();
+
+            if (!result.Success)
+            {
+                UpdateSubtitleText.Text = result.Error;
+                return;
+            }
+
+            if (!result.UpdateAvailable)
+            {
+                UpdateSubtitleText.Text = $"Você já está na versão mais recente ({result.CurrentVersion?.ToString(3)}).";
+                return;
+            }
+
+            _pendingUpdate = result;
+            UpdateSubtitleText.Text = $"Versão instalada: {result.CurrentVersion?.ToString(3)}";
+            UpdateAvailableText.Text = $"Nova versão disponível: {result.LatestVersion?.ToString(3)}";
+            UpdateAvailablePanel.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            UpdateSubtitleText.Text = $"Falha ao verificar atualizações: {ex.Message}";
+        }
+        finally
+        {
+            CheckUpdateButton.IsEnabled = true;
+        }
+    }
+
+    private async void InstallUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingUpdate is null) return;
+
+        CheckUpdateButton.IsEnabled = false;
+        InstallUpdateButton.IsEnabled = false;
+        UpdateProgressText.Visibility = Visibility.Visible;
+        UpdateProgressBar.Visibility = Visibility.Visible;
+        UpdateProgressText.Text = "Baixando o instalador...";
+
+        var progress = new Progress<double>(fraction =>
+        {
+            UpdateProgressBar.Value = fraction;
+            UpdateProgressText.Text = $"Baixando o instalador... {fraction:P0}";
+        });
+
+        try
+        {
+            string setupPath = await _updateService.DownloadInstallerAsync(_pendingUpdate, progress);
+
+            UpdateProgressText.Text = "Instalando e reiniciando o WinProvision Store...";
+            AppUpdateService.ScheduleSilentInstallAndRestart(setupPath);
+
+            // O instalador precisa que este processo já não esteja rodando pra substituir
+            // seus arquivos; o script agendado espera este PID sumir e reabre o app depois.
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            UpdateProgressText.Text = $"Falha ao instalar a atualização: {ex.Message}";
+            UpdateProgressBar.Visibility = Visibility.Collapsed;
+            CheckUpdateButton.IsEnabled = true;
+            InstallUpdateButton.IsEnabled = true;
+        }
     }
 
     // -------------------------------------------------------------

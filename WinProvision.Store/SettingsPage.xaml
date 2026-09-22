@@ -175,6 +175,83 @@
                         </Grid>
                     </Border>
 
+                    <!--  3. Atualizações do app  -->
+                    <Border Style="{StaticResource SettingsCardStyle}">
+                        <StackPanel Margin="24,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,24,0">
+                                    <TextBlock Text="Atualizações do WinProvision Store" Style="{StaticResource SettingsRowTitleStyle}" />
+                                    <TextBlock x:Name="UpdateSubtitleText"
+                                               Text="Verifica se há uma versão mais nova publicada no GitHub."
+                                               Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                </StackPanel>
+                                <ui:Button x:Name="CheckUpdateButton"
+                                           Grid.Column="1"
+                                           Content="Verificar atualizações"
+                                           Appearance="Secondary"
+                                           VerticalAlignment="Center"
+                                           Click="CheckUpdateButton_Click"
+                                           CornerRadius="{StaticResource ControlCornerRadius}">
+                                    <ui:Button.Icon>
+                                        <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                                    </ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+
+                            <Border x:Name="UpdateAvailablePanel"
+                                    Visibility="Collapsed"
+                                    Margin="0,16,0,0"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource AppCardBorderBrush}"
+                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                    CornerRadius="{StaticResource ControlCornerRadius}"
+                                    Padding="16,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,16,0">
+                                        <TextBlock x:Name="UpdateAvailableText"
+                                                   FontWeight="Medium"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock x:Name="UpdateProgressText"
+                                                   Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                   Visibility="Collapsed" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="InstallUpdateButton"
+                                               Grid.Column="1"
+                                               Content="Atualizar agora"
+                                               Appearance="Primary"
+                                               VerticalAlignment="Center"
+                                               Click="InstallUpdateButton_Click"
+                                               CornerRadius="{StaticResource ControlCornerRadius}">
+                                        <ui:Button.Icon>
+                                            <ui:SymbolIcon Symbol="ArrowDownload24" />
+                                        </ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+                            </Border>
+
+                            <ProgressBar x:Name="UpdateProgressBar"
+                                         Style="{StaticResource GradientProgressBarStyle}"
+                                         Height="4"
+                                         Margin="0,16,0,0"
+                                         Minimum="0"
+                                         Maximum="1"
+                                         Value="0"
+                                         Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+
                 </StackPanel>
             </ScrollViewer>
 
