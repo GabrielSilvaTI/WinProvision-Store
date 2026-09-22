@@ -12,9 +12,10 @@ namespace WinProvision.Core.Services;
 /// <summary>
 /// Autoatualização do WinProvision Store — inteiramente separada do provisionamento de
 /// pacotes (WingetBootstrapper/WingetExecutor/WinProvisionApiService): não toca em winget,
-/// COM nem na API própria. Fluxo: 1) consulta a release mais recente no GitHub;
-/// 2) baixa o instalador (WinProvision.Store-Setup.exe, gerado pelo installer/WinProvision.Store.iss)
-/// e confere o SHA-256 que o GitHub calcula por upload; 3) agenda a instalação silenciosa
+/// COM nem na API própria. Fluxo: 1) consulta a release mais recente no GitHub (estável, e se
+/// não houver nenhuma ainda, o canal nightly); 2) baixa o instalador
+/// (WinProvision.Store-Setup.exe, gerado por installer/WinProvision.Store.iss) e confere o
+/// SHA-256 que o GitHub calcula por upload; 3) agenda a instalação silenciosa
 /// (/VERYSILENT /SUPPRESSMSGBOXES /NORESTART) e o relançamento do app via um script separado,
 /// já que o próprio processo precisa sair para o instalador poder substituir seus arquivos.
 /// </summary>
@@ -22,6 +23,20 @@ public sealed class AppUpdateService
 {
     private const string RepoSlug = "GabrielSilvaTI/WinProvision-Store";
     private const string AssetName = "WinProvision.Store-Setup.exe";
+
+    // O repositório hoje só publica esta release, de tag fixa: rebuild automático a cada
+    // commit na main, sem versão semântica (ver releases/tag/nightly — "Não é a versão
+    // estável, serve para testar antes de criar uma tag vX.Y.Z"). Quando existir uma tag
+    // vX.Y.Z, CheckForUpdateAsync a usa primeiro; o nightly é o fallback (e, por ora, o único
+    // canal publicado).
+    private const string NightlyTag = "nightly";
+
+    // Publicação da release e timestamp de build do .exe local vêm de relógios diferentes
+    // (servidor do GitHub Actions vs. o file system do disco); essa margem evita marcar
+    // "atualização disponível" por causa de alguns segundos de diferença entre os dois,
+    // já que o próprio build recém-instalado tende a ficar bem perto do published_at.
+    private static readonly TimeSpan NightlyFreshnessMargin = TimeSpan.FromMinutes(3);
+
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(5);
 
@@ -53,11 +68,39 @@ public sealed class AppUpdateService
         Assembly.GetEntryAssembly()?.GetName().Version ?? new Version(0, 0, 0, 0);
 
     /// <summary>
-    /// Consulta "GET /repos/{RepoSlug}/releases/latest" e compara a tag publicada com a
-    /// versão atual. Nunca lança: qualquer falha (rede, release sem o asset esperado, tag
-    /// num formato inesperado) vira um <see cref="AppUpdateCheckResult.Failed"/>.
+    /// Data de modificação do executável atual — o mesmo dado que a Store já loga como
+    /// "buildDate" na abertura (App.xaml.cs). O publish self-contained (ver csproj: single-file
+    /// desligado de propósito) e o instalador Inno preservam esse timestamp do build original,
+    /// então ele fica bem próximo do published_at da release no GitHub Actions que o gerou —
+    /// é o que permite comparar "meu build é mais velho que o nightly publicado?" sem precisar
+    /// embutir um número de versão no canal nightly.
+    /// </summary>
+    private static DateTimeOffset GetCurrentBuildTime()
+    {
+        string? exePath = Environment.ProcessPath ?? Assembly.GetEntryAssembly()?.Location;
+        return exePath is not null && File.Exists(exePath)
+            ? new DateTimeOffset(File.GetLastWriteTimeUtc(exePath), TimeSpan.Zero)
+            : DateTimeOffset.MinValue;
+    }
+
+    /// <summary>
+    /// Consulta a release mais recente no GitHub e compara com o build atual: primeiro o
+    /// canal estável ("/releases/latest", por versão semântica da tag); se o repositório
+    /// ainda não tiver nenhuma release estável publicada, cai para o canal nightly (tag fixa,
+    /// comparado por data de publicação). Nunca lança: qualquer falha em ambos os canais vira
+    /// um <see cref="AppUpdateCheckResult.Failed"/> com a mensagem do canal estável.
     /// </summary>
     public async Task<AppUpdateCheckResult> CheckForUpdateAsync(CancellationToken ct = default)
+    {
+        var stable = await CheckStableChannelAsync(ct).ConfigureAwait(false);
+        if (stable.Success)
+            return stable;
+
+        var nightly = await CheckNightlyChannelAsync(ct).ConfigureAwait(false);
+        return nightly.Success ? nightly : stable;
+    }
+
+    private async Task<AppUpdateCheckResult> CheckStableChannelAsync(CancellationToken ct)
     {
         try
         {
@@ -66,8 +109,10 @@ public sealed class AppUpdateService
 
             if (!response.IsSuccessStatusCode)
             {
+                // 404 é o caso normal enquanto só existir a release nightly (sem versão
+                // estável publicada ainda) — CheckForUpdateAsync cai pro outro canal sozinho.
                 return AppUpdateCheckResult.Failed(
-                    $"O GitHub respondeu {(int)response.StatusCode} ao consultar a última versão.");
+                    $"O GitHub respondeu {(int)response.StatusCode} ao consultar a última versão estável.");
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -79,47 +124,12 @@ public sealed class AppUpdateService
             if (!Version.TryParse(versionText, out var latestVersion))
             {
                 return AppUpdateCheckResult.Failed(
-                    $"Não reconheci o formato de versão da última release (\"{tag}\").");
+                    $"Não reconheci o formato de versão da última release estável (\"{tag}\").");
             }
 
-            if (!root.TryGetProperty("assets", out var assetsProp) || assetsProp.ValueKind != JsonValueKind.Array)
-            {
-                return AppUpdateCheckResult.Failed($"A release {latestVersion} não tem arquivos anexados.");
-            }
-
-            JsonElement? asset = assetsProp.EnumerateArray()
-                .Cast<JsonElement?>()
-                .FirstOrDefault(a => string.Equals(
-                    a!.Value.TryGetProperty("name", out var n) ? n.GetString() : null,
-                    AssetName,
-                    StringComparison.OrdinalIgnoreCase));
-
-            if (asset is null)
-            {
-                return AppUpdateCheckResult.Failed(
-                    $"A release {latestVersion} não tem o instalador ({AssetName}) anexado.");
-            }
-
-            string? downloadUrl = asset.Value.TryGetProperty("browser_download_url", out var urlProp)
-                ? urlProp.GetString()
-                : null;
-            if (string.IsNullOrEmpty(downloadUrl))
-            {
-                return AppUpdateCheckResult.Failed($"O instalador da release {latestVersion} não tem link de download.");
-            }
-
-            // GitHub calcula e expõe o SHA-256 de todo asset carregado desde jun/2025
-            // (formato "sha256:<hex>"); releases mais antigas podem não ter o campo.
-            string? sha256 = null;
-            if (asset.Value.TryGetProperty("digest", out var digestProp))
-            {
-                string? digest = digestProp.GetString();
-                const string prefix = "sha256:";
-                if (digest is not null && digest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    sha256 = digest[prefix.Length..];
-                }
-            }
+            var (downloadUrl, sha256, assetError) = FindInstallerAsset(root, latestVersion.ToString());
+            if (assetError is not null)
+                return AppUpdateCheckResult.Failed(assetError);
 
             string? releaseUrl = root.TryGetProperty("html_url", out var htmlUrlProp) ? htmlUrlProp.GetString() : null;
             var current = GetCurrentVersion();
@@ -143,6 +153,103 @@ public sealed class AppUpdateService
         }
     }
 
+    private async Task<AppUpdateCheckResult> CheckNightlyChannelAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var response = await _http.GetAsync(
+                $"https://api.github.com/repos/{RepoSlug}/releases/tags/{NightlyTag}", ct).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return AppUpdateCheckResult.Failed(
+                    $"O GitHub respondeu {(int)response.StatusCode} ao consultar a release \"{NightlyTag}\".");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+            var root = doc.RootElement;
+
+            if (!root.TryGetProperty("published_at", out var publishedProp) ||
+                !DateTimeOffset.TryParse(publishedProp.GetString(), out var publishedAt))
+            {
+                return AppUpdateCheckResult.Failed($"A release \"{NightlyTag}\" não informou a data de publicação.");
+            }
+
+            var (downloadUrl, sha256, assetError) = FindInstallerAsset(root, NightlyTag);
+            if (assetError is not null)
+                return AppUpdateCheckResult.Failed(assetError);
+
+            string? releaseLabel = root.TryGetProperty("name", out var nameProp) ? nameProp.GetString() : null;
+            string? releaseUrl = root.TryGetProperty("html_url", out var htmlUrlProp) ? htmlUrlProp.GetString() : null;
+
+            bool hasUpdate = publishedAt.ToUniversalTime() - GetCurrentBuildTime().ToUniversalTime() > NightlyFreshnessMargin;
+
+            return new AppUpdateCheckResult(
+                Success: true,
+                UpdateAvailable: hasUpdate,
+                CurrentVersion: GetCurrentVersion(),
+                LatestVersion: null,
+                DownloadUrl: downloadUrl,
+                Sha256: sha256,
+                ReleaseUrl: releaseUrl,
+                ReleaseLabel: releaseLabel,
+                PublishedAt: publishedAt);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return AppUpdateCheckResult.Failed($"Falha ao verificar a release \"{NightlyTag}\": {ex.Message}");
+        }
+    }
+
+    /// <summary>Acha o asset do instalador (<see cref="AssetName"/>) dentro de "assets" e extrai link + SHA-256.</summary>
+    private static (string? DownloadUrl, string? Sha256, string? Error) FindInstallerAsset(JsonElement root, string releaseLabel)
+    {
+        if (!root.TryGetProperty("assets", out var assetsProp) || assetsProp.ValueKind != JsonValueKind.Array)
+        {
+            return (null, null, $"A release {releaseLabel} não tem arquivos anexados.");
+        }
+
+        JsonElement? asset = assetsProp.EnumerateArray()
+            .Cast<JsonElement?>()
+            .FirstOrDefault(a => string.Equals(
+                a!.Value.TryGetProperty("name", out var n) ? n.GetString() : null,
+                AssetName,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (asset is null)
+        {
+            return (null, null, $"A release {releaseLabel} não tem o instalador ({AssetName}) anexado.");
+        }
+
+        string? downloadUrl = asset.Value.TryGetProperty("browser_download_url", out var urlProp)
+            ? urlProp.GetString()
+            : null;
+        if (string.IsNullOrEmpty(downloadUrl))
+        {
+            return (null, null, $"O instalador da release {releaseLabel} não tem link de download.");
+        }
+
+        // GitHub calcula e expõe o SHA-256 de todo asset carregado desde jun/2025
+        // (formato "sha256:<hex>"); releases mais antigas podem não ter o campo.
+        string? sha256 = null;
+        if (asset.Value.TryGetProperty("digest", out var digestProp))
+        {
+            string? digest = digestProp.GetString();
+            const string prefix = "sha256:";
+            if (digest is not null && digest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                sha256 = digest[prefix.Length..];
+            }
+        }
+
+        return (downloadUrl, sha256, null);
+    }
+
     /// <summary>
     /// Baixa o instalador de <paramref name="update"/> para uma pasta temporária e, se o
     /// GitHub informou o SHA-256 do upload, confere o arquivo baixado contra ele — um
@@ -153,11 +260,12 @@ public sealed class AppUpdateService
     public async Task<string> DownloadInstallerAsync(
         AppUpdateCheckResult update, IProgress<double>? progress = null, CancellationToken ct = default)
     {
-        if (update is not { Success: true, DownloadUrl: not null, LatestVersion: not null })
-            throw new ArgumentException("Resultado de checagem inválido (sem DownloadUrl/LatestVersion).", nameof(update));
+        if (update is not { Success: true, DownloadUrl: not null })
+            throw new ArgumentException("Resultado de checagem inválido (sem DownloadUrl).", nameof(update));
 
-        string tempPath = Path.Combine(
-            Path.GetTempPath(), $"WinProvision.Store-Setup-{update.LatestVersion}.exe");
+        string label = update.LatestVersion?.ToString() ?? update.ReleaseLabel ?? NightlyTag;
+        string safeLabel = string.Join("_", label.Split(Path.GetInvalidFileNameChars()));
+        string tempPath = Path.Combine(Path.GetTempPath(), $"WinProvision.Store-Setup-{safeLabel}.exe");
 
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(DownloadTimeout);

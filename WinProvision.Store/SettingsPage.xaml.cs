@@ -63,13 +63,17 @@ public partial class SettingsPage : Page
 
             if (!result.UpdateAvailable)
             {
-                UpdateSubtitleText.Text = $"Você já está na versão mais recente ({result.CurrentVersion?.ToString(3)}).";
+                UpdateSubtitleText.Text = result.LatestVersion is not null
+                    ? $"Você já está na versão mais recente ({result.CurrentVersion?.ToString(3)})."
+                    : "Seu build já é o mais recente publicado no canal nightly.";
                 return;
             }
 
             _pendingUpdate = result;
             UpdateSubtitleText.Text = $"Versão instalada: {result.CurrentVersion?.ToString(3)}";
-            UpdateAvailableText.Text = $"Nova versão disponível: {result.LatestVersion?.ToString(3)}";
+            UpdateAvailableText.Text = result.LatestVersion is not null
+                ? $"Nova versão disponível: {result.LatestVersion.ToString(3)}"
+                : BuildNightlyAvailableText(result);
             UpdateAvailablePanel.Visibility = Visibility.Visible;
         }
         catch (Exception ex)
@@ -80,6 +84,14 @@ public partial class SettingsPage : Page
         {
             CheckUpdateButton.IsEnabled = true;
         }
+    }
+
+    private static string BuildNightlyAvailableText(AppUpdateCheckResult result)
+    {
+        string label = string.IsNullOrEmpty(result.ReleaseLabel) ? "Novo build nightly disponível" : $"Novo build nightly disponível: {result.ReleaseLabel}";
+        return result.PublishedAt is { } publishedAt
+            ? $"{label} (publicado em {publishedAt.ToLocalTime():dd/MM HH:mm})."
+            : $"{label}.";
     }
 
     private async void InstallUpdateButton_Click(object sender, RoutedEventArgs e)
