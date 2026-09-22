@@ -253,6 +253,13 @@ public sealed class WinGetService
                 $"COM-desativada-sessão({WinGetFactoryHelper.DisabledReason})").ConfigureAwait(false);
         }
 
+        // Só serve pra sinalizar a via atual pro OperationRunner (ver ReportProgress) e colorir a
+        // barra de progresso; as mensagens de falha/pulo da COM já existiam antes disso e cobriam
+        // só o caminho de erro — sem isso, um install/update que dá certo de primeira na COM nunca
+        // reportava nada em onLogReceived até a linha final de sucesso, perto demais do fim pra
+        // colorir a barra durante a operação inteira.
+        onLogReceived?.Invoke("Comunicando com a API COM do WinGet...");
+
         var state = new InstallAttemptState();
         for (var attempt = 1; ; attempt++)
         {

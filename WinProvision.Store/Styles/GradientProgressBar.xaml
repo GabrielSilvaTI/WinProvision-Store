@@ -1,4 +1,6 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:conv="clr-namespace:WinProvision.Store.Converters">
 
     <!--
         Barra de progresso com degradê animado ("dinâmico"), no lugar da barra amarela
@@ -11,14 +13,27 @@
         (aproveitando o comportamento nativo do ProgressBar via PART_Track/PART_Indicator),
         só que o preenchimento em si tem um "shimmer" de degradê correndo por dentro,
         então continua parecendo vivo mesmo com progresso real.
-        
-        Ajuste as cores abaixo para casar com o accent do app.
+
+        Cor por via (ver OperationItem.Method): cada GradientStop tem o Color ligado por
+        Binding direto (não StaticResource) ao WingetMethodStopColorConverter, que devolve o
+        tom certo (roxo=COM, amarelo=API própria, ciano=winget.exe, azul=sem via identificada).
+        Isso vale tanto pro preenchimento determinado quanto pra faixa indeterminada — a cor
+        acompanha a via do início ao fim da operação, não só no instante da troca de camada.
+
+        Não dá pra fazer isso com Setter.TargetName num GradientStop dentro de
+        ControlTemplate.Triggers (erro de compilação MC4111 - essa restrição só existe pra
+        Setter/Trigger, não pra Binding direto), por isso o Color é bindado na própria
+        declaração do GradientStop. Em telas que reusam esse estilo mas cujo DataContext não
+        tem "Method" (StageItemControl, SettingsPage, UpdatesPage), o Binding falha e cada
+        FallbackValue abaixo devolve exatamente a cor azul original — nada muda pra elas.
     -->
 
     <Color x:Key="GradientProgressColorA">#FF3A8DFF</Color>
     <Color x:Key="GradientProgressColorB">#FF7CD4FD</Color>
     <Color x:Key="GradientProgressColorC">#FFEAF6FF</Color>
     <SolidColorBrush x:Key="GradientProgressTrackBrush" Color="#FFFFFFFF" Opacity="0.08" />
+
+    <conv:WingetMethodStopColorConverter x:Key="WingetMethodStopColorConverter" />
 
     <Style x:Key="GradientProgressBarStyle" TargetType="ProgressBar">
         <Setter Property="Height" Value="6" />
@@ -47,9 +62,12 @@
                                         MinWidth="6">
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Color="{StaticResource GradientProgressColorA}" Offset="0.0" />
-                                            <GradientStop Color="{StaticResource GradientProgressColorC}" Offset="0.5" />
-                                            <GradientStop Color="{StaticResource GradientProgressColorA}" Offset="1.0" />
+                                            <GradientStop Offset="0.0"
+                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
+                                            <GradientStop Offset="0.5"
+                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
+                                            <GradientStop Offset="1.0"
+                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
                                             <LinearGradientBrush.RelativeTransform>
                                                 <TranslateTransform x:Name="DeterminateShimmerTransform" X="-1" />
                                             </LinearGradientBrush.RelativeTransform>
@@ -70,9 +88,12 @@
                                 <Rectangle.Fill>
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                         <GradientStop Color="Transparent" Offset="0.0" />
-                                        <GradientStop Color="{StaticResource GradientProgressColorA}" Offset="0.15" />
-                                        <GradientStop Color="{StaticResource GradientProgressColorC}" Offset="0.5" />
-                                        <GradientStop Color="{StaticResource GradientProgressColorB}" Offset="0.85" />
+                                        <GradientStop Offset="0.15"
+                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
+                                        <GradientStop Offset="0.5"
+                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
+                                        <GradientStop Offset="0.85"
+                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=B, FallbackValue={StaticResource GradientProgressColorB}}" />
                                         <GradientStop Color="Transparent" Offset="1.0" />
                                     </LinearGradientBrush>
                                 </Rectangle.Fill>

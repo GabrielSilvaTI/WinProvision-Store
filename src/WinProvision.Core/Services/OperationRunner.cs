@@ -385,7 +385,39 @@ public static partial class OperationRunner
             return;
         }
 
-        item.StatusText = logLine.Trim();
+        var trimmed = logLine.Trim();
+        item.DetailText = trimmed;
+
+        // Identifica a via atual (COM / API própria / winget.exe) só pelas mensagens que o
+        // próprio WinGetService/WinProvisionApiService já emite — nada de texto novo espalhado
+        // por lá. Isso não aparece pro usuário, só decide a cor da barra (ver
+        // GradientProgressBar.xaml). Uma vez identificada, a via "gruda" no item até a próxima
+        // mudança de camada (ex.: enquanto a API própria baixa e instala, várias linhas sem
+        // marcador nenhum continuam chegando — a cor não deve voltar ao padrão nelas).
+        if (trimmed.Contains("[WinProvisionAPI]", StringComparison.Ordinal) ||
+            trimmed.Contains("API própria", StringComparison.Ordinal))
+        {
+            item.Method = WingetMethod.OwnApi;
+        }
+        else if (trimmed.Contains("API COM", StringComparison.Ordinal))
+        {
+            item.Method = WingetMethod.ComApi;
+        }
+        else if (trimmed.Contains("winget.exe", StringComparison.OrdinalIgnoreCase))
+        {
+            item.Method = WingetMethod.WingetExe;
+        }
+
+        // As mensagens acima existem pra decidir a via, não pra aparecer pro usuário final —
+        // ele só quer saber que a instalação/atualização está rolando. Troca por um texto
+        // neutro; o texto técnico completo continua disponível em DetailText (tooltip).
+        var isLayerMessage =
+            trimmed.Contains("API própria", StringComparison.Ordinal) ||
+            trimmed.Contains("API COM", StringComparison.Ordinal) ||
+            trimmed.Contains("[WinProvisionAPI]", StringComparison.Ordinal) ||
+            trimmed.Contains("winget.exe", StringComparison.OrdinalIgnoreCase);
+
+        item.StatusText = isLayerMessage ? $"{item.KindLabel}..." : trimmed;
 
         // O winget imprime o progresso do download/instalação como "NN%" em várias
         // linhas da barra de progresso do console; quando encontramos um percentual,

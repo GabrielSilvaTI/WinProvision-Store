@@ -22,6 +22,19 @@ public enum OperationState
 }
 
 /// <summary>
+/// Camada/via usada para a operação em andamento (ver WinGetService: COM -&gt; API própria ->
+/// winget.exe). Não é mostrada como texto pro usuário final — só orienta a cor da barra de
+/// progresso (ver GradientProgressBar.xaml). "Unknown" = ainda não identificada (cor padrão).
+/// </summary>
+public enum WingetMethod
+{
+    Unknown,
+    ComApi,
+    OwnApi,
+    WingetExe
+}
+
+/// <summary>
 /// Representa uma operação (instalar/atualizar/remover) exibida no painel de fila,
 /// no estilo do UnigetUI: nome do app, linha de status (ex.: URL/etapa atual),
 /// progresso (determinado ou indeterminado) e um comando de cancelamento.
@@ -33,6 +46,8 @@ public class OperationItem : INotifyPropertyChanged, IDisposable
     private bool _isIndeterminate = true;
     private OperationState _state = OperationState.Queued;
     private bool _canCancel = true;
+    private WingetMethod _method = WingetMethod.Unknown;
+    private string? _detailText;
 
     public OperationItem(string appName, OperationKind kind, string? iconUrl = null)
     {
@@ -73,6 +88,24 @@ public class OperationItem : INotifyPropertyChanged, IDisposable
     {
         get => _isIndeterminate;
         set => SetField(ref _isIndeterminate, value);
+    }
+
+    /// <summary>Camada atual (COM/API própria/winget.exe), usada só pra colorir a barra de progresso.</summary>
+    public WingetMethod Method
+    {
+        get => _method;
+        set => SetField(ref _method, value);
+    }
+
+    /// <summary>
+    /// Última linha técnica recebida (ex.: "A API COM falhou (...); usando a API própria..."),
+    /// guardada só pro tooltip de debug — o <see cref="StatusText"/> mostrado ao usuário fica
+    /// limpo, sem mencionar a via.
+    /// </summary>
+    public string? DetailText
+    {
+        get => _detailText;
+        set => SetField(ref _detailText, value);
     }
 
     public OperationState State
