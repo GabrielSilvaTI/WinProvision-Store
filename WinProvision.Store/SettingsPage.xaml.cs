@@ -4,10 +4,10 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
-using Wpf.Ui.Appearance;
-using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
+using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store;
 

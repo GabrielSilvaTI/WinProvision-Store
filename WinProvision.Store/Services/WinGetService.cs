@@ -240,7 +240,7 @@ public sealed class WinGetService
             WinProvisionLog.Write($"{logTag} BYPASS COM: motivo={bypassReason}");
             onLogReceived?.Invoke("Pulando API COM do WinGet; usando a API própria da WinProvision Store.");
             return await RunApiThenCliFallbackAsync(
-                opKind, packageId, onLogReceived, cancellationToken, installLocation, source, bypassReason)
+                opKind, packageId, onLogReceived, onProgress, cancellationToken, installLocation, source, bypassReason)
                 .ConfigureAwait(false);
         }
 
@@ -249,7 +249,7 @@ public sealed class WinGetService
             WinProvisionLog.Write($"FALLBACK PARA CLI: motivo={WinGetFactoryHelper.DisabledReason}");
             onLogReceived?.Invoke("API COM indisponível; usando a API própria da WinProvision Store.");
             return await RunApiThenCliFallbackAsync(
-                opKind, packageId, onLogReceived, cancellationToken, installLocation, source,
+                opKind, packageId, onLogReceived, onProgress, cancellationToken, installLocation, source,
                 $"COM-desativada-sessão({WinGetFactoryHelper.DisabledReason})").ConfigureAwait(false);
         }
 
@@ -259,6 +259,9 @@ public sealed class WinGetService
         // reportava nada em onLogReceived até a linha final de sucesso, perto demais do fim pra
         // colorir a barra durante a operação inteira.
         onLogReceived?.Invoke("Comunicando com a API COM do WinGet...");
+
+        // Envia progresso inicial para definir o método como ComApi
+        onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.ComApi));
 
         var state = new InstallAttemptState();
         for (var attempt = 1; ; attempt++)
@@ -345,6 +348,7 @@ public sealed class WinGetService
                     opKind,
                     packageId,
                     onLogReceived,
+                    onProgress,
                     cancellationToken,
                     installLocation,
                     source,
@@ -362,13 +366,14 @@ public sealed class WinGetService
         ComOperationKind opKind,
         string packageId,
         Action<string>? onLogReceived,
+        Action<InstallProgressUpdate>? onProgress,
         CancellationToken cancellationToken,
         string? installLocation,
         string source,
         string reason)
         => opKind == ComOperationKind.Install
-            ? TryWinProvisionApiThenCliAsync(packageId, onLogReceived, cancellationToken, installLocation, source, reason)
-            : TryApiUpdateThenCliAsync(packageId, onLogReceived, cancellationToken, source, reason);
+            ? TryWinProvisionApiThenCliAsync(packageId, onLogReceived, onProgress, cancellationToken, installLocation, source, reason)
+            : TryApiUpdateThenCliAsync(packageId, onLogReceived, onProgress, cancellationToken, source, reason);
 
     /// <summary>
     /// Tenta atualizar via <see cref="WinProvisionApiService.TryInstallAsync"/> (mesmo endpoint
@@ -379,6 +384,7 @@ public sealed class WinGetService
     private async Task<WingetExecutionResult> TryApiUpdateThenCliAsync(
         string packageId,
         Action<string>? onLogReceived,
+        Action<InstallProgressUpdate>? onProgress,
         CancellationToken cancellationToken,
         string source,
         string reason)
@@ -388,6 +394,9 @@ public sealed class WinGetService
         WinProvisionInstallResult apiResult;
         try
         {
+            // Envia progresso inicial para definir o método como OwnApi
+            onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.OwnApi));
+
             apiResult = await _apiService.TryInstallAsync(
                 packageId,
                 onLogReceived is null ? null : new Progress<string>(onLogReceived),
@@ -426,6 +435,10 @@ public sealed class WinGetService
             $"msg=\"{apiResult.Message}\" — caindo pro winget.exe (nível 3)");
         onLogReceived?.Invoke(
             $"API própria não conseguiu atualizar ({apiResult.Outcome}); usando winget.exe como último recurso.");
+
+        // Envia progresso inicial para definir o método como WingetExe
+        onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
+
         return await _wingetExecutor.UpdateAppAsync(
             packageId, onLogReceived, cancellationToken, source).ConfigureAwait(false);
     }
@@ -706,7 +719,7 @@ public sealed class WinGetService
         installOptions.AcceptPackageAgreements = true;
         installOptions.PreferredInstallLocation = installLocation;
 
-        onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing));
+        onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.ComApi));
         attemptState.Started = true;
         WinProvisionLog.Write($"{comTag} stage=install-dispatched elapsed={stopwatch.Elapsed}");
         var installOperation = opKind == ComOperationKind.Install
@@ -795,7 +808,7 @@ public sealed class WinGetService
                             lastUiUpdate = now;
                             hasUiUpdate = true;
                             onProgress?.Invoke(new InstallProgressUpdate(
-                                InstallProgressPhase.Preparing));
+                                InstallProgressPhase.Preparing, Method: WingetMethod.ComApi));
                         }
                     }
                     else if (percent != lastUiPercent &&
@@ -805,7 +818,7 @@ public sealed class WinGetService
                         lastUiPercent = percent;
                         lastUiUpdate = now;
                         hasUiUpdate = true;
-                        onProgress?.Invoke(new InstallProgressUpdate(phase, percent));
+                        onProgress?.Invoke(new InstallProgressUpdate(phase, percent, WingetMethod.ComApi));
                     }
                 }
                 else if (state != lastUiState)
@@ -817,15 +830,15 @@ public sealed class WinGetService
                     {
                         case PackageInstallProgressState.Queued:
                             onProgress?.Invoke(new InstallProgressUpdate(
-                                InstallProgressPhase.Preparing));
+                                InstallProgressPhase.Preparing, Method: WingetMethod.ComApi));
                             break;
                         case PackageInstallProgressState.PostInstall:
                             onProgress?.Invoke(new InstallProgressUpdate(
-                                InstallProgressPhase.Installing));
+                                InstallProgressPhase.Installing, Method: WingetMethod.ComApi));
                             break;
                         case PackageInstallProgressState.Finished:
                             onProgress?.Invoke(new InstallProgressUpdate(
-                                InstallProgressPhase.Installing, 100));
+                                InstallProgressPhase.Installing, 100, WingetMethod.ComApi));
                             break;
                     }
                 }
@@ -914,6 +927,7 @@ public sealed class WinGetService
                     opKind,
                     packageId,
                     onLogReceived,
+                    onProgress,
                     cancellationToken,
                     installLocation,
                     source,
@@ -1029,6 +1043,7 @@ public sealed class WinGetService
     private async Task<WingetExecutionResult> TryWinProvisionApiThenCliAsync(
         string packageId,
         Action<string>? onLogReceived,
+        Action<InstallProgressUpdate>? onProgress,
         CancellationToken cancellationToken,
         string? installLocation,
         string source,
@@ -1039,6 +1054,9 @@ public sealed class WinGetService
         WinProvisionInstallResult apiResult;
         try
         {
+            // Envia progresso inicial para definir o método como OwnApi
+            onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.OwnApi));
+
             apiResult = await _apiService.TryInstallAsync(
                 packageId,
                 onLogReceived is null ? null : new Progress<string>(onLogReceived),
@@ -1077,6 +1095,10 @@ public sealed class WinGetService
             $"msg=\"{apiResult.Message}\" — caindo pro winget.exe (nível 3)");
         onLogReceived?.Invoke(
             $"API própria não conseguiu instalar ({apiResult.Outcome}); usando winget.exe como último recurso.");
+
+        // Envia progresso inicial para definir o método como WingetExe
+        onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
+
         return await _wingetExecutor.InstallAppAsync(
             packageId, onLogReceived, cancellationToken, installLocation, source).ConfigureAwait(false);
     }

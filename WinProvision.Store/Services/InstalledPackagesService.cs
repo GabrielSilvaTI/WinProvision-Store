@@ -1,17 +1,17 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
-using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Microsoft.Win32;
-using Microsoft.Management.Deployment;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Xml.Linq;
+using Microsoft.Management.Deployment;
+using Microsoft.Win32;
 using Windows.Storage.Streams;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Office;
@@ -26,29 +26,69 @@ public sealed record InstalledPackage(
     string Scope,
     string IconUrl,
     bool IsOffice = false,
-    bool IsSystemComponent = false);
+    bool IsSystemComponent = false,
+    string UninstallString = "",
+    string QuietUninstallString = "",
+    string InstallLocation = "");
 
 public sealed class InstalledPackageClassifier(OfficeInstalledProductsDetector detector)
 {
-    public bool IsOffice(InstalledPackage package)
+    public bool IsOffice(InstalledPackage package) => IsMicrosoftOffice(package.Id, package.Name);
+
+    /// <summary>
+    /// Só Microsoft 365 / Microsoft Office Click-to-Run. Não classifica LibreOffice,
+    /// OnlyOffice e similares — esses seguem a desinstalação de apps externos.
+    /// </summary>
+    public bool IsMicrosoftOffice(string id, string name)
     {
-        bool microsoftOfficeSignal = package.Id.Contains("Microsoft.Office", StringComparison.OrdinalIgnoreCase);
-        bool detectedOfficeRow = detector.HasAnyInstallation()
-            && (package.Name.Contains("Office", StringComparison.OrdinalIgnoreCase)
-                || package.Id.Contains("Office", StringComparison.OrdinalIgnoreCase));
-        return microsoftOfficeSignal || detectedOfficeRow;
+        string idValue = id ?? string.Empty;
+        string nameValue = name ?? string.Empty;
+        if (idValue.Length == 0 && nameValue.Length == 0)
+            return false;
+
+        if (ContainsAny(idValue, nameValue,
+                "LibreOffice", "OpenOffice", "OnlyOffice", "FreeOffice", "WPS Office", "SoftMaker"))
+            return false;
+
+        if (ContainsAny(idValue, string.Empty,
+                "Microsoft.Office", "Microsoft.365", "Office.Desktop", "ClickToRun")
+            || idValue.StartsWith("O365", StringComparison.OrdinalIgnoreCase)
+            || idValue.Contains("ProPlus", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (nameValue.Contains("Microsoft 365", StringComparison.OrdinalIgnoreCase)
+            || nameValue.Contains("Microsoft Office", StringComparison.OrdinalIgnoreCase)
+            || nameValue.Contains("Office LTSC", StringComparison.OrdinalIgnoreCase)
+            || nameValue.Contains("Microsoft Visio", StringComparison.OrdinalIgnoreCase)
+            || nameValue.Contains("Microsoft Project", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return detector.HasAnyInstallation()
+            && (nameValue.Contains("Microsoft 365", StringComparison.OrdinalIgnoreCase)
+                || nameValue.Contains("Microsoft Office", StringComparison.OrdinalIgnoreCase));
     }
+
+    private static bool ContainsAny(string id, string name, params string[] terms) =>
+        terms.Any(term =>
+            id.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || name.Contains(term, StringComparison.OrdinalIgnoreCase));
 
     // Termos que identificam runtimes, frameworks e componentes internos do Windows
     // — nunca "apps" no sentido que o usuário reconheceria, e desinstalar manualmente
     // costuma quebrar outros programas que dependem deles.
     private static readonly string[] SystemKeywords =
     [
-        "visual c++", "redistributable", ".net", "desktop runtime", "webview2",
-        "app installer", "microsoft.winget", "winprovision", "vclibs",
+        "visual c++", "redistributable", ".net desktop runtime", "windows desktop runtime",
+        "webview2", "app installer", "microsoft.winget", "winprovision", "vclibs",
         "ui.xaml", "windows app runtime", "windows app sdk", "net native",
         "direct x", "directx", "security intelligence", "subsystem for linux",
-        "edge update", "edge webview"
+        "edge update", "edge webview", "microsoft edge", "windows security",
+        "segurança do windows", "windows terminal", "windows defender", "windows firewall", "windows media",
+        "windows system", "windows driver", "windows component", "windows sdk",
+        "windows defender", "microsoft defender",
+        "system component", "componente do sistema", "windows feature",
+        "feature on demand", "language pack", "pacote de idioma",
+        "optional feature", "recurso opcional"
     ];
 
     // Nomes de família (PackageFamilyName sem o sufixo hash do publisher) dos apps
@@ -72,7 +112,16 @@ public sealed class InstalledPackageClassifier(OfficeInstalledProductsDetector d
         "Microsoft.Windows.ParentalControls", "Microsoft.Windows.PeopleExperienceHost",
         "Microsoft.Windows.PinningConfirmationDialog", "Microsoft.Windows.PrintDialog",
         "Microsoft.549981C3F5F10", "MicrosoftWindows.Client.CBS", "MicrosoftWindows.Client.Core",
-        "MicrosoftWindows.Client.WebExperience"
+        "MicrosoftWindows.Client.WebExperience",
+        // Adicionados: Edge, Terminal, e outros apps do sistema comuns
+        "Microsoft.MicrosoftEdge", "Microsoft.Edge", "Microsoft.WindowsTerminal",
+        "Microsoft.WindowsTerminalPreview", "Microsoft.Paint", "Microsoft.WindowsPaint",
+        "Microsoft.ScreenSketch", "Microsoft.WindowsAppRuntime", "Microsoft.VCLibs",
+        "Microsoft.UI.Xaml", "Microsoft.NET", "Microsoft.WindowsAppRuntime",
+        "Microsoft.Windows.CallingShellApp", "Microsoft.Windows.ConnectNow",
+        "Microsoft.Windows.People", "Microsoft.Windows.ShareTarget",
+        "Microsoft.Windows.SecureAssessmentBrowser", "Microsoft.Windows.Spotlight",
+        "Microsoft.WindowsStore", "Microsoft.XboxApp", "Microsoft.YourPhone"
     ];
 
     // PackageFamilyName clássico: "Publicador.NomeDoApp_" + 13 caracteres em
@@ -93,6 +142,21 @@ public sealed class InstalledPackageClassifier(OfficeInstalledProductsDetector d
             return true;
 
         if (InboxAppFamilyPrefixes.Any(prefix => package.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+            return true;
+
+        // Filtro específico por nome para apps do sistema comuns
+        var systemAppNames = new[]
+        {
+            "bloco de notas", "windows notepad",
+            "calculadora", "windows calculator",
+            "microsoft edge", "windows terminal",
+            "windows defender", "segurança do windows", "windows security",
+            "windows firewall", "microsoft store", "windows store",
+            "windows camera", "gravador de som", "windows sound recorder",
+            "notas autoadesivas", "microsoft sticky notes"
+        };
+
+        if (systemAppNames.Any(name => value.Contains(name, StringComparison.Ordinal)))
             return true;
 
         // Componente da própria Microsoft sem nenhuma entrada clássica de
@@ -395,7 +459,10 @@ public sealed class InstalledPackagesService
                 resolved[index] = package with
                 {
                     IconUrl = iconUrl ?? IconService.DefaultIconPackUri,
-                    IsSystemComponent = InstalledPackageClassifier.IsSystemComponent(package, entry is not null)
+                    IsSystemComponent = InstalledPackageClassifier.IsSystemComponent(package, entry is not null),
+                    UninstallString = entry?.UninstallString ?? string.Empty,
+                    QuietUninstallString = entry?.QuietUninstallString ?? string.Empty,
+                    InstallLocation = entry?.InstallLocation ?? string.Empty
                 };
             }
             finally { gate.Release(); }
@@ -1340,11 +1407,13 @@ public sealed class InstalledPackagesService
                         string? displayIcon = key?.GetValue("DisplayIcon") as string;
                         string? installLocation = key?.GetValue("InstallLocation") as string;
                         string? uninstallString = key?.GetValue("UninstallString") as string;
+                        string? quietUninstallString = key?.GetValue("QuietUninstallString") as string;
                         if (!string.IsNullOrWhiteSpace(displayName))
                             result.Add(new UninstallEntry(hiveName, viewName, keyName,
                                 displayName, key!.GetValue("DisplayVersion") as string ?? string.Empty,
                                 string.IsNullOrWhiteSpace(displayIcon) ? string.Empty : NormalizeDisplayIcon(displayIcon),
-                                installLocation ?? string.Empty, uninstallString ?? string.Empty));
+                                installLocation ?? string.Empty, uninstallString ?? string.Empty,
+                                quietUninstallString ?? string.Empty));
                     }
                 }
                 catch (Exception ex)
@@ -1541,7 +1610,8 @@ public sealed class InstalledPackagesService
         string DisplayVersion,
         string DisplayIcon,
         string InstallLocation,
-        string UninstallString);
+        string UninstallString,
+        string QuietUninstallString);
 
     private static class NativeMethods
     {

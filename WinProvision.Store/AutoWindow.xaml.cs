@@ -1,9 +1,9 @@
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store;
 

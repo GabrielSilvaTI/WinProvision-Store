@@ -7,11 +7,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Microsoft.Win32;
-using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Converters;
 using WinProvision.Store.Services;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store.Controls;
 
@@ -28,12 +28,13 @@ public partial class AppDetailsOverlay : UserControl
     private readonly WingetExecutor _wingetExecutor;
     private readonly OperationsQueueService _queueService;
     private readonly InstalledAppsService _installedAppsService;
+    private readonly InstalledPackagesViewModel _installedPackagesViewModel;
     private AppEntry? _app;
     private string? _installLocation;
 
     public AppDetailsOverlay(AppDetailsOverlayService overlayService, PackageCollectionService collectionService,
         WingetExecutor wingetExecutor, OperationsQueueService queueService,
-        InstalledAppsService installedAppsService)
+        InstalledAppsService installedAppsService, InstalledPackagesViewModel installedPackagesViewModel)
     {
         InitializeComponent();
 
@@ -41,6 +42,7 @@ public partial class AppDetailsOverlay : UserControl
         _wingetExecutor = wingetExecutor;
         _queueService = queueService;
         _installedAppsService = installedAppsService;
+        _installedPackagesViewModel = installedPackagesViewModel;
 
         Visibility = Visibility.Collapsed;
         overlayService.Requested += Show;
@@ -436,23 +438,16 @@ public partial class AppDetailsOverlay : UserControl
 
         try
         {
-            var result = await OperationRunner.RunUninstallAsync(
-                _queueService, _wingetExecutor, app.Id, app.Name, app.IconUrl, _installedAppsService);
-
-            if (result.Success)
+            bool removed = await _installedPackagesViewModel.RemoveByIdentityAsync(app.Id, app.Name, app.IconUrl);
+            if (removed)
             {
-                // Dispara AppOnPropertyChanged -> UpdateInstallActionsVisibility, que volta
-                // a mostrar "Instalar" no lugar de "Abrir"/"Desinstalar" — só faz sentido se
-                // o painel ainda estiver mostrando esse mesmo app.
                 app.IsInstalled = false;
                 if (_app == app)
-                {
                     StatusText.Text = $"{app.Name} removido.";
-                }
             }
             else if (_app == app)
             {
-                StatusText.Text = WingetErrorTranslator.ToMessage(result.FailureReason, "desinstalar", app.Name);
+                StatusText.Text = $"Não foi possível desinstalar {app.Name}.";
             }
         }
         catch (Exception ex)

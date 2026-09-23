@@ -10,9 +10,6 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Wpf.Ui;
-using Wpf.Ui.Abstractions;
-using Wpf.Ui.Appearance;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Backup;
 using WinProvision.Core.Services.Office;
@@ -20,6 +17,9 @@ using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
 using WinProvision.Store.Controls;
 using WinProvision.Store.Services;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions;
+using Wpf.Ui.Appearance;
 
 namespace WinProvision.Store;
 
@@ -45,6 +45,7 @@ public partial class App : Application
             services.AddSingleton<IconService>();
             services.AddSingleton<StoreService>();
             services.AddSingleton<WingetExecutor>();
+            services.AddSingleton<WinProvision.Core.Services.UninstallerEngineService>();
             services.AddSingleton<WinProvisionApiService>();
             services.AddSingleton<PackageMetricsService>();
             services.AddSingleton<CacheService>();
@@ -71,6 +72,8 @@ public partial class App : Application
             services.AddSingleton<RestorePointService>();
             services.AddSingleton<CliPresetsService>();
             services.AddSingleton<AppDetailsOverlayService>();
+            services.AddSingleton<InstalledPackagesPage>();
+            services.AddSingleton<InstalledPackagesViewModel>();
             services.AddSingleton<AppDetailsOverlay>();
 
             // Backup local + nuvem (GitHub Gist secreto)
@@ -86,7 +89,6 @@ public partial class App : Application
 
             services.AddSingleton<HomePage>();
             services.AddTransient<PackagesPage>();
-            services.AddSingleton<InstalledPackagesPage>();
             services.AddSingleton<OfficePage>();
             services.AddSingleton<UpdatesPage>();
             services.AddSingleton<AccountSyncPage>();

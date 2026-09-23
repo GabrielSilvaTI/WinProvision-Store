@@ -171,7 +171,7 @@ public partial class HomePage : Page
     {
         foreach (AppEntry app in apps)
         {
-            app.IsInstalled = _installedAppsService.IsInstalled(app.Id);
+            app.IsInstalled = _installedAppsService.IsInstalled(app.Name);
         }
     }
 

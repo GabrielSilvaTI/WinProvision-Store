@@ -19,6 +19,7 @@
             <conv:NotFinishedToVisibilityConverter x:Key="NotFinishedToVisibilityConverter" />
             <conv:FinishedToVisibilityConverter x:Key="FinishedToVisibilityConverter" />
             <conv:OperationStateToBrushConverter x:Key="OperationStateToBrushConverter" />
+            <conv:OperationStateToBrushMultiConverter x:Key="OperationStateToBrushMultiConverter" />
             <conv:OperationStateToTextConverter x:Key="OperationStateToTextConverter" />
         </ResourceDictionary>
     </UserControl.Resources>
@@ -150,7 +151,8 @@
                                                          IsIndeterminate="{Binding IsIndeterminate}"
                                                          Minimum="0"
                                                          Maximum="100"
-                                                         conv:AnimatedProgress.Percent="{Binding Progress, Mode=OneWay}" />
+                                                         conv:AnimatedProgress.Percent="{Binding Progress, Mode=OneWay}"
+                                                         Tag="{Binding Method, Mode=OneWay}" />
                                         </StackPanel>
 
                                         <!--  Quando termina: resumo colorido no lugar da barra  -->
@@ -158,9 +160,17 @@
                                                    FontSize="11.5"
                                                    FontWeight="SemiBold"
                                                    Visibility="{Binding IsFinished, Converter={StaticResource FinishedToVisibilityConverter}}"
-                                                   Foreground="{Binding State, Converter={StaticResource OperationStateToBrushConverter}}"
-                                                   Text="{Binding State, Converter={StaticResource OperationStateToTextConverter}}"
-                                                   ToolTip="{Binding StatusText}" />
+                                                   ToolTip="{Binding StatusText}">
+                                            <TextBlock.Foreground>
+                                                <MultiBinding Converter="{StaticResource OperationStateToBrushMultiConverter}">
+                                                    <Binding Path="State" />
+                                                    <Binding Path="Method" />
+                                                </MultiBinding>
+                                            </TextBlock.Foreground>
+                                            <TextBlock.Text>
+                                                <Binding Path="State" Converter="{StaticResource OperationStateToTextConverter}" />
+                                            </TextBlock.Text>
+                                        </TextBlock>
                                     </StackPanel>
 
                                     <!--  CANCELAR  -->

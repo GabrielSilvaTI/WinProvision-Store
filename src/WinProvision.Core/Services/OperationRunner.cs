@@ -1,14 +1,19 @@
+using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using WinProvision.Core.Models;
 using WinProvision.Core.Models.Office;
+using WinProvision.Core.Services;
 using WinProvision.Core.Services.Office;
 
 namespace WinProvision.Core.Services;
 
 /// <summary>
-/// Enfileira e executa uma operação de instalação/remoção via winget, atualizando o
-/// <see cref="OperationItem"/> correspondente (status, progresso, cancelamento) que o
-/// painel flutuante (estilo UnigetUI) exibe em tempo real.
+/// Enfileira e executa uma operação de instalação/remoção via winget ou motor próprio, 
+/// atualizando o <see cref="OperationItem"/> correspondente (status, progresso, cancelamento) 
+/// que o painel flutuante (estilo UnigetUI) exibe em tempo real.
 /// </summary>
 public static partial class OperationRunner
 {
@@ -70,6 +75,15 @@ public static partial class OperationRunner
         {
             var onLogReceived = new Action<string>(line => ReportProgress(item, line));
             var onProgress = new Action<InstallProgressUpdate>(update => ReportInstallProgress(item, update));
+
+            // Se não há handler configurado, usa winget.exe diretamente
+            if (_installHandler is null)
+            {
+                item.Method = WingetMethod.WingetExe;
+                // Envia um progresso inicial para garantir que a cor seja aplicada
+                onProgress(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
+            }
+
             var result = _installHandler is null
                 ? await executor.InstallAppAsync(
                     appId,
@@ -98,7 +112,7 @@ public static partial class OperationRunner
 
             if (result.Success)
             {
-                installedAppsService?.MarkInstalled(appId);
+                installedAppsService?.MarkInstalled();
             }
             else if (item.State == OperationState.Failed)
             {
@@ -137,6 +151,16 @@ public static partial class OperationRunner
         try
         {
             var onLogReceived = new Action<string>(line => ReportProgress(item, line));
+            var onProgress = new Action<InstallProgressUpdate>(update => ReportInstallProgress(item, update));
+
+            // Se não há handler configurado, usa winget.exe diretamente
+            if (_updateHandler is null)
+            {
+                item.Method = WingetMethod.WingetExe;
+                // Envia um progresso inicial para garantir que a cor seja aplicada
+                onProgress(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
+            }
+
             var result = _updateHandler is null
                 ? await executor.UpdateAppAsync(
                     appId,
@@ -206,14 +230,10 @@ public static partial class OperationRunner
 
             if (result.Success)
             {
-                installedAppsService?.MarkUninstalled(appId);
+                installedAppsService?.MarkUninstalled();
             }
             else if (item.State == OperationState.Failed)
             {
-                // Sobrescreve a última linha crua do winget (ReportProgress deixou em
-                // item.StatusText) por uma mensagem fixa em pt-BR — sem isso, o painel de
-                // fila fica mostrando o texto do winget tal como ele imprimiu, que às vezes
-                // sai em inglês e às vezes em português dependendo da mensagem específica.
                 item.StatusText = WingetErrorTranslator.ToMessage(result.FailureReason, "desinstalar", appName);
             }
 
@@ -224,6 +244,201 @@ public static partial class OperationRunner
             item.State = item.CancellationTokenSource.IsCancellationRequested
                 ? OperationState.Canceled
                 : OperationState.Failed;
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Executa desinstalação com fallback automático: tenta desinstalação padrão primeiro,
+    /// e se falhar, tenta desinstalação agressiva. Cria apenas UM item na fila de operações.
+    /// </summary>
+    public static async Task<bool> RunUninstallWithFallbackAsync(
+        OperationsQueueService queue,
+        WingetExecutor executor,
+        UninstallerEngineService uninstallerEngine,
+        string appId,
+        string appName,
+        string iconUrl,
+        string uninstallString,
+        string quietUninstallString,
+        string installLocation,
+        InstalledAppsService? installedAppsService = null)
+    {
+        var item = queue.Enqueue(appName, OperationKind.Uninstall, iconUrl);
+        item.State = OperationState.Running;
+        item.StatusText = "Preparando remoção...";
+
+        try
+        {
+            // Tenta desinstalação padrão primeiro
+            var result = await executor.UninstallAppAsync(
+                appId,
+                onLogReceived: line => ReportProgress(item, line),
+                cancellationToken: item.CancellationTokenSource.Token);
+
+            if (result.Success)
+            {
+                item.Progress = 100;
+                item.State = OperationState.Completed;
+                item.StatusText = "Remoção concluída.";
+                installedAppsService?.MarkUninstalled();
+                return true;
+            }
+
+            // Fallback para desinstalação agressiva
+            item.StatusText = "Tentando método agressivo...";
+            item.IsIndeterminate = true;
+
+            var appDetail = new InstalledAppDetail
+            {
+                Id = appId,
+                DisplayName = appName,
+                DisplayVersion = string.Empty,
+                UninstallString = uninstallString,
+                QuietUninstallString = quietUninstallString,
+                InstallLocation = installLocation
+            };
+
+            bool aggressiveSuccess = await uninstallerEngine.UninstallAggressivelyAsync(appDetail, item.CancellationTokenSource.Token);
+
+            item.IsIndeterminate = false;
+            item.Progress = 100;
+
+            if (aggressiveSuccess)
+            {
+                item.State = OperationState.Completed;
+                item.StatusText = "Remoção concluída.";
+                installedAppsService?.MarkUninstalled();
+                return true;
+            }
+            else
+            {
+                item.State = OperationState.Failed;
+                item.StatusText = WingetErrorTranslator.ToMessage(result.FailureReason, "desinstalar", appName);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            item.State = item.CancellationTokenSource.IsCancellationRequested
+                ? OperationState.Canceled
+                : OperationState.Failed;
+            item.StatusText = $"Erro: {ex.Message}";
+            item.IsIndeterminate = false;
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Mesmo padrão de <see cref="RunUninstallAsync"/>, mas utiliza o novo motor agressivo.
+    /// Enfileira a operação no painel, força a injeção silenciosa e executa a limpeza
+    /// agressiva (pastas/registro) via UninstallerEngineService.
+    /// </summary>
+    public static async Task<bool> RunAggressiveUninstallAsync(
+        OperationsQueueService queue,
+        UninstallerEngineService uninstallerEngine,
+        InstalledAppDetail app,
+        string? iconUrl = null,
+        InstalledAppsService? installedAppsService = null)
+    {
+        var item = queue.Enqueue(app.DisplayName, OperationKind.Uninstall, iconUrl);
+
+        item.State = OperationState.Running;
+        item.StatusText = "Forçando remoção agressiva...";
+        item.IsIndeterminate = true;
+
+        try
+        {
+            // O UninstallerEngineService usa o Token para timeout e cancelamento
+            bool success = await uninstallerEngine.UninstallAggressivelyAsync(app, item.CancellationTokenSource.Token);
+
+            item.IsIndeterminate = false;
+            item.Progress = 100;
+
+            item.State = success
+                ? OperationState.Completed
+                : item.CancellationTokenSource.IsCancellationRequested
+                    ? OperationState.Canceled
+                    : OperationState.Failed;
+
+            if (success)
+            {
+                item.StatusText = "Remoção agressiva concluída.";
+                installedAppsService?.MarkUninstalled();
+            }
+            else if (item.State == OperationState.Failed)
+            {
+                item.StatusText = "Falha ao forçar a remoção ou permissão negada.";
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            item.State = item.CancellationTokenSource.IsCancellationRequested
+                ? OperationState.Canceled
+                : OperationState.Failed;
+
+            item.StatusText = $"Erro crítico: {ex.Message}";
+            item.IsIndeterminate = false;
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Executa a desinstalação forçada (Force Uninstall) quando o desinstalador padrão falha.
+    /// Usa detecção de processos, janelas e atalhos para identificar e remover o aplicativo
+    /// (estilo BCUninstaller Force Uninstall).
+    /// </summary>
+    public static async Task<bool> RunForceUninstallAsync(
+        OperationsQueueService queue,
+        UninstallerEngineService uninstallerEngine,
+        InstalledAppDetail app,
+        string? iconUrl = null,
+        InstalledAppsService? installedAppsService = null)
+    {
+        var item = queue.Enqueue(app.DisplayName, OperationKind.Uninstall, iconUrl);
+
+        item.State = OperationState.Running;
+        item.StatusText = "Executando Force Uninstall...";
+        item.IsIndeterminate = true;
+
+        try
+        {
+            // O UninstallerEngineService usa o ForceUninstallAsync
+            bool success = await uninstallerEngine.ForceUninstallAsync(app, item.CancellationTokenSource.Token);
+
+            item.IsIndeterminate = false;
+            item.Progress = 100;
+
+            item.State = success
+                ? OperationState.Completed
+                : item.CancellationTokenSource.IsCancellationRequested
+                    ? OperationState.Canceled
+                    : OperationState.Failed;
+
+            if (success)
+            {
+                item.StatusText = "Force Uninstall concluído.";
+                installedAppsService?.MarkUninstalled();
+            }
+            else if (item.State == OperationState.Failed)
+            {
+                item.StatusText = "Falha no Force Uninstall.";
+            }
+
+            return success;
+        }
+        catch (Exception ex)
+        {
+            item.State = item.CancellationTokenSource.IsCancellationRequested
+                ? OperationState.Canceled
+                : OperationState.Failed;
+
+            item.StatusText = $"Erro crítico: {ex.Message}";
+            item.IsIndeterminate = false;
+
             throw;
         }
     }
@@ -388,12 +603,6 @@ public static partial class OperationRunner
         var trimmed = logLine.Trim();
         item.DetailText = trimmed;
 
-        // Identifica a via atual (COM / API própria / winget.exe) só pelas mensagens que o
-        // próprio WinGetService/WinProvisionApiService já emite — nada de texto novo espalhado
-        // por lá. Isso não aparece pro usuário, só decide a cor da barra (ver
-        // GradientProgressBar.xaml). Uma vez identificada, a via "gruda" no item até a próxima
-        // mudança de camada (ex.: enquanto a API própria baixa e instala, várias linhas sem
-        // marcador nenhum continuam chegando — a cor não deve voltar ao padrão nelas).
         if (trimmed.Contains("[WinProvisionAPI]", StringComparison.Ordinal) ||
             trimmed.Contains("API própria", StringComparison.Ordinal))
         {
@@ -408,9 +617,6 @@ public static partial class OperationRunner
             item.Method = WingetMethod.WingetExe;
         }
 
-        // As mensagens acima existem pra decidir a via, não pra aparecer pro usuário final —
-        // ele só quer saber que a instalação/atualização está rolando. Troca por um texto
-        // neutro; o texto técnico completo continua disponível em DetailText (tooltip).
         var isLayerMessage =
             trimmed.Contains("API própria", StringComparison.Ordinal) ||
             trimmed.Contains("API COM", StringComparison.Ordinal) ||
@@ -419,9 +625,6 @@ public static partial class OperationRunner
 
         item.StatusText = isLayerMessage ? $"{item.KindLabel}..." : trimmed;
 
-        // O winget imprime o progresso do download/instalação como "NN%" em várias
-        // linhas da barra de progresso do console; quando encontramos um percentual,
-        // saímos do modo indeterminado e passamos a mostrar o valor real.
         var match = PercentRegex().Match(logLine);
         if (match.Success && int.TryParse(match.Groups[1].Value, out int percent))
         {
@@ -432,6 +635,12 @@ public static partial class OperationRunner
 
     private static void ReportInstallProgress(OperationItem item, InstallProgressUpdate update)
     {
+        // Atualiza o método se fornecido no update
+        if (update.Method != WingetMethod.Unknown)
+        {
+            item.Method = update.Method;
+        }
+
         switch (update.Phase)
         {
             case InstallProgressPhase.Downloading when update.Percent is int percent:
@@ -458,3 +667,5 @@ public static partial class OperationRunner
     [GeneratedRegex(@"(\d{1,3})\s?%")]
     private static partial Regex PercentRegex();
 }
+
+

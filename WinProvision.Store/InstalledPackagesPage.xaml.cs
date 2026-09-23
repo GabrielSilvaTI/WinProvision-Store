@@ -1,35 +1,39 @@
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store;
 
 public partial class InstalledPackagesPage : Page
 {
     private readonly InstalledPackagesViewModel _viewModel;
+
     public InstalledPackagesPage()
     {
         InitializeComponent();
-        _viewModel = new InstalledPackagesViewModel(
-            App.Services.GetRequiredService<Services.InstalledPackagesService>(),
-            App.Services.GetRequiredService<WinProvision.Core.Services.WingetExecutor>(),
-            App.Services.GetRequiredService<WinProvision.Core.Services.OperationsQueueService>(),
-            App.Services.GetRequiredService<WinProvision.Core.Services.Office.OfficeDeploymentToolService>(),
-            App.Services.GetRequiredService<WinProvision.Core.Services.Office.OfficeInstalledProductsDetector>(),
-            App.Services.GetRequiredService<Services.InstalledPackageClassifier>());
+
+        _viewModel = App.Services.GetRequiredService<InstalledPackagesViewModel>();
         DataContext = _viewModel;
         Loaded += async (_, _) => await _viewModel.LoadAsync();
+    }
+
+    private void SearchBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (sender is Wpf.Ui.Controls.TextBox box)
+            _viewModel.SearchText = box.Text ?? string.Empty;
     }
 
     private async void Remove_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new Wpf.Ui.Controls.MessageBox
         {
-            Title = "Remover pacotes",
-            Content = "Os itens selecionados serão removidos sequencialmente. Se houver Office selecionado, todas as versões do Office desta máquina serão removidas (não apenas uma versão Click-to-Run). Continuar?",
-            PrimaryButtonText = "Remover",
+            Title = "Desinstalar Selecionados",
+            Content = "Tem certeza que deseja desinstalar os itens selecionados?",
+            PrimaryButtonText = "Desinstalar",
             CloseButtonText = "Cancelar"
         };
+
         if (await dialog.ShowDialogAsync() == Wpf.Ui.Controls.MessageBoxResult.Primary)
             await _viewModel.RemoveSelectedAsync();
     }
@@ -53,12 +57,8 @@ public partial class InstalledPackagesPage : Page
         ListViewToggleButton.IsChecked = true;
     }
 
-    private void ToggleSelectAll_Click(object sender, RoutedEventArgs e)
-    {
-        bool select = _viewModel.Packages.Any(x => !x.IsSelected && x.CanRemove);
-        foreach (var package in _viewModel.Packages.Where(x => x.CanRemove))
-            package.IsSelected = select;
-    }
+    private void ToggleSelectAll_Click(object sender, RoutedEventArgs e) =>
+        _viewModel.ToggleSelectAll();
 
     private void SelectPackage_Click(object sender, RoutedEventArgs e)
     {

@@ -63,11 +63,11 @@
                                     <Border.Background>
                                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                             <GradientStop Offset="0.0"
-                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
+                                                          Color="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
                                             <GradientStop Offset="0.5"
-                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
+                                                          Color="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
                                             <GradientStop Offset="1.0"
-                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
+                                                          Color="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
                                             <LinearGradientBrush.RelativeTransform>
                                                 <TranslateTransform x:Name="DeterminateShimmerTransform" X="-1" />
                                             </LinearGradientBrush.RelativeTransform>
@@ -89,11 +89,11 @@
                                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                         <GradientStop Color="Transparent" Offset="0.0" />
                                         <GradientStop Offset="0.15"
-                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
+                                                      Color="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
                                         <GradientStop Offset="0.5"
-                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
+                                                      Color="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
                                         <GradientStop Offset="0.85"
-                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=B, FallbackValue={StaticResource GradientProgressColorB}}" />
+                                                      Color="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=B, FallbackValue={StaticResource GradientProgressColorB}}" />
                                         <GradientStop Color="Transparent" Offset="1.0" />
                                     </LinearGradientBrush>
                                 </Rectangle.Fill>

@@ -1,10 +1,10 @@
-using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using WinProvision.Core.Services;
 using WinProvision.Store.Models;
 

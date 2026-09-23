@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.InstalledPackagesPage"
+<Page x:Class="WinProvision.Store.InstalledPackagesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -9,23 +9,46 @@
       TextElement.FontSize="14"
       TextOptions.TextRenderingMode="ClearType"
       TextOptions.TextFormattingMode="Ideal"
+      TextOptions.TextHintingMode="Auto"
+      RenderOptions.ClearTypeHint="Enabled"
       UseLayoutRounding="True">
     <Page.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-        <Style x:Key="PageTitleStyle" TargetType="TextBlock">
+        <conv:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
+
+        <!--  Tipografia Fluent (Segoe UI Variable)  -->
+        <Style x:Key="PageTitleStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="26" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
         </Style>
-        <Style x:Key="CardTitleStyle" TargetType="TextBlock">
+
+        <Style x:Key="CardTitleStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="FontSize" Value="15" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
         </Style>
-        <Style x:Key="CardSubtitleStyle" TargetType="TextBlock">
+
+        <Style x:Key="CardSubtitleStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+
+        <!--  Cartão Base "Mica-Friendly"  -->
         <Style x:Key="CardStyle" TargetType="Border">
             <Setter Property="Padding" Value="{StaticResource Spacing20}" />
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
@@ -42,6 +65,21 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!--  Botões de Ação Uniformes  -->
+        <Style x:Key="ActionUniformButtonStyle"
+               TargetType="ui:Button"
+               BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+
         <Style x:Key="InstalledCardStyle" TargetType="Border">
             <Setter Property="Width" Value="214" />
             <Setter Property="Height" Value="248" />
@@ -63,7 +101,9 @@
             </Style.Triggers>
         </Style>
         <DataTemplate x:Key="InstalledGridTemplate">
-            <Border Style="{StaticResource InstalledCardStyle}" MouseLeftButtonUp="SelectPackage_Click">
+            <Border Style="{StaticResource InstalledCardStyle}"
+                    MouseLeftButtonUp="SelectPackage_Click"
+                    Visibility="{Binding IsSearchMatch, Converter={StaticResource BoolToVisibilityConverter}}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="20" />
@@ -129,11 +169,13 @@
         <DataTemplate x:Key="InstalledListTemplate">
             <Border Padding="12,10"
                     Margin="0,0,0,6"
+                    Visibility="{Binding IsSearchMatch, Converter={StaticResource BoolToVisibilityConverter}}"
                     MouseLeftButtonUp="SelectPackage_Click"
                     CornerRadius="{StaticResource OverlayCornerRadius}"
                     Background="{DynamicResource AppSurfaceBrush}"
                     BorderBrush="{DynamicResource AppBorderSubtleBrush}"
-                    BorderThickness="1">
+                    BorderThickness="1"
+                    Height="72">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -149,7 +191,7 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <Grid MinHeight="52">
+                <Grid Height="52">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -230,11 +272,7 @@
         <StackPanel Grid.Row="0"
                     Orientation="Horizontal"
                     Margin="0,0,0,24">
-            <ui:SymbolIcon Symbol="Box24"
-                           FontSize="30"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Margin="0,0,12,0"
-                           VerticalAlignment="Center" />
+            <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE71D;" />
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Pacotes Instalados" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="Consulte e remova os aplicativos instalados no computador."
@@ -247,12 +285,11 @@
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <StackPanel Orientation="Horizontal">
-                <ui:TextBox Width="280"
-                            PlaceholderText="Pesquisar aplicativos..."
-                            Icon="Search24"
-                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-            </StackPanel>
+            <ui:TextBox Width="280"
+                        PlaceholderText="Pesquisar aplicativos..."
+                        Icon="Search24"
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                        TextChanged="SearchBox_TextChanged" />
             <ui:Button Grid.Column="1"
                        Content="Atualizar"
                        Click="Refresh_Click"
@@ -318,14 +355,15 @@
                                        Margin="0,0,14,0" />
                             <ui:Button Content="Selecionar todos"
                                        Click="ToggleSelectAll_Click"
-                                       Padding="8,4" />
+                                       Padding="8,4" 
+                                       Margin="0,0,8,0" />
                         </StackPanel>
                     </Grid>
                     <Grid Grid.Row="1">
                         <ScrollViewer x:Name="GridViewScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       CanContentScroll="True">
-                            <ItemsControl ItemsSource="{Binding VisiblePackages}" ItemTemplate="{StaticResource InstalledGridTemplate}">
+                            <ItemsControl ItemsSource="{Binding Packages}" ItemTemplate="{StaticResource InstalledGridTemplate}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel Orientation="Horizontal" />
@@ -335,23 +373,33 @@
                         </ScrollViewer>
                         <ListView x:Name="ListViewScrollViewer"
                                   Visibility="Collapsed"
-                                  ItemsSource="{Binding VisiblePackages}"
+                                  ItemsSource="{Binding Packages}"
                                   ItemTemplate="{StaticResource InstalledListTemplate}"
                                   BorderThickness="0"
                                   Background="Transparent"
                                   ScrollViewer.CanContentScroll="True"
                                   VirtualizingPanel.IsVirtualizing="True"
                                   VirtualizingPanel.VirtualizationMode="Recycling"
-                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
                             <ListView.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <VirtualizingStackPanel />
                                 </ItemsPanelTemplate>
                             </ListView.ItemsPanel>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                    <Setter Property="Visibility" Value="{Binding IsSearchMatch, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
                         </ListView>
                         <StackPanel HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    Visibility="{Binding IsInitialLoading, Converter={StaticResource BoolToVisibilityConverter}}">
                             <ui:ProgressRing IsIndeterminate="True"
                                              Width="34"
                                              Height="34"
@@ -400,7 +448,7 @@
                                        Style="{StaticResource CardTitleStyle}"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="{Binding Packages.Count}"
+                        <TextBlock Text="{Binding VisibleCount}"
                                    FontSize="48"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
@@ -446,18 +494,17 @@
                                        Style="{StaticResource CardTitleStyle}"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <ui:Button Content="Remover selecionados"
+                        
+                        <ui:Button Content="Desinstalar Selecionados"
                                    Height="44"
                                    HorizontalAlignment="Stretch"
                                    IsEnabled="{Binding CanRemove}"
-                                   Click="Remove_Click">
+                                   Click="Remove_Click"
+                                   Margin="0,0,0,8">
                             <ui:Button.Icon>
                                 <ui:SymbolIcon Symbol="Delete24" />
                             </ui:Button.Icon>
                         </ui:Button>
-                        <TextBlock Text="O progresso detalhado aparece na fila de operações."
-                                   Style="{StaticResource CardSubtitleStyle}"
-                                   Margin="0,14,0,0" />
                     </StackPanel>
                 </Border>
             </StackPanel>

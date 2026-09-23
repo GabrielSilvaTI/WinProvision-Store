@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Windows;
+using WinProvision.Core.Services;
+using WinProvision.Store.Controls;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
-using WinProvision.Core.Services;
-using WinProvision.Store.Controls;
 
 namespace WinProvision.Store;
 
