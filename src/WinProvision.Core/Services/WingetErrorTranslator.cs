@@ -26,12 +26,21 @@ public enum WingetFailureReason
     /// <summary>Falhou por falta de privilégio (ex.: pacote em escopo machine) — candidato a retry elevado.</summary>
     ElevationRequired,
 
+    /// <summary>O instalador explicitamente não permite execução elevada (0x8A150056).</summary>
+    ElevationProhibited,
+
+    /// <summary>Falha no comando de desinstalação do instalador (0x8A150030); UniGetUI tenta uma vez elevado.</summary>
+    UninstallCommandFailed,
+
     /// <summary>Usuário recusou o prompt de UAC no retry elevado.</summary>
     ElevationCanceled,
+    /// <summary>O usuário cancelou o comando WinGet.</summary>
+    OperationCanceled,
     BlockedByPolicy,
     NoApplicableInstallers,
     PackageAgreementsNotAccepted,
     DownloadError,
+    InstallerHashMismatch,
     InstallError,
     CatalogError,
     InternalError,
@@ -65,6 +74,10 @@ public static class WingetErrorTranslator
     private const int InternalErrorCode = unchecked((int)0x8A150001);
     private const int SourceDataMissing = unchecked((int)0x8A15000F);
     private const int SourceOpenFailed = unchecked((int)0x8A150045);
+    private const int InstallerNeedsElevation = unchecked((int)0x8A150019);
+    private const int StorePackageNeedsElevation = unchecked((int)0x80073D28);
+    private const int UninstallNeedsElevation = unchecked((int)0x8A150030);
+    private const int InstallerProhibitsElevation = unchecked((int)0x8A150056);
 
     /// <summary>
     /// Classifica usando o texto E o exit code do winget. Prefira esta sobrecarga: o texto
@@ -85,9 +98,13 @@ public static class WingetErrorTranslator
         {
             NoApplicationsFound => WingetFailureReason.PackageNotInCatalog,
             NoApplicableInstaller => WingetFailureReason.NoApplicableInstallers,
-            DownloadFailed or InstallerHashMismatch => WingetFailureReason.DownloadError,
+            DownloadFailed => WingetFailureReason.DownloadError,
+            InstallerHashMismatch => WingetFailureReason.InstallerHashMismatch,
             PackageAgreementsNotAcceptedCode => WingetFailureReason.PackageAgreementsNotAccepted,
             SourceDataMissing or SourceOpenFailed => WingetFailureReason.CatalogError,
+            InstallerNeedsElevation or StorePackageNeedsElevation => WingetFailureReason.ElevationRequired,
+            UninstallNeedsElevation => WingetFailureReason.UninstallCommandFailed,
+            InstallerProhibitsElevation => WingetFailureReason.ElevationProhibited,
             InternalErrorCode => WingetFailureReason.InternalError,
             _ => WingetFailureReason.Unknown,
         };
@@ -132,6 +149,9 @@ public static class WingetErrorTranslator
             return WingetFailureReason.ElevationRequired;
         }
 
+        if (Contains(output, "0x8A150056") || Contains(output, "prohibits elevation") || Contains(output, "proíbe elevação"))
+            return WingetFailureReason.ElevationProhibited;
+
         return WingetFailureReason.Unknown;
     }
 
@@ -142,42 +162,51 @@ public static class WingetErrorTranslator
     public static string ToMessage(WingetFailureReason reason, string verb, string appName) => reason switch
     {
         WingetFailureReason.UserScopeElevationConflict =>
-            $"Não foi possível {verb} \"{appName}\": feche a Store e rode sem \"Executar como administrador\".",
+            $"Não foi possível {verb} \"{appName}\". Feche o WinProvision e abra-o sem \"Executar como administrador\".",
 
         WingetFailureReason.NoPackageFound =>
-            $"\"{appName}\" não foi encontrado como instalado (já removido, ou o ID mudou).",
+            $"\"{appName}\" não está instalado.",
 
         WingetFailureReason.PackageNotInCatalog =>
-            $"Falha ao {verb} \"{appName}\": pacote não encontrado no catálogo do WinGet (o ID pode ter mudado ou sido removido).",
+            $"\"{appName}\" não foi encontrado no catálogo. Atualize a lista e tente novamente.",
 
         WingetFailureReason.ElevationRequired =>
-            $"Falha ao {verb} \"{appName}\": requer privilégios de administrador.",
+            $"\"{appName}\" requer permissão de administrador.",
 
         WingetFailureReason.ElevationCanceled =>
-            $"{Capitalize(verb)} de \"{appName}\" cancelada: elevação (UAC) recusada.",
+            $"{Capitalize(verb)} de \"{appName}\" cancelada. Autorize no aviso do Windows para continuar.",
+
+        WingetFailureReason.OperationCanceled =>
+            $"{Capitalize(verb)} de \"{appName}\" cancelada.",
+
+        WingetFailureReason.ElevationProhibited =>
+            $"O instalador de \"{appName}\" não permite execução como administrador. Abra o WinProvision sem elevação.",
 
         WingetFailureReason.BlockedByPolicy =>
-            $"Falha ao {verb} \"{appName}\": operação bloqueada por política do sistema.",
+            $"O sistema bloqueou a operação para \"{appName}\".",
 
         WingetFailureReason.NoApplicableInstallers =>
-            $"Falha ao {verb} \"{appName}\": não há instalador compatível para este dispositivo.",
+            $"Não há instalador compatível com este computador para \"{appName}\".",
 
         WingetFailureReason.PackageAgreementsNotAccepted =>
-            $"Falha ao {verb} \"{appName}\": os acordos do pacote não foram aceitos.",
+            $"Aceite os termos de \"{appName}\" e tente novamente.",
 
         WingetFailureReason.DownloadError =>
-            $"Falha ao {verb} \"{appName}\": erro ao baixar o instalador.",
+            $"Não foi possível baixar \"{appName}\". Tente novamente.",
+
+        WingetFailureReason.InstallerHashMismatch =>
+            $"A verificação de segurança de \"{appName}\" falhou. O instalador não foi executado.",
 
         WingetFailureReason.InstallError =>
-            $"Falha ao {verb} \"{appName}\": o instalador retornou um erro.",
+            $"O instalador de \"{appName}\" encontrou um erro.",
 
         WingetFailureReason.CatalogError =>
-            $"Falha ao {verb} \"{appName}\": erro no catálogo do WinGet.",
+            "Não foi possível acessar o catálogo. Tente novamente.",
 
         WingetFailureReason.InternalError =>
-            $"Falha ao {verb} \"{appName}\": erro interno do WinGet.",
+            $"Não foi possível {verb} \"{appName}\". Tente novamente.",
 
-        _ => $"Falha ao {verb} \"{appName}\". Veja o log da operação para detalhes.",
+        _ => $"Não foi possível {verb} \"{appName}\". Confira os detalhes da operação.",
     };
 
     private static string Capitalize(string s) => string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];

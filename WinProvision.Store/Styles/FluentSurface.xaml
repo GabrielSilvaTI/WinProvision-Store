@@ -10,13 +10,27 @@
     <SolidColorBrush x:Key="FluentAccentSoftBrush" Color="#604A8DCE" />
     <SolidColorBrush x:Key="FluentTextMutedBrush" Color="#B8C5D6" />
 
+    <!-- Shared page rhythm: one content gutter and one header-to-content gap. -->
+    <Thickness x:Key="PageContentMargin">28,20,28,20</Thickness>
+    <Thickness x:Key="PageHeaderMargin">0,0,0,20</Thickness>
+    <Thickness x:Key="PageSectionGap">0,0,0,12</Thickness>
+
     <Style x:Key="FluentPageTitleStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
-        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontSize" Value="26" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="FluentPageIconStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource PageHeaderIconStyle}">
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
     </Style>
 
     <Style x:Key="FluentPageSubtitleStyle"
@@ -29,7 +43,7 @@
     </Style>
 
     <Style x:Key="FluentCardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource FluentPanelBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource FluentPanelBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
@@ -37,9 +51,9 @@
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#000000"
-                                  Opacity="0.22"
-                                  BlurRadius="22"
-                                  ShadowDepth="4"
+                                  Opacity="0.14"
+                                  BlurRadius="18"
+                                  ShadowDepth="2"
                                   Direction="270" />
             </Setter.Value>
         </Setter>

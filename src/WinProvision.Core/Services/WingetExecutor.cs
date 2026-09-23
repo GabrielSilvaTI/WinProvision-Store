@@ -4,6 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
+#if WINDOWS
+using System.Security.Principal;
+#endif
 using WinProvision.Core.Models;
 
 namespace WinProvision.Core.Services;
@@ -13,6 +16,7 @@ public class WingetExecutionResult
     public bool Success { get; set; }
     public int ExitCode { get; set; }
     public string Output { get; set; } = string.Empty;
+    public bool WasElevated { get; set; }
 
     /// <summary>
     /// Motivo canônico da falha (ver <see cref="WingetErrorTranslator"/>), já classificado a
@@ -48,7 +52,11 @@ public class WingetExecutor
         Action<string>? onLogReceived = null,
         CancellationToken cancellationToken = default,
         string? installLocation = null,
-        string source = "winget")
+        string source = "winget",
+        string? scope = null,
+        string? architecture = null,
+        bool requiresElevation = false,
+        bool elevationProhibited = false)
     {
         // Mesma garantia do /auto (ver WingetBootstrapper/AutoInstallCliService), só que pro
         // caminho da UI (usuário clicando "Instalar" no executável, sem CLI): a primeira
@@ -80,7 +88,20 @@ public class WingetExecutor
         // fixam a source por esse mesmo motivo — faltava só aqui. --disable-interactivity
         // evita qualquer prompt de confirmação de source ficar esperando input que nunca
         // chega (stdin não é redirecionado nesse Process).
+        if (elevationProhibited && IsCurrentProcessElevated())
+            return new WingetExecutionResult
+            {
+                Success = false,
+                ExitCode = unchecked((int)0x8A150056),
+                Output = "O instalador não permite execução em contexto elevado.",
+                FailureReason = WingetFailureReason.ElevationProhibited
+            };
+
         string args = $"install --id \"{appId}\" --exact --source {source} --silent --disable-interactivity";
+        string? normalizedScope = NormalizeScope(scope);
+        string? normalizedArchitecture = NormalizeArchitecture(architecture);
+        if (normalizedScope is not null) args += $" --scope {normalizedScope}";
+        if (normalizedArchitecture is not null) args += $" --architecture {normalizedArchitecture}";
 
         if (!string.IsNullOrWhiteSpace(installLocation))
         {
@@ -88,13 +109,22 @@ public class WingetExecutor
         }
 
         args += " --accept-source-agreements --accept-package-agreements";
-        return await ExecuteWithElevationFallbackAsync(args, onLogReceived, cancellationToken);
+        var result = await ExecuteInstallWithRecoveryAsync(
+            args, onLogReceived, cancellationToken, normalizedScope, normalizedArchitecture,
+            requiresElevation && !elevationProhibited);
+
+        return NormalizeInstallOutcome(result);
     }
 
     /// <summary>
     /// Desinstala um pacote silenciosamente.
     /// </summary>
-    public async Task<WingetExecutionResult> UninstallAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default)
+    public async Task<WingetExecutionResult> UninstallAppAsync(
+        string appId,
+        Action<string>? onLogReceived = null,
+        CancellationToken cancellationToken = default,
+        string? source = null,
+        string? installedVersion = null)
     {
         // Mesma garantia do InstallAppAsync (ver comentário lá) — faltava aqui. Sem essa
         // checagem, se a desinstalação for a primeira operação da sessão (winget ainda não
@@ -130,7 +160,27 @@ public class WingetExecutor
         // instalado nesse escopo explicitamente, e ExecuteWithElevationFallbackAsync já
         // pede UAC pontual se for isso que falta). Cada tentativa é sequencial e para no
         // primeiro sucesso.
-        string baseArgs = $"uninstall --id \"{appId}\" --exact --silent --disable-interactivity --accept-source-agreements";
+        if (!IsSafeUninstallValue(appId))
+        {
+            return new WingetExecutionResult
+            {
+                Success = false,
+                ExitCode = -1,
+                Output = "O identificador do pacote contém caracteres inválidos."
+            };
+        }
+
+        bool hasVersion = !string.IsNullOrWhiteSpace(installedVersion)
+            && !installedVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+            && IsSafeUninstallValue(installedVersion);
+        bool hasSource = !string.IsNullOrWhiteSpace(source)
+            && !source.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+            && IsSafeUninstallValue(source);
+        string? effectiveVersion = hasVersion ? installedVersion : null;
+        string baseArgs = BuildUninstallArguments(appId, true,
+            effectiveVersion, hasSource ? source : null);
+        string sourceIndependentArgs = BuildUninstallArguments(appId, true,
+            effectiveVersion);
 
         var result = await ExecuteWithElevationFallbackAsync(baseArgs, onLogReceived, cancellationToken);
         if (result.Success || cancellationToken.IsCancellationRequested)
@@ -141,6 +191,26 @@ public class WingetExecutor
         {
             result.FailureReason = WingetErrorTranslator.Classify(result.ExitCode, result.Output);
         }
+
+        // UniGetUI faz um único retry elevado quando o comando de uninstall falha com
+        // APPINSTALLER_CLI_ERROR_EXEC_UNINSTALL_COMMAND_FAILED. Esse código é genérico,
+        // portanto não pedimos UAC em cada fallback: só testamos uma vez e seguimos com
+        // as demais estratégias se o comando elevado falhar.
+        if (result.FailureReason == WingetFailureReason.UninstallCommandFailed && !IsCurrentProcessElevated())
+        {
+            onLogReceived?.Invoke("A remoção exige uma tentativa com privilégios elevados...");
+            var elevatedRetry = await ElevatedProcessRunner.RunElevatedAsync(
+                WingetLocator.ExecutablePath, baseArgs, cancellationToken);
+            if (elevatedRetry.Success || elevatedRetry.FailureReason == WingetFailureReason.ElevationCanceled
+                || cancellationToken.IsCancellationRequested)
+                return elevatedRetry;
+            if (elevatedRetry.FailureReason == WingetFailureReason.Unknown)
+                elevatedRetry.FailureReason = WingetErrorTranslator.Classify(elevatedRetry.ExitCode, elevatedRetry.Output);
+            result = elevatedRetry;
+        }
+
+        if (IsElevationTerminal(result.FailureReason))
+            return result;
 
         // UserScopeElevationConflict só deve aparecer se a Store for lançada elevada por
         // fora (ex.: "Executar como administrador" no menu de contexto) — por padrão ela
@@ -154,10 +224,66 @@ public class WingetExecutor
             return result;
         }
 
+        // A listagem instalada pode conhecer um identificador diferente do catálogo
+        // (por exemplo, quando o manifesto foi renomeado). O UniGetUI consulta o ID
+        // local e repete a remoção com ele antes de recorrer a heurísticas pelo nome.
+        // UniGetUI retries without an installed-version pin when the manifest lookup
+        // specifically reports that no matching version exists.
+        if (hasVersion && unchecked((uint)result.ExitCode) == 0x8A150017)
+        {
+            string noVersionArgs = BuildUninstallArguments(appId, true, null);
+            var noVersionResult = await ExecuteWithElevationFallbackAsync(noVersionArgs, onLogReceived, cancellationToken);
+            if (noVersionResult.Success || cancellationToken.IsCancellationRequested || IsElevationTerminal(noVersionResult.FailureReason))
+                return noVersionResult;
+            result = noVersionResult;
+            sourceIndependentArgs = BuildUninstallArguments(appId, true, null);
+        }
+
+        UpgradablePackage? localPackage = null;
+        if (result.FailureReason == WingetFailureReason.NoPackageFound)
+        {
+            var listResult = await ExecuteWingetCommandAsync(
+                $"list --id \"{appId}\" --exact --disable-interactivity --accept-source-agreements",
+                onLogReceived: null,
+                cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+                return result;
+            localPackage = WingetUpgradeListParser.Parse(listResult.Output).FirstOrDefault();
+        }
+
+        if (localPackage is not null)
+        {
+            bool localIdDiffers = !string.IsNullOrWhiteSpace(localPackage.Id)
+                && !localPackage.Id.Equals(appId, StringComparison.OrdinalIgnoreCase)
+                && IsSafeUninstallValue(localPackage.Id);
+            if (localIdDiffers)
+            {
+                string localSource = IsSafeUninstallValue(localPackage.Source) ? localPackage.Source : string.Empty;
+                string localIdArgs = BuildUninstallArguments(localPackage.Id, true, null,
+                    localSource.Length > 0 ? localSource : null);
+                var localIdResult = await ExecuteWithElevationFallbackAsync(localIdArgs, onLogReceived, cancellationToken);
+                if (localIdResult.Success || cancellationToken.IsCancellationRequested || IsElevationTerminal(localIdResult.FailureReason))
+                    return localIdResult;
+                result = localIdResult;
+            }
+
+        }
+
+        // UniGetUI scopes package operations to the package's source. WinGet can fail to
+        // correlate a source for installed packages, so retry without it before changing
+        // scope or falling back to the installed display name.
+        if (hasSource)
+        {
+            var sourceIndependentResult = await ExecuteWithElevationFallbackAsync(sourceIndependentArgs, onLogReceived, cancellationToken);
+            if (sourceIndependentResult.Success || cancellationToken.IsCancellationRequested || IsElevationTerminal(sourceIndependentResult.FailureReason))
+                return sourceIndependentResult;
+            result = sourceIndependentResult;
+        }
+
         foreach (string scope in new[] { "user", "machine" })
         {
-            var scopedResult = await ExecuteWingetCommandAsync($"{baseArgs} --scope {scope}", onLogReceived, cancellationToken);
-            if (scopedResult.Success || cancellationToken.IsCancellationRequested)
+            var scopedResult = await ExecuteWithElevationFallbackAsync($"{sourceIndependentArgs} --scope {scope}", onLogReceived, cancellationToken);
+            if (scopedResult.Success || cancellationToken.IsCancellationRequested || IsElevationTerminal(scopedResult.FailureReason))
             {
                 return scopedResult;
             }
@@ -181,23 +307,14 @@ public class WingetExecutor
         // Name vem direto da própria entrada local, sem depender dessa correlação. Por
         // isso, buscamos o Name local via "winget list --id X --exact" e tentamos de novo
         // com ele.
-        var listResult = await ExecuteWingetCommandAsync(
-            $"list --id \"{appId}\" --exact --disable-interactivity --accept-source-agreements",
-            onLogReceived: null,
-            cancellationToken);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            return result;
-        }
-
-        string? localName = WingetUpgradeListParser.Parse(listResult.Output).FirstOrDefault()?.Name;
+        string? localName = localPackage?.Name;
         if (string.IsNullOrWhiteSpace(localName) || localName == appId)
         {
             return result;
         }
 
-        string nameArgs = $"uninstall \"{localName}\" --exact --silent --disable-interactivity --accept-source-agreements";
+        string nameArgs = BuildUninstallArguments(localName, false, null,
+            hasSource ? source : localPackage?.Source);
         var byNameResult = await ExecuteWithElevationFallbackAsync(nameArgs, onLogReceived, cancellationToken);
         if (byNameResult.Success)
         {
@@ -209,10 +326,42 @@ public class WingetExecutor
             byNameResult.FailureReason = WingetErrorTranslator.Classify(byNameResult.ExitCode, byNameResult.Output);
         }
 
-        return byNameResult.FailureReason is WingetFailureReason.UserScopeElevationConflict or WingetFailureReason.ElevationCanceled
+        return IsElevationTerminal(byNameResult.FailureReason)
             ? byNameResult
             : result;
     }
+
+    private static bool IsElevationTerminal(WingetFailureReason reason) => reason is
+        WingetFailureReason.UserScopeElevationConflict or
+        WingetFailureReason.ElevationCanceled or
+        WingetFailureReason.ElevationProhibited;
+
+    private static bool IsCurrentProcessElevated()
+    {
+#if WINDOWS
+        using var identity = WindowsIdentity.GetCurrent();
+        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
+#else
+        return false;
+#endif
+    }
+
+    private static string BuildUninstallArguments(string selector, bool byId, string? version = null, string? source = null)
+    {
+        string args = byId
+            ? $"uninstall --id \"{selector}\" --exact"
+            : $"uninstall \"{selector}\" --exact";
+        if (!string.IsNullOrWhiteSpace(source))
+            args += $" --source \"{source}\"";
+        if (!string.IsNullOrWhiteSpace(version))
+            args += $" --version \"{version}\"";
+        return args + " --silent --disable-interactivity --accept-source-agreements";
+    }
+
+    private static bool IsSafeUninstallValue(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value.Length <= 256
+        && value.IndexOfAny(['"', '\'', ';', '|', '&', '<', '>', '`', '\n', '\r', '$']) < 0;
 
     /// <summary>
     /// Atualiza um pacote específico via "winget update" (alias de "winget upgrade"),
@@ -221,7 +370,15 @@ public class WingetExecutor
     /// ele não consegue detectar com certeza) e --force (ignora hash mismatch/instalador
     /// já baixado em cache desatualizado).
     /// </summary>
-    public async Task<WingetExecutionResult> UpdateAppAsync(string appId, Action<string>? onLogReceived = null, CancellationToken cancellationToken = default, string source = "winget")
+    public async Task<WingetExecutionResult> UpdateAppAsync(
+        string appId,
+        Action<string>? onLogReceived = null,
+        CancellationToken cancellationToken = default,
+        string source = "winget",
+        string? scope = null,
+        string? architecture = null,
+        bool requiresElevation = false,
+        bool elevationProhibited = false)
     {
         // Mesma garantia do InstallAppAsync (ver comentário lá) — cobre quem chega direto
         // na tela Atualizações antes de qualquer instalação ter disparado o bootstrap.
@@ -236,8 +393,25 @@ public class WingetExecutor
             };
         }
 
+        if (elevationProhibited && IsCurrentProcessElevated())
+            return new WingetExecutionResult
+            {
+                Success = false,
+                ExitCode = unchecked((int)0x8A150056),
+                Output = "O instalador não permite execução em contexto elevado.",
+                FailureReason = WingetFailureReason.ElevationProhibited
+            };
+
         string args = $"update --id \"{appId}\" --exact --source {source} --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force";
-        return await ExecuteWithElevationFallbackAsync(args, onLogReceived, cancellationToken);
+        string? normalizedScope = NormalizeScope(scope);
+        string? normalizedArchitecture = NormalizeArchitecture(architecture);
+        if (normalizedScope is not null) args += $" --scope {normalizedScope}";
+        if (normalizedArchitecture is not null) args += $" --architecture {normalizedArchitecture}";
+        var result = await ExecuteInstallWithRecoveryAsync(
+            args, onLogReceived, cancellationToken, normalizedScope, normalizedArchitecture,
+            requiresElevation && !elevationProhibited);
+
+        return NormalizeInstallOutcome(result);
     }
 
     /// <summary>
@@ -248,8 +422,21 @@ public class WingetExecutor
     /// (prompt de UAC pontual), em vez de exigir que a Store inteira rode como Administrador.
     /// </summary>
     private static async Task<WingetExecutionResult> ExecuteWithElevationFallbackAsync(
-        string arguments, Action<string>? onLogReceived, CancellationToken cancellationToken)
+        string arguments,
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken,
+        bool forceElevation = false)
     {
+        if (forceElevation && !IsCurrentProcessElevated())
+        {
+            onLogReceived?.Invoke("O instalador requer privilégios de administrador; solicitando autorização...");
+            var forcedResult = await ElevatedProcessRunner.RunElevatedAsync(
+                WingetLocator.ExecutablePath, arguments, cancellationToken);
+            if (!forcedResult.Success && forcedResult.FailureReason == WingetFailureReason.Unknown)
+                forcedResult.FailureReason = WingetErrorTranslator.Classify(forcedResult.ExitCode, forcedResult.Output);
+            return forcedResult;
+        }
+
         var result = await ExecuteWingetCommandAsync(arguments, onLogReceived, cancellationToken);
         if (result.Success || cancellationToken.IsCancellationRequested)
         {
@@ -271,6 +458,88 @@ public class WingetExecutor
 
         return elevatedResult;
     }
+
+    private static async Task<WingetExecutionResult> ExecuteInstallWithRecoveryAsync(
+        string arguments,
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken,
+        string? scope,
+        string? architecture,
+        bool forceElevation)
+    {
+        string effectiveArguments = arguments;
+        var result = await ExecuteWithElevationFallbackAsync(
+            effectiveArguments, onLogReceived, cancellationToken, forceElevation);
+
+        if (!result.Success && result.FailureReason == WingetFailureReason.NoApplicableInstallers
+            && !result.WasElevated && !forceElevation
+            && (scope is not null || architecture is not null))
+        {
+            onLogReceived?.Invoke("O escopo ou a arquitetura escolhidos não se aplicam; tentando a seleção automática do WinGet...");
+            effectiveArguments = arguments
+                .Replace($" --scope {scope}", string.Empty, StringComparison.Ordinal)
+                .Replace($" --architecture {architecture}", string.Empty, StringComparison.Ordinal);
+            result = await ExecuteWithElevationFallbackAsync(
+                effectiveArguments, onLogReceived, cancellationToken, forceElevation);
+        }
+
+        // Falha de download ocorre antes de o instalador ser iniciado. Faça um retry único
+        // para falhas de rede transitórias; nunca repita depois de elevar ou após erro de hash.
+        if (!result.Success && !result.WasElevated && !forceElevation
+            && !cancellationToken.IsCancellationRequested
+            && unchecked((uint)result.ExitCode) == 0x8A150008)
+        {
+            onLogReceived?.Invoke("O download falhou; tentando novamente uma vez...");
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken).ConfigureAwait(false);
+            result = await ExecuteWithElevationFallbackAsync(
+                effectiveArguments, onLogReceived, cancellationToken, forceElevation: false);
+        }
+
+        return result;
+    }
+
+    private static WingetExecutionResult NormalizeInstallOutcome(WingetExecutionResult result)
+    {
+        if (result.Success)
+            return result;
+
+        uint code = unchecked((uint)result.ExitCode);
+        if (code is 0x8A150109 or 0x8A15010B or 0x8A15010D or 0x8A15010E or 0x8A15004F)
+        {
+            result.Success = true;
+            result.FailureReason = WingetFailureReason.Unknown;
+            result.Output = code switch
+            {
+                0x8A150109 => "Instalação concluída; é necessário reiniciar o computador.",
+                0x8A15010B => "A instalação foi concluída e o computador está reiniciando.",
+                0x8A15010D => "O aplicativo já está instalado.",
+                _ => "A versão instalada já é igual ou mais recente."
+            };
+            return result;
+        }
+
+        if (code is 0x8A150005 or 0x8A15010C)
+            result.FailureReason = WingetFailureReason.OperationCanceled;
+        else if (result.FailureReason == WingetFailureReason.Unknown)
+            result.FailureReason = WingetErrorTranslator.Classify(result.ExitCode, result.Output);
+        return result;
+    }
+
+    private static string? NormalizeScope(string? scope) => scope?.Trim().ToLowerInvariant() switch
+    {
+        "user" => "user",
+        "machine" or "system" => "machine",
+        _ => null
+    };
+
+    private static string? NormalizeArchitecture(string? architecture) => architecture?.Trim().ToLowerInvariant() switch
+    {
+        "x86" => "x86",
+        "x64" => "x64",
+        "arm64" => "arm64",
+        "arm" => "arm",
+        _ => null
+    };
 
     /// <summary>
     /// Lista os pacotes com atualização pendente ("winget upgrade"). Diferente de
@@ -302,6 +571,14 @@ public class WingetExecutor
         // como "log" de progresso; o parsing estruturado é feito por WingetUpgradeListParser
         // logo abaixo. onLogReceived serve só pro bootstrap (chamado acima).
         var result = await ExecuteWingetCommandAsync(args, onLogReceived: null, cancellationToken);
+
+        if (!result.Success)
+        {
+            string detail = string.IsNullOrWhiteSpace(result.Output)
+                ? $"código {result.ExitCode}"
+                : result.Output.Trim();
+            throw new InvalidOperationException($"Não foi possível consultar atualizações pelo WinGet: {detail}");
+        }
 
         return WingetUpgradeListParser.Parse(result.Output);
     }
@@ -373,6 +650,17 @@ public class WingetExecutor
     /// </summary>
     public async Task<List<string>> GetInstalledPackageIdsAsync(CancellationToken cancellationToken = default)
     {
+        var snapshot = await TryGetInstalledPackageIdsAsync(cancellationToken);
+        return snapshot.PackageIds;
+    }
+
+    /// <summary>
+    /// Reads the installed package snapshot from winget export and distinguishes a valid
+    /// empty inventory from a failed export, so callers can safely fall back to another source.
+    /// </summary>
+    public async Task<(bool Succeeded, List<string> PackageIds)> TryGetInstalledPackageIdsAsync(
+        CancellationToken cancellationToken = default)
+    {
         string tempFile = Path.Combine(Path.GetTempPath(), $"winprovision-export-{Guid.NewGuid():N}.json");
 
         try
@@ -381,10 +669,20 @@ public class WingetExecutor
             var result = await ExecuteWingetCommandAsync(args, onLogReceived: null, cancellationToken);
 
             if (!result.Success || !File.Exists(tempFile))
-                return [];
+                return (false, []);
 
             string json = await File.ReadAllTextAsync(tempFile, cancellationToken);
-            return ParseInstalledIdsFromExportJson(json);
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("Sources", out var sources)
+                || sources.ValueKind != JsonValueKind.Array)
+                return (false, []);
+
+            return (true, ParseInstalledIdsFromExportJson(json));
+        }
+        catch (JsonException)
+        {
+            return (false, []);
         }
         finally
         {

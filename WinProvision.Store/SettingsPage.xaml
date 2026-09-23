@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.SettingsPage"
+<Page x:Class="WinProvision.Store.SettingsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -38,7 +38,7 @@
         </Style>
 
         <!--  Cartão de Configurações (Estilo Lista do Win11)  -->
-        <Style x:Key="SettingsCardStyle" TargetType="Border">
+        <Style x:Key="SettingsCardStyle" TargetType="Border" BasedOn="{StaticResource FluentCardStyle}">
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
@@ -76,9 +76,9 @@
     </Page.Resources>
 
     <Border Background="Transparent"
-            Margin="36,24,36,24"
+            Margin="{StaticResource PageContentMargin}"
             CornerRadius="{StaticResource OverlayCornerRadius}">
-        <Grid Margin="36,24,36,24">
+        <Grid Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -89,10 +89,10 @@
             <StackPanel Grid.Row="0"
                         Orientation="Horizontal"
                         Margin="0,0,0,32">
-                <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE713;" />
+                <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE713;" />
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Configurações" Style="{StaticResource PageTitleStyle}" />
-                    <TextBlock Text="Aparência e manutenção do aplicativo."
+                    <TextBlock Text="Personalize o aplicativo."
                                Style="{StaticResource CardSubtitleStyle}"
                                Margin="0,4,0,0" />
                 </StackPanel>
@@ -119,7 +119,7 @@
                                             VerticalAlignment="Center"
                                             Margin="0,0,24,0">
                                     <TextBlock Text="Tema do Aplicativo" Style="{StaticResource SettingsRowTitleStyle}" />
-                                    <TextBlock Text="Escolha entre o tema claro ou escuro para a interface." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                    <TextBlock Text="Escolha um tema para o aplicativo." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal"
@@ -148,6 +148,35 @@
                         </StackPanel>
                     </Border>
 
+                    <!--  Método preferido para instalações  -->
+                    <Border Style="{StaticResource SettingsCardStyle}">
+                        <Grid Margin="24,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0"
+                                        Margin="0,0,24,0"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Método de instalação" Style="{StaticResource SettingsRowTitleStyle}" />
+                                <TextBlock x:Name="InstallMethodDescriptionText"
+                                           Text="Automático tenta outros métodos se uma instalação falhar."
+                                           Style="{StaticResource SettingsRowSubtitleStyle}" />
+                            </StackPanel>
+                            <ComboBox x:Name="InstallMethodComboBox"
+                                      Grid.Column="1"
+                                      Width="230"
+                                      MinHeight="38"
+                                      VerticalAlignment="Center"
+                                      SelectionChanged="InstallMethodComboBox_SelectionChanged">
+                                <ComboBoxItem Content="Automático (recomendado)" Tag="Automatic" />
+                                <ComboBoxItem Content="API COM do WinGet" Tag="ComApi" />
+                                <ComboBoxItem Content="API da WinProvision Store" Tag="WinProvisionApi" />
+                                <ComboBoxItem Content="WinGet CLI" Tag="WingetCli" />
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+
                     <!--  2. Cache local  -->
                     <Border Style="{StaticResource SettingsCardStyle}">
                         <Grid Margin="24,16">
@@ -159,7 +188,7 @@
                                         Margin="0,0,24,0"
                                         VerticalAlignment="Center">
                                 <TextBlock Text="Cache Local" Style="{StaticResource SettingsRowTitleStyle}" />
-                                <TextBlock Text="Limpa catálogo de pacotes, ícones e metadados temporários baixados da rede." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                            <TextBlock Text="Remove os dados temporários baixados pelo aplicativo." Style="{StaticResource SettingsRowSubtitleStyle}" />
                             </StackPanel>
                             <ui:Button x:Name="ClearCacheButton"
                                        Grid.Column="1"
@@ -188,7 +217,7 @@
                                             Margin="0,0,24,0">
                                     <TextBlock Text="Atualizações do WinProvision Store" Style="{StaticResource SettingsRowTitleStyle}" />
                                     <TextBlock x:Name="UpdateSubtitleText"
-                                               Text="Verifica se há uma versão mais nova publicada no GitHub."
+                                               Text="Procura uma versão mais recente."
                                                Style="{StaticResource SettingsRowSubtitleStyle}" />
                                 </StackPanel>
                                 <ui:Button x:Name="CheckUpdateButton"

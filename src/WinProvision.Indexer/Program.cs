@@ -5,6 +5,85 @@ using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Indexing;
 
+// URL pública do catálogo msstore, publicado pelo workflow separado (ver
+// RunMsStoreOnlyAsync). Mesmo bucket/padrão do apps.json principal.
+const string MsStoreCatalogR2Url =
+    "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json";
+
+static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync()
+{
+    try
+    {
+        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
+        return JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
+    }
+    catch (Exception ex)
+    {
+        // Não derruba o scan do winget-pkgs por causa disso — o catálogo msstore é um
+        // extra, publicado por um workflow independente; se estiver indisponível ou
+        // ainda não tiver rodado a primeira vez, o resto da pipeline segue normalmente.
+        Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2, seguindo sem ele: {ex.Message}");
+        return [];
+    }
+}
+
+/// <summary>
+/// Modo "--msstore": roda só a consulta à Display Catalog contra os IDs curados em
+/// config/msstore-curated.json e exporta o resultado em msstore-catalog.json — sem
+/// tocar no winget-pkgs. Chamado pelo workflow "Update msstore-catalog.json", separado
+/// do scan diário pesado (ver comentário no passo [+] acima).
+/// </summary>
+static async Task<int> RunMsStoreOnlyAsync(string outputDir)
+{
+    Console.WriteLine("==================================================");
+    Console.WriteLine("  WinProvision Store - Curadoria Microsoft Store");
+    Console.WriteLine("==================================================");
+
+    var curatedIds = LoadMsStoreCuratedIds();
+    Console.WriteLine($"\n[1/2] Consultando Display Catalog para {curatedIds.Count:N0} app(s) curado(s)...");
+    var apps = await new MsStoreCatalogService().FetchAsync(curatedIds);
+    Console.WriteLine($"      {apps.Count:N0} de {curatedIds.Count:N0} apps resolvidos");
+
+    Console.WriteLine("\n[2/2] Exportando msstore-catalog.json...");
+    Directory.CreateDirectory(outputDir);
+    string outputPath = Path.Combine(outputDir, "msstore-catalog.json");
+    await using (var stream = File.Create(outputPath))
+    {
+        await JsonSerializer.SerializeAsync(stream, apps, WinProvisionJsonOptions.Compact);
+    }
+    Console.WriteLine($"      {apps.Count:N0} apps publicados em '{outputPath}'.");
+
+    return 0;
+}
+
+static T LoadConfig<T>(string fileName, T fallback)
+{
+    string path = Path.Combine("config", fileName);
+    if (!File.Exists(path))
+    {
+        Console.WriteLine($"      [INFO] Arquivo de configuração '{fileName}' não encontrado em 'config/', usando fallback padrão.");
+        return fallback;
+    }
+
+    try
+    {
+        string json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<T>(json, WinProvisionJsonOptions.Compact) ?? fallback;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"      [AVISO] Erro ao ler '{fileName}': {ex.Message}, usando fallback padrão.");
+        return fallback;
+    }
+}
+
+static NoiseRules LoadNoiseRules() => LoadConfig("noise-rules.json", NoiseRules.Default);
+
+static ScoringWeights LoadScoringWeights() => LoadConfig("scoring-weights.json", new ScoringWeights());
+
+static List<string> LoadMsStoreCuratedIds() => LoadConfig("msstore-curated.json", new List<string>());
+
 if (args.Length >= 1 && args[0] == "--msstore")
 {
     if (args.Length < 2)
@@ -231,81 +310,6 @@ Lap("exportação da API");
 totalTimer.Stop();
 Console.WriteLine($"\n[SUCESSO] Pipeline concluída em {totalTimer.Elapsed.TotalSeconds:N1}s. {published.Count:N0} apps publicados em '{outputDir}'.");
 return 0;
-
-static NoiseRules LoadNoiseRules() => LoadConfig("noise-rules.json", NoiseRules.Default);
-
-static ScoringWeights LoadScoringWeights() => LoadConfig("scoring-weights.json", new ScoringWeights());
-
-static List<string> LoadMsStoreCuratedIds() => LoadConfig("msstore-curated.json", new List<string>());
-
-// URL pública do catálogo msstore, publicado pelo workflow separado (ver
-// RunMsStoreOnlyAsync). Mesmo bucket/padrão do apps.json principal.
-const string MsStoreCatalogR2Url =
-    "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json";
-
-static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync()
-{
-    try
-    {
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
-        return JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
-    }
-    catch (Exception ex)
-    {
-        // Não derruba o scan do winget-pkgs por causa disso — o catálogo msstore é um
-        // extra, publicado por um workflow independente; se estiver indisponível ou
-        // ainda não tiver rodado a primeira vez, o resto da pipeline segue normalmente.
-        Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2, seguindo sem ele: {ex.Message}");
-        return [];
-    }
-}
-
-/// <summary>
-/// Modo "--msstore": roda só a consulta à Display Catalog contra os IDs curados em
-/// config/msstore-curated.json e exporta o resultado em msstore-catalog.json — sem
-/// tocar no winget-pkgs. Chamado pelo workflow "Update msstore-catalog.json", separado
-/// do scan diário pesado (ver comentário no passo [+] acima).
-/// </summary>
-static async Task<int> RunMsStoreOnlyAsync(string outputDir)
-{
-    Console.WriteLine("==================================================");
-    Console.WriteLine("  WinProvision Store - Curadoria Microsoft Store");
-    Console.WriteLine("==================================================");
-
-    var curatedIds = LoadMsStoreCuratedIds();
-    Console.WriteLine($"\n[1/2] Consultando Display Catalog para {curatedIds.Count:N0} app(s) curado(s)...");
-    var apps = await new MsStoreCatalogService().FetchAsync(curatedIds);
-    Console.WriteLine($"      {apps.Count:N0} de {curatedIds.Count:N0} apps resolvidos");
-
-    Console.WriteLine("\n[2/2] Exportando msstore-catalog.json...");
-    Directory.CreateDirectory(outputDir);
-    string outputPath = Path.Combine(outputDir, "msstore-catalog.json");
-    await using (var stream = File.Create(outputPath))
-    {
-        await JsonSerializer.SerializeAsync(stream, apps, WinProvisionJsonOptions.Compact);
-    }
-    Console.WriteLine($"      {apps.Count:N0} apps publicados em '{outputPath}'.");
-
-    return 0;
-}
-
-static T LoadConfig<T>(string fileName, T fallback)
-{
-    string path = Path.Combine(AppContext.BaseDirectory, "config", fileName);
-    if (!File.Exists(path)) return fallback;
-
-    try
-    {
-        string json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<T>(json) ?? fallback;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"      [AVISO] Falha ao ler '{fileName}', usando padrão embutido: {ex.Message}");
-        return fallback;
-    }
-}
 
 static Dictionary<string, GitHubRepoMetrics> LoadMetricsCache(string path)
 {

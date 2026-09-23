@@ -3,29 +3,18 @@
                      xmlns:conv="clr-namespace:WinProvision.Store.Converters">
 
     <!--
-        Barra de progresso com degradê animado ("dinâmico"), no lugar da barra amarela
+        Barra de progresso animada no lugar da barra amarela
         sólida do UnigetUI. Dois modos, controlados pela propriedade padrão IsIndeterminate:
         
-        - IsIndeterminate = True  -> uma faixa de degradê desliza continuamente da
+        - IsIndeterminate = True  -> uma faixa colorida desliza continuamente da
         esquerda para a direita sobre o trilho inteiro. Use enquanto a etapa não
         tem percentual conhecido (ex.: "Na fila...", "Preparando...").
         - IsIndeterminate = False -> a barra preenche até Value/Maximum normalmente
         (aproveitando o comportamento nativo do ProgressBar via PART_Track/PART_Indicator),
-        só que o preenchimento em si tem um "shimmer" de degradê correndo por dentro,
-        então continua parecendo vivo mesmo com progresso real.
+        com uma leve pulsação enquanto há progresso real.
 
-        Cor por via (ver OperationItem.Method): cada GradientStop tem o Color ligado por
-        Binding direto (não StaticResource) ao WingetMethodStopColorConverter, que devolve o
-        tom certo (roxo=COM, amarelo=API própria, ciano=winget.exe, azul=sem via identificada).
-        Isso vale tanto pro preenchimento determinado quanto pra faixa indeterminada — a cor
-        acompanha a via do início ao fim da operação, não só no instante da troca de camada.
-
-        Não dá pra fazer isso com Setter.TargetName num GradientStop dentro de
-        ControlTemplate.Triggers (erro de compilação MC4111 - essa restrição só existe pra
-        Setter/Trigger, não pra Binding direto), por isso o Color é bindado na própria
-        declaração do GradientStop. Em telas que reusam esse estilo mas cujo DataContext não
-        tem "Method" (StageItemControl, SettingsPage, UpdatesPage), o Binding falha e cada
-        FallbackValue abaixo devolve exatamente a cor azul original — nada muda pra elas.
+        A cor acompanha OperationItem.Method: roxo=COM, amarelo=API própria,
+        ciano=winget.exe e azul enquanto o método ainda não foi identificado.
     -->
 
     <Color x:Key="GradientProgressColorA">#FF3A8DFF</Color>
@@ -34,10 +23,12 @@
     <SolidColorBrush x:Key="GradientProgressTrackBrush" Color="#FFFFFFFF" Opacity="0.08" />
 
     <conv:WingetMethodStopColorConverter x:Key="WingetMethodStopColorConverter" />
+    <conv:WingetMethodBrushConverter x:Key="WingetMethodBrushConverter" />
 
     <Style x:Key="GradientProgressBarStyle" TargetType="ProgressBar">
         <Setter Property="Height" Value="6" />
         <Setter Property="Background" Value="{StaticResource GradientProgressTrackBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource GradientProgressColorA}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Template">
             <Setter.Value>
@@ -59,21 +50,8 @@
                             <Decorator x:Name="PART_Indicator" HorizontalAlignment="Left">
                                 <Border CornerRadius="{StaticResource CompactCornerRadius}"
                                         ClipToBounds="True"
-                                        MinWidth="6">
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                            <GradientStop Offset="0.0"
-                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
-                                            <GradientStop Offset="0.5"
-                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
-                                            <GradientStop Offset="1.0"
-                                                          Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
-                                            <LinearGradientBrush.RelativeTransform>
-                                                <TranslateTransform x:Name="DeterminateShimmerTransform" X="-1" />
-                                            </LinearGradientBrush.RelativeTransform>
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                </Border>
+                                        MinWidth="6"
+                                        Background="{TemplateBinding Foreground}" />
                             </Decorator>
                         </Border>
 
@@ -84,19 +62,9 @@
                                 Visibility="Collapsed">
                             <Rectangle x:Name="PART_GlowRect"
                                        Width="140"
+                                       Opacity="0.85"
+                                       Fill="{TemplateBinding Foreground}"
                                        HorizontalAlignment="Left">
-                                <Rectangle.Fill>
-                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                        <GradientStop Color="Transparent" Offset="0.0" />
-                                        <GradientStop Offset="0.15"
-                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=A, FallbackValue={StaticResource GradientProgressColorA}}" />
-                                        <GradientStop Offset="0.5"
-                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=C, FallbackValue={StaticResource GradientProgressColorC}}" />
-                                        <GradientStop Offset="0.85"
-                                                      Color="{Binding Method, Converter={StaticResource WingetMethodStopColorConverter}, ConverterParameter=B, FallbackValue={StaticResource GradientProgressColorB}}" />
-                                        <GradientStop Color="Transparent" Offset="1.0" />
-                                    </LinearGradientBrush>
-                                </Rectangle.Fill>
                                 <Rectangle.RenderTransform>
                                     <TranslateTransform x:Name="IndeterminateTransform" X="-140" />
                                 </Rectangle.RenderTransform>
@@ -140,11 +108,12 @@
                             <Trigger.EnterActions>
                                 <BeginStoryboard x:Name="DeterminateStoryboard">
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="DeterminateShimmerTransform"
-                                                         Storyboard.TargetProperty="X"
-                                                         From="-1.5"
-                                                         To="1.5"
-                                                         Duration="0:0:1.6"
+                                        <DoubleAnimation Storyboard.TargetName="PART_Indicator"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0.75"
+                                                         To="1"
+                                                         Duration="0:0:1.2"
+                                                         AutoReverse="True"
                                                          RepeatBehavior="Forever" />
                                     </Storyboard>
                                 </BeginStoryboard>

@@ -164,14 +164,14 @@ public partial class HomePage : Page
         _allApps = [];
         Apps.Clear();
         FeaturedApps.Clear();
-        StatusText.Text = "Cache limpo. Catálogo será recarregado ao abrir a Home.";
+        StatusText.Text = "Cache limpo. O catálogo será atualizado ao abrir esta tela.";
     }
 
     private void SyncInstalledFlags(IEnumerable<AppEntry> apps)
     {
         foreach (AppEntry app in apps)
         {
-            app.IsInstalled = _installedAppsService.IsInstalled(app.Id);
+            app.IsInstalled = _installedAppsService.IsInstalled(app.Name, app.Id);
         }
     }
 
@@ -214,9 +214,9 @@ public partial class HomePage : Page
             UpdateCatalogSyncStatus();
             ApplyFilter();
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Não foi possível carregar o catálogo: {ex.Message}";
+            StatusText.Text = "Não foi possível carregar o catálogo. Tente novamente.";
         }
         finally
         {
@@ -312,10 +312,10 @@ public partial class HomePage : Page
         CatalogCountText.Text = results.Count.ToString();
 
         StatusText.Text = string.IsNullOrWhiteSpace(query)
-            ? $"{results.Count} app(s) em destaque"
+            ? $"Aplicativos em destaque: {results.Count}"
             : results.Count == 0
                 ? $"Nenhum resultado para \"{query}\""
-                : $"{results.Count} resultado(s)";
+                : results.Count == 1 ? "1 resultado." : $"Resultados: {results.Count}";
     }
 
     private void UpdateCatalogSyncStatus()
@@ -362,9 +362,9 @@ public partial class HomePage : Page
             UpdateCatalogSyncStatus();
             ApplyFilter();
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Falha ao atualizar o catálogo: {ex.Message}";
+            StatusText.Text = "Não foi possível atualizar o catálogo. Tente novamente.";
         }
         finally
         {
@@ -418,11 +418,11 @@ public partial class HomePage : Page
                 StatusText.Text = $"Falha ao instalar {app.Name}.";
             }
         }
-        catch (Exception ex)
+        catch
         {
             // Ensure flag reset and report error
             app.IsInstalling = false;
-            StatusText.Text = $"Erro ao instalar {app.Name}: {ex.Message}";
+            StatusText.Text = $"Não foi possível instalar {app.Name}. Tente novamente.";
         }
     }
 

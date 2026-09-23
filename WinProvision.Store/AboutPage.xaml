@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.AboutPage"
+<Page x:Class="WinProvision.Store.AboutPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
@@ -9,12 +9,12 @@
       TextOptions.TextRenderingMode="ClearType"
       UseLayoutRounding="True">
 
-    <Canvas Margin="36,24,36,24">
+    <Canvas Margin="0">
         <Border Background="Transparent"
                 CornerRadius="{StaticResource OverlayCornerRadius}"
                 Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
                 Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}">
-            <Grid Margin="36,24,36,24">
+            <Grid Margin="{StaticResource PageContentMargin}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -22,14 +22,14 @@
 
                 <StackPanel Grid.Row="0"
                             Orientation="Horizontal"
-                            Margin="0,0,0,24">
-                    <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE946;" />
+                            Margin="{StaticResource PageHeaderMargin}">
+                    <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE946;" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Sobre o WinProvision Store"
                                    FontSize="26"
                                    FontWeight="SemiBold"
                                    FontFamily="Segoe UI Variable Display, Aptos, Segoe UI" />
-                        <TextBlock Text="O GitHub Pages do projeto, sempre atualizado."
+                        <TextBlock Text="Acompanhe o projeto e suas novidades."
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,4,0,0" />
                     </StackPanel>

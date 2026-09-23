@@ -5,11 +5,19 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: update-gethelpcmd
+  cancel-in-progress: false
+
 jobs:
   update-gethelpcmd:
     # Só usa cmdlets de PowerShell cross-platform (Invoke-WebRequest, Expand-Archive,
     # Compress-Archive) e o AWS CLI, que já vem na imagem — não precisa de Windows.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Baixar e extrair GetHelpCmd
         shell: pwsh
@@ -21,6 +29,9 @@ jobs:
           New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
 
           Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -MaximumRedirection 5
+          if ((Get-Item $zipPath).Length -lt 1MB) {
+            throw "O download do GetHelpCmd está vazio ou incompleto."
+          }
           Expand-Archive -Path $zipPath -DestinationPath $destinationDir -Force
           Remove-Item -Path $zipPath -Force
 
@@ -34,6 +45,9 @@ jobs:
             Write-Error "GetHelpCmd.exe não encontrado após extração."
             exit 1
           }
+          if ($exe.Length -lt 1MB) {
+            throw "GetHelpCmd.exe parece incompleto (menos de 1 MB)."
+          }
 
           $toolFolder = $exe.DirectoryName
           Compress-Archive -Path "$toolFolder/*" -DestinationPath "$destinationDir/GetHelpCmd.zip" -Force
@@ -44,7 +58,11 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
         run: |
           $zipPath = "$env:RUNNER_TEMP/GetHelp/GetHelpCmd.zip"
-          aws s3 cp $zipPath "s3://winprovision/Office/Uninstall/GetHelpCmd.zip" `
+          if (-not (Test-Path $zipPath) -or (Get-Item $zipPath).Length -lt 1MB) {
+            throw "GetHelpCmd.zip não foi criado corretamente."
+          }
+          aws s3 cp $zipPath "s3://$env:R2_BUCKET/Office/Uninstall/GetHelpCmd.zip" `
             --endpoint-url $env:R2_ENDPOINT

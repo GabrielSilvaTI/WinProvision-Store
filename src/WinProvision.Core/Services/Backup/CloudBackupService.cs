@@ -112,9 +112,9 @@ public sealed class CloudBackupService
             return CloudConnectResult.Fail("Informe a API Key do Cloudflare Worker antes de conectar.");
 
         if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri)
-            || endpointUri.Scheme is not ("https" or "http"))
+            || endpointUri.Scheme != Uri.UriSchemeHttps)
         {
-            return CloudConnectResult.Fail($"Endpoint de backup inválido: {endpoint}");
+            return CloudConnectResult.Fail("O endpoint de backup precisa usar HTTPS para proteger a API Key.");
         }
 
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{endpoint.TrimEnd('/')}/profile");

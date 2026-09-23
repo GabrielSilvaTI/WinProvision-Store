@@ -23,9 +23,9 @@ public partial class AboutPage : Page
             PagesBrowser.CoreWebView2.NavigationCompleted += CoreWebView2_NavigationCompleted;
             PagesBrowser.Source = new Uri(GitHubPagesUrl);
         }
-        catch (Exception ex)
+        catch
         {
-            ShowBrowserError($"O navegador integrado não está disponível: {ex.Message}");
+            ShowBrowserError("Não foi possível abrir esta página. Verifique sua conexão.");
         }
     }
 
@@ -33,7 +33,7 @@ public partial class AboutPage : Page
     {
         if (!e.IsSuccess)
         {
-            ShowBrowserError($"A página retornou o erro {e.WebErrorStatus}.");
+            ShowBrowserError("Não foi possível carregar a página. Verifique sua conexão e tente novamente.");
         }
     }
 

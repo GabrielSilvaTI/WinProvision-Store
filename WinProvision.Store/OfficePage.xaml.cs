@@ -222,9 +222,9 @@ public partial class OfficePage : Page
 
             RefreshInstalledProducts();
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao instalar: {ex.Message}";
+            StatusText.Text = "Não foi possível instalar o Office. Tente novamente.";
         }
     }
 
@@ -252,9 +252,9 @@ public partial class OfficePage : Page
                 RevertAutoUpdatesToggle(!enabled);
             }
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao aplicar política de atualização: {ex.Message}";
+            StatusText.Text = "Não foi possível alterar as atualizações do Office.";
             RevertAutoUpdatesToggle(!enabled);
         }
         finally
@@ -359,8 +359,8 @@ public partial class OfficePage : Page
     {
         var confirmDialog = new Wpf.Ui.Controls.MessageBox
         {
-            Title = "Desinstalar Office",
-            Content = "Isso vai remover TODAS as instalações do Office (Click-to-Run) desta máquina, usando a tag RemoveAll do Office Deployment Tool. Continuar?",
+            Title = "Remover o Office",
+            Content = "Isso removerá todas as instalações do Office deste computador. Continuar?",
             PrimaryButtonText = "Desinstalar",
             CloseButtonText = "Cancelar"
         };
@@ -380,7 +380,7 @@ public partial class OfficePage : Page
             UseRemoveMSI: true,
             UseAggressiveUninstall: true);
 
-        StatusText.Text = "Removendo todas as instalações do Office... acompanhe na fila de operações.";
+        StatusText.Text = "Removendo o Office... Acompanhe o progresso na fila.";
 
         try
         {
@@ -391,9 +391,9 @@ public partial class OfficePage : Page
 
             RefreshInstalledProducts();
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao remover: {ex.Message}";
+            StatusText.Text = "Não foi possível remover o Office. Tente novamente.";
         }
     }
 
@@ -410,9 +410,9 @@ public partial class OfficePage : Page
             Directory.CreateDirectory(_officeService.WorkRoot);
             Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_officeService.WorkRoot}\"") { UseShellExecute = true });
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Não foi possível abrir a pasta: {ex.Message}";
+            StatusText.Text = "Não foi possível abrir a pasta. Tente novamente.";
         }
     }
 

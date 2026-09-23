@@ -5,14 +5,13 @@ using System.Text;
 namespace WinProvision.Core.Services.Backup;
 
 /// <summary>
-/// Guarda segredos criptografados em disco via DPAPI
-/// (<see cref="ProtectedData"/>, escopo CurrentUser) — o mesmo mecanismo usado pelo
-/// Credential Manager do Windows por baixo dos panos. Isso mantém o token fora de
-/// texto puro no disco e amarrado ao usuário do Windows que o salvou: outra conta do
-/// Windows na mesma máquina não consegue descriptografar o arquivo.
+/// Guarda tokens e API keys criptografados em disco via DPAPI
+/// (<see cref="ProtectedData"/>, escopo CurrentUser), vinculados à conta do Windows
+/// que os salvou. O arquivo contém apenas o valor criptografado; outra conta do Windows
+/// na mesma máquina não consegue descriptografá-lo.
 ///
 /// Os metadados da conta não são sensíveis e podem ser lidos sem risco — só a
-/// API key passa por aqui.
+/// Tokens OAuth e API keys passam por aqui.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal static class SecureTokenStore
@@ -20,13 +19,30 @@ internal static class SecureTokenStore
     public static void Save(string filePath, string token)
     {
         byte[] plain = Encoding.UTF8.GetBytes(token);
-        byte[] protectedBytes = ProtectedData.Protect(plain, optionalEntropy: null, DataProtectionScope.CurrentUser);
+        try
+        {
+            byte[] protectedBytes = ProtectedData.Protect(plain, optionalEntropy: null, DataProtectionScope.CurrentUser);
 
-        string? dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
+            string? dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
 
-        File.WriteAllBytes(filePath, protectedBytes);
+            string tempPath = filePath + ".tmp";
+            try
+            {
+                File.WriteAllBytes(tempPath, protectedBytes);
+                File.Move(tempPath, filePath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(plain);
+        }
     }
 
     /// <summary>Retorna null se o arquivo não existir ou não puder ser descriptografado
@@ -44,6 +60,14 @@ internal static class SecureTokenStore
             return Encoding.UTF8.GetString(plain);
         }
         catch (CryptographicException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
         {
             return null;
         }

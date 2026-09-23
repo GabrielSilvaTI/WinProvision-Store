@@ -4,10 +4,9 @@ using System.Runtime.CompilerServices;
 namespace WinProvision.Core.Models;
 
 /// <summary>
-/// Um item da lista de "Atualizações" (resultado de <c>winget upgrade</c>): um pacote já
-/// instalado que tem uma versão mais nova disponível. Não vem do apps.json da loja — é
-/// montado em tempo de execução pelo parser da saída do winget (ver
-/// Services.WingetExecutor.GetUpgradablePackagesAsync).
+/// Um item da lista de "Atualizações": um pacote já instalado que tem uma versão mais nova
+/// disponível. É montado em tempo de execução pelo catálogo local COM do WinGet, com fallback
+/// para a saída de <c>winget upgrade</c> (ver <c>WinGetService.GetUpgradablePackagesAsync</c>).
 /// </summary>
 public class UpgradablePackage : INotifyPropertyChanged
 {

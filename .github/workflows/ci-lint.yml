@@ -90,6 +90,5 @@ jobs:
 
       - name: Rodar actionlint
         run: |
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash -o "$RUNNER_TEMP/download-actionlint.bash"
-          bash "$RUNNER_TEMP/download-actionlint.bash" 1.7.11 "$RUNNER_TEMP"
-          "$RUNNER_TEMP/actionlint" -color
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.11
+          "$HOME/go/bin/actionlint" -color

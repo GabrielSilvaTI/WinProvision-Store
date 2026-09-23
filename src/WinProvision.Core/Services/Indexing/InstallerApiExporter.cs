@@ -169,10 +169,11 @@ public class InstallerApiExporter
             // saber o que extrair e rodar, sem precisar reparsear o manifesto.
             string? nestedType = null;
             string? nestedRelativePath = null;
+            List<Dictionary<string, object?>> nestedFiles = [];
             if (string.Equals(type, "zip", StringComparison.OrdinalIgnoreCase))
             {
                 nestedType = Clean(Pick(item, root, "NestedInstallerType"))?.ToLowerInvariant();
-                var nestedFiles = item.ContainsKey("NestedInstallerFiles")
+                nestedFiles = item.ContainsKey("NestedInstallerFiles")
                     ? item.GetObjectList("NestedInstallerFiles")
                     : root.GetObjectList("NestedInstallerFiles");
                 // Normalmente há só uma entrada relevante (o instalador real); quando o
@@ -192,6 +193,9 @@ public class InstallerApiExporter
 
             var modes = item.ContainsKey("InstallModes") ? item.GetStringList("InstallModes") : rootModes;
             var silent = ResolveSilent(effectiveTypeForSilent, switches, modes);
+            var nestedInstaller = nestedFiles.FirstOrDefault(file => string.Equals(
+                    Clean(file.GetString("RelativeFilePath")), nestedRelativePath, StringComparison.OrdinalIgnoreCase))
+                ?? nestedFiles.FirstOrDefault();
 
             // Um zip sem NestedInstallerType/NestedInstallerFiles resolvíveis não tem o
             // que o cliente extraia e rode — mesmo que o tipo aninhado fosse suportado,
@@ -206,6 +210,7 @@ public class InstallerApiExporter
                 Type = type,
                 NestedType = nestedType,
                 NestedInstallerFile = nestedRelativePath,
+                PortableCommandAlias = Clean(nestedInstaller?.GetString("PortableCommandAlias")),
                 Scope = Clean(Pick(item, root, "Scope"))?.ToLowerInvariant(),
                 Locale = Clean(Pick(item, root, "InstallerLocale")),
                 Url = url,
@@ -213,7 +218,14 @@ public class InstallerApiExporter
                 SilentArgs = supported ? silent.Args : null,
                 SilentSource = supported ? silent.Source : "none",
                 SilentSupported = supported,
-                ProductCode = Clean(Pick(item, root, "ProductCode"))
+                ProductCode = Clean(Pick(item, root, "ProductCode")),
+                SuccessCodes = item.GetStringList("InstallerSuccessCodes")
+                    .Select(value => int.TryParse(value, System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture, out int code) ? code : (int?)null)
+                    .Where(code => code.HasValue)
+                    .Select(code => code!.Value)
+                    .Distinct()
+                    .ToList()
             });
         }
 
@@ -236,6 +248,10 @@ public class InstallerApiExporter
         Dictionary<string, string> switches,
         List<string> modes)
     {
+        // Portable não executa um setup: o cliente apenas extrai o pacote e cria um atalho.
+        if (string.Equals(type, "portable", StringComparison.OrdinalIgnoreCase))
+            return (string.Empty, "portable", true);
+
         if (type is null || !SupportedTypes.Contains(type))
             return (null, "none", false);
 
@@ -340,6 +356,7 @@ public class ApiInstaller
     [JsonPropertyName("nestedType")] public string? NestedType { get; set; }
     /// <summary>Só preenchido quando <see cref="Type"/> é "zip": caminho relativo, dentro do zip, do instalador a extrair e rodar.</summary>
     [JsonPropertyName("nestedInstallerFile")] public string? NestedInstallerFile { get; set; }
+    [JsonPropertyName("portableCommandAlias")] public string? PortableCommandAlias { get; set; }
     [JsonPropertyName("scope")] public string? Scope { get; set; }
     [JsonPropertyName("locale")] public string? Locale { get; set; }
     [JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
@@ -349,4 +366,5 @@ public class ApiInstaller
     [JsonPropertyName("silentSource")] public string SilentSource { get; set; } = "none";
     [JsonPropertyName("silentSupported")] public bool SilentSupported { get; set; }
     [JsonPropertyName("productCode")] public string? ProductCode { get; set; }
+    [JsonPropertyName("successCodes")] public List<int> SuccessCodes { get; set; } = [];
 }
