@@ -234,7 +234,9 @@ public partial class ProvisioningPage : Page
         SectionsConfiguredCountText.Text = sectionsConfigured.ToString();
         KeysModifiedCountText.Text = keysModified.ToString();
         WarningsCountText.Text = warnings.Count.ToString();
-        ChangesDetectedText.Text = $"{keysModified} alteração(ões) detectada(s)";
+        ChangesDetectedText.Text = keysModified == 1
+            ? "1 alteração detectada"
+            : $"Alterações detectadas: {keysModified}";
 
         var friendlyChanges = BuildFriendlyChangesList();
         ChangesListItemsControl.ItemsSource = friendlyChanges;
@@ -409,7 +411,7 @@ public partial class ProvisioningPage : Page
             changes.Add("Limpeza de arquivos temporários: agendar para cada logon");
 
         if (_userAddedDesktopIcons.Count > 0)
-            changes.Add($"Ícones da área de trabalho: {_userAddedDesktopIcons.Count} atalho(s) posicionado(s)");
+            changes.Add($"Atalhos na área de trabalho: {_userAddedDesktopIcons.Count}");
 
         return changes;
     }
@@ -686,9 +688,9 @@ public partial class ProvisioningPage : Page
             UpdateDesktopPreview();
             StatusText.Text = $"Imagem \"{_wallpaperFileName}\" pronta — será incluída ao exportar, sincronizar ou aplicar o perfil.";
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao carregar imagem: {ex.Message}";
+            StatusText.Text = "Não foi possível carregar a imagem. Tente outro arquivo.";
         }
     }
 
@@ -1282,7 +1284,7 @@ public partial class ProvisioningPage : Page
 
             if (result.Steps.Count == 0)
             {
-                StatusText.Text = "Nenhum ajuste selecionado — escolha ao menos uma opção diferente de \"Não alterar\".";
+                StatusText.Text = "Escolha ao menos uma opção para aplicar.";
                 return;
             }
 
@@ -1325,9 +1327,9 @@ public partial class ProvisioningPage : Page
         {
             bool isEnabled = await _scheduledTempCleanerService.IsEnabledAsync();
             CleanTempTaskStatusText.Text = isEnabled
-                ? "Status no sistema: Tarefa agendada (ativa a cada Logon)."
-                : "Status no sistema: Tarefa não agendada.";
-            ScheduleCleanTempNowButton.Content = isEnabled ? "Reagendar Tarefa" : "Agendar Tarefa Agora";
+                ? "Limpeza automática ativa."
+                : "Limpeza automática inativa.";
+            ScheduleCleanTempNowButton.Content = isEnabled ? "Atualizar agendamento" : "Agendar limpeza";
         }
         catch
         {
@@ -1338,24 +1340,24 @@ public partial class ProvisioningPage : Page
     private async void ScheduleCleanTempNowButton_Click(object sender, RoutedEventArgs e)
     {
         ScheduleCleanTempNowButton.IsEnabled = false;
-        StatusText.Text = "Agendando tarefa de limpeza de arquivos temporários no Logon…";
+        StatusText.Text = "Agendando a limpeza automática...";
 
         try
         {
             var result = await _scheduledTempCleanerService.EnableAsync();
             if (result.Success)
             {
-                StatusText.Text = "Tarefa agendada com sucesso! Os arquivos temporários serão limpos a cada logon.";
+                StatusText.Text = "Limpeza automática agendada.";
                 AutoCleanTempOnLogonCheckBox.IsChecked = true;
             }
             else
             {
-                StatusText.Text = $"Falha ao agendar tarefa: {result.Output}";
+                StatusText.Text = "Não foi possível agendar a limpeza. Tente novamente.";
             }
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao agendar tarefa: {ex.Message}";
+            StatusText.Text = "Não foi possível agendar a limpeza. Tente novamente.";
         }
         finally
         {
@@ -1391,14 +1393,13 @@ public partial class ProvisioningPage : Page
                 AvailablePackagesShelf.Children.Add(chip);
             }
 
-            AvailablePackagesCountText.Text = $"{allApps.Count} aplicativo(s)";
-            StatusText.Text = $"Carregados {allApps.Count} aplicativos da coleção de pacotes " +
-                              $"({_packageCollectionService.Tabs.Count} aba(s)).";
+            AvailablePackagesCountText.Text = $"Aplicativos: {allApps.Count}";
+            StatusText.Text = $"Aplicativos carregados: {allApps.Count}.";
         }
         else
         {
-            AvailablePackagesCountText.Text = "0 aplicativo(s)";
-            StatusText.Text = "Nenhum aplicativo na coleção de pacotes. Adicione aplicativos na aba 'Pacotes' primeiro.";
+            AvailablePackagesCountText.Text = "Nenhum aplicativo";
+            StatusText.Text = "Adicione aplicativos à coleção em Pacotes.";
         }
     }
 

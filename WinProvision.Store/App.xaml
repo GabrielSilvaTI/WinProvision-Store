@@ -18,19 +18,21 @@
                 <ResourceDictionary Source="Styles/FluentSurface.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!--  Available from the root dictionary to pages created during startup.  -->
+            <CornerRadius x:Key="CompactCornerRadius">4</CornerRadius>
+
             <!--
                 Ícones agora usam a attached property conv:AsyncImage.SourceUrl
                 (download+decode assíncrono e cacheado) em vez de um converter
                 síncrono na thread de UI — ver Converters/AsyncImage.cs
             -->
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-            <conv:ProgressScaleConverter x:Key="ProgressScaleConverter" />
             <conv:StageToSymbolConverter x:Key="StageToSymbolConverter" />
             <conv:StageStatusToFilledConverter x:Key="StageStatusToFilledConverter" />
             <conv:StageStatusToIconForegroundConverter x:Key="StageStatusToIconForegroundConverter" />
 
-            <!--  Dark navy palette: opaque tokens keep every page visually stable over Mica.  -->
-            <SolidColorBrush x:Key="ApplicationBackgroundBrush" Color="#F0101B2D" />
+            <!--  Shared blue-gray base for dialogs and opaque page surfaces.  -->
+            <SolidColorBrush x:Key="ApplicationBackgroundBrush" Color="#FF1B2835" />
             <SolidColorBrush x:Key="LayerFillColorDefaultBrush" Color="#E8172A40" />
             <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#E0263446" />
             <SolidColorBrush x:Key="ControlFillColorSecondaryBrush" Color="#F02D4056" />

@@ -1,10 +1,11 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Threading;
+using WinProvision.Core.Services;
+using WinProvision.Store.Controls;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
-using WinProvision.Core.Services;
-using WinProvision.Store.Controls;
 
 namespace WinProvision.Store;
 
@@ -23,10 +24,12 @@ public partial class MainWindow : FluentWindow
 
         _navigationService = navigationService;
         _queueService = queueService;
+        QueuePanel.Queue = _queueService;
 
-        QueuePanelControl.Queue = _queueService;
         _queueService.PropertyChanged += QueueService_PropertyChanged;
         UpdateQueueBadge();
+        if (_queueService.HasOperations)
+            ShowQueuePanel();
 
         // Overlay de Detalhes do pacote (ver AppDetailsOverlay/AppDetailsOverlayService)
         // - resolvido via DI porque depende de vários serviços (PackageCollectionService,
@@ -57,7 +60,10 @@ public partial class MainWindow : FluentWindow
 
     private void QueueToggleButton_Click(object sender, RoutedEventArgs e)
     {
-        QueuePopup.IsOpen = !QueuePopup.IsOpen;
+        if (QueuePanel.Visibility == Visibility.Visible)
+            QueuePanel.Visibility = Visibility.Collapsed;
+        else
+            ShowQueuePanel();
     }
 
     private void QueueService_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -65,6 +71,27 @@ public partial class MainWindow : FluentWindow
         if (e.PropertyName is nameof(OperationsQueueService.TotalCount) or nameof(OperationsQueueService.CompletedCount))
         {
             Dispatcher.Invoke(UpdateQueueBadge);
+            if (e.PropertyName == nameof(OperationsQueueService.TotalCount))
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (!_queueService.HasOperations)
+                        QueuePanel.Visibility = Visibility.Collapsed;
+                    else
+                        ShowQueuePanel();
+                });
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (_queueService.TotalCount > 0 &&
+                        _queueService.CompletedCount >= _queueService.TotalCount)
+                    {
+                        QueuePanel.Visibility = Visibility.Collapsed;
+                    }
+                });
+            }
         }
     }
 
@@ -74,4 +101,7 @@ public partial class MainWindow : FluentWindow
         QueueBadge.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueBadgeText.Text = pending.ToString();
     }
+
+    private void ShowQueuePanel() => QueuePanel.Visibility = Visibility.Visible;
+
 }

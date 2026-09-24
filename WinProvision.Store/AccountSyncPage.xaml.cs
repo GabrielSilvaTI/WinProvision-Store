@@ -77,6 +77,7 @@ public partial class AccountSyncPage : Page
     private void RefreshConnectionUi()
     {
         bool connected = _backupService.IsConnected;
+        ImportCloudBackupButton.IsEnabled = connected;
 
         // ── Painel lateral ──
         SidebarDisconnectedPanel.Visibility = connected ? Visibility.Collapsed : Visibility.Visible;
@@ -127,9 +128,9 @@ public partial class AccountSyncPage : Page
         {
             Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Não foi possível abrir o navegador: {ex.Message}";
+            StatusText.Text = "Não foi possível abrir o navegador. Tente novamente.";
         }
         e.Handled = true;
     }
@@ -146,13 +147,13 @@ public partial class AccountSyncPage : Page
     private void CancelOAuthButton_Click(object sender, RoutedEventArgs e)
     {
         ResetOAuthUi();
-        StatusText.Text = "Autenticação via GitHub cancelada.";
+        StatusText.Text = "Login cancelado.";
     }
 
     private async void ConnectButton_Click(object sender, RoutedEventArgs e)
     {
         ConnectButton.IsEnabled = false;
-        StatusText.Text = "Iniciando autenticação OAuth com o GitHub...";
+        StatusText.Text = "Conectando ao GitHub...";
 
         _oauthCts?.Cancel();
         _oauthCts?.Dispose();
@@ -161,7 +162,7 @@ public partial class AccountSyncPage : Page
 
         try
         {
-            using var http = new HttpClient();
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
             http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("WinProvision-Store", "1.0"));
             http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
@@ -175,7 +176,7 @@ public partial class AccountSyncPage : Page
             var deviceResponse = await http.PostAsync(GitHubDeviceCodeEndpoint, deviceCodeRequest, ct);
             if (!deviceResponse.IsSuccessStatusCode)
             {
-                StatusText.Text = $"Erro ao contatar o GitHub ({(int)deviceResponse.StatusCode}). Verifique sua conexão.";
+                StatusText.Text = "Não foi possível conectar ao GitHub. Verifique sua internet.";
                 ResetOAuthUi();
                 return;
             }
@@ -183,7 +184,7 @@ public partial class AccountSyncPage : Page
             var deviceData = await deviceResponse.Content.ReadFromJsonAsync<GitHubDeviceCodeResponse>(cancellationToken: ct);
             if (deviceData?.DeviceCode is null || deviceData.UserCode is null)
             {
-                StatusText.Text = "Resposta inesperada do GitHub ao iniciar OAuth.";
+                StatusText.Text = "O GitHub não iniciou o login. Tente novamente.";
                 ResetOAuthUi();
                 return;
             }
@@ -193,12 +194,16 @@ public partial class AccountSyncPage : Page
             OAuthInitialPanel.Visibility = Visibility.Collapsed;
             OAuthWaitingPanel.Visibility = Visibility.Visible;
             OAuthStatusText.Text = "Aguardando confirmação no navegador...";
-            StatusText.Text = $"Código gerado: {deviceData.UserCode}. Confirme no navegador.";
+            StatusText.Text = "Confirme o código no navegador.";
 
             // Abre a página de autorização automaticamente no navegador padrão
-            string verificationUrl = string.IsNullOrWhiteSpace(deviceData.VerificationUri)
-                ? "https://github.com/login/device"
-                : deviceData.VerificationUri;
+            string verificationUrl = "https://github.com/login/device";
+            if (Uri.TryCreate(deviceData.VerificationUri, UriKind.Absolute, out var returnedVerificationUri)
+                && returnedVerificationUri.Scheme == Uri.UriSchemeHttps
+                && returnedVerificationUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+            {
+                verificationUrl = returnedVerificationUri.AbsoluteUri;
+            }
 
             try
             {
@@ -225,7 +230,7 @@ public partial class AccountSyncPage : Page
                     ["grant_type"] = "urn:ietf:params:oauth:grant-type:device_code"
                 });
 
-                var pollResponse = await http.PostAsync(GitHubAccessTokenEndpoint, pollRequest, ct);
+                using var pollResponse = await http.PostAsync(GitHubAccessTokenEndpoint, pollRequest, ct);
                 if (!pollResponse.IsSuccessStatusCode)
                 {
                     continue;
@@ -235,8 +240,8 @@ public partial class AccountSyncPage : Page
                 if (tokenData?.AccessToken is not null)
                 {
                     // Conexão bem-sucedida!
-                    OAuthStatusText.Text = "Autorizado! Conectando conta...";
-                    StatusText.Text = "Token obtido com sucesso. Vinculando perfil...";
+                    OAuthStatusText.Text = "Autorizado. Conectando...";
+                    StatusText.Text = "Conectando sua conta...";
 
                     var connectResult = await _backupService.ConnectAsync(tokenData.AccessToken, ct);
                     if (connectResult.Success)
@@ -249,7 +254,7 @@ public partial class AccountSyncPage : Page
                     }
                     else
                     {
-                        StatusText.Text = connectResult.ErrorMessage ?? "Erro ao validar perfil do GitHub.";
+                        StatusText.Text = "Não foi possível conectar sua conta GitHub. Tente novamente.";
                         ResetOAuthUi();
                         return;
                     }
@@ -267,19 +272,19 @@ public partial class AccountSyncPage : Page
                 }
                 else if (tokenData?.Error == "expired_token")
                 {
-                    StatusText.Text = "O código expirou. Clique em 'Entrar com GitHub' para gerar um novo.";
+                    StatusText.Text = "O código expirou. Inicie o login novamente.";
                     ResetOAuthUi();
                     return;
                 }
                 else if (tokenData?.Error == "access_denied")
                 {
-                    StatusText.Text = "Autorização cancelada pelo usuário no GitHub.";
+                    StatusText.Text = "Login cancelado no GitHub.";
                     ResetOAuthUi();
                     return;
                 }
                 else if (!string.IsNullOrEmpty(tokenData?.Error))
                 {
-                    StatusText.Text = $"Erro na autenticação: {tokenData.ErrorDescription ?? tokenData.Error}";
+                    StatusText.Text = "Não foi possível concluir o login. Tente novamente.";
                     ResetOAuthUi();
                     return;
                 }
@@ -287,7 +292,7 @@ public partial class AccountSyncPage : Page
 
             if (DateTime.UtcNow >= expireTime)
             {
-                StatusText.Text = "Tempo limite esgotado. Tente novamente.";
+                StatusText.Text = "O login expirou. Tente novamente.";
                 ResetOAuthUi();
             }
         }
@@ -295,9 +300,9 @@ public partial class AccountSyncPage : Page
         {
             // Cancelado pelo usuário
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro durante autenticação: {ex.Message}";
+            StatusText.Text = "Não foi possível conectar sua conta. Tente novamente.";
             ResetOAuthUi();
         }
     }
@@ -307,7 +312,7 @@ public partial class AccountSyncPage : Page
         _backupService.Disconnect();
         RefreshConnectionUi();
         UpdateCliCommandPreview();
-        StatusText.Text = "Conta GitHub desvinculada. O backup local continua funcionando normalmente.";
+        StatusText.Text = "Conta desconectada. O backup local continua disponível.";
     }
 
     // -------------------------------------------------------------
@@ -330,7 +335,7 @@ public partial class AccountSyncPage : Page
 
         if (nonEmptyTabs.Count == 0 && provisioning is null)
         {
-            StatusText.Text = "Nada para exportar — nenhuma guia de pacotes tem itens e nenhum provisionamento foi configurado ainda.";
+            StatusText.Text = "Não há dados para exportar.";
             return;
         }
 
@@ -338,7 +343,7 @@ public partial class AccountSyncPage : Page
         {
             Filter = "JSON Profile (*.json)|*.json",
             FileName = "perfil-completo.json",
-            Title = "Salvar Perfil Completo (Pacotes + Provisionamento)"
+            Title = "Exportar perfil"
         };
 
         if (saveFileDialog.ShowDialog() != true) return;
@@ -354,12 +359,12 @@ public partial class AccountSyncPage : Page
             await _profileService.ExportAsync(manifest, saveFileDialog.FileName);
 
             StatusText.Text = provisioning is not null
-                ? $"Perfil completo exportado: {manifest.Apps.Count} pacote(s) + provisionamento, em '{saveFileDialog.FileName}'."
-                : $"Perfil completo exportado: {manifest.Apps.Count} pacote(s), em '{saveFileDialog.FileName}'.";
+                ? "Perfil exportado com aplicativos e configurações."
+                : "Perfil exportado com aplicativos.";
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Não foi possível exportar: o perfil é inválido. {ex.Message}";
+            StatusText.Text = "Não foi possível exportar. Verifique o perfil e tente novamente.";
         }
     }
 
@@ -368,13 +373,13 @@ public partial class AccountSyncPage : Page
         var openFileDialog = new Microsoft.Win32.OpenFileDialog
         {
             Filter = "Perfil JSON (*.json)|*.json",
-            Title = "Importar perfil completo"
+            Title = "Importar perfil"
         };
 
         if (openFileDialog.ShowDialog() != true) return;
 
         ImportAllButton.IsEnabled = false;
-        StatusText.Text = "Importando perfil completo...";
+        StatusText.Text = "Importando perfil...";
 
         try
         {
@@ -385,7 +390,7 @@ public partial class AccountSyncPage : Page
                 string detail = validation.Path is { Length: > 0 }
                     ? $"{validation.Message} Campo: {validation.Path}"
                     : validation.Message;
-                StatusText.Text = $"Não foi possível importar: o JSON é inválido. {detail}";
+                StatusText.Text = "O arquivo JSON é inválido. Corrija-o e tente novamente.";
                 var editor = new ProvisioningJsonEditorWindow(importedJson)
                 {
                     Owner = Window.GetWindow(this)
@@ -428,12 +433,13 @@ public partial class AccountSyncPage : Page
                 _provisioningService.SetCurrent(provisioning);
             }
 
-            StatusText.Text = $"Perfil importado: {importedApps.Count} aplicativo(s)"
-                + (manifest.Provisioning is not null ? " e configurações de provisionamento." : ".");
+            StatusText.Text = manifest.Provisioning is not null
+                ? "Perfil importado com aplicativos e configurações."
+                : "Perfil importado com aplicativos.";
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao importar o perfil: {ex.Message}";
+            StatusText.Text = "Não foi possível importar o perfil. Verifique o arquivo e tente novamente.";
         }
         finally
         {
@@ -448,32 +454,101 @@ public partial class AccountSyncPage : Page
 
         if (nonEmptyTabs.Count == 0 && provisioning is null)
         {
-            StatusText.Text = "Nada para salvar no backup — nenhuma guia tem pacotes e nenhum provisionamento foi configurado ainda.";
+            StatusText.Text = "Não há dados para salvar no backup.";
             return;
         }
 
         BackupButton.IsEnabled = false;
-        StatusText.Text = "Realizando backup...";
+        StatusText.Text = "Salvando backup...";
 
         try
         {
-            await _autoSyncService.RunSyncAsync();
+            var syncResult = await _autoSyncService.RunSyncAsync();
 
             RefreshConnectionUi();
             RefreshLocalBackupUi();
             UpdateCliCommandPreview();
 
-            StatusText.Text = _backupService.IsConnected
-                ? "Backup realizado com sucesso (local e na nuvem)."
-                : "Backup local realizado com sucesso.";
+            StatusText.Text = syncResult.AlreadyRunning
+                ? "Backup em andamento. Aguarde a conclusão."
+                : !syncResult.LocalSucceeded
+                ? "Não foi possível salvar o backup local. Tente novamente."
+                : syncResult.CloudSucceeded
+                    ? "Backup salvo no computador e na nuvem."
+                    : syncResult.CloudAttempted
+                        ? "Backup salvo no computador, mas não na nuvem. Tente novamente."
+                        : "Backup salvo no computador. Conecte o GitHub para sincronizar.";
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao realizar backup: {ex.Message}";
+            StatusText.Text = "Não foi possível salvar o backup. Tente novamente.";
         }
         finally
         {
             BackupButton.IsEnabled = true;
+        }
+    }
+
+    private async void ImportCloudBackupButton_Click(object sender, RoutedEventArgs e)
+    {
+        ImportCloudBackupButton.IsEnabled = false;
+        StatusText.Text = "Baixando backup da nuvem...";
+
+        try
+        {
+            var backupSet = await _backupService.DownloadProfileAsync();
+            if (backupSet is null)
+            {
+                StatusText.Text = "Não foi possível localizar ou baixar um backup da nuvem.";
+                return;
+            }
+
+            var catalog = await _storeService.LoadCatalogAsync();
+            var catalogById = catalog.ToDictionary(app => app.Id, StringComparer.OrdinalIgnoreCase);
+            int importedTabs = 0;
+
+            foreach (var manifest in backupSet.Tabs)
+            {
+                var importedTab = _collectionService.CreateNewTab(
+                    string.IsNullOrWhiteSpace(manifest.Name) ? "Backup da nuvem" : manifest.Name);
+
+                foreach (var app in manifest.Apps)
+                {
+                    if (catalogById.TryGetValue(app.Id, out var catalogApp))
+                    {
+                        catalogApp.Office = app.OfficeOptions;
+                        importedTab.Items.Add(catalogApp);
+                        continue;
+                    }
+
+                    importedTab.Items.Add(new AppEntry
+                    {
+                        Id = app.Id,
+                        Name = app.Name ?? app.Id,
+                        Publisher = app.Publisher ?? string.Empty,
+                        IconUrl = app.IconUrl ?? string.Empty,
+                        Description = app.Description,
+                        Office = app.OfficeOptions
+                    });
+                }
+
+                importedTabs++;
+            }
+
+            if (backupSet.Provisioning is { } provisioning)
+                _provisioningService.SetCurrent(provisioning);
+
+            StatusText.Text = backupSet.Provisioning is not null
+                ? $"Backup da nuvem importado: {importedTabs} guia(s) e configurações."
+                : $"Backup da nuvem importado: {importedTabs} guia(s).";
+        }
+        catch
+        {
+            StatusText.Text = "Não foi possível importar o backup da nuvem. Tente novamente.";
+        }
+        finally
+        {
+            ImportCloudBackupButton.IsEnabled = _backupService.IsConnected;
         }
     }
 

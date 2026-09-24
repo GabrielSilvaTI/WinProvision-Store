@@ -107,7 +107,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Resource Include="Assets\Icons\**\*.png" />
+		<Resource Include="Assets\Icons\default_app.png" />
 		<Resource Include="Assets\Desktop\**\*.png" />
 		<Resource Include="Assets\app.ico" />
 		<Resource Include="Assets\app_icon_256.png" />

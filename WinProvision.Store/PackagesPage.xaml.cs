@@ -63,10 +63,10 @@ public partial class PackagesPage : Page
         if (active == null) return;
 
         int selected = active.Items.Count(a => a.IsSelectedForInstall);
-        SelectionSummaryText.Text = $"{active.Items.Count} pacote(s) · {selected} selecionado(s)";
+        SelectionSummaryText.Text = $"Aplicativos: {active.Items.Count} · Selecionados: {selected}";
         StatusText.Text = active.Items.Count == 0
             ? $"{active.Title} vazio."
-            : $"{active.Title} · {active.Items.Count} aplicativo(s).";
+            : $"{active.Title} · {active.Items.Count} aplicativos.";
 
         if (ToggleSelectAllButton != null)
         {
@@ -128,7 +128,7 @@ public partial class PackagesPage : Page
         var confirmDialog = new Wpf.Ui.Controls.MessageBox
         {
             Title = "Excluir perfil",
-            Content = $"Excluir o perfil '{tab.Title}'? Os aplicativos desta guia serão removidos da coleção, mas nenhum aplicativo será desinstalado do Windows.",
+            Content = $"Excluir “{tab.Title}”? Os aplicativos continuarão instalados no Windows.",
             PrimaryButtonText = "Excluir",
             CloseButtonText = "Cancelar"
         };
@@ -348,14 +348,13 @@ public partial class PackagesPage : Page
 
         if (selected.Count == 0)
         {
-            StatusText.Text = "Selecione ao menos um aplicativo.";
+            StatusText.Text = "Selecione um aplicativo.";
             return;
         }
 
         InstallSelectedButton.IsEnabled = false;
-        StatusText.Text = $"Instalando {selected.Count} aplicativo(s)...";
+        StatusText.Text = "Instalando aplicativos...";
 
-        int succeeded = 0;
         int failed = 0;
 
         try
@@ -366,13 +365,12 @@ public partial class PackagesPage : Page
                     ? await InstallOfficePlanAsync(app, officeOptions)
                     : await InstallWingetAppAsync(app);
 
-                if (success) succeeded++;
-                else failed++;
+                if (!success) failed++;
             }
 
             StatusText.Text = failed == 0
-                ? $"{succeeded} pacote(s) instalado(s) com sucesso."
-                : $"{succeeded} pacote(s) instalado(s), {failed} falharam. Veja a fila de operações para detalhes.";
+                ? "Instalação concluída."
+                : $"Instalação concluída. Falhas: {failed}. Veja a fila para detalhes.";
         }
         finally
         {
@@ -461,7 +459,7 @@ public partial class PackagesPage : Page
         {
             Filter = "PowerShell Script (*.ps1)|*.ps1",
             FileName = $"{activeTab.Title.ToLower().Replace(" ", "-")}-install.ps1",
-            Title = "Salvar Script de Instalação PowerShell"
+            Title = "Salvar script de instalação"
         };
 
         if (saveFileDialog.ShowDialog() != true) return;
@@ -500,9 +498,9 @@ public partial class PackagesPage : Page
             await File.WriteAllTextAsync(saveFileDialog.FileName, scriptBuilder.ToString(), Encoding.UTF8);
             StatusText.Text = $"Script salvo para '{activeTab.Title}'.";
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao salvar o script: {ex.Message}";
+            StatusText.Text = "Não foi possível salvar o script. Tente novamente.";
         }
     }
 

@@ -31,8 +31,9 @@
                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                 BorderThickness="1"
                 CornerRadius="{StaticResource OverlayCornerRadius}"
-                Width="620"
-                MaxHeight="760"
+                Width="720"
+                MaxWidth="900"
+                MaxHeight="820"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 RenderTransformOrigin="0.5,0.5"
@@ -60,14 +61,14 @@
                     de clique de verdade (não um X de poucos pixels dentro do chrome de
                     uma janela) - é o que resolve a reclamação original.
                 -->
-                <Grid Grid.Row="0" Margin="24,18,16,0">
+                <Grid Grid.Row="0" Margin="28,20,20,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0"
-                               Text="Detalhes do pacote"
-                               FontSize="14"
+                               Text="Detalhes do aplicativo"
+                               FontSize="13"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                VerticalAlignment="Center" />
@@ -86,51 +87,82 @@
 
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
-                              Padding="28,4,28,16">
+                              Padding="32,8,32,20">
                     <StackPanel>
 
-                        <!--  Ícone + Nome + Publisher  -->
-                        <Grid Margin="0,0,0,18">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                        <!--  Cabeçalho do pacote no estilo da página de detalhes do UniGetUI  -->
+                        <Border Background="{DynamicResource AppSurfaceBrush}"
+                                BorderBrush="{DynamicResource AppBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource OverlayCornerRadius}"
+                                Padding="20"
+                                Margin="0,0,0,20">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                            <Border Grid.Column="0"
-                                    Width="72"
-                                    Height="72"
-                                    Margin="0,0,18,0"
-                                    CornerRadius="{StaticResource OverlayCornerRadius}"
-                                    ClipToBounds="True">
-                                <Grid>
-                                    <ui:SymbolIcon Symbol="Box24"
-                                                   FontSize="42"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                   VerticalAlignment="Center"
-                                                   HorizontalAlignment="Center"
-                                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=AppIcon, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="AppIcon"
-                                           Stretch="Uniform"
-                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=AppIcon, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                </Grid>
-                            </Border>
+                                <Border Grid.Column="0"
+                                        Width="88"
+                                        Height="88"
+                                        Margin="0,0,20,0"
+                                        CornerRadius="{StaticResource OverlayCornerRadius}"
+                                        ClipToBounds="True">
+                                    <Grid>
+                                        <ui:SymbolIcon Symbol="Box24"
+                                                       FontSize="48"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=AppIcon, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                        <Image x:Name="AppIcon"
+                                               Stretch="Uniform"
+                                               Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=AppIcon, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                    </Grid>
+                                </Border>
 
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock x:Name="AppNameText"
-                                           FontSize="22"
-                                           FontWeight="Bold"
-                                           TextWrapping="Wrap" />
-                                <ui:HyperlinkButton x:Name="PublisherLink"
-                                                    Padding="0"
-                                                    Margin="0,4,0,0">
-                                    <TextBlock x:Name="PublisherLinkText" FontSize="13" />
-                                </ui:HyperlinkButton>
-                                <TextBlock x:Name="PublisherPlainText"
-                                           FontSize="13"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           Margin="0,4,0,0" />
-                            </StackPanel>
-                        </Grid>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock x:Name="AppNameText"
+                                               FontSize="25"
+                                               FontWeight="Bold"
+                                               TextWrapping="Wrap" />
+                                    <ui:HyperlinkButton x:Name="PublisherLink"
+                                                        Padding="0"
+                                                        Margin="0,4,0,0">
+                                        <TextBlock x:Name="PublisherLinkText" FontSize="14" />
+                                    </ui:HyperlinkButton>
+                                    <TextBlock x:Name="PublisherPlainText"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Margin="0,4,0,0" />
+                                    <TextBlock x:Name="PackageSourceText"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               Margin="0,7,0,0" />
+                                </StackPanel>
+                                <Border Grid.Column="2"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="{StaticResource ControlCornerRadius}"
+                                        Padding="12,8"
+                                        VerticalAlignment="Top">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Tag24"
+                                                       FontSize="16"
+                                                       Margin="0,0,7,0" />
+                                        <TextBlock x:Name="VersionBadgeText"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="Sobre este aplicativo"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,8" />
 
                         <!--  Tags  -->
                         <ItemsControl x:Name="TagsList" Margin="0,0,0,16">
@@ -154,8 +186,15 @@
                         <!--  Descrição  -->
                         <TextBlock x:Name="DescriptionText"
                                    TextWrapping="Wrap"
-                                   FontSize="13"
+                                   FontSize="14"
+                                   LineHeight="21"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,0,0,20" />
+
+                        <TextBlock Text="Informações do pacote"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,12" />
 
                         <!--  Separador  -->
                         <Border Height="1"
@@ -165,7 +204,7 @@
                         <!--  Metadados  -->
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="170" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
@@ -219,7 +258,7 @@
 
                             <TextBlock Grid.Row="3"
                                        Grid.Column="0"
-                                       Text="Score de relevância"
+                                       Text="Relevância no catálogo"
                                        FontWeight="SemiBold"
                                        FontSize="12"
                                        Margin="0,0,0,10" />
@@ -274,7 +313,7 @@
                 </ScrollViewer>
 
                 <!--  Ações  -->
-                <Grid Grid.Row="2" Margin="28,0,28,24">
+                <Grid Grid.Row="2" Margin="32,0,32,24">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />

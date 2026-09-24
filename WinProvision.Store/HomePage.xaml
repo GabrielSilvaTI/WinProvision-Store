@@ -18,8 +18,6 @@
 
     <Page.Resources>
         <conv:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
-        <conv:InstalledToLabelConverter x:Key="InstalledToLabelConverter" />
-        <conv:InstalledToIconConverter x:Key="InstalledToIconConverter" />
         <conv:InstallStateToLabelConverter x:Key="InstallStateToLabelConverter" />
         <conv:InstallStateToIconConverter x:Key="InstallStateToIconConverter" />
         <conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
@@ -28,28 +26,16 @@
         <!--  Tipografia Fluent  -->
         <Style x:Key="PageTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
 
         <Style x:Key="CardTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentCardTitleStyle}" />
 
         <!--  Estilo base para os painéis e cartões  -->
-        <Style x:Key="DashboardCardStyle" TargetType="Border">
+        <Style x:Key="DashboardCardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource FluentCardStyle}">
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
@@ -250,13 +236,13 @@
     </Page.Resources>
 
     <!--  Layout Principal: 3 Colunas (Conteúdo | Espaço | Sidebar)  -->
-    <Grid Margin="24,20,24,20"
+    <Grid Margin="{StaticResource PageContentMargin}"
           MaxWidth="1600"
           HorizontalAlignment="Stretch">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition x:Name="SidebarGapColumn" Width="20" />
-            <ColumnDefinition x:Name="SidebarColumn" Width="264" />
+            <ColumnDefinition x:Name="SidebarGapColumn" Width="{StaticResource PageColumnGap}" />
+            <ColumnDefinition x:Name="SidebarColumn" Width="{StaticResource PageSidebarWidth}" />
         </Grid.ColumnDefinitions>
 
         <!--  ================= COLUNA ESQUERDA (Principal) =================  -->
@@ -271,7 +257,7 @@
             </Grid.RowDefinitions>
 
             <!--  1. CABEÇALHO + BUSCA RESPONSIVO  -->
-            <Grid Grid.Row="0" Margin="0,0,0,24">
+            <Grid Grid.Row="0" Margin="{StaticResource PageHeaderMargin}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="16" />
@@ -280,10 +266,10 @@
 
                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE7BF;" />
+                        <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE7BF;" />
                         <TextBlock Text="Visão Geral" Style="{StaticResource PageTitleStyle}" />
                     </StackPanel>
-                    <TextBlock Text="Encontre e instale seus aplicativos."
+                    <TextBlock Text="Pesquise e instale aplicativos."
                                FontSize="13"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                Margin="0,4,0,0"
@@ -298,7 +284,7 @@
                             Width="260"
                             MinWidth="180"
                             MaxWidth="340"
-                            PlaceholderText="Pesquise apps, pacotes e mais..."
+                            PlaceholderText="Pesquisar aplicativos..."
                             TextChanged="SearchBox_TextChanged"
                             KeyDown="SearchBox_KeyDown"
                             Padding="12,8">
@@ -419,7 +405,7 @@
                             <TextBlock Text="Mais aplicativos"
                                        Style="{StaticResource CardTitleStyle}"
                                        FontSize="16" />
-                            <TextBlock Text="Mais opções para você."
+                            <TextBlock Text="Explore outras opções."
                                        FontSize="12"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        Margin="0,2,0,0" />

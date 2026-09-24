@@ -65,3 +65,23 @@ public class WingetMethodStopColorConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
 }
+
+/// <summary>Retorna a cor sólida da via atual para controles de progresso.</summary>
+public sealed class WingetMethodBrushConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var method = value is WingetMethod typed ? typed : WingetMethod.Unknown;
+        Color color = method switch
+        {
+            WingetMethod.ComApi => Color.FromRgb(0x8A, 0x4F, 0xFF),
+            WingetMethod.OwnApi => Color.FromRgb(0xE0, 0xB4, 0x00),
+            WingetMethod.WingetExe => Color.FromRgb(0x00, 0xB8, 0xD9),
+            _ => Color.FromRgb(0x3A, 0x8D, 0xFF)
+        };
+        return new SolidColorBrush(color);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}

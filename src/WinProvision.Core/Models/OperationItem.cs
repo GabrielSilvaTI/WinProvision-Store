@@ -71,6 +71,37 @@ public class OperationItem : INotifyPropertyChanged, IDisposable
         _ => "Processando"
     };
 
+    public string OperationTitle => $"{AppName} — {Kind switch
+    {
+        OperationKind.Install => "Instalação",
+        OperationKind.Update => "Atualização",
+        OperationKind.Uninstall => "Desinstalação",
+        _ => "Operação"
+    }}";
+
+    /// <summary>Resumo curto para a interface; logs detalhados permanecem em DetailText.</summary>
+    public string UserFacingStatusText => State switch
+    {
+        OperationState.Queued => "Na fila",
+        OperationState.Running => string.IsNullOrWhiteSpace(StatusText) ? $"{KindLabel}…" : StatusText,
+        OperationState.Completed => Kind switch
+        {
+            OperationKind.Install => "Instalado",
+            OperationKind.Update => "Atualizado",
+            OperationKind.Uninstall => "Removido",
+            _ => "Concluído"
+        },
+        OperationState.Failed => Kind switch
+        {
+            OperationKind.Install => "Falha na instalação",
+            OperationKind.Update => "Falha na atualização",
+            OperationKind.Uninstall => "Falha na remoção",
+            _ => "Falha na operação"
+        },
+        OperationState.Canceled => "Cancelado",
+        _ => string.Empty
+    };
+
     public string StatusText
     {
         get => _statusText;
@@ -117,6 +148,7 @@ public class OperationItem : INotifyPropertyChanged, IDisposable
             {
                 CanCancel = value is OperationState.Queued or OperationState.Running;
                 OnPropertyChanged(nameof(IsFinished));
+                OnPropertyChanged(nameof(UserFacingStatusText));
             }
         }
     }

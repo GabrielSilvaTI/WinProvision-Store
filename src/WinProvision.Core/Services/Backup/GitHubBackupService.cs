@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.Versioning;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WinProvision.Core.Models;
@@ -207,13 +209,25 @@ public class GitHubBackupService
                 return GitHubConnectResult.Fail("Esse token não tem a permissão \"gist\". Gere um novo token com esse escopo marcado.");
         }
 
-        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        SecureTokenStore.Save(_tokenPath, token);
+        bool accountChanged = !string.Equals(_account.Login, user.Login, StringComparison.OrdinalIgnoreCase);
+        try
+        {
+            SecureTokenStore.Save(_tokenPath, token);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+            return GitHubConnectResult.Fail($"Não foi possível salvar o token com segurança: {ex.Message}");
+        }
 
+        _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         _account.Login = user.Login;
         _account.AvatarUrl = user.AvatarUrl;
-        _account.GistId ??= LoadGistIdFromRegistry();
-        _account.GistId ??= await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
+        if (accountChanged)
+            _account.GistId = null;
+        string? previousGistId = accountChanged ? null : _account.GistId ?? LoadGistIdFromRegistry();
+        if (accountChanged)
+            SaveGistIdToRegistry(null);
+        _account.GistId = await ResolveOwnedGistIdAsync(previousGistId, ct);
         PersistAccountInfo();
 
         return GitHubConnectResult.Ok(user.Login);
@@ -243,16 +257,18 @@ public class GitHubBackupService
         try
         {
             string json = JsonSerializer.Serialize(backupSet, ManifestJsonOptions);
-
-            if (string.IsNullOrEmpty(_account.GistId))
+            var backupFiles = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                // Consulta a API ou chave de perfil para encontrar o Gist existente antes de criar um novo.
-                _account.GistId = LoadGistIdFromRegistry()
-                    ?? await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
-            }
+                [BackupFileName] = json,
+                [BuildDeviceBackupFileName()] = json
+            };
+
+            // Confirma o marcador WinProvision antes de modificar o Gist salvo.
+            _account.GistId = await ResolveOwnedGistIdAsync(
+                _account.GistId ?? LoadGistIdFromRegistry(), ct);
 
             bool success = await UpsertGistAsync(
-                BackupFileName, GistDescription, _account.GistId, json,
+                backupFiles, GistDescription, _account.GistId,
                 onIdChanged: id =>
                 {
                     _account.GistId = id;
@@ -295,18 +311,21 @@ public class GitHubBackupService
         // Perfil pode ter sido criado por outra instalação do app (outra máquina) que
         // nunca sincronizou por aqui — sempre reconfirma o GistId em vez de confiar só
         // no cache local, que pode estar vazio ou desatualizado.
-        _account.GistId ??= LoadGistIdFromRegistry();
-        _account.GistId ??= await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
+        _account.GistId = await ResolveOwnedGistIdAsync(
+            _account.GistId ?? LoadGistIdFromRegistry(), ct);
         if (string.IsNullOrEmpty(_account.GistId))
             return null;
 
         try
         {
-            var response = await _http.GetAsync($"{ApiBase}/gists/{_account.GistId}", ct);
+            using var response = await _http.GetAsync(
+                $"{ApiBase}/gists/{Uri.EscapeDataString(_account.GistId)}", ct);
             if (!response.IsSuccessStatusCode)
                 return null;
 
             var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
+            if (!IsWinProvisionGist(gist))
+                return null;
             string? content = gist?.Files?.GetValueOrDefault(BackupFileName)?.Content
                 ?? gist?.Files?.GetValueOrDefault(LegacyBackupFileName)?.Content;
             if (string.IsNullOrEmpty(content))
@@ -327,14 +346,14 @@ public class GitHubBackupService
 
     // Helper genérico para localizar e atualizar o Gist de backup do perfil.
 
-    /// <summary>Varre todos os gists da conta procurando um com o arquivo profile.json ou a descrição.</summary>
+    /// <summary>Varre os Gists da conta procurando exclusivamente a descrição própria do WinProvision.</summary>
     private async Task<string?> TryFindGistIdAsync(string description, string fileName, CancellationToken ct)
     {
         try
         {
             for (int page = 1; page <= 10; page++)
             {
-                var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100&page={page}", ct);
+                using var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100&page={page}", ct);
                 if (!response.IsSuccessStatusCode)
                     return null;
 
@@ -343,8 +362,6 @@ public class GitHubBackupService
                     return null;
 
                 var match = gists.FirstOrDefault(g =>
-                    (g.Files != null && g.Files.ContainsKey(fileName)) ||
-                    (g.Files != null && g.Files.ContainsKey(LegacyBackupFileName)) ||
                     string.Equals(g.Description, description, StringComparison.Ordinal));
 
                 if (match?.Id is not null)
@@ -366,19 +383,61 @@ public class GitHubBackupService
         }
     }
 
-    private async Task<string?> CreateGistAsync(string fileName, string description, string content, CancellationToken ct)
+    private async Task<string?> ResolveOwnedGistIdAsync(string? candidateId, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(candidateId))
+        {
+            try
+            {
+                using var response = await _http.GetAsync(
+                    $"{ApiBase}/gists/{Uri.EscapeDataString(candidateId)}", ct);
+                if (response.IsSuccessStatusCode)
+                {
+                    var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
+                    if (IsWinProvisionGist(gist))
+                        return gist!.Id;
+                }
+                else if (response.StatusCode != HttpStatusCode.NotFound)
+                {
+                    return null;
+                }
+            }
+            catch (HttpRequestException)
+            {
+                return null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
+        }
+
+        return await TryFindGistIdAsync(GistDescription, BackupFileName, ct);
+    }
+
+    private static bool IsWinProvisionGist(GitHubGistResponse? gist) =>
+        gist is not null
+        && string.Equals(gist.Description, GistDescription, StringComparison.Ordinal);
+
+    private static string BuildDeviceBackupFileName()
+    {
+        string identity = $"{Environment.MachineName}\\{Environment.UserName}";
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+        string suffix = Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant();
+        return $"profile-device-{suffix}.json";
+    }
+
+    private async Task<string?> CreateGistAsync(
+        IReadOnlyDictionary<string, string> files, string description, CancellationToken ct)
     {
         var payload = new
         {
             description,
             @public = false,
-            files = new Dictionary<string, object>
-            {
-                [fileName] = new { content }
-            }
+            files = files.ToDictionary(file => file.Key, file => (object)new { content = file.Value }, StringComparer.Ordinal)
         };
 
-        var response = await _http.PostAsJsonAsync($"{ApiBase}/gists", payload, ct);
+        using var response = await _http.PostAsJsonAsync($"{ApiBase}/gists", payload, ct);
         if (!response.IsSuccessStatusCode)
             return null;
 
@@ -388,19 +447,19 @@ public class GitHubBackupService
 
     /// <summary>
     /// Cria (se <paramref name="existingGistId"/> for nulo/vazio) ou atualiza o Gist com o
-    /// conteúdo dado. Em caso de 404 no update (Gist apagado/perdeu acesso desde a última
+    /// conjunto de arquivos dado. Em caso de 404 no update (Gist apagado/perdeu acesso desde a última
     /// vez), reencontra por descrição/nome de arquivo e tenta de novo antes de desistir.
     /// Único chamador hoje é <see cref="UploadProfileAsync"/>.
     /// </summary>
     private async Task<bool> UpsertGistAsync(
-        string fileName, string description, string? existingGistId, string content,
+        IReadOnlyDictionary<string, string> files, string description, string? existingGistId,
         Action<string?> onIdChanged, Action onRecreateNeeded, CancellationToken ct)
     {
         try
         {
             if (string.IsNullOrEmpty(existingGistId))
             {
-                string? createdId = await CreateGistAsync(fileName, description, content, ct);
+                string? createdId = await CreateGistAsync(files, description, ct);
                 if (createdId is null)
                     return false;
 
@@ -408,22 +467,26 @@ public class GitHubBackupService
                 return true;
             }
 
-            var payload = new { files = new Dictionary<string, object> { [fileName] = new { content } } };
-            using var request = new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}/gists/{existingGistId}")
+            var payload = new
+            {
+                files = files.ToDictionary(file => file.Key, file => (object)new { content = file.Value }, StringComparer.Ordinal)
+            };
+            using var request = new HttpRequestMessage(
+                HttpMethod.Patch, $"{ApiBase}/gists/{Uri.EscapeDataString(existingGistId)}")
             {
                 Content = JsonContent.Create(payload)
             };
 
-            var response = await _http.SendAsync(request, ct);
+            using var response = await _http.SendAsync(request, ct);
             if (response.StatusCode != HttpStatusCode.NotFound)
                 return response.IsSuccessStatusCode;
 
             // Gist foi apagado/perdeu acesso desde a última vez — reencontra por
             // descrição/nome de arquivo antes de desistir, em vez de falhar direto.
             onRecreateNeeded();
-            string? recheckedId = await TryFindGistIdAsync(description, fileName, ct);
+            string? recheckedId = await TryFindGistIdAsync(description, BackupFileName, ct);
             onIdChanged(recheckedId);
-            return await UpsertGistAsync(fileName, description, recheckedId, content, onIdChanged, onRecreateNeeded, ct);
+            return await UpsertGistAsync(files, description, recheckedId, onIdChanged, onRecreateNeeded, ct);
         }
         catch (HttpRequestException)
         {

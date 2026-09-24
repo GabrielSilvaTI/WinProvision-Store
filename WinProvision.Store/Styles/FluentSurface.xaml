@@ -1,7 +1,12 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
-    <SolidColorBrush x:Key="FluentWindowSurfaceBrush" Color="#F0101B2D" />
+    <LinearGradientBrush x:Key="AppWindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FF19232F" Offset="0" />
+        <GradientStop Color="#FF243342" Offset="0.52" />
+        <GradientStop Color="#FF1B2835" Offset="1" />
+    </LinearGradientBrush>
+    <SolidColorBrush x:Key="FluentWindowSurfaceBrush" Color="#FF1B2835" />
     <SolidColorBrush x:Key="FluentPanelBrush" Color="#E0263446" />
     <SolidColorBrush x:Key="FluentPanelElevatedBrush" Color="#F02D4056" />
     <SolidColorBrush x:Key="FluentPanelPressedBrush" Color="#E01D3047" />
@@ -10,13 +15,29 @@
     <SolidColorBrush x:Key="FluentAccentSoftBrush" Color="#604A8DCE" />
     <SolidColorBrush x:Key="FluentTextMutedBrush" Color="#B8C5D6" />
 
+    <!--  Shared page rhythm: one content gutter and one header-to-content gap.  -->
+    <Thickness x:Key="PageContentMargin">24,16,24,16</Thickness>
+    <Thickness x:Key="PageHeaderMargin">0,0,0,16</Thickness>
+    <Thickness x:Key="PageSectionGap">0,0,0,12</Thickness>
+    <GridLength x:Key="PageSidebarWidth">280</GridLength>
+    <GridLength x:Key="PageColumnGap">16</GridLength>
+
     <Style x:Key="FluentPageTitleStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
-        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontSize" Value="26" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
+    <Style x:Key="FluentPageIconStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource PageHeaderIconStyle}">
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Margin" Value="0,0,12,0" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
     </Style>
 
     <Style x:Key="FluentPageSubtitleStyle"
@@ -28,19 +49,27 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <Style x:Key="FluentCardTitleStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    </Style>
+
     <Style x:Key="FluentCardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{DynamicResource FluentPanelBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource FluentPanelBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-        <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+        <Setter Property="Padding" Value="{StaticResource Spacing24}" />
         <Setter Property="Effect">
             <Setter.Value>
                 <DropShadowEffect Color="#000000"
-                                  Opacity="0.22"
-                                  BlurRadius="22"
-                                  ShadowDepth="4"
-                                  Direction="270" />
+                                  Opacity="0.2"
+                                  BlurRadius="24"
+                                  ShadowDepth="0" />
             </Setter.Value>
         </Setter>
     </Style>

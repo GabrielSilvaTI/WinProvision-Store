@@ -7,11 +7,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Microsoft.Win32;
-using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Converters;
 using WinProvision.Store.Services;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store.Controls;
 
@@ -28,12 +28,13 @@ public partial class AppDetailsOverlay : UserControl
     private readonly WingetExecutor _wingetExecutor;
     private readonly OperationsQueueService _queueService;
     private readonly InstalledAppsService _installedAppsService;
+    private readonly InstalledPackagesViewModel _installedPackagesViewModel;
     private AppEntry? _app;
     private string? _installLocation;
 
     public AppDetailsOverlay(AppDetailsOverlayService overlayService, PackageCollectionService collectionService,
         WingetExecutor wingetExecutor, OperationsQueueService queueService,
-        InstalledAppsService installedAppsService)
+        InstalledAppsService installedAppsService, InstalledPackagesViewModel installedPackagesViewModel)
     {
         InitializeComponent();
 
@@ -41,6 +42,7 @@ public partial class AppDetailsOverlay : UserControl
         _wingetExecutor = wingetExecutor;
         _queueService = queueService;
         _installedAppsService = installedAppsService;
+        _installedPackagesViewModel = installedPackagesViewModel;
 
         Visibility = Visibility.Collapsed;
         overlayService.Requested += Show;
@@ -57,6 +59,10 @@ public partial class AppDetailsOverlay : UserControl
 
         AsyncImage.SetSourceUrl(AppIcon, app.IconUrl);
         AppNameText.Text = app.Name;
+        PackageSourceText.Text = app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+            ? "Microsoft Store"
+            : "WinGet · winget-pkgs";
+        VersionBadgeText.Text = string.IsNullOrWhiteSpace(app.Version) ? "Versão não informada" : app.Version;
         DescriptionText.Text = app.Description;
         DescriptionText.Visibility = string.IsNullOrWhiteSpace(app.Description) ? Visibility.Collapsed : Visibility.Visible;
 
@@ -314,7 +320,7 @@ public partial class AppDetailsOverlay : UserControl
         var app = _app;
 
         InstallButton.IsEnabled = false;
-        StatusText.Text = $"{app.Name} adicionado à fila de instalação. Acompanhe pelo ícone de fila na barra de título.";
+        StatusText.Text = $"{app.Name} entrou na fila de instalação.";
 
         try
         {
@@ -339,11 +345,11 @@ public partial class AppDetailsOverlay : UserControl
                 StatusText.Text = WingetErrorTranslator.ToMessage(result.FailureReason, "instalar", app.Name);
             }
         }
-        catch (Exception ex)
+        catch
         {
             if (_app == app)
             {
-                StatusText.Text = $"Erro ao instalar {app.Name}: {ex.Message}";
+                StatusText.Text = $"Não foi possível instalar {app.Name}. Tente novamente.";
             }
         }
         finally
@@ -395,7 +401,7 @@ public partial class AppDetailsOverlay : UserControl
         var confirmDialog = new Wpf.Ui.Controls.MessageBox
         {
             Title = "Desinstalar aplicativo",
-            Content = $"Tem certeza que deseja desinstalar \"{_app.Name}\"?",
+            Content = $"Desinstalar “{_app.Name}”?",
             PrimaryButtonText = "Desinstalar",
             CloseButtonText = "Cancelar"
         };
@@ -432,34 +438,27 @@ public partial class AppDetailsOverlay : UserControl
         var app = _app;
 
         UninstallButton.IsEnabled = false;
-        StatusText.Text = $"{app.Name} adicionado à fila de remoção. Acompanhe pelo ícone de fila na barra de título.";
+        StatusText.Text = $"{app.Name} entrou na fila de desinstalação.";
 
         try
         {
-            var result = await OperationRunner.RunUninstallAsync(
-                _queueService, _wingetExecutor, app.Id, app.Name, app.IconUrl, _installedAppsService);
-
-            if (result.Success)
+            bool removed = await _installedPackagesViewModel.RemoveByIdentityAsync(app.Id, app.Name, app.IconUrl);
+            if (removed)
             {
-                // Dispara AppOnPropertyChanged -> UpdateInstallActionsVisibility, que volta
-                // a mostrar "Instalar" no lugar de "Abrir"/"Desinstalar" — só faz sentido se
-                // o painel ainda estiver mostrando esse mesmo app.
                 app.IsInstalled = false;
                 if (_app == app)
-                {
                     StatusText.Text = $"{app.Name} removido.";
-                }
             }
             else if (_app == app)
             {
-                StatusText.Text = WingetErrorTranslator.ToMessage(result.FailureReason, "desinstalar", app.Name);
+                StatusText.Text = $"Não foi possível desinstalar {app.Name}.";
             }
         }
-        catch (Exception ex)
+        catch
         {
             if (_app == app)
             {
-                StatusText.Text = $"Erro ao desinstalar {app.Name}: {ex.Message}";
+                StatusText.Text = $"Não foi possível desinstalar {app.Name}. Tente novamente.";
             }
         }
         finally
@@ -479,9 +478,9 @@ public partial class AppDetailsOverlay : UserControl
         {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Não foi possível abrir o link: {ex.Message}";
+            StatusText.Text = "Não foi possível abrir o link. Tente novamente.";
         }
     }
 }

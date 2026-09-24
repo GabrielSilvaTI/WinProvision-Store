@@ -4,26 +4,6 @@ using Wpf.Ui.Controls;
 
 namespace WinProvision.Store.Converters;
 
-/// <summary>Troca o texto do botão de ação do card: "Instalar" (não instalado) / "Instalado" (instalado).</summary>
-public class InstalledToLabelConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        value is true ? "Instalado" : "Instalar";
-
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
-        throw new NotSupportedException();
-}
-
-/// <summary>Troca o ícone do botão de ação do card: download (não instalado) / check (instalado).</summary>
-public class InstalledToIconConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
-        new SymbolIcon { Symbol = value is true ? SymbolRegular.Checkmark24 : SymbolRegular.ArrowDownload24 };
-
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
-        throw new NotSupportedException();
-}
-
 /// <summary>
 /// Versão de 3 estados do rótulo do botão de ação: "Instalando" (instalação em
 /// andamento) tem prioridade sobre "Instalado"/"Instalar". Espera values[0]=IsInstalled,

@@ -77,11 +77,14 @@ public class BackupAutoSyncService : IDisposable
     }
 
     /// <summary>Também usado pelo botão "Sincronizar agora" das Configurações — mesma lógica, sem esperar o debounce.</summary>
-    public async Task RunSyncAsync(CancellationToken ct = default)
+    public async Task<BackupSyncResult> RunSyncAsync(CancellationToken ct = default)
     {
         if (!await _runLock.WaitAsync(0, ct))
-            return; // já tem uma sincronização em andamento — a próxima mudança reagenda naturalmente
+            return new BackupSyncResult(false, false, false, "Já existe uma sincronização em andamento.", true);
 
+        bool localSucceeded = false;
+        bool cloudAttempted = false;
+        bool cloudSucceeded = false;
         try
         {
             var nonEmptyTabs = _collectionService.Tabs.Where(t => t.Items.Count > 0).ToList();
@@ -96,23 +99,29 @@ public class BackupAutoSyncService : IDisposable
             };
 
             await _localBackup.SaveAsync(backupSet, ct);
+            localSucceeded = true;
 
             if (_cloudBackup.IsConnected)
             {
-                await _cloudBackup.UploadProfileAsync(backupSet, ct);
+                cloudAttempted = true;
+                cloudSucceeded = await _cloudBackup.UploadProfileAsync(backupSet, ct);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Backup automático é melhor-esforço: uma falha (ex.: sem internet no
             // momento) nunca deve derrubar o app nem interromper a operação de
             // instalação/remoção que disparou este ciclo.
+            return new BackupSyncResult(localSucceeded, cloudAttempted, cloudSucceeded, ex.Message);
         }
         finally
         {
             _runLock.Release();
             SyncAttempted?.Invoke();
         }
+
+        return new BackupSyncResult(localSucceeded, cloudAttempted, cloudSucceeded,
+            cloudAttempted && !cloudSucceeded ? "O serviço de nuvem não aceitou o backup." : null);
     }
 
     public void Dispose()
@@ -123,3 +132,10 @@ public class BackupAutoSyncService : IDisposable
         _debounceTimer.Dispose();
     }
 }
+
+public sealed record BackupSyncResult(
+    bool LocalSucceeded,
+    bool CloudAttempted,
+    bool CloudSucceeded,
+    string? ErrorMessage = null,
+    bool AlreadyRunning = false);

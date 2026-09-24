@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -7,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Services;
@@ -16,6 +16,7 @@ namespace WinProvision.Store;
 public partial class UpdatesPage : Page
 {
     private readonly WingetExecutor _wingetExecutor;
+    private readonly WinGetService _winGetService;
     private readonly StoreService _storeService;
     private readonly OperationsQueueService _queue;
     private readonly ScheduledUpdatesService _scheduledUpdatesService;
@@ -31,6 +32,7 @@ public partial class UpdatesPage : Page
         InitializeComponent();
 
         _wingetExecutor = App.Services.GetRequiredService<WingetExecutor>();
+        _winGetService = App.Services.GetRequiredService<WinGetService>();
         _storeService = App.Services.GetRequiredService<StoreService>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
         _scheduledUpdatesService = App.Services.GetRequiredService<ScheduledUpdatesService>();
@@ -151,11 +153,12 @@ public partial class UpdatesPage : Page
         CheckUpdatesButton.IsEnabled = false;
         UpdateSelectedButton.IsEnabled = false;
         BusyIndicator.Visibility = Visibility.Visible;
-        StatusText.Text = "Verificando atualizações disponíveis...";
+        StatusText.Text = "Procurando atualizações...";
 
         try
         {
-            var upgradable = await _wingetExecutor.GetUpgradablePackagesAsync(onLogReceived: line => StatusText.Text = line);
+            var upgradable = await _winGetService.GetUpgradablePackagesAsync(
+                onLogReceived: line => StatusText.Text = line);
 
             var catalog = _storeService.GetAll();
             foreach (var package in upgradable)
@@ -186,7 +189,8 @@ public partial class UpdatesPage : Page
         }
         catch (Exception ex)
         {
-            StatusText.Text = $"Erro ao verificar atualizações: {ex.Message}";
+            WinProvisionLog.Write($"UPDATE UI discovery failed {ex.GetType().Name}: {ex.Message}");
+            StatusText.Text = "Não foi possível verificar atualizações. Tente novamente.";
         }
         finally
         {
@@ -283,13 +287,13 @@ public partial class UpdatesPage : Page
 
         if (selected.Count == 0)
         {
-            StatusText.Text = "Selecione ao menos um aplicativo.";
+            StatusText.Text = "Selecione um aplicativo.";
             return;
         }
 
         UpdateSelectedButton.IsEnabled = false;
         CheckUpdatesButton.IsEnabled = false;
-        StatusText.Text = $"Atualizando {selected.Count} aplicativo(s)...";
+        StatusText.Text = "Atualizando aplicativos...";
 
         int succeeded = 0;
         int failed = 0;
@@ -300,7 +304,13 @@ public partial class UpdatesPage : Page
 
             try
             {
-                var result = await OperationRunner.RunUpdateAsync(_queue, _wingetExecutor, package.Id, package.Name, package.IconUrl);
+                var result = await OperationRunner.RunUpdateAsync(
+                    _queue,
+                    _wingetExecutor,
+                    package.Id,
+                    package.Name,
+                    package.IconUrl,
+                    string.IsNullOrWhiteSpace(package.Source) ? "winget" : package.Source);
 
                 if (result.Success)
                 {
@@ -325,8 +335,8 @@ public partial class UpdatesPage : Page
         }
 
         StatusText.Text = failed == 0
-            ? $"{succeeded} pacote(s) atualizado(s) com sucesso."
-            : $"{succeeded} pacote(s) atualizado(s), {failed} falharam. Veja a fila de operações para detalhes.";
+            ? "Atualização concluída."
+            : $"Atualização concluída. Falhas: {failed}. Veja a fila para detalhes.";
 
         SyncSelectAllCheckBoxState();
         UpdateSelectedButton.IsEnabled = true;

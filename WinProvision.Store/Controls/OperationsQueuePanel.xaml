@@ -5,33 +5,25 @@
              xmlns:conv="clr-namespace:WinProvision.Store.Converters"
              xmlns:models="clr-namespace:WinProvision.Core.Models;assembly=WinProvision.Core"
              x:Name="Root"
-             MinWidth="420"
-             MaxWidth="460"
-             MaxHeight="520">
+             MaxHeight="320"
+             HorizontalAlignment="Stretch">
 
     <UserControl.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/WinProvision.Store;component/Styles/VisualPolish.xaml" />
-                <ResourceDictionary Source="/WinProvision.Store;component/Styles/GradientProgressBar.xaml" />
-                <ResourceDictionary Source="/WinProvision.Store;component/Styles/InstallActionBrushes.xaml" />
-            </ResourceDictionary.MergedDictionaries>
             <conv:NotFinishedToVisibilityConverter x:Key="NotFinishedToVisibilityConverter" />
             <conv:FinishedToVisibilityConverter x:Key="FinishedToVisibilityConverter" />
-            <conv:OperationStateToBrushConverter x:Key="OperationStateToBrushConverter" />
-            <conv:OperationStateToTextConverter x:Key="OperationStateToTextConverter" />
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Border Background="{DynamicResource ApplicationBackgroundBrush}"
-            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+    <Border Background="{DynamicResource AppSurfaceBrush}"
+            BorderBrush="{DynamicResource AppBorderBrush}"
             BorderThickness="1"
-            CornerRadius="{StaticResource OverlayCornerRadius}">
+            CornerRadius="8">
         <Border.Effect>
-            <DropShadowEffect Color="#000000"
-                              Opacity="0.25"
-                              BlurRadius="32"
-                              ShadowDepth="0" />
+            <DropShadowEffect Color="{DynamicResource AppPanelShadowColor}"
+                              Opacity="0.14"
+                              BlurRadius="18"
+                              ShadowDepth="2" />
         </Border.Effect>
         <Grid>
             <Grid.RowDefinitions>
@@ -43,10 +35,15 @@
             <ToggleButton x:Name="ExpanderToggle"
                           Grid.Row="0"
                           IsChecked="True"
-                          Cursor="Hand">
+                          Cursor="Hand"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Padding="0">
                 <ToggleButton.Template>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border Padding="14,12" Background="Transparent">
+                        <Border Padding="10,6,8,6"
+                                Background="Transparent"
+                                MinHeight="42">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -57,24 +54,31 @@
                                 <ui:SymbolIcon x:Name="Chevron"
                                                Grid.Column="0"
                                                Symbol="ChevronDown24"
-                                               Margin="0,0,10,0"
+                                               FontSize="16"
+                                               Opacity="0.7"
+                                               Margin="0,0,8,0"
                                                VerticalAlignment="Center" />
 
-                                <TextBlock Grid.Column="1"
-                                           VerticalAlignment="Center"
-                                           FontSize="13"
-                                           FontWeight="SemiBold">
-                                    <TextBlock.Text>
-                                        <MultiBinding StringFormat="{}{0} de {1} operações concluídas">
-                                            <Binding Path="Queue.CompletedCount" ElementName="Root" />
-                                            <Binding Path="Queue.TotalCount" ElementName="Root" />
-                                        </MultiBinding>
-                                    </TextBlock.Text>
-                                </TextBlock>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Operações"
+                                               FontSize="12.5"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock FontSize="10.5" Opacity="0.68">
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0} de {1} concluídas">
+                                                <Binding Path="Queue.CompletedCount" ElementName="Root" />
+                                                <Binding Path="Queue.TotalCount" ElementName="Root" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
 
                                 <ui:Button Grid.Column="2"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,2,0"
                                            Appearance="Transparent"
-                                           Padding="6"
+                                           Padding="7"
+                                           ToolTip="Limpar operações concluídas"
                                            Icon="{ui:SymbolIcon Broom24}"
                                            Click="ClearFinished_Click" />
                             </Grid>
@@ -88,12 +92,19 @@
                 </ToggleButton.Template>
             </ToggleButton>
 
+            <Border Grid.Row="0"
+                    Height="1"
+                    Margin="10,0"
+                    VerticalAlignment="Bottom"
+                    Background="{DynamicResource AppBorderSubtleBrush}" />
+
             <!--  LISTA DE OPERAÇÕES  -->
             <ScrollViewer Grid.Row="1"
-                          MaxHeight="440"
+                          MaxHeight="282"
                           VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
                           Visibility="{Binding IsChecked, ElementName=ExpanderToggle, Converter={StaticResource BoolToVisibilityConverter}}">
-                <ItemsControl ItemsSource="{Binding Queue.Operations, ElementName=Root}">
+                <ItemsControl ItemsSource="{Binding Queue.Operations, ElementName=Root}" Margin="8,2,8,8">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel />
@@ -102,9 +113,12 @@
 
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Padding="14,10"
-                                    BorderThickness="0,0,0,1"
-                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}">
+                            <Border Padding="10,8"
+                                    Margin="0,3"
+                                    CornerRadius="6"
+                                    BorderThickness="1"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}"
+                                    Background="{DynamicResource AppCardBackgroundBrush}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -114,66 +128,113 @@
 
                                     <!--  ÍCONE  -->
                                     <Border Grid.Column="0"
-                                            Width="34"
-                                            Height="34"
-                                            Margin="0,0,12,0"
-                                            CornerRadius="{StaticResource OverlayCornerRadius}"
-                                            VerticalAlignment="Top"
-                                            Background="{DynamicResource InstallActionBrush}">
-                                        <ui:SymbolIcon Symbol="ArrowDownload24"
-                                                       Foreground="White"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center" />
+                                            Width="36"
+                                            Height="36"
+                                            Margin="0,0,10,0"
+                                            VerticalAlignment="Center"
+                                            CornerRadius="6"
+                                            Background="{DynamicResource AppSurfaceElevatedBrush}"
+                                            BorderBrush="{DynamicResource AppBorderSubtleBrush}"
+                                            BorderThickness="1"
+                                            ClipToBounds="True">
+                                        <Grid>
+                                            <ui:SymbolIcon Symbol="Box24"
+                                                           FontSize="18"
+                                                           Opacity="0.5"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=OperationImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                            <Image x:Name="OperationImage"
+                                                   Stretch="Uniform"
+                                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=OperationImage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </Grid>
                                     </Border>
 
                                     <!--  TÍTULO + STATUS + PROGRESSO  -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,8,0">
                                         <TextBlock FontWeight="SemiBold"
                                                    FontSize="13"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    TextTrimming="CharacterEllipsis">
-                                            <Run Text="{Binding KindLabel, Mode=OneWay}" />
-                                            <Run Text=" " />
-                                            <Run Text="{Binding AppName, Mode=OneWay}" />
-                                            <Run Text="..." />
+                                            <Run Text="{Binding OperationTitle, Mode=OneWay}" />
                                         </TextBlock>
 
                                         <!--  Enquanto está em andamento: linha de status + barra em degradê  -->
-                                        <StackPanel Visibility="{Binding IsFinished, Converter={StaticResource NotFinishedToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding StatusText}"
-                                                       FontSize="11.5"
+                                        <StackPanel Margin="0,2,0,0" Visibility="{Binding IsFinished, Converter={StaticResource NotFinishedToVisibilityConverter}}">
+                                            <TextBlock Text="{Binding UserFacingStatusText}"
+                                                       FontSize="11"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                        TextTrimming="CharacterEllipsis"
-                                                       Margin="0,2,0,6"
-                                                       ToolTip="{Binding DetailText}" />
-
-                                            <ProgressBar Style="{StaticResource GradientProgressBarStyle}"
-                                                         IsIndeterminate="{Binding IsIndeterminate}"
-                                                         Minimum="0"
-                                                         Maximum="100"
-                                                         conv:AnimatedProgress.Percent="{Binding Progress, Mode=OneWay}" />
+                                                       Margin="0,0,0,5" />
                                         </StackPanel>
 
-                                        <!--  Quando termina: resumo colorido no lugar da barra  -->
-                                        <TextBlock Margin="0,2,0,0"
-                                                   FontSize="11.5"
-                                                   FontWeight="SemiBold"
-                                                   Visibility="{Binding IsFinished, Converter={StaticResource FinishedToVisibilityConverter}}"
-                                                   Foreground="{Binding State, Converter={StaticResource OperationStateToBrushConverter}}"
-                                                   Text="{Binding State, Converter={StaticResource OperationStateToTextConverter}}"
-                                                   ToolTip="{Binding StatusText}" />
+                                        <Border x:Name="StatusBadge"
+                                                Margin="0,3,0,0"
+                                                Padding="7,2"
+                                                HorizontalAlignment="Left"
+                                                CornerRadius="4"
+                                                Background="{DynamicResource AppOperationSuccessSurfaceBrush}"
+                                                BorderBrush="{DynamicResource AppBorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                Visibility="{Binding IsFinished, Converter={StaticResource FinishedToVisibilityConverter}}">
+                                            <TextBlock x:Name="StatusText"
+                                                       FontSize="10.5"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource AppOperationSuccessBrush}"
+                                                       ToolTip="{Binding DetailText}">
+                                                <TextBlock.Text>
+                                                    <Binding Path="UserFacingStatusText" />
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </Border>
+
+                                        <ProgressBar x:Name="OperationProgress"
+                                                     Style="{StaticResource GradientProgressBarStyle}"
+                                                     IsIndeterminate="{Binding IsIndeterminate}"
+                                                     Foreground="{DynamicResource AppOperationDefaultBrush}"
+                                                     Height="3"
+                                                     Margin="0,6,0,0"
+                                                     ToolTip="{Binding StatusText}"
+                                                     Visibility="{Binding IsFinished, Converter={StaticResource NotFinishedToVisibilityConverter}}"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     conv:AnimatedProgress.Percent="{Binding Progress, Mode=OneWay}" />
                                     </StackPanel>
 
                                     <!--  CANCELAR  -->
                                     <ui:Button Grid.Column="2"
-                                               Content="Cancelar"
-                                               Appearance="Secondary"
-                                               FontSize="11.5"
-                                               Padding="10,5"
+                                               Appearance="Transparent"
+                                               Padding="7"
                                                VerticalAlignment="Center"
+                                               ToolTip="Cancelar operação"
                                                Visibility="{Binding IsFinished, Converter={StaticResource NotFinishedToVisibilityConverter}}"
-                                               Command="{Binding CancelCommand}" />
+                                               Command="{Binding CancelCommand}">
+                                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="16" />
+                                    </ui:Button>
                                 </Grid>
                             </Border>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Method}" Value="{x:Static models:WingetMethod.ComApi}">
+                                    <Setter TargetName="OperationProgress" Property="Foreground" Value="{DynamicResource AppOperationComBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Method}" Value="{x:Static models:WingetMethod.OwnApi}">
+                                    <Setter TargetName="OperationProgress" Property="Foreground" Value="{DynamicResource AppOperationApiBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Method}" Value="{x:Static models:WingetMethod.WingetExe}">
+                                    <Setter TargetName="OperationProgress" Property="Foreground" Value="{DynamicResource AppOperationWingetBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="{x:Static models:OperationState.Failed}">
+                                    <Setter TargetName="StatusBadge" Property="Background" Value="{DynamicResource AppOperationFailureSurfaceBrush}" />
+                                    <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource AppOperationFailureBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding State}" Value="{x:Static models:OperationState.Canceled}">
+                                    <Setter TargetName="StatusBadge" Property="Background" Value="{DynamicResource AppOperationCanceledSurfaceBrush}" />
+                                    <Setter TargetName="StatusText" Property="Foreground" Value="{DynamicResource AppOperationCanceledBrush}" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

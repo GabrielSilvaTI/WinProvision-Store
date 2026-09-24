@@ -7,11 +7,15 @@ on:
 
 permissions:
   contents: read
-  actions: write
+
+concurrency:
+  group: winget-sync
+  cancel-in-progress: false
 
 jobs:
   sync-apps-json:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,7 +36,12 @@ jobs:
       - name: Checkout esparso do winget-pkgs (via Tarball ultra-rápido)
         run: |
           mkdir -p winget-pkgs
-          curl -sL https://github.com/microsoft/winget-pkgs/archive/refs/heads/master.tar.gz | tar -xz -C winget-pkgs --strip-components=1 "winget-pkgs-master/manifests"
+          archive="$RUNNER_TEMP/winget-pkgs.tar.gz"
+          curl --fail --location --retry 4 --retry-all-errors --retry-delay 2 \
+            https://github.com/microsoft/winget-pkgs/archive/refs/heads/master.tar.gz \
+            --output "$archive"
+          test -s "$archive"
+          tar -xzf "$archive" -C winget-pkgs --strip-components=1 "winget-pkgs-master/manifests"
           echo "Manifests baixados: $(find winget-pkgs/manifests -name '*.yaml' | wc -l) arquivos .yaml"
 
       - name: Restaurar metrics-cache.json do R2 (se existir)
@@ -68,6 +77,7 @@ jobs:
             "$(pwd)/catalog-output/api-previous/package-hashes.json"
 
       - name: Rodar o Indexer
+        id: indexer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -96,7 +106,7 @@ jobs:
             Store/Api/v1
 
       - name: Devolver metrics-cache.json atualizado pro R2
-        if: always()
+        if: always() && steps.indexer.conclusion == 'success'
         env:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -109,6 +119,10 @@ jobs:
   sync-icons:
     needs: sync-apps-json
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -151,4 +165,4 @@ jobs:
             echo "Simulação ou nenhum ícone novo ($uploaded), não disparo o sync do manifesto."
             exit 0
           fi
-          gh workflow run sync-icon-manifest.yml --repo GabrielSilvaTI/WinProvision-Store --ref main
+          gh workflow run sync-icon-manifest.yml --repo "$GITHUB_REPOSITORY" --ref main

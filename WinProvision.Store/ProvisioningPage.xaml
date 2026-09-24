@@ -19,25 +19,11 @@
         <!--  Tipografia Fluent (Segoe UI Variable)  -->
         <Style x:Key="PageTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
 
         <Style x:Key="CardTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentCardTitleStyle}" />
 
         <Style x:Key="CardSubtitleStyle"
                TargetType="TextBlock"
@@ -59,8 +45,10 @@
         </Style>
 
         <!--  Cartão Clássico (Para a Sidebar de Resumo)  -->
-        <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+        <Style x:Key="CardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource FluentCardStyle}">
+            <Setter Property="Padding" Value="{StaticResource Spacing24}" />
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
@@ -187,11 +175,11 @@
     </Page.Resources>
 
     <Border Background="Transparent"
-            Margin="32,24"
+            Margin="{StaticResource PageContentMargin}"
             MaxWidth="1600"
             HorizontalAlignment="Stretch"
             CornerRadius="{StaticResource OverlayCornerRadius}">
-        <Grid Margin="32,24,32,24">
+        <Grid Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -199,17 +187,17 @@
             </Grid.RowDefinitions>
 
             <!--  ================= Cabeçalho Global =================  -->
-            <Grid Grid.Row="0" Margin="0,0,0,24">
+            <Grid Grid.Row="0" Margin="{StaticResource PageHeaderMargin}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE835;" />
+                    <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE835;" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Provisionamento" Style="{StaticResource PageTitleStyle}" />
-                        <TextBlock Text="Configure a máquina ou exporte um perfil."
+                        <TextBlock Text="Ajuste o Windows ou exporte um perfil."
                                    Style="{StaticResource CardSubtitleStyle}"
                                    Margin="0,4,0,0" />
                     </StackPanel>
@@ -269,7 +257,7 @@
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Personalização" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Tema, barra de tarefas e papel de parede."
+                                        <TextBlock Text="Tema, barra de tarefas e plano de fundo."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
@@ -297,7 +285,7 @@
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Configurações Avançadas" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Nome da máquina, região, energia e ponto de restauração."
+                                        <TextBlock Text="Nome, região, energia e restauração."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
@@ -325,7 +313,7 @@
                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Visualização do JSON" Style="{StaticResource CardTitleStyle}" />
-                                        <TextBlock Text="Dados de identificação e o código JSON completo gerado."
+                                        <TextBlock Text="Identificação e perfil JSON."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
@@ -479,7 +467,7 @@
                                             <Grid Margin="24,16">
                                                 <StackPanel>
                                                     <TextBlock Text="Papel de Parede" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Escolha uma imagem para o plano de fundo da área de trabalho." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Escolha uma imagem para a área de trabalho." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                             </Grid>
 
@@ -652,7 +640,7 @@
                                                                                FontSize="16"
                                                                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                                                Margin="0,0,8,0" />
-                                                                <TextBlock Text="Aplicativos de Pacotes • Arraste para a Área de Trabalho"
+                                                                <TextBlock Text="Aplicativos • Arraste para a área de trabalho"
                                                                            FontSize="13"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
@@ -663,13 +651,13 @@
                                                                         Margin="10,0,0,0"
                                                                         VerticalAlignment="Center">
                                                                     <TextBlock x:Name="AvailablePackagesCountText"
-                                                                               Text="0 aplicativo(s)"
+                                                                               Text="Nenhum aplicativo"
                                                                                FontSize="11"
                                                                                Foreground="{DynamicResource AppAccentBrush}"
                                                                                FontWeight="Medium" />
                                                                 </Border>
                                                             </StackPanel>
-                                                            <TextBlock Text="Arraste os aplicativos abaixo para a Área de Trabalho virtual para posicionar seus atalhos (ou clique no botão '+' para adicionar automaticamente na grade)."
+                                                            <TextBlock Text="Arraste aplicativos para a área de trabalho ou clique em + para adicioná-los."
                                                                        FontSize="11.5"
                                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                                        Margin="0,3,0,0" />
@@ -1464,7 +1452,7 @@
                                                            VerticalAlignment="Center" />
                                             <TextBlock Text="Sistema" Style="{StaticResource SettingsSectionHeaderStyle}" />
                                         </StackPanel>
-                                        <TextBlock Text="Ajuste o sistema e a manutenção da máquina."
+                                        <TextBlock Text="Altere as configurações do sistema."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    Margin="32,2,0,0" />
                                     </StackPanel>
@@ -1506,7 +1494,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Região" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Afeta a localização do Windows (GeoID)." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Define a região do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <ComboBox x:Name="RegionComboBox"
                                                           Grid.Column="1"
@@ -1534,7 +1522,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Plano de energia" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Troca o plano ativo do Windows (equivalente a powercfg)." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Escolha o plano de energia do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <ComboBox x:Name="PowerPlanComboBox"
                                                           Grid.Column="1"
@@ -1560,7 +1548,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Quando desligar a tela" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Mesmos tempos da tela Configurações → Sistema → Energia." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Defina quando a tela será desligada." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <Grid Grid.Column="1" VerticalAlignment="Center">
                                                     <Grid.RowDefinitions>
@@ -1610,7 +1598,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Quando suspender o PC" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Inclui Modern Standby e S3 (se suportado pelo hardware)." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Defina quando o computador entrará em suspensão." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <Grid Grid.Column="1" VerticalAlignment="Center">
                                                     <Grid.RowDefinitions>
@@ -1662,7 +1650,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Ponto de restauração" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Cria um ponto de restauração de segurança antes de aplicar." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Cria um ponto de restauração antes de aplicar as mudanças." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <CheckBox x:Name="AutoCreateRestorePointCheckBox"
                                                           Grid.Column="1"
@@ -1683,7 +1671,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Limpar arquivos temporários ao fazer Logon" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Agenda uma tarefa no Windows para esvaziar automaticamente as pastas temporárias (%TEMP% e Windows\Temp) a cada logon." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Limpa os arquivos temporários sempre que você entrar no Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <CheckBox x:Name="AutoCleanTempOnLogonCheckBox"
                                                           Grid.Column="1"
@@ -1792,7 +1780,7 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Código JSON" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Perfil completo, atualizado em tempo real." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Veja o perfil JSON atualizado." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <ui:Button x:Name="OpenFullEditorButton"
                                                            Grid.Column="1"

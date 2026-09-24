@@ -63,6 +63,7 @@ public static class ElevatedProcessRunner
                 Success = process.ExitCode == 0,
                 ExitCode = process.ExitCode,
                 Output = output,
+                WasElevated = true,
             };
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) // ERROR_CANCELLED — usuário clicou "Não" no UAC.
@@ -78,6 +79,7 @@ public static class ElevatedProcessRunner
                 ExitCode = -1,
                 Output = "Elevação cancelada pelo usuário.",
                 FailureReason = WingetFailureReason.ElevationCanceled,
+                WasElevated = true,
             };
         }
         finally

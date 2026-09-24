@@ -1,10 +1,10 @@
-using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using WinProvision.Core.Services;
 using WinProvision.Store.Models;
 
@@ -94,7 +94,7 @@ public sealed class AutoWindowViewModel : INotifyPropertyChanged, IDisposable
         foreach (var stage in plan)
             Stages.Add(new AutoStageViewModel(stage, i++));
 
-        ProfileName = string.IsNullOrWhiteSpace(profileName) ? "Preparing your workspace" : profileName;
+        ProfileName = string.IsNullOrWhiteSpace(profileName) ? "Perfil padrão" : profileName;
         GlobalProgress = 0;
         GlobalProgressText = "0%";
         StatusText = Stages.Count == 0 ? "Nada a configurar" : "Preparando...";

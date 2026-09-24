@@ -44,6 +44,18 @@
     -->
     <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#E0263446" />
     <SolidColorBrush x:Key="AppCardBorderBrush" Color="#8050657D" />
+    <SolidColorBrush x:Key="AppOperationSuccessBrush" Color="#FF79D99A" />
+    <SolidColorBrush x:Key="AppOperationSuccessSurfaceBrush" Color="#2679D99A" />
+    <SolidColorBrush x:Key="AppOperationFailureBrush" Color="#FFFF8585" />
+    <SolidColorBrush x:Key="AppOperationFailureSurfaceBrush" Color="#26FF8585" />
+    <SolidColorBrush x:Key="AppOperationCanceledBrush" Color="#FFC6D1E0" />
+    <SolidColorBrush x:Key="AppOperationCanceledSurfaceBrush" Color="#18C6D1E0" />
+    <SolidColorBrush x:Key="AppOperationComBrush" Color="#FFB991FF" />
+    <SolidColorBrush x:Key="AppOperationApiBrush" Color="#FFFFD166" />
+    <SolidColorBrush x:Key="AppOperationWingetBrush" Color="#FF59D5E5" />
+    <SolidColorBrush x:Key="AppOperationDefaultBrush" Color="#FF68A8FF" />
+    <SolidColorBrush x:Key="AppProgressTrackBrush" Color="#24FFFFFF" />
+    <Color x:Key="AppPanelShadowColor">#FF000000</Color>
 
     <!--
         Sem isso, o WPF usa o modo padrão de reamostragem de bitmap (que prioriza

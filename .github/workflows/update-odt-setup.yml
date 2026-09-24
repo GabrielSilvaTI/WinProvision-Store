@@ -5,9 +5,17 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: update-odt-setup
+  cancel-in-progress: false
+
 jobs:
   update-odt:
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
       - name: Baixar e extrair ODT
         shell: pwsh
@@ -29,8 +37,18 @@ jobs:
 
           New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
 
-          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath
-          Start-Process -FilePath $exePath -ArgumentList "/extract:`"$destinationDir`" /quiet" -Wait
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $exePath -MaximumRedirection 5
+          if ((Get-Item $exePath).Length -lt 1MB) {
+            throw "O download do Office Deployment Tool está vazio ou incompleto."
+          }
+          $signature = Get-AuthenticodeSignature -FilePath $exePath
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') {
+            throw "A assinatura do Office Deployment Tool não é válida ou não pertence à Microsoft."
+          }
+          $process = Start-Process -FilePath $exePath -ArgumentList "/extract:`"$destinationDir`" /quiet" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "A extração do ODT falhou com código $($process.ExitCode)."
+          }
           Remove-Item -Path $exePath -Force
 
       - name: Verificar setup.exe extraído
@@ -40,6 +58,10 @@ jobs:
             Write-Error "setup.exe não encontrado após extração."
             exit 1
           }
+          $signature = Get-AuthenticodeSignature -FilePath "C:\ODT\setup.exe"
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Microsoft Corporation') {
+            throw "A assinatura do setup.exe extraído não é válida ou não pertence à Microsoft."
+          }
 
       - name: Enviar setup.exe ao Cloudflare R2
         shell: pwsh
@@ -47,6 +69,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
         run: |
-          aws s3 cp C:\ODT\setup.exe "s3://winprovision/Office/Instalador/setup.exe" `
+          aws s3 cp C:\ODT\setup.exe "s3://$env:R2_BUCKET/Office/Instalador/setup.exe" `
             --endpoint-url $env:R2_ENDPOINT

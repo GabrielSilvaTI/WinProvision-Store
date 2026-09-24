@@ -117,7 +117,7 @@
                                                Foreground="#4EA8FF" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
-                                    <TextBlock Text="Configurando seu computador. Estamos preparando seu ambiente de trabalho."
+                                    <TextBlock Text="Configurando seu computador..."
                                                FontSize="13.5"
                                                Foreground="#C5CFDE" />
                                     <TextBlock Text="  •  "
@@ -260,7 +260,7 @@
                             </Border>
                             <TextBlock Grid.Row="1"
                                        Margin="0,13,0,0"
-                                       Text="Mais que instalação, um ambiente pronto para o que importa."
+                                       Text="Seu computador, pronto para usar."
                                        FontSize="19"
                                        LineHeight="25"
                                        FontWeight="SemiBold"
@@ -430,13 +430,13 @@
                                            VerticalAlignment="Center" />
                             </StackPanel>
                             <TextBlock Margin="0,17,0,0"
-                                       Text="Entregar um Windows pronto, leve e confiável, para você focar no que realmente importa."
+                                       Text="Preparamos o Windows para você começar a usar."
                                        FontSize="12.5"
                                        LineHeight="18"
                                        Foreground="#C2CCDB"
                                        TextWrapping="Wrap" />
                             <TextBlock Margin="0,11,0,0"
-                                       Text="Sempre em frente."
+                                       Text="WinProvision Store"
                                        FontSize="12.5"
                                        FontStyle="Italic"
                                        Foreground="#F0F4FA" />

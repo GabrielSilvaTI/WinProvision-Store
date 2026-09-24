@@ -1,13 +1,15 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
-using Wpf.Ui.Appearance;
-using Wpf.Ui.Controls;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
+using WinProvision.Store.Services;
+using Wpf.Ui.Appearance;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store;
 
@@ -15,6 +17,8 @@ public partial class SettingsPage : Page
 {
     private readonly CacheService _cacheService;
     private readonly AppUpdateService _updateService;
+    private readonly InstallationPreferencesService _installationPreferences;
+    private bool _initializingInstallMethod = true;
     private AppUpdateCheckResult? _pendingUpdate;
 
     public SettingsPage()
@@ -23,6 +27,15 @@ public partial class SettingsPage : Page
 
         _cacheService = App.Services.GetRequiredService<CacheService>();
         _updateService = App.Services.GetRequiredService<AppUpdateService>();
+        _installationPreferences = App.Services.GetRequiredService<InstallationPreferencesService>();
+
+        InstallMethodComboBox.SelectedItem = InstallMethodComboBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => Enum.TryParse<PackageInstallMethod>(item.Tag?.ToString(), out var method)
+                                    && method == _installationPreferences.PreferredMethod)
+            ?? InstallMethodComboBox.Items[0];
+        UpdateInstallMethodDescription(_installationPreferences.PreferredMethod);
+        _initializingInstallMethod = false;
 
         RefreshThemeButtonsUi();
         VersionText.Text = $"Versão {GetApplicationVersion()}";
@@ -40,6 +53,35 @@ public partial class SettingsPage : Page
         return version is null ? "desconhecida" : version.ToString(3);
     }
 
+    private void InstallMethodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializingInstallMethod || InstallMethodComboBox.SelectedItem is not ComboBoxItem { Tag: string tag }
+            || !Enum.TryParse(tag, out PackageInstallMethod method))
+            return;
+
+        try
+        {
+            _installationPreferences.SetPreferredMethod(method);
+            UpdateInstallMethodDescription(method);
+            StatusText.Text = "Método de instalação salvo.";
+        }
+        catch
+        {
+            StatusText.Text = "Não foi possível salvar a preferência. Tente novamente.";
+        }
+    }
+
+    private void UpdateInstallMethodDescription(PackageInstallMethod method)
+    {
+        InstallMethodDescriptionText.Text = method switch
+        {
+            PackageInstallMethod.ComApi => "Usa somente o WinGet COM.",
+            PackageInstallMethod.WinProvisionApi => "Usa somente a API da WinProvision Store.",
+            PackageInstallMethod.WingetCli => "Usa somente o WinGet CLI.",
+            _ => "Tenta outros métodos se a instalação falhar."
+        };
+    }
+
     // -------------------------------------------------------------
     // ATUALIZAÇÕES DO APP (independente do provisionamento de pacotes)
     // -------------------------------------------------------------
@@ -49,7 +91,7 @@ public partial class SettingsPage : Page
         CheckUpdateButton.IsEnabled = false;
         UpdateAvailablePanel.Visibility = Visibility.Collapsed;
         _pendingUpdate = null;
-        UpdateSubtitleText.Text = "Verificando no GitHub...";
+        UpdateSubtitleText.Text = "Procurando atualizações...";
 
         try
         {
@@ -76,9 +118,9 @@ public partial class SettingsPage : Page
                 : BuildNightlyAvailableText(result);
             UpdateAvailablePanel.Visibility = Visibility.Visible;
         }
-        catch (Exception ex)
+        catch
         {
-            UpdateSubtitleText.Text = $"Falha ao verificar atualizações: {ex.Message}";
+            UpdateSubtitleText.Text = "Não foi possível verificar atualizações. Tente novamente.";
         }
         finally
         {
@@ -122,9 +164,9 @@ public partial class SettingsPage : Page
             await Task.Delay(TimeSpan.FromMilliseconds(500));
             Application.Current.Shutdown();
         }
-        catch (Exception ex)
+        catch
         {
-            UpdateProgressText.Text = $"Falha ao instalar a atualização: {ex.Message}";
+            UpdateProgressText.Text = "Não foi possível instalar a atualização. Tente novamente.";
             UpdateProgressBar.Visibility = Visibility.Collapsed;
             CheckUpdateButton.IsEnabled = true;
             InstallUpdateButton.IsEnabled = true;
@@ -178,9 +220,9 @@ public partial class SettingsPage : Page
             Converters.AsyncImage.ClearCache();
             StatusText.Text = "Cache local limpo com sucesso.";
         }
-        catch (Exception ex)
+        catch
         {
-            StatusText.Text = $"Erro ao limpar o cache: {ex.Message}";
+            StatusText.Text = "Não foi possível limpar o cache. Tente novamente.";
         }
         finally
         {

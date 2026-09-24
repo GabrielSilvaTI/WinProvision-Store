@@ -23,27 +23,15 @@
 
         <Style x:Key="PageTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
 
         <Style x:Key="CardTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentCardTitleStyle}" />
 
-        <Style x:Key="CardStyle" TargetType="Border">
+        <Style x:Key="CardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource FluentCardStyle}">
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
@@ -144,17 +132,35 @@
                                    FontWeight="SemiBold"
                                    TextAlignment="Center"
                                    TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Source}"
-                                   FontSize="11"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                        <WrapPanel HorizontalAlignment="Center" Margin="0,5,0,4">
+                            <Border Background="{DynamicResource AppBorderSubtleBrush}"
+                                    CornerRadius="10"
+                                    Padding="8,3"
+                                    Margin="2">
+                                <TextBlock Text="{Binding SourceLabel}"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Border>
+                            <Border Background="{DynamicResource AppOperationSuccessSurfaceBrush}"
+                                    CornerRadius="10"
+                                    Padding="8,3"
+                                    Margin="2">
+                                <TextBlock Text="{Binding AvailableVersion, StringFormat={}Nova: {0}}"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Border>
+                        </WrapPanel>
+                        <TextBlock FontSize="11"
                                    TextAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   Margin="0,2,0,8" />
-                        <TextBlock Text="{Binding AvailableVersion}"
-                                   FontSize="11"
-                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                   TextAlignment="Center"
-                                   TextTrimming="CharacterEllipsis" />
+                                   TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding CurrentVersion}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Run Text="  →  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Run Text="{Binding AvailableVersion}" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                        </TextBlock>
                     </StackPanel>
 
                     <ui:Button Grid.Row="2"
@@ -211,11 +217,12 @@
                     </Style>
                 </Border.Style>
 
-                <Grid MinHeight="52">
+                <Grid MinHeight="60">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
@@ -266,27 +273,43 @@
                                    FontWeight="SemiBold"
                                    FontSize="13"
                                    TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Source}"
+                        <TextBlock Text="{Binding Id}"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    FontSize="11"
                                    TextTrimming="CharacterEllipsis"
                                    Margin="0,2,0,0" />
                     </StackPanel>
 
-                    <TextBlock Grid.Column="3"
-                               VerticalAlignment="Center"
-                               FontSize="12"
-                               Margin="0,0,16,0">
-                        <Run Text="{Binding CurrentVersion}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <Run Text="  →  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                        <Run Text="{Binding AvailableVersion}" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
-                    </TextBlock>
+                    <StackPanel Grid.Column="3"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Right"
+                                Margin="0,0,12,0">
+                        <Border Background="{DynamicResource AppBorderSubtleBrush}"
+                                CornerRadius="10"
+                                Padding="8,2"
+                                HorizontalAlignment="Right"
+                                Margin="0,0,0,4">
+                            <TextBlock Text="{Binding SourceLabel}"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <TextBlock FontSize="11"
+                                   TextAlignment="Right"
+                                   TextTrimming="CharacterEllipsis">
+                            <Run Text="{Binding CurrentVersion}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Run Text="  →  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            <Run Text="{Binding AvailableVersion}" Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                        </TextBlock>
+                    </StackPanel>
 
                     <ui:Button Grid.Column="4"
                                Content="Atualizar agora"
-                               Appearance="Secondary"
-                               Padding="16,6"
-                               Margin="0,0,8,0"
+                               Appearance="Primary"
+                               Padding="12,6"
+                               Margin="0,0,6,0"
+                               Height="36"
                                VerticalAlignment="Center"
                                IsEnabled="{Binding IsUpdating, Converter={StaticResource InverseBooleanConverter}}"
                                Click="SingleUpdateButton_Click">
@@ -302,16 +325,27 @@
                     </ui:Button>
 
                     <ui:Button Grid.Column="5"
+                               Content="Detalhes"
+                               Appearance="Secondary"
+                               Padding="10,6"
+                               Margin="0,0,4,0"
+                               Height="36"
+                               VerticalAlignment="Center"
+                               ToolTip="Ver detalhes do aplicativo e da atualização"
+                               Click="DetailsMenuItem_Click">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Info24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+
+                    <ui:Button Grid.Column="6"
                                Appearance="Transparent"
                                Padding="8,6"
-                               VerticalAlignment="Center">
-                        <ui:Button.ContextMenu>
-                            <ContextMenu>
-                                <MenuItem Header="Detalhes" Click="DetailsMenuItem_Click" />
-                                <MenuItem Header="Ignorar esta versão" Click="IgnoreVersionMenuItem_Click" />
-                            </ContextMenu>
-                        </ui:Button.ContextMenu>
-                        <ui:SymbolIcon Symbol="MoreVertical24"
+                               Height="36"
+                               VerticalAlignment="Center"
+                               ToolTip="Ignorar esta versão"
+                               Click="IgnoreVersionMenuItem_Click">
+                        <ui:SymbolIcon Symbol="Dismiss24"
                                        FontSize="16"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </ui:Button>
@@ -320,7 +354,9 @@
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Margin="24,20,24,20">
+    <Grid Margin="{StaticResource PageContentMargin}"
+          MaxWidth="1600"
+          HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -328,11 +364,11 @@
 
         <StackPanel Grid.Row="0"
                     Orientation="Horizontal"
-                    Margin="0,0,0,24">
-            <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE895;" />
+                    Margin="{StaticResource PageHeaderMargin}">
+            <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE895;" />
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Atualizações" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="Atualize seus aplicativos."
+                <TextBlock Text="Veja e instale atualizações."
                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            FontFamily="Segoe UI Variable Text"
                            Margin="0,4,0,0" />
@@ -342,8 +378,8 @@
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="16" />
-                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="{StaticResource PageColumnGap}" />
+                <ColumnDefinition Width="{StaticResource PageSidebarWidth}" />
             </Grid.ColumnDefinitions>
 
             <!--  ================= COLUNA ESQUERDA =================  -->
@@ -358,8 +394,8 @@
                         Grid.RowSpan="2"
                         Style="{StaticResource CardStyle}"
                         VerticalAlignment="Center"
-                        Margin="0,40,0,0"
-                        Padding="0,48"
+                        Margin="0"
+                        Padding="0,32"
                         Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}">
                     <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Border Width="64"
@@ -386,6 +422,7 @@
 
                 <Border Grid.Row="1"
                         Style="{StaticResource CardStyle}"
+                        Padding="20,20,20,0"
                         Visibility="{Binding Items.Count, ElementName=UpdatesList, Converter={StaticResource CountToVisibilityConverter}}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -394,7 +431,7 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid Grid.Row="0" Margin="20,16,20,12">
+                        <Grid Grid.Row="0" Margin="0,0,0,20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
@@ -444,7 +481,7 @@
                                        Style="{StaticResource SelectAllButtonStyle}"
                                        HorizontalAlignment="Right"
                                        Click="SelectAllCheckBox_Click"
-                                       ToolTip="Selecionar ou desmarcar todas as atualizações">
+                                       ToolTip="Selecionar ou limpar todas">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <ui:SymbolIcon x:Name="SelectAllIcon"
                                                    Symbol="CheckmarkCircle24"
@@ -497,7 +534,7 @@
 
                         <StackPanel Grid.Row="2"
                                     Orientation="Horizontal"
-                                    Margin="20,12">
+                                    Margin="0,12,0,12">
                             <TextBlock Text="{Binding Text, ElementName=StatusText}"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        FontSize="12" />
@@ -510,8 +547,8 @@
             <StackPanel Grid.Column="2">
 
                 <Border Style="{StaticResource CardStyle}"
-                        Padding="20"
-                        Margin="0,0,0,20">
+                        Padding="{StaticResource Spacing24}"
+                        Margin="0,0,0,16">
                     <StackPanel>
                         <Grid Margin="0,0,0,24">
                             <StackPanel VerticalAlignment="Center">
@@ -575,7 +612,7 @@
 
                 <!--  2. Cartão Ações Rápidas  -->
                 <Border Style="{StaticResource CardStyle}"
-                        Padding="20"
+                        Padding="{StaticResource Spacing24}"
                         Margin="0">
                     <StackPanel>
                         <TextBlock Text="Ações Rápidas"
@@ -612,7 +649,7 @@
                             </Grid>
                         </ui:Button>
 
-                        <UniformGrid Columns="2" Margin="-3,0,-3,0">
+                        <UniformGrid Columns="1" Margin="-3,0,-3,0">
                             <!--  Botão Toggle de Atualizações Automáticas  -->
                             <ToggleButton x:Name="AutoUpdateToggle"
                                           Height="40"
@@ -620,7 +657,7 @@
                                           HorizontalContentAlignment="Center"
                                           Margin="3"
                                           Padding="8,4"
-                                          ToolTip="Verifica e atualiza os aplicativos em segundo plano ao ligar o computador."
+                                          ToolTip="Verifica atualizações ao iniciar o computador."
                                           Checked="AutoUpdateToggle_Checked"
                                           Unchecked="AutoUpdateToggle_Unchecked">
                                 <ToggleButton.Style>
@@ -703,7 +740,8 @@
                                     <TextBlock Grid.Column="2"
                                                Text="Verificar Atualizações"
                                                FontSize="12"
-                                               TextWrapping="Wrap"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="None"
                                                VerticalAlignment="Center" />
                                 </Grid>
                             </ui:Button>

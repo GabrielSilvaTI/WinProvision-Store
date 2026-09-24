@@ -1,5 +1,7 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <CornerRadius x:Key="CompactCornerRadius">4</CornerRadius>
+
     <!--
         ComboBox nativo do WPF (e o template padrão que a WPF-UI registra por cima
         dele) segue o chrome clássico do Win32: cantos retos, popup sem sombra e a

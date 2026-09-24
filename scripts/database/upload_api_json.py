@@ -25,11 +25,11 @@ Env vars esperadas (as mesmas de r2_upload.py / r2_download.py):
     R2_BUCKET (opcional, default "winprovision")
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import boto3
 from botocore.config import Config
@@ -51,10 +51,10 @@ def process_package(filename: str, packages_dir: str, previous_state: dict):
     Função worker: calcula a hash local e verifica se precisa de upload.
     Retorna a tupla (package_id, digest, local_path, needs_upload)
     """
-    package_id = filename[:-len(".json")]
+    package_id = filename[: -len(".json")]
     local_path = os.path.join(packages_dir, filename)
     digest = sha256_of(local_path)
-    
+
     needs_upload = previous_state.get(package_id) != digest
     return package_id, digest, local_path, needs_upload
 
@@ -69,7 +69,7 @@ def upload_single_file(client, local_path: str, bucket: str, r2_key: str) -> boo
             ExtraArgs={"ContentType": "application/json"},
         )
         return True
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - isola falhas por arquivo sem abortar os demais uploads.
         print(f"Erro ao enviar {r2_key}: {e}", file=sys.stderr)
         return False
 
@@ -94,7 +94,7 @@ def main() -> int:
 
     previous_state = {}
     if os.path.isfile(previous_state_path):
-        with open(previous_state_path, "r", encoding="utf-8") as f:
+        with open(previous_state_path, encoding="utf-8") as f:
             previous_state = json.load(f)
 
     account_id = os.environ["R2_ACCOUNT_ID"]
@@ -103,10 +103,7 @@ def main() -> int:
     bucket = os.environ.get("R2_BUCKET") or "winprovision"
 
     # Aumenta o número máximo de conexões no pool do botocore para casar com as threads
-    boto_config = Config(
-        signature_version="s3v4",
-        max_pool_connections=MAX_WORKERS
-    )
+    boto_config = Config(signature_version="s3v4", max_pool_connections=MAX_WORKERS)
 
     client = boto3.client(
         "s3",
@@ -118,7 +115,7 @@ def main() -> int:
     )
 
     all_json_files = [f for f in sorted(os.listdir(packages_dir)) if f.endswith(".json")]
-    
+
     print(f"Processando {len(all_json_files)} arquivos de pacotes com {MAX_WORKERS} workers...")
 
     new_state = {}
@@ -126,10 +123,7 @@ def main() -> int:
 
     # 1. Leitura e cálculo de hashes em paralelo
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = [
-            executor.submit(process_package, f, packages_dir, previous_state)
-            for f in all_json_files
-        ]
+        futures = [executor.submit(process_package, f, packages_dir, previous_state) for f in all_json_files]
         for future in as_completed(futures):
             package_id, digest, local_path, needs_upload = future.result()
             new_state[package_id] = digest
@@ -143,10 +137,7 @@ def main() -> int:
     if to_upload:
         print(f"Enviando {len(to_upload)} pacotes atualizados/novos para o R2...")
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            upload_futures = [
-                executor.submit(upload_single_file, client, path, bucket, key)
-                for path, key in to_upload
-            ]
+            upload_futures = [executor.submit(upload_single_file, client, path, bucket, key) for path, key in to_upload]
             for future in as_completed(upload_futures):
                 if future.result():
                     sent += 1

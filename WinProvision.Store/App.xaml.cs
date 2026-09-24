@@ -10,9 +10,6 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Wpf.Ui;
-using Wpf.Ui.Abstractions;
-using Wpf.Ui.Appearance;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Backup;
 using WinProvision.Core.Services.Office;
@@ -20,6 +17,9 @@ using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
 using WinProvision.Store.Controls;
 using WinProvision.Store.Services;
+using Wpf.Ui;
+using Wpf.Ui.Abstractions;
+using Wpf.Ui.Appearance;
 
 namespace WinProvision.Store;
 
@@ -45,6 +45,7 @@ public partial class App : Application
             services.AddSingleton<IconService>();
             services.AddSingleton<StoreService>();
             services.AddSingleton<WingetExecutor>();
+            services.AddSingleton<WinProvision.Core.Services.UninstallerEngineService>();
             services.AddSingleton<WinProvisionApiService>();
             services.AddSingleton<PackageMetricsService>();
             services.AddSingleton<CacheService>();
@@ -63,6 +64,7 @@ public partial class App : Application
             services.AddSingleton<OfficeUninstallService>();
             services.AddSingleton<OfficeInstalledProductsDetector>();
             services.AddSingleton<WinGetService>();
+            services.AddSingleton<InstallationPreferencesService>();
             services.AddSingleton<InstalledPackagesService>();
             services.AddSingleton<InstalledPackageClassifier>();
             services.AddSingleton<AutoInstallCliService>();
@@ -71,6 +73,8 @@ public partial class App : Application
             services.AddSingleton<RestorePointService>();
             services.AddSingleton<CliPresetsService>();
             services.AddSingleton<AppDetailsOverlayService>();
+            services.AddSingleton<InstalledPackagesPage>();
+            services.AddSingleton<InstalledPackagesViewModel>();
             services.AddSingleton<AppDetailsOverlay>();
 
             // Backup local + nuvem (GitHub Gist secreto)
@@ -86,7 +90,6 @@ public partial class App : Application
 
             services.AddSingleton<HomePage>();
             services.AddTransient<PackagesPage>();
-            services.AddSingleton<InstalledPackagesPage>();
             services.AddSingleton<OfficePage>();
             services.AddSingleton<UpdatesPage>();
             services.AddSingleton<AccountSyncPage>();
@@ -172,7 +175,7 @@ public partial class App : Application
             {
                 await _host.StartAsync();
                 OperationRunner.ConfigureInstallHandler(
-                    _host.Services.GetRequiredService<WinGetService>().InstallAsync);
+                    _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
                 OperationRunner.ConfigureUpdateHandler(
                     _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
                 WinProvisionLog.Write(
@@ -293,7 +296,7 @@ public partial class App : Application
 
         await _host.StartAsync();
         OperationRunner.ConfigureInstallHandler(
-            _host.Services.GetRequiredService<WinGetService>().InstallAsync);
+            _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
         OperationRunner.ConfigureUpdateHandler(
             _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
         WinProvisionLog.Write(
@@ -318,6 +321,7 @@ public partial class App : Application
     {
         bool isLight = theme == ApplicationTheme.Light;
 
+        SetWindowBackground(isLight);
         SetBrushColor("ApplicationBackgroundBrush", isLight ? "#FFF7F9FC" : "#F0101B2D");
         SetBrushColor("LayerFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#E8172A40");
         SetBrushColor("ControlFillColorDefaultBrush", isLight ? "#FFFFFFFF" : "#E0263446");
@@ -347,6 +351,44 @@ public partial class App : Application
         SetBrushColor("AppIconMutedBrush", isLight ? "#FF64748B" : "#FF9BAAC0");
         SetBrushColor("AppCardBackgroundBrush", isLight ? "#FFFFFFFF" : "#E0263446");
         SetBrushColor("AppCardBorderBrush", isLight ? "#FFCBD5E1" : "#8050657D");
+
+        SetBrushColor("FluentWindowSurfaceBrush", isLight ? "#FFF3F6FA" : "#FF1B2835");
+        SetBrushColor("FluentPanelBrush", isLight ? "#FFF9FBFD" : "#E0263446");
+        SetBrushColor("FluentPanelElevatedBrush", isLight ? "#FFFFFFFF" : "#F02D4056");
+        SetBrushColor("FluentPanelPressedBrush", isLight ? "#FFE8EEF5" : "#E01D3047");
+        SetBrushColor("FluentPanelBorderBrush", isLight ? "#FFD2DBE5" : "#8050657D");
+        SetBrushColor("FluentPanelBorderStrongBrush", isLight ? "#FFB8C7D6" : "#98627A94");
+
+        SetBrushColor("AppOperationSuccessBrush", isLight ? "#FF176B37" : "#FF79D99A");
+        SetBrushColor("AppOperationSuccessSurfaceBrush", isLight ? "#FFE9F7EF" : "#2679D99A");
+        SetBrushColor("AppOperationFailureBrush", isLight ? "#FFB42318" : "#FFFF8585");
+        SetBrushColor("AppOperationFailureSurfaceBrush", isLight ? "#FFFFEFED" : "#26FF8585");
+        SetBrushColor("AppOperationCanceledBrush", isLight ? "#FF526274" : "#FFC6D1E0");
+        SetBrushColor("AppOperationCanceledSurfaceBrush", isLight ? "#FFF0F3F6" : "#18C6D1E0");
+        SetBrushColor("AppOperationComBrush", isLight ? "#FF7141C8" : "#FFB991FF");
+        SetBrushColor("AppOperationApiBrush", isLight ? "#FF997000" : "#FFFFD166");
+        SetBrushColor("AppOperationWingetBrush", isLight ? "#FF007E94" : "#FF59D5E5");
+        SetBrushColor("AppOperationDefaultBrush", isLight ? "#FF245FB7" : "#FF68A8FF");
+        SetBrushColor("AppProgressTrackBrush", isLight ? "#FFD7E0E8" : "#24FFFFFF");
+        Current.Resources["AppPanelShadowColor"] = (Color)ColorConverter.ConvertFromString(
+            isLight ? "#FF536273" : "#FF000000");
+    }
+
+    private static void SetWindowBackground(bool isLight)
+    {
+        Color[] colors = isLight
+            ? [Color.FromRgb(0xF4, 0xF7, 0xFB), Color.FromRgb(0xE9, 0xF0, 0xF6), Color.FromRgb(0xF6, 0xF8, 0xFB)]
+            : [Color.FromRgb(0x19, 0x23, 0x2F), Color.FromRgb(0x24, 0x33, 0x42), Color.FromRgb(0x1B, 0x28, 0x35)];
+
+        var background = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(1, 1)
+        };
+        background.GradientStops.Add(new GradientStop(colors[0], 0));
+        background.GradientStops.Add(new GradientStop(colors[1], 0.52));
+        background.GradientStops.Add(new GradientStop(colors[2], 1));
+        Current.Resources["AppWindowBackgroundBrush"] = background;
     }
 
     private static void SetBrushColor(string key, string hex)

@@ -97,12 +97,12 @@ public partial class ProvisioningJsonEditorWindow : FluentWindow
         {
             File.WriteAllText(saveFileDialog.FileName, JsonTextBox.Text);
         }
-        catch (Exception ex)
+        catch
         {
             var errorDialog = new Wpf.Ui.Controls.MessageBox
             {
                 Title = "Editor de Perfil",
-                Content = $"Erro ao salvar: {ex.Message}",
+                Content = "Não foi possível salvar o arquivo. Tente novamente.",
                 CloseButtonText = "OK"
             };
             await errorDialog.ShowDialogAsync();

@@ -22,25 +22,11 @@
         <!--  Tipografia Fluent (Segoe UI Variable)  -->
         <Style x:Key="PageTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
 
         <Style x:Key="CardTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="15" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentCardTitleStyle}" />
 
         <Style x:Key="CardSubtitleStyle"
                TargetType="TextBlock"
@@ -52,8 +38,10 @@
         </Style>
 
         <!--  Cartão Base "Mica-Friendly"  -->
-        <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Padding" Value="{StaticResource Spacing20}" />
+        <Style x:Key="CardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource FluentCardStyle}">
+            <Setter Property="Padding" Value="{StaticResource Spacing24}" />
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
@@ -319,7 +307,7 @@
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Margin="24,20"
+    <Grid Margin="{StaticResource PageContentMargin}"
           MaxWidth="1600"
           HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
@@ -332,8 +320,8 @@
         <!--  ================= Cabeçalho =================  -->
         <StackPanel Grid.Row="0"
                     Orientation="Horizontal"
-                    Margin="0,0,0,24">
-            <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xF133;" />
+                    Margin="{StaticResource PageHeaderMargin}">
+            <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xF133;" />
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Coleção de Pacotes" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="Crie e gerencie seus perfis."
@@ -411,9 +399,9 @@
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="360" />
-                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="{StaticResource PageColumnGap}" />
                 <!--  Gutter  -->
-                <ColumnDefinition Width="316" />
+                <ColumnDefinition Width="{StaticResource PageSidebarWidth}" />
             </Grid.ColumnDefinitions>
 
             <!--  ESQUERDA: Coleção de Aplicativos  -->
@@ -493,7 +481,7 @@
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Left">
                             <TextBlock x:Name="SelectionSummaryText"
-                                       Text="0 pacote(s) selecionado(s)"
+                                       Text="Nenhum aplicativo selecionado"
                                        Style="{StaticResource CardSubtitleStyle}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,14,0" />
@@ -753,7 +741,7 @@
 
                             <ui:Button x:Name="ExportScriptButton"
                                        Content="Gerar Script"
-                                       ToolTip="Exportar um script de instalação em lote"
+                                       ToolTip="Exportar script de instalação"
                                        Style="{StaticResource ActionUniformButtonStyle}"
                                        Appearance="Secondary"
                                        Click="ExportScriptButton_Click">

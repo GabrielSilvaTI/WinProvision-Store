@@ -13,7 +13,7 @@
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
-                 Background="{DynamicResource AppSurfaceBrush}"
+                 Background="{DynamicResource AppWindowBackgroundBrush}"
                  FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
                  TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
                  TextElement.FontSize="14"
@@ -29,8 +29,8 @@
             Camadas da janela: Mica no backdrop nativo, Mica Alt na moldura/rail
             e Acrylic opaco nas superfícies elevadas, como na referência visual.
         -->
-        <SolidColorBrush x:Key="MicaWindowBrush" Color="#F0101B2D" />
-        <SolidColorBrush x:Key="MicaAltSurfaceBrush" Color="#E0162941" />
+        <SolidColorBrush x:Key="MicaWindowBrush" Color="#FF1B2835" />
+        <SolidColorBrush x:Key="MicaAltSurfaceBrush" Color="#E01F3040" />
         <SolidColorBrush x:Key="AcrylicSurfaceBrush" Color="#E0263446" />
         <SolidColorBrush x:Key="AcrylicSurfaceHoverBrush" Color="#F02D4056" />
         <SolidColorBrush x:Key="WindowDividerBrush" Color="#8050657D" />
@@ -45,7 +45,7 @@
         </Style>
     </ui:FluentWindow.Resources>
 
-    <Grid Background="{DynamicResource AppSurfaceBrush}">
+    <Grid Background="{DynamicResource AppWindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -53,10 +53,10 @@
 
         <Grid Grid.Row="0"
               Panel.ZIndex="2"
-              Background="{DynamicResource AppSurfaceBrush}">
+              Background="{DynamicResource AppWindowBackgroundBrush}">
             <ui:TitleBar Title=" "
                          Height="48"
-                         Background="{DynamicResource AppSurfaceBrush}"
+                         Background="{DynamicResource AppWindowBackgroundBrush}"
                          BorderBrush="{DynamicResource AppBorderBrush}"
                          BorderThickness="0,0,0,1"
                          Icon="pack://application:,,,/Assets/app.ico">
@@ -91,16 +91,6 @@
                             </Grid>
                         </ui:Button>
 
-                        <Popup x:Name="QueuePopup"
-                               PlacementTarget="{Binding ElementName=QueueToggleButton}"
-                               Placement="Bottom"
-                               HorizontalOffset="-360"
-                               VerticalOffset="6"
-                               AllowsTransparency="True"
-                               StaysOpen="False"
-                               PopupAnimation="Fade">
-                            <controls:OperationsQueuePanel x:Name="QueuePanelControl" />
-                        </Popup>
                     </StackPanel>
                 </ui:TitleBar.TrailingContent>
             </ui:TitleBar>
@@ -133,7 +123,7 @@
 
         <Border Grid.Row="1"
                 Margin="0"
-                Background="{DynamicResource AppSurfaceBrush}"
+                Background="{DynamicResource AppWindowBackgroundBrush}"
                 BorderBrush="{DynamicResource AppBorderBrush}"
                 BorderThickness="0">
             <ui:NavigationView x:Name="RootNavigation"
@@ -220,6 +210,23 @@
 
             </ui:NavigationView>
         </Border>
+
+        <controls:OperationsQueuePanel x:Name="QueuePanel"
+                                       Grid.Row="1"
+                                       MaxHeight="290"
+                                       VerticalAlignment="Bottom"
+                                       Visibility="Collapsed">
+            <controls:OperationsQueuePanel.Style>
+                <Style TargetType="controls:OperationsQueuePanel">
+                    <Setter Property="Margin" Value="64,0,0,0" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsPaneOpen, ElementName=RootNavigation}" Value="True">
+                            <Setter Property="Margin" Value="240,0,0,0" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </controls:OperationsQueuePanel.Style>
+        </controls:OperationsQueuePanel>
 
         <!--
             Overlay de Detalhes do pacote: fica por cima de TUDO (TitleBar +

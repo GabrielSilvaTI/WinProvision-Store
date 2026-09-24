@@ -19,14 +19,7 @@
         <!--  Tipografia Fluent  -->
         <Style x:Key="PageTitleStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="26" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
-        </Style>
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
 
         <Style x:Key="CardSubtitleStyle"
                TargetType="TextBlock"
@@ -38,7 +31,9 @@
             <Setter Property="Margin" Value="0,4,0,0" />
         </Style>
 
-        <Style x:Key="SettingsCardStyle" TargetType="Border">
+        <Style x:Key="SettingsCardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource FluentCardStyle}">
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
@@ -191,9 +186,11 @@
     </Page.Resources>
 
     <Border Background="Transparent"
-            Margin="36,24,36,24"
+            Margin="{StaticResource PageContentMargin}"
+            MaxWidth="1600"
+            HorizontalAlignment="Center"
             CornerRadius="{StaticResource OverlayCornerRadius}">
-        <Grid Margin="36,24,36,24">
+        <Grid Margin="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -201,19 +198,19 @@
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="20" />
-                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="{StaticResource PageColumnGap}" />
+                <ColumnDefinition Width="{StaticResource PageSidebarWidth}" />
             </Grid.ColumnDefinitions>
 
             <!--  ================= Cabeçalho Global =================  -->
             <StackPanel Grid.Row="0"
                         Grid.ColumnSpan="3"
                         Orientation="Horizontal"
-                        Margin="0,0,0,24">
-                <TextBlock Style="{StaticResource PageHeaderIconStyle}" Text="&#xE77B;" />
+                        Margin="{StaticResource PageHeaderMargin}">
+                <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE77B;" />
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Conta &amp; Sincronização" Style="{StaticResource PageTitleStyle}" />
-                    <TextBlock Text="Sincronização na nuvem, backup local, perfis JSON e automação por linha de comando."
+                    <TextBlock Text="Sincronize seus perfis e gerencie backups."
                                Style="{StaticResource CardSubtitleStyle}"
                                Margin="0,4,0,0" />
                 </StackPanel>
@@ -249,7 +246,7 @@
                                                      VerticalAlignment="Center" />
                                         <TextBlock Text="Gravar Log de Execução (/log)" Style="{StaticResource SettingsRowTitleStyle}" />
                                     </StackPanel>
-                                    <TextBlock Text="Grava o histórico detalhado das ações em um arquivo de log local." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                    <TextBlock Text="Salva as ações em um arquivo no computador." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                 </StackPanel>
                                 <Grid Grid.Column="1" VerticalAlignment="Center">
                                     <Grid.ColumnDefinitions>
@@ -291,7 +288,7 @@
                                                      VerticalAlignment="Center" />
                                         <TextBlock Text="Logs na Nuvem (/cloudlog)" Style="{StaticResource SettingsRowTitleStyle}" />
                                     </StackPanel>
-                                    <TextBlock Text="Transmite os logs de execução para telemetria e acompanhamento remoto." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                    <TextBlock Text="Envia os logs para consulta remota." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                 </StackPanel>
                                 <ToggleButton x:Name="CliCloudLogToggle"
                                               Grid.Column="1"
@@ -320,7 +317,7 @@
                                                      VerticalAlignment="Center" />
                                         <TextBlock Text="Modo de Execução" Style="{StaticResource SettingsRowTitleStyle}" />
                                     </StackPanel>
-                                    <TextBlock Text="Defina se a tela gráfica de progresso será exibida durante a execução." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                    <TextBlock Text="Escolha se a janela de progresso será exibida." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                 </StackPanel>
                                 <ToggleButton x:Name="CliUiModeToggle"
                                               Grid.Column="1"
@@ -348,7 +345,7 @@
                                                  VerticalAlignment="Center" />
                                     <StackPanel>
                                         <TextBlock Text="Comando Gerado" Style="{StaticResource SettingsRowTitleStyle}" />
-                                        <TextBlock Text="Execute este comando em um prompt com privilégios de administrador para provisionar a máquina." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                        <TextBlock Text="Execute como administrador para configurar o computador." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
@@ -371,8 +368,7 @@
                             </Border>
 
                             <StackPanel Orientation="Horizontal" Margin="24,0,24,16">
-                                <ui:Button Content="Copiar comando"
-                                           Appearance="Primary"
+                                <ui:Button Appearance="Primary"
                                            Click="CopyCliCommandButton_Click"
                                            CornerRadius="{StaticResource ControlCornerRadius}"
                                            Background="{StaticResource InstallActionBrush}"
@@ -380,9 +376,20 @@
                                            PressedBackground="{StaticResource InstallActionPressedBrush}"
                                            Foreground="White"
                                            PressedForeground="White">
-                                    <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="Copy24" />
-                                    </ui:Button.Icon>
+                                    <Grid HorizontalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="20" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:SymbolIcon Symbol="Copy24"
+                                                       Grid.Column="0"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="Copiar comando"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
                                 </ui:Button>
                             </StackPanel>
                         </StackPanel>
@@ -418,20 +425,24 @@
                                        FontFamily="Segoe UI Variable Display, Aptos, Segoe UI"
                                        VerticalAlignment="Center" />
                         </StackPanel>
+                        <TextBlock Text="Quem tiver o link do backup poderá acessá-lo."
+                                   FontSize="11"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,14" />
 
                         <!--  ── Estado: Desconectado ──  -->
                         <StackPanel x:Name="SidebarDisconnectedPanel">
 
                             <!--  Painel inicial: só o botão OAuth  -->
                             <StackPanel x:Name="OAuthInitialPanel">
-                                <TextBlock Text="Conecte sua conta GitHub para sincronizar seu perfil na nuvem."
+                                <TextBlock Text="Entre no GitHub para sincronizar seu perfil."
                                            FontSize="12"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,12" />
 
                                 <ui:Button x:Name="ConnectButton"
-                                           Content="Entrar com GitHub"
                                            HorizontalAlignment="Stretch"
                                            Appearance="Primary"
                                            Click="ConnectButton_Click"
@@ -441,11 +452,20 @@
                                            PressedBackground="{StaticResource InstallActionPressedBrush}"
                                            Foreground="White"
                                            PressedForeground="White">
-                                    <ui:Button.Icon>
-                                        <ui:ImageIcon Source="https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Icon_Database/github.cli.png"
+                                    <Grid HorizontalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="20" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:ImageIcon Grid.Column="0"
+                                                      Source="https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Icon_Database/github.cli.png"
                                                       Width="16"
                                                       Height="16" />
-                                    </ui:Button.Icon>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="Entrar com GitHub"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
                                 </ui:Button>
                             </StackPanel>
 
@@ -501,21 +521,31 @@
 
                                 <!--  Status e cancelar  -->
                                 <TextBlock x:Name="OAuthStatusText"
-                                           Text="Aguardando autenticação no browser..."
+                                           Text="Aguardando confirmação no navegador..."
                                            FontSize="11"
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,8" />
 
                                 <ui:Button x:Name="CancelOAuthButton"
-                                           Content="Cancelar"
                                            HorizontalAlignment="Stretch"
                                            Appearance="Secondary"
                                            Click="CancelOAuthButton_Click"
                                            CornerRadius="{StaticResource ControlCornerRadius}">
-                                    <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="Dismiss24" />
-                                    </ui:Button.Icon>
+                                    <Grid HorizontalAlignment="Center">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="20" />
+                                            <ColumnDefinition Width="8" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:SymbolIcon Symbol="Dismiss24"
+                                                       Grid.Column="0"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="2"
+                                                   Text="Cancelar"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
                                 </ui:Button>
                             </StackPanel>
 
@@ -608,14 +638,24 @@
 
                             <!--  Botão Desvincular  -->
                             <ui:Button x:Name="DisconnectButton"
-                                       Content="Desvincular"
                                        HorizontalAlignment="Stretch"
                                        Appearance="Secondary"
                                        Click="DisconnectButton_Click"
                                        CornerRadius="{StaticResource ControlCornerRadius}">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="LinkDismiss24" />
-                                </ui:Button.Icon>
+                                <Grid HorizontalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="20" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Symbol="LinkDismiss24"
+                                                   Grid.Column="0"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="Desvincular"
+                                               VerticalAlignment="Center" />
+                                </Grid>
                             </ui:Button>
                         </StackPanel>
 
@@ -655,33 +695,79 @@
 
                         <!--  Ação: Backup  -->
                         <ui:Button x:Name="BackupButton"
-                                   Content="Backup"
                                    HorizontalAlignment="Stretch"
                                    Appearance="Secondary"
                                    Click="BackupButton_Click"
                                    CornerRadius="{StaticResource ControlCornerRadius}"
                                    Margin="0,0,0,8">
-                            <ui:Button.Icon>
-                                <ui:FontIcon Glyph="&#xEBD3;" FontFamily="Segoe Fluent Icons" />
-                            </ui:Button.Icon>
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:FontIcon Grid.Column="0"
+                                             Glyph="&#xEBD3;"
+                                             FontFamily="Segoe Fluent Icons"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="Backup"
+                                           TextAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </ui:Button>
+
+                        <ui:Button x:Name="ImportCloudBackupButton"
+                                   HorizontalAlignment="Stretch"
+                                   Appearance="Secondary"
+                                   Click="ImportCloudBackupButton_Click"
+                                   CornerRadius="{StaticResource ControlCornerRadius}"
+                                   IsEnabled="False"
+                                   Margin="0,0,0,8">
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="ArrowDownload24"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="Importar da nuvem"
+                                           TextAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
                         </ui:Button>
 
                         <!--  Ação: Importar  -->
                         <ui:Button x:Name="ImportAllButton"
-                                   Content="Importar"
                                    HorizontalAlignment="Stretch"
                                    Appearance="Secondary"
                                    Click="ImportAllButton_Click"
                                    CornerRadius="{StaticResource ControlCornerRadius}"
                                    Margin="0,0,0,8">
-                            <ui:Button.Icon>
-                                <ui:SymbolIcon Symbol="ArrowImport24" />
-                            </ui:Button.Icon>
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="ArrowImport24"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="Importar"
+                                           TextAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
                         </ui:Button>
 
                         <!--  Ação: Exportar  -->
                         <ui:Button x:Name="ExportAllButton"
-                                   Content="Exportar"
                                    HorizontalAlignment="Stretch"
                                    Appearance="Primary"
                                    Click="ExportAllButton_Click"
@@ -691,9 +777,21 @@
                                    PressedBackground="{StaticResource InstallActionPressedBrush}"
                                    Foreground="White"
                                    PressedForeground="White">
-                            <ui:Button.Icon>
-                                <ui:SymbolIcon Symbol="DocumentArrowRight24" />
-                            </ui:Button.Icon>
+                            <Grid HorizontalAlignment="Stretch">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="8" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0"
+                                               Symbol="DocumentArrowRight24"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2"
+                                           Text="Exportar"
+                                           TextAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Grid>
                         </ui:Button>
 
                     </StackPanel>

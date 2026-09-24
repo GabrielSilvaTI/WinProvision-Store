@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Windows.Data;
 using System.Windows.Media;
-using Wpf.Ui.Controls;
 using WinProvision.Core.Services;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store.Converters;
 
