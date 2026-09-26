@@ -10,22 +10,40 @@ using WinProvision.Core.Services.Indexing;
 const string MsStoreCatalogR2Url =
     "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json";
 
-static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync()
+static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync(string localCatalogPath)
 {
+    var catalogEntries = new List<AppEntry>();
+    if (File.Exists(localCatalogPath))
+    {
+        try
+        {
+            string localJson = await File.ReadAllTextAsync(localCatalogPath);
+            catalogEntries.AddRange(
+                JsonSerializer.Deserialize<List<AppEntry>>(localJson, WinProvisionJsonOptions.Compact) ?? []);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"      [AVISO] Catálogo MS Store local inválido, tentando R2: {ex.Message}");
+        }
+    }
+
     try
     {
         using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
-        return JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
+        var remoteEntries = JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
+        catalogEntries.AddRange(remoteEntries);
     }
     catch (Exception ex)
     {
-        // Não derruba o scan do winget-pkgs por causa disso — o catálogo msstore é um
-        // extra, publicado por um workflow independente; se estiver indisponível ou
-        // ainda não tiver rodado a primeira vez, o resto da pipeline segue normalmente.
-        Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2, seguindo sem ele: {ex.Message}");
-        return [];
+        Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2: {ex.Message}");
     }
+
+    return catalogEntries
+        .Where(app => !string.IsNullOrWhiteSpace(app.Id))
+        .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.First())
+        .ToList();
 }
 
 /// <summary>
@@ -40,12 +58,29 @@ static async Task<int> RunMsStoreOnlyAsync(string outputDir)
     Console.WriteLine("  WinProvision Store - Curadoria Microsoft Store");
     Console.WriteLine("==================================================");
 
+    var service = new MsStoreCatalogService();
     var curatedIds = LoadMsStoreCuratedIds();
-    Console.WriteLine($"\n[1/2] Consultando Display Catalog para {curatedIds.Count:N0} app(s) curado(s)...");
-    var apps = await new MsStoreCatalogService().FetchAsync(curatedIds);
-    Console.WriteLine($"      {apps.Count:N0} de {curatedIds.Count:N0} apps resolvidos");
+    Console.WriteLine($"\n[1/3] Resolvendo {curatedIds.Count:N0} ID(s) MS Store curados...");
+    var apps = await service.FetchAsync(curatedIds);
+    Console.WriteLine($"      {apps.Count:N0} de {curatedIds.Count:N0} IDs curados resolvidos");
 
-    Console.WriteLine("\n[2/2] Exportando msstore-catalog.json...");
+    var searchTerms = LoadConfig("msstore-search-terms.json", new List<string>());
+    Console.WriteLine($"\n[2/3] Descobrindo apps da Store com {searchTerms.Count:N0} consultas...");
+    int discovered = 0;
+    foreach (string term in searchTerms.Where(term => !string.IsNullOrWhiteSpace(term)).Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        var matches = await service.SearchAsync(term);
+        discovered += matches.Count;
+        apps.AddRange(matches);
+    }
+    apps = apps
+        .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
+        .Select(group => group.First())
+        .OrderBy(app => app.Name, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+    Console.WriteLine($"      {apps.Count:N0} produtos únicos no catálogo após {discovered:N0} resultados de busca");
+
+    Console.WriteLine("\n[3/3] Exportando msstore-catalog.json...");
     Directory.CreateDirectory(outputDir);
     string outputPath = Path.Combine(outputDir, "msstore-catalog.json");
     await using (var stream = File.Create(outputPath))
@@ -59,10 +94,15 @@ static async Task<int> RunMsStoreOnlyAsync(string outputDir)
 
 static T LoadConfig<T>(string fileName, T fallback)
 {
-    string path = Path.Combine("config", fileName);
+    string path = Path.Combine(AppContext.BaseDirectory, "config", fileName);
     if (!File.Exists(path))
     {
-        Console.WriteLine($"      [INFO] Arquivo de configuração '{fileName}' não encontrado em 'config/', usando fallback padrão.");
+        path = Path.Combine("src", "WinProvision.Indexer", "config", fileName);
+    }
+
+    if (!File.Exists(path))
+    {
+        Console.WriteLine($"      [INFO] Arquivo de configuração '{fileName}' não encontrado; usando fallback padrão.");
         return fallback;
     }
 
@@ -167,16 +207,13 @@ Console.WriteLine($"      {discarded:N0} pacotes descartados como ruído");
 Console.WriteLine($"      {candidates.Count:N0} pacotes seguem para enriquecimento");
 Lap("filtro de ruído");
 
-// [+] Apps curados da Microsoft Store (source "msstore"). Não roda a consulta à
-// Display Catalog aqui — isso fica no workflow separado "Update msstore-catalog.json"
-// (mais leve, cadência própria, ver RunMsStoreOnlyAsync abaixo), que publica o
-// resultado em Store/Database/msstore-catalog.json no R2. Este passo só baixa esse
-// arquivo já pronto e mescla em "candidates", pra não acoplar a disponibilidade da
-// Display Catalog ao scan pesado do winget-pkgs (que roda todo dia). Curadoria manual
-// já cumpre o papel do NoiseFilter aqui; segue pra classificação regional e corte por
-// score como qualquer outro pacote.
+// [+] Atualiza/mescla apps da Microsoft Store no catálogo diário. O workflow roda
+// RunMsStoreOnlyAsync antes do indexador completo e deixa o JSON em outputDir; fora
+// do workflow integrado, o catálogo publicado no R2 continua como fallback. Curadoria
+// manual já cumpre o papel do NoiseFilter aqui; segue para classificação regional e
+// corte por score como qualquer outro pacote.
 Console.WriteLine("\n[+] Baixando apps curados da Microsoft Store (R2)...");
-var msstoreApps = await DownloadMsStoreCatalogAsync();
+var msstoreApps = await DownloadMsStoreCatalogAsync(Path.Combine(outputDir, "msstore-catalog.json"));
 candidates.AddRange(msstoreApps);
 Console.WriteLine($"      {msstoreApps.Count:N0} apps da Microsoft Store mesclados");
 Lap("catálogo msstore");

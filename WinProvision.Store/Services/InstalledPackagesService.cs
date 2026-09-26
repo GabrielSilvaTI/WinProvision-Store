@@ -219,7 +219,7 @@ public sealed class InstalledPackagesService
                         WinGetFactoryHelper.ReportComSuccess();
                         // A COM catalog can omit entries that `winget list` still finds
                         // (and the reverse can happen too). Collect both views, like
-                        // UniGetUI's installed-package loader does across its managers.
+                        // across all available package sources.
                         try
                         {
                             var cliPackages = await ListCliIncludingMsStoreAsync(cancellationToken);
@@ -348,7 +348,7 @@ public sealed class InstalledPackagesService
         {
             // `winget list` sem fonte explícita pode deixar de fora apps da Store
             // que não consegue associar ao catálogo winget. Repetir a consulta contra
-            // a fonte msstore reproduz a descoberta usada pelo UniGetUI.
+            // a fonte msstore amplia a descoberta de aplicativos instalados.
             var storePackages = await ListCliAsync(cancellationToken, "msstore");
             packages = MergeInstalledPackages(packages, storePackages);
             WinProvisionLog.Write($"INSTALLED LIST msstore={storePackages.Count} merged={packages.Count}");

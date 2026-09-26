@@ -1,4 +1,4 @@
-name: Update msstore-catalog.json (Microsoft Store -> R2)
+name: Update Microsoft Store catalog (R2)
 
 on:
   schedule:
@@ -7,6 +7,7 @@ on:
   push:
     paths:
       - "src/WinProvision.Indexer/config/msstore-curated.json"
+      - "src/WinProvision.Indexer/config/msstore-search-terms.json"
 
 permissions:
   contents: read
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}

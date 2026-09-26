@@ -65,7 +65,8 @@ public static partial class OperationRunner
         string? iconUrl = null,
         InstalledAppsService? installedAppsService = null,
         string? installLocation = null,
-        string source = "winget")
+        string source = "winget",
+        bool interactive = false)
     {
         var item = queue.Enqueue(appName, OperationKind.Install, iconUrl);
         item.State = OperationState.Running;
@@ -77,20 +78,21 @@ public static partial class OperationRunner
             var onProgress = new Action<InstallProgressUpdate>(update => ReportInstallProgress(item, update));
 
             // Se não há handler configurado, usa winget.exe diretamente
-            if (_installHandler is null)
+            if (_installHandler is null || interactive)
             {
                 item.Method = WingetMethod.WingetExe;
                 // Envia um progresso inicial para garantir que a cor seja aplicada
                 onProgress(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
             }
 
-            var result = _installHandler is null
+            var result = _installHandler is null || interactive
                 ? await executor.InstallAppAsync(
                     appId,
                     onLogReceived,
                     item.CancellationTokenSource.Token,
                     installLocation,
-                    source)
+                    source: source,
+                    interactive: interactive)
                 : await _installHandler(
                     appId,
                     onLogReceived,
@@ -218,7 +220,10 @@ public static partial class OperationRunner
         string appId,
         string appName,
         string? iconUrl = null,
-        InstalledAppsService? installedAppsService = null)
+        InstalledAppsService? installedAppsService = null,
+        string? source = null,
+        string? installedVersion = null,
+        bool interactive = false)
     {
         var item = queue.Enqueue(appName, OperationKind.Uninstall, iconUrl);
         item.State = OperationState.Running;
@@ -229,9 +234,16 @@ public static partial class OperationRunner
             var result = await executor.UninstallAppAsync(
                 appId,
                 onLogReceived: line => ReportProgress(item, line),
-                cancellationToken: item.CancellationTokenSource.Token);
+                cancellationToken: item.CancellationTokenSource.Token,
+                source: source,
+                installedVersion: installedVersion,
+                interactive: interactive);
 
-            item.Progress = 100;
+            if (result.Success)
+            {
+                item.IsIndeterminate = false;
+                item.Progress = 100;
+            }
             item.State = result.Success
                 ? OperationState.Completed
                 : item.CancellationTokenSource.IsCancellationRequested
@@ -727,10 +739,10 @@ public static partial class OperationRunner
 
         switch (update.Phase)
         {
-            case InstallProgressPhase.Downloading when update.Percent is int percent:
+            case InstallProgressPhase.Downloading when update.Percent is double percent:
                 item.IsIndeterminate = false;
                 item.Progress = Math.Clamp(percent, 0, 100);
-                item.StatusText = $"Baixando... {item.Progress:0}%";
+                item.StatusText = $"Baixando... {item.Progress:0.00}%";
                 break;
             case InstallProgressPhase.Downloading:
                 item.IsIndeterminate = true;
@@ -742,7 +754,7 @@ public static partial class OperationRunner
                     ? "Aguardando o WinGet..."
                     : "Verificando e preparando a instalação...";
                 break;
-            case InstallProgressPhase.Installing when update.Percent is int installPercent && installPercent > 0:
+            case InstallProgressPhase.Installing when update.Percent is double installPercent && installPercent > 0:
                 item.IsIndeterminate = false;
                 item.Progress = Math.Clamp(installPercent, 0, 100);
                 item.StatusText = $"Instalando... {item.Progress:0}%";

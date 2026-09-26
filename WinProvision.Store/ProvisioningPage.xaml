@@ -54,14 +54,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000"
-                                      Opacity="0.2"
-                                      BlurRadius="24"
-                                      ShadowDepth="0" />
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Effect" Value="{DynamicResource StoreCardShadowEffect}" />
         </Style>
 
         <!--  NOVO: Cartão de Configurações (Estilo Lista do Win11, sem Padding interno para as linhas tocarem a borda)  -->
@@ -72,14 +65,7 @@
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000"
-                                      Opacity="0.2"
-                                      BlurRadius="24"
-                                      ShadowDepth="0" />
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Effect" Value="{DynamicResource StoreCardShadowEffect}" />
         </Style>
 
         <Style x:Key="SettingsSectionHeaderStyle"
@@ -176,7 +162,7 @@
 
     <Border Background="Transparent"
             Margin="{StaticResource PageContentMargin}"
-            MaxWidth="1600"
+            MaxWidth="{StaticResource PageContentMaxWidth}"
             HorizontalAlignment="Stretch"
             CornerRadius="{StaticResource OverlayCornerRadius}">
         <Grid Margin="0">
@@ -194,11 +180,11 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE835;" />
+                    <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Provisionamento" Style="{StaticResource PageTitleStyle}" />
                         <TextBlock Text="Ajuste o Windows ou exporte um perfil."
-                                   Style="{StaticResource CardSubtitleStyle}"
+                                   Style="{StaticResource FluentPageSubtitleStyle}"
                                    Margin="0,4,0,0" />
                     </StackPanel>
                 </StackPanel>
@@ -324,6 +310,36 @@
                                 </Grid>
                             </ui:Button>
 
+                            <ui:Button x:Name="UnattendCanvasNavCard"
+                                       Style="{StaticResource MenuCardButtonStyle}"
+                                       Click="UnattendCanvasNavCard_Click">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Grid.Column="0"
+                                                   Symbol="DocumentArrowRight24"
+                                                   FontSize="24"
+                                                   Margin="0,0,16,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Gerador de arquivo de resposta" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Configure o Windows no Canvas Schneegans, em português."
+                                                   Style="{StaticResource CardSubtitleStyle}"
+                                                   FontSize="13" />
+                                    </StackPanel>
+                                    <ui:SymbolIcon Grid.Column="2"
+                                                   Symbol="ChevronRight24"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                   VerticalAlignment="Center" />
+                                </Grid>
+                            </ui:Button>
+
+
+
                         </StackPanel>
                     </ScrollViewer>
 
@@ -387,7 +403,7 @@
                                                 </ComboBox>
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <!--  Alinhamento Barra de Tarefas  -->
                                             <Grid Margin="24,16">
@@ -412,7 +428,7 @@
                                                 </ComboBox>
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <!--  Caixa de Pesquisa  -->
                                             <Grid Margin="24,16">
@@ -438,7 +454,7 @@
                                                 </ComboBox>
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <!--  Auto Hide  -->
                                             <Grid Margin="24,16">
@@ -471,7 +487,7 @@
                                                 </StackPanel>
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <!--  Linha de Ação do Wallpaper  -->
                                             <Grid Margin="24,16">
@@ -487,7 +503,7 @@
                                                         Height="64"
                                                         CornerRadius="{StaticResource ControlCornerRadius}"
                                                         ClipToBounds="True"
-                                                        Background="#1AFFFFFF"
+                                                        Background="{DynamicResource StoreBrush_1AFFFFFF}"
                                                         Margin="0,0,16,0">
                                                     <Image x:Name="WallpaperPreviewImage" Stretch="UniformToFill" />
                                                 </Border>
@@ -532,7 +548,7 @@
                                     <!--  ================= CARD SANDBOX / VM: SIMULAÇÃO DA ÁREA DE TRABALHO (16:9 COMPLETO) =================  -->
                                     <Border Style="{StaticResource SettingsCardStyle}"
                                             Margin="0,0,0,24"
-                                            Background="#0CFFFFFF"
+                                            Background="{DynamicResource StoreBrush_0CFFFFFF}"
                                             ClipToBounds="True">
                                         <Grid>
                                             <Grid.RowDefinitions>
@@ -543,7 +559,7 @@
 
                                             <!--  Barra de Título da Janela Sandbox / VM  -->
                                             <Border Grid.Row="0"
-                                                    Background="#14000000"
+                                                    Background="{DynamicResource StoreBrush_14000000}"
                                                     Padding="16,10">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
@@ -559,11 +575,11 @@
                                                         <Border Width="8"
                                                                 Height="8"
                                                                 CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                Background="#4CAF50"
+                                                                Background="{DynamicResource StoreBrush_4CAF50}"
                                                                 Margin="0,0,10,0"
                                                                 VerticalAlignment="Center">
                                                             <Border.Effect>
-                                                                <DropShadowEffect Color="#36C875"
+                                                                <DropShadowEffect Color="{DynamicResource StoreColor_36C875}"
                                                                                   BlurRadius="6"
                                                                                   ShadowDepth="0"
                                                                                   Opacity="0.8" />
@@ -576,7 +592,7 @@
                                                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                                    VerticalAlignment="Center" />
                                                         <Border Margin="12,0,0,0"
-                                                                Background="#16FFFFFF"
+                                                                Background="{DynamicResource StoreBrush_16FFFFFF}"
                                                                 CornerRadius="{StaticResource CompactCornerRadius}"
                                                                 Padding="6,2"
                                                                 VerticalAlignment="Center">
@@ -595,30 +611,30 @@
                                                         <Border Width="10"
                                                                 Height="10"
                                                                 CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                Background="#26FFFFFF"
+                                                                Background="{DynamicResource StoreBrush_26FFFFFF}"
                                                                 Margin="0,0,6,0" />
                                                         <Border Width="10"
                                                                 Height="10"
                                                                 CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                Background="#26FFFFFF"
+                                                                Background="{DynamicResource StoreBrush_26FFFFFF}"
                                                                 Margin="0,0,6,0" />
                                                         <Border Width="10"
                                                                 Height="10"
                                                                 CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                Background="#26FFFFFF" />
+                                                                Background="{DynamicResource StoreBrush_26FFFFFF}" />
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>
 
                                             <Rectangle Grid.Row="0"
                                                        Height="1"
-                                                       Fill="#14FFFFFF"
+                                                       Fill="{DynamicResource StoreBrush_14FFFFFF}"
                                                        VerticalAlignment="Bottom" />
 
                                             <!--  BANDEJA DE APLICATIVOS (Pacotes Selecionados para Arrastar)  -->
                                             <Border Grid.Row="1"
-                                                    Background="#0AFFFFFF"
-                                                    BorderBrush="#14FFFFFF"
+                                                    Background="{DynamicResource StoreBrush_0AFFFFFF}"
+                                                    BorderBrush="{DynamicResource StoreBrush_14FFFFFF}"
                                                     BorderThickness="0,0,0,1"
                                                     Padding="16,12">
                                                 <Grid>
@@ -645,7 +661,7 @@
                                                                            FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                                            VerticalAlignment="Center" />
-                                                                <Border Background="#200078D4"
+                                                                <Border Background="{DynamicResource StoreBrush_200078D4}"
                                                                         CornerRadius="{StaticResource OverlayCornerRadius}"
                                                                         Padding="8,2"
                                                                         Margin="10,0,0,0"
@@ -692,7 +708,7 @@
                                                 <Border Width="1280"
                                                         Height="720"
                                                         ClipToBounds="True"
-                                                        Background="#0F172A">
+                                                        Background="{DynamicResource StoreBrush_0F172A}">
                                                     <Grid>
                                                         <!--  Wallpaper Dinâmico (Preenche tela 1280x720)  -->
                                                         <Image x:Name="DesktopPreviewWallpaper"
@@ -703,7 +719,7 @@
                                                                Height="720" />
 
                                                         <!--  Gradiente de Vinheta sutil  -->
-                                                        <Border Background="#0A000000" />
+                                                        <Border Background="{DynamicResource StoreBrush_0A000000}" />
 
                                                         <!--  Área de Trabalho Interativa (Canvas de 1280x672 para manipulação de ícones e menu de contexto)  -->
                                                         <Canvas x:Name="DesktopIconsCanvas"
@@ -747,7 +763,7 @@
                                                                                RenderOptions.BitmapScalingMode="HighQuality" />
                                                                         <TextBlock Text="Lixeira"
                                                                                    FontSize="11"
-                                                                                   Foreground="#FFFFFF"
+                                                                                   Foreground="{DynamicResource StoreBrush_FFFFFF}"
                                                                                    TextAlignment="Center"
                                                                                    HorizontalAlignment="Center"
                                                                                    Margin="0,4,0,0"
@@ -756,7 +772,7 @@
                                                                                 <DropShadowEffect BlurRadius="4"
                                                                                                   ShadowDepth="1"
                                                                                                   Direction="270"
-                                                                                                  Color="#000000"
+                                                                                                  Color="{DynamicResource StoreColor_000000}"
                                                                                                   Opacity="0.95" />
                                                                             </TextBlock.Effect>
                                                                         </TextBlock>
@@ -785,7 +801,7 @@
                                                                                RenderOptions.BitmapScalingMode="HighQuality" />
                                                                         <TextBlock Text="Microsoft Edge"
                                                                                    FontSize="11"
-                                                                                   Foreground="#FFFFFF"
+                                                                                   Foreground="{DynamicResource StoreBrush_FFFFFF}"
                                                                                    TextAlignment="Center"
                                                                                    HorizontalAlignment="Center"
                                                                                    Margin="0,4,0,0"
@@ -794,7 +810,7 @@
                                                                                 <DropShadowEffect BlurRadius="4"
                                                                                                   ShadowDepth="1"
                                                                                                   Direction="270"
-                                                                                                  Color="#000000"
+                                                                                                  Color="{DynamicResource StoreColor_000000}"
                                                                                                   Opacity="0.95" />
                                                                             </TextBlock.Effect>
                                                                         </TextBlock>
@@ -809,8 +825,8 @@
                                                                 Height="48"
                                                                 VerticalAlignment="Bottom"
                                                                 BorderThickness="0,1,0,0"
-                                                                BorderBrush="#22FFFFFF"
-                                                                Background="#D91C1C1C">
+                                                                BorderBrush="{DynamicResource StoreBrush_22FFFFFF}"
+                                                                Background="{DynamicResource StoreBrush_D91C1C1C}">
                                                             <Grid Margin="12,0">
                                                                 <!--  Ícones Principais da Barra de Tarefas (Alinhamento Centro ou Esquerda)  -->
                                                                 <StackPanel x:Name="DesktopPreviewTaskbarIcons"
@@ -838,8 +854,8 @@
                                                                             Width="200"
                                                                             Height="32"
                                                                             CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                            Background="#26FFFFFF"
-                                                                            BorderBrush="#20FFFFFF"
+                                                                            Background="{DynamicResource StoreBrush_26FFFFFF}"
+                                                                            BorderBrush="{DynamicResource StoreBrush_20FFFFFF}"
                                                                             BorderThickness="1"
                                                                             VerticalAlignment="Center"
                                                                             Padding="12,0"
@@ -1006,7 +1022,7 @@
                                                                     <!--  Borda de Desktop Peek na extrema direita  -->
                                                                     <Rectangle Width="1"
                                                                                Height="20"
-                                                                               Fill="#20FFFFFF"
+                                                                               Fill="{DynamicResource StoreBrush_20FFFFFF}"
                                                                                VerticalAlignment="Center"
                                                                                Margin="0,0,4,0" />
                                                                     <Border Width="4"
@@ -1020,7 +1036,7 @@
                                                         <Border x:Name="DesktopPreviewAutoHideIndicator"
                                                                 Height="4"
                                                                 VerticalAlignment="Bottom"
-                                                                Background="#99FFFFFF"
+                                                                Background="{DynamicResource StoreBrush_99FFFFFF}"
                                                                 Visibility="Collapsed" />
 
                                                         <!--  Overlay do Menu de Contexto da Área de Trabalho (Windows 11 Fluent)  -->
@@ -1032,7 +1048,7 @@
                                                             <!--  Backdrop transparente que captura cliques fora dos menus para fechar  -->
                                                             <Border Width="1280"
                                                                     Height="720"
-                                                                    Background="#01000000"
+                                                                    Background="{DynamicResource StoreBrush_01000000}"
                                                                     PreviewMouseLeftButtonDown="DesktopMenuBackdrop_MouseDown"
                                                                     PreviewMouseRightButtonDown="DesktopMenuBackdrop_MouseDown" />
 
@@ -1040,8 +1056,8 @@
                                                             <Border x:Name="DesktopContextMenuMain"
                                                                     Width="240"
                                                                     CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                    Background="#F2202020"
-                                                                    BorderBrush="#33FFFFFF"
+                                                                    Background="{DynamicResource StoreBrush_F2202020}"
+                                                                    BorderBrush="{DynamicResource StoreBrush_33FFFFFF}"
                                                                     BorderThickness="1"
                                                                     Padding="4"
                                                                     Canvas.Left="100"
@@ -1050,7 +1066,7 @@
                                                                     <DropShadowEffect BlurRadius="24"
                                                                                       ShadowDepth="6"
                                                                                       Direction="270"
-                                                                                      Color="#000000"
+                                                                                      Color="{DynamicResource StoreColor_000000}"
                                                                                       Opacity="0.55" />
                                                                 </Border.Effect>
                                                                 <StackPanel>
@@ -1143,7 +1159,7 @@
                                                                     </Border>
 
                                                                     <Rectangle Height="1"
-                                                                               Fill="#1FFFFFFF"
+                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
                                                                                Margin="8,4" />
 
                                                                     <!--  Novo >  -->
@@ -1178,7 +1194,7 @@
                                                                     </Border>
 
                                                                     <Rectangle Height="1"
-                                                                               Fill="#1FFFFFFF"
+                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
                                                                                Margin="8,4" />
 
                                                                     <!--  Configurações de exibição  -->
@@ -1228,7 +1244,7 @@
                                                                     <!--  Opção de Remoção de Atalho (quando selecionado um ícone adicionado)  -->
                                                                     <Rectangle x:Name="MenuSeparatorRemoveShortcut"
                                                                                Height="1"
-                                                                               Fill="#1FFFFFFF"
+                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
                                                                                Margin="8,4"
                                                                                Visibility="Collapsed" />
                                                                     <Border x:Name="MenuItemRemoveShortcut"
@@ -1243,13 +1259,13 @@
                                                                             <TextBlock Text="&#xE74D;"
                                                                                        FontFamily="SegoeFluentIcons"
                                                                                        FontSize="13"
-                                                                                       Foreground="#EF4444"
+                                                                                       Foreground="{DynamicResource StoreBrush_EF4444}"
                                                                                        VerticalAlignment="Center"
                                                                                        HorizontalAlignment="Center" />
                                                                             <TextBlock Grid.Column="1"
                                                                                        Text="Remover atalho da área de trabalho"
                                                                                        FontSize="12"
-                                                                                       Foreground="#FCA5A5"
+                                                                                       Foreground="{DynamicResource StoreBrush_FCA5A5}"
                                                                                        VerticalAlignment="Center"
                                                                                        Margin="4,0,0,0" />
                                                                         </Grid>
@@ -1261,8 +1277,8 @@
                                                             <Border x:Name="DesktopContextMenuSubExibir"
                                                                     Width="260"
                                                                     CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                    Background="#F2202020"
-                                                                    BorderBrush="#33FFFFFF"
+                                                                    Background="{DynamicResource StoreBrush_F2202020}"
+                                                                    BorderBrush="{DynamicResource StoreBrush_33FFFFFF}"
                                                                     BorderThickness="1"
                                                                     Padding="4"
                                                                     Visibility="Collapsed"
@@ -1272,7 +1288,7 @@
                                                                     <DropShadowEffect BlurRadius="24"
                                                                                       ShadowDepth="6"
                                                                                       Direction="270"
-                                                                                      Color="#000000"
+                                                                                      Color="{DynamicResource StoreColor_000000}"
                                                                                       Opacity="0.55" />
                                                                 </Border.Effect>
                                                                 <StackPanel>
@@ -1349,7 +1365,7 @@
                                                                     </Border>
 
                                                                     <Rectangle Height="1"
-                                                                               Fill="#1FFFFFFF"
+                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
                                                                                Margin="8,4" />
 
                                                                     <!--  Organizar ícones automaticamente  -->
@@ -1401,7 +1417,7 @@
                                                                     </Border>
 
                                                                     <Rectangle Height="1"
-                                                                               Fill="#1FFFFFFF"
+                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
                                                                                Margin="8,4" />
 
                                                                     <!--  Mostrar ícones da área de trabalho (Permite ocultar/exibir todos os ícones)  -->
@@ -1485,7 +1501,7 @@
                                                             TextChanged="Field_Changed" />
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <Grid Margin="24,16">
                                                 <Grid.ColumnDefinitions>
@@ -1538,7 +1554,7 @@
                                                 </ComboBox>
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <!--  Tela desliga  -->
                                             <Grid Margin="24,16">
@@ -1588,7 +1604,7 @@
                                                 </Grid>
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <!--  PC suspende  -->
                                             <Grid Margin="24,16">
@@ -1680,7 +1696,7 @@
                                                           Unchecked="Field_Changed" />
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <Grid Margin="24,14">
                                                 <Grid.ColumnDefinitions>
@@ -1734,7 +1750,7 @@
                                                             TextChanged="Field_Changed" />
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <Grid Margin="24,16">
                                                 <Grid.ColumnDefinitions>
@@ -1752,7 +1768,7 @@
                                                             TextChanged="Field_Changed" />
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="#0DFFFFFF" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
                                             <Grid Margin="24,16">
                                                 <Grid.ColumnDefinitions>
@@ -1796,7 +1812,7 @@
                                             </Grid>
 
                                             <Border CornerRadius="{StaticResource ControlCornerRadius}"
-                                                    Background="#1A000000"
+                                                    Background="{DynamicResource StoreBrush_1A000000}"
                                                     Padding="12"
                                                     Margin="24,0,24,16"
                                                     BorderBrush="{DynamicResource AppBorderSubtleBrush}"
@@ -1839,6 +1855,8 @@
                                     </Border>
                                 </StackPanel>
 
+
+
                             </StackPanel>
                         </ScrollViewer>
                     </Grid>
@@ -1846,7 +1864,8 @@
                 </Grid>
 
                 <!--  DIREITA: Barra Lateral de Resumo (Sempre Visível)  -->
-                <StackPanel Grid.Column="2">
+                <Grid Grid.Column="2">
+                    <StackPanel x:Name="ProfileSummarySidebar">
 
                     <!--  Resumo  -->
                     <Border Style="{StaticResource CardStyle}">
@@ -1941,16 +1960,20 @@
                                        TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
-                </StackPanel>
+                    </StackPanel>
+
+
+                </Grid>
             </Grid>
 
             <!--  ================= Rodapé =================  -->
-            <TextBlock x:Name="StatusText"
-                       Grid.Row="2"
-                       Margin="4,8,4,0"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       FontFamily="Segoe UI Variable Text" />
+            <Border Grid.Row="2" Style="{StaticResource PageStatusBarStyle}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
+                    <TextBlock x:Name="StatusText"
+                               Style="{StaticResource PageStatusTextStyle}" />
+                </StackPanel>
+            </Border>
         </Grid>
     </Border>
 </Page>

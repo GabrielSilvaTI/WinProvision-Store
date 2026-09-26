@@ -17,10 +17,10 @@ public class UpgradablePackage : INotifyPropertyChanged
     public string Source { get; init; } = string.Empty;
     public string SourceLabel => Source.Trim().ToLowerInvariant() switch
     {
-        "winget" => "WinGet",
-        "msstore" => "Microsoft Store",
+        "winget" => "WinGet: winget",
+        "msstore" => "Microsoft Store: msstore",
         "" => "Origem local",
-        _ => Source.Trim()
+        _ => $"{Source.Trim()}: {Source.Trim()}"
     };
 
     /// <summary>

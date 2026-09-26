@@ -155,38 +155,52 @@ public sealed class WinGetService
     {
         await EnsureWingetProvisionedAsync(WinProvisionLog.Write, cancellationToken).ConfigureAwait(false);
 
+        Task<IReadOnlyList<WinGetPackageMatch>> storeSearch =
+            WinGetFactoryHelper.CliFallbackAllowed
+                ? SearchCliFallbackAsync(query, cancellationToken, source: "msstore")
+                : Task.FromResult<IReadOnlyList<WinGetPackageMatch>>([]);
+
+        IReadOnlyList<WinGetPackageMatch> results;
         if (WinGetFactoryHelper.IsComDisabled)
         {
             WinProvisionLog.Write($"COM DESATIVADO NA SESSÃO: motivo={WinGetFactoryHelper.DisabledReason}");
-            return await SearchCliFallbackAsync(query, cancellationToken).ConfigureAwait(false);
+            results = await SearchCliFallbackAsync(query, cancellationToken).ConfigureAwait(false);
         }
-
-        try
+        else
         {
-            return await Task.Run(
-                () => SearchApiAsync(query, cancellationToken),
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            WinGetFactoryHelper.DisableComForSession(ex);
-            if (!WinGetFactoryHelper.CliFallbackAllowed)
+            try
             {
-                WinProvisionLog.Write($"SEARCH COM-ONLY exception={ex}");
+                results = await Task.Run(
+                    () => SearchApiAsync(query, cancellationToken),
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
                 throw;
             }
+            catch (Exception ex)
+            {
+                WinGetFactoryHelper.DisableComForSession(ex);
+                if (!WinGetFactoryHelper.CliFallbackAllowed)
+                {
+                    WinProvisionLog.Write($"SEARCH COM-ONLY exception={ex}");
+                    throw;
+                }
 
-            WinProvisionLog.Write(
-                $"SEARCH FALLBACK exception={ex.GetType().FullName} " +
-                $"hresult=0x{ex.HResult:X8} message=\"{ex.Message}\" stack={ex}");
-            WinProvisionLog.Write("FALLBACK PARA CLI: motivo=COM search exception");
-            Trace.WriteLine($"WinGet COM search failed; falling back to winget.exe: {ex}");
-            return await SearchCliFallbackAsync(query, cancellationToken).ConfigureAwait(false);
+                WinProvisionLog.Write(
+                    $"SEARCH FALLBACK exception={ex.GetType().FullName} " +
+                    $"hresult=0x{ex.HResult:X8} message=\"{ex.Message}\" stack={ex}");
+                WinProvisionLog.Write("FALLBACK PARA CLI: motivo=COM search exception");
+                Trace.WriteLine($"WinGet COM search failed; falling back to winget.exe: {ex}");
+                results = await SearchCliFallbackAsync(query, cancellationToken).ConfigureAwait(false);
+            }
         }
+
+        IReadOnlyList<WinGetPackageMatch> storeResults = await storeSearch.ConfigureAwait(false);
+        return results.Concat(storeResults)
+            .GroupBy(item => $"{item.Source}\0{item.PackageId}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     public Task<WingetExecutionResult> InstallAsync(
@@ -239,6 +253,20 @@ public sealed class WinGetService
                         onLogReceived is null ? null : new Progress<string>(onLogReceived),
                         cancellationToken,
                         onProgress: onProgress).ConfigureAwait(false);
+                    if (result.Outcome == WinProvisionInstallOutcome.RequiresWinget)
+                    {
+                        onLogReceived?.Invoke(result.Message ?? "Encaminhando para a fonte Microsoft Store do WinGet.");
+                        onProgress?.Invoke(new InstallProgressUpdate(
+                            InstallProgressPhase.Preparing,
+                            Method: WingetMethod.WingetExe));
+                        return await _wingetExecutor.InstallAppAsync(
+                            packageId,
+                            onLogReceived,
+                            cancellationToken,
+                            installLocation,
+                            source: "msstore").ConfigureAwait(false);
+                    }
+
                     return new WingetExecutionResult
                     {
                         Success = result.Outcome == WinProvisionInstallOutcome.Success,
@@ -384,8 +412,7 @@ public sealed class WinGetService
             WinProvisionLog.Write($"UPDATE DISCOVERY COM success count={packages.Count}");
 
             // The local COM catalog can be incomplete even when it connects successfully.
-            // UniGetUI aggregates update results from its available managers; for WinGet,
-            // combine the native catalog with the CLI table so either view can contribute.
+            // Combine the native catalog with the CLI table so either view can contribute.
             try
             {
                 var cliPackages = await _wingetExecutor
@@ -736,56 +763,109 @@ public sealed class WinGetService
     {
         Trace.WriteLine("WinGet COM search: creating resilient PackageManager.");
         var packageManager = WinGetFactoryHelper.CreateResilientPackageManager();
-        var packageCatalogReference = packageManager.GetPredefinedPackageCatalog(
-            PredefinedPackageCatalog.OpenWindowsCatalog);
-        packageCatalogReference.AcceptSourceAgreements = true;
-        var connectResult = await packageCatalogReference.ConnectAsync()
-            .AsTask(cancellationToken).ConfigureAwait(false);
-        if (connectResult.Status != ConnectResultStatus.Ok)
-        {
-            Trace.WriteLine($"WinGet COM search connection failed: {connectResult.Status}.");
-            throw new InvalidOperationException(
-                $"Falha ao conectar ao catálogo do WinGet: {connectResult.Status}.");
-        }
-
-        var packageCatalog = connectResult.PackageCatalog
-            ?? throw new InvalidOperationException("O catálogo do WinGet não foi conectado.");
-
-        var findOptions = WinGetFactoryHelper.CreateFindPackagesOptions();
-        var filter = WinGetFactoryHelper.CreatePackageMatchFilter();
-        filter.Field = PackageMatchField.Name;
-        filter.Option = PackageFieldMatchOption.ContainsCaseInsensitive;
-        filter.Value = query;
-        findOptions.Filters.Add(filter);
-
-        var findResult = await packageCatalog.FindPackagesAsync(findOptions)
-            .AsTask(cancellationToken).ConfigureAwait(false);
         var results = new List<WinGetPackageMatch>();
+        var connectedCatalogs = new List<(PackageCatalog Catalog, string Source)>();
+        Exception? lastConnectionError = null;
 
-        foreach (var match in findResult.Matches.ToArray())
+        foreach (var (kind, source) in new[]
         {
-            var package = match.CatalogPackage;
-            var version = package.DefaultInstallVersion;
-
-            results.Add(new WinGetPackageMatch(
-                package.Id,
-                package.Name,
-                version?.Version ?? string.Empty,
-                version?.Publisher ?? string.Empty,
-                packageCatalog.Info?.Name ?? "Windows Package Manager"));
+            (PredefinedPackageCatalog.OpenWindowsCatalog, "winget"),
+            (PredefinedPackageCatalog.MicrosoftStore, "msstore")
+        })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var reference = packageManager.GetPredefinedPackageCatalog(kind);
+                reference.AcceptSourceAgreements = true;
+                var connected = await reference.ConnectAsync()
+                    .AsTask(cancellationToken).ConfigureAwait(false);
+                if (connected.Status == ConnectResultStatus.Ok && connected.PackageCatalog is { } catalog)
+                {
+                    connectedCatalogs.Add((catalog, source));
+                }
+                else
+                {
+                    lastConnectionError = new InvalidOperationException(
+                        $"Não foi possível conectar à fonte {source}: {connected.Status}.");
+                    Trace.WriteLine($"WinGet COM search connection failed for {source}: {connected.Status}.");
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                lastConnectionError = ex;
+                Trace.WriteLine($"WinGet COM search could not connect to {source}: {ex.Message}");
+            }
         }
 
-        return results;
+        if (connectedCatalogs.Count == 0)
+        {
+            throw new InvalidOperationException("Não foi possível conectar a nenhuma fonte de pacotes.", lastConnectionError);
+        }
+
+        // Pesquisar os campos principais também encontra pacotes pelo identificador
+        // quando o nome exibido não contém o texto digitado.
+        var searches = connectedCatalogs
+            .SelectMany(item => new[]
+            {
+                SearchFieldAsync(item.Catalog, item.Source, PackageMatchField.Name),
+                SearchFieldAsync(item.Catalog, item.Source, PackageMatchField.Id),
+                SearchFieldAsync(item.Catalog, item.Source, PackageMatchField.Moniker)
+            })
+            .ToArray();
+        var batches = await Task.WhenAll(searches).ConfigureAwait(false);
+        results.AddRange(batches.SelectMany(batch => batch));
+
+        return results
+            .GroupBy(item => $"{item.Source}\0{item.PackageId}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+
+        async Task<List<WinGetPackageMatch>> SearchFieldAsync(
+            PackageCatalog catalog,
+            string source,
+            PackageMatchField field)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var options = WinGetFactoryHelper.CreateFindPackagesOptions();
+            var filter = WinGetFactoryHelper.CreatePackageMatchFilter();
+            filter.Field = field;
+            filter.Option = PackageFieldMatchOption.ContainsCaseInsensitive;
+            filter.Value = query;
+            options.Filters.Add(filter);
+
+            try
+            {
+                var findResult = await catalog.FindPackagesAsync(options)
+                    .AsTask(cancellationToken).ConfigureAwait(false);
+                return findResult.Matches.ToArray().Select(match =>
+                {
+                    var package = match.CatalogPackage;
+                    var version = package.DefaultInstallVersion;
+                    return new WinGetPackageMatch(
+                        package.Id,
+                        package.Name,
+                        version?.Version ?? string.Empty,
+                        version?.Publisher ?? string.Empty,
+                        source);
+                }).ToList();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Trace.WriteLine($"WinGet COM search failed for {source}/{field}: {ex.Message}");
+                return [];
+            }
+        }
     }
 
     private static async Task<IReadOnlyList<WinGetPackageMatch>> SearchCliFallbackAsync(
         string query,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? source = null)
     {
         var startInfo = new ProcessStartInfo
         {
             FileName = WingetLocator.ExecutablePath,
-            Arguments = $"search \"{query}\" --accept-source-agreements",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -793,8 +873,18 @@ public sealed class WinGetService
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        startInfo.ArgumentList.Add("search");
+        startInfo.ArgumentList.Add(query);
+        startInfo.ArgumentList.Add("--accept-source-agreements");
+        startInfo.ArgumentList.Add("--disable-interactivity");
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            startInfo.ArgumentList.Add("--source");
+            startInfo.ArgumentList.Add(source);
+        }
 
-        WingetCliAudit.Launch(startInfo.FileName, startInfo.Arguments);
+        string argumentsForLog = string.Join(" ", startInfo.ArgumentList.Select(argument => $"\"{argument}\""));
+        WingetCliAudit.Launch(startInfo.FileName, argumentsForLog);
         using var process = Process.Start(startInfo);
         if (process is null)
         {
@@ -832,7 +922,8 @@ public sealed class WinGetService
             .Concat(Regex.Matches(lines[headerIndex], @"\s{2,}")
                 .Select(match => match.Index + match.Length))
             .ToArray();
-        if (columnStarts.Length < 4)
+        int minimumColumns = string.IsNullOrWhiteSpace(source) ? 4 : 3;
+        if (columnStarts.Length < minimumColumns)
         {
             return Array.Empty<WinGetPackageMatch>();
         }
@@ -840,7 +931,7 @@ public sealed class WinGetService
         var results = new List<WinGetPackageMatch>();
         foreach (var line in lines[(separatorIndex + 1)..])
         {
-            var columns = ReadTableColumns(line, columnStarts);
+            var columns = ReadTableColumns(line, minimumColumns);
             if (columns is null || string.IsNullOrWhiteSpace(columns.Value.Id))
             {
                 continue;
@@ -851,7 +942,7 @@ public sealed class WinGetService
                 columns.Value.Name,
                 columns.Value.Version,
                 string.Empty,
-                columns.Value.Source));
+                string.IsNullOrWhiteSpace(source) ? columns.Value.Source : source));
         }
 
         return results;
@@ -862,23 +953,18 @@ public sealed class WinGetService
 
     private static (string Name, string Id, string Version, string Source)? ReadTableColumns(
         string line,
-        int[] columnStarts)
+        int minimumColumns)
     {
-        if (columnStarts.Length < 4)
-        {
-            return null;
-        }
-
         var fields = Regex.Split(line.Trim(), @"\s{2,}")
             .Where(field => !string.IsNullOrWhiteSpace(field))
             .ToArray();
-        if (fields.Length < 4)
+        if (fields.Length < minimumColumns)
         {
-            Trace.WriteLine($"WinGet CLI row discarded: expected at least four columns: {line}");
+            Trace.WriteLine($"WinGet CLI row discarded: expected at least {minimumColumns} columns: {line}");
             return null;
         }
 
-        var source = fields[^1];
+        var source = fields.Length >= 4 ? fields[^1] : string.Empty;
         var version = fields[2];
         var id = fields[1];
         var name = fields[0];

@@ -5,32 +5,26 @@
     <CornerRadius x:Key="CompactCornerRadius">4</CornerRadius>
 
     <!--
-        Barra de progresso animada no lugar da barra amarela
-        sólida do UnigetUI. Dois modos, controlados pela propriedade padrão IsIndeterminate:
-        
+        Barra de progresso da fila com modos determinado e indeterminado,
+        colorida conforme o método de instalação.
+
         - IsIndeterminate = True  -> uma faixa colorida desliza continuamente da
         esquerda para a direita sobre o trilho inteiro. Use enquanto a etapa não
         tem percentual conhecido (ex.: "Na fila...", "Preparando...").
         - IsIndeterminate = False -> a barra preenche até Value/Maximum normalmente
         (aproveitando o comportamento nativo do ProgressBar via PART_Track/PART_Indicator),
         com uma leve pulsação enquanto há progresso real.
-        
-        A cor acompanha OperationItem.Method: roxo=COM, amarelo=API própria,
-        ciano=winget.exe e azul enquanto o método ainda não foi identificado.
+
+        A cor acompanha OperationItem.Method: roxo para API COM, laranja para WinProvision API,
+        azul para WinGet CLI e azul inicial enquanto o método não é identificado.
     -->
 
-    <Color x:Key="GradientProgressColorA">#FF3A8DFF</Color>
-    <Color x:Key="GradientProgressColorB">#FF7CD4FD</Color>
-    <Color x:Key="GradientProgressColorC">#FFEAF6FF</Color>
-    <SolidColorBrush x:Key="GradientProgressTrackBrush" Color="#FFFFFFFF" Opacity="0.08" />
-
-    <conv:WingetMethodStopColorConverter x:Key="WingetMethodStopColorConverter" />
     <conv:WingetMethodBrushConverter x:Key="WingetMethodBrushConverter" />
 
     <Style x:Key="GradientProgressBarStyle" TargetType="ProgressBar">
         <Setter Property="Height" Value="6" />
         <Setter Property="Background" Value="{DynamicResource AppProgressTrackBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource GradientProgressColorA}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppOperationDefaultBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Template">
             <Setter.Value>

@@ -1,4 +1,4 @@
-<Page x:Class="WinProvision.Store.AccountSyncPage"
+﻿<Page x:Class="WinProvision.Store.AccountSyncPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -187,7 +187,7 @@
 
     <Border Background="Transparent"
             Margin="{StaticResource PageContentMargin}"
-            MaxWidth="1600"
+            MaxWidth="{StaticResource PageContentMaxWidth}"
             HorizontalAlignment="Center"
             CornerRadius="{StaticResource OverlayCornerRadius}">
         <Grid Margin="0">
@@ -207,11 +207,11 @@
                         Grid.ColumnSpan="3"
                         Orientation="Horizontal"
                         Margin="{StaticResource PageHeaderMargin}">
-                <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE77B;" />
+                <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Person24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Conta &amp; Sincronização" Style="{StaticResource PageTitleStyle}" />
                     <TextBlock Text="Sincronize seus perfis e gerencie backups."
-                               Style="{StaticResource CardSubtitleStyle}"
+                               Style="{StaticResource FluentPageSubtitleStyle}"
                                Margin="0,4,0,0" />
                 </StackPanel>
             </StackPanel>
@@ -800,13 +800,13 @@
             </StackPanel>
 
             <!--  ================= Rodapé com Status =================  -->
-            <TextBlock x:Name="StatusText"
-                       Grid.Row="2"
-                       Grid.ColumnSpan="3"
-                       Margin="4,12,4,0"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       FontFamily="Segoe UI Variable Text" />
+            <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource PageStatusBarStyle}">
+                <StackPanel Orientation="Horizontal">
+                    <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
+                    <TextBlock x:Name="StatusText"
+                               Style="{StaticResource PageStatusTextStyle}" />
+                </StackPanel>
+            </Border>
         </Grid>
     </Border>
 </Page>

@@ -29,7 +29,7 @@ public enum WingetFailureReason
     /// <summary>O instalador explicitamente não permite execução elevada (0x8A150056).</summary>
     ElevationProhibited,
 
-    /// <summary>Falha no comando de desinstalação do instalador (0x8A150030); UniGetUI tenta uma vez elevado.</summary>
+    /// <summary>Falha no comando de desinstalação do instalador (0x8A150030); candidata a uma tentativa elevada.</summary>
     UninstallCommandFailed,
 
     /// <summary>Usuário recusou o prompt de UAC no retry elevado.</summary>

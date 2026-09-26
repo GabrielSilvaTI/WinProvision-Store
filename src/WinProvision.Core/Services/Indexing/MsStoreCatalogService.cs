@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
 using WinProvision.Core.Models;
 
@@ -25,52 +26,119 @@ public class MsStoreCatalogService
     private const int BatchSize = 20;
 
     private readonly HttpClient _httpClient;
+    private readonly ConcurrentDictionary<string, AppEntry> _productCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _fetchLock = new(1, 1);
 
     public MsStoreCatalogService(HttpClient? httpClient = null)
     {
         _httpClient = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
     }
 
-    public async Task<List<AppEntry>> FetchAsync(IReadOnlyList<string> storeProductIds, CancellationToken cancellationToken = default)
+    public async Task<List<AppEntry>> SearchAsync(
+        string query,
+        CancellationToken cancellationToken = default,
+        string market = "BR",
+        string language = "pt-BR")
     {
-        var result = new List<AppEntry>();
-        var ids = storeProductIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (string.IsNullOrWhiteSpace(query))
+            return [];
 
-        for (int offset = 0; offset < ids.Count; offset += BatchSize)
+        string url = $"https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/Apps/products" +
+            $"?query={Uri.EscapeDataString(query.Trim())}&market={Uri.EscapeDataString(market)}&languages={Uri.EscapeDataString(language)}" +
+            "&fieldsTemplate=details&platformdependencyname=windows.xbox";
+
+        try
         {
-            var batch = ids.Skip(offset).Take(BatchSize).ToList();
-            string bigIds = string.Join(',', batch);
-            string url = $"{DisplayCatalogUrl}?bigIds={bigIds}&market=US&languages=en-us&fieldsTemplate=Details";
+            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+                return [];
 
-            try
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var payload = await System.Text.Json.JsonSerializer.DeserializeAsync<DisplayCatalogSearchResponse>(
+                stream, WinProvisionJsonOptions.Default, cancellationToken);
+
+            var results = new List<AppEntry>();
+            foreach (var product in payload?.Products ?? [])
             {
-                using var response = await _httpClient.GetAsync(url, cancellationToken);
-                if (!response.IsSuccessStatusCode)
-                {
-                    Console.WriteLine($"      [AVISO] Display Catalog respondeu {(int)response.StatusCode} para o lote atual, pulando.");
+                var entry = MapToAppEntry(product);
+                if (entry is null)
                     continue;
-                }
 
-                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                var payload = await System.Text.Json.JsonSerializer.DeserializeAsync<DisplayCatalogResponse>(
-                    stream, WinProvisionJsonOptions.Default, cancellationToken);
+                _productCache[entry.Id] = entry;
+                results.Add(entry);
+            }
 
-                foreach (var product in payload?.Products ?? [])
+            return results
+                .DistinctBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MsStoreCatalogService] Busca Store falhou: {ex.Message}");
+            return [];
+        }
+    }
+
+    public async Task<List<AppEntry>> FetchAsync(
+        IReadOnlyList<string> storeProductIds,
+        CancellationToken cancellationToken = default,
+        string market = "BR",
+        string language = "pt-BR")
+    {
+        var ids = storeProductIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        await _fetchLock.WaitAsync(cancellationToken);
+        try
+        {
+            var missingIds = ids.Where(id => !_productCache.ContainsKey(id)).ToList();
+
+            for (int offset = 0; offset < missingIds.Count; offset += BatchSize)
+            {
+                var batch = missingIds.Skip(offset).Take(BatchSize).ToList();
+                string bigIds = string.Join(',', batch);
+                string url = $"{DisplayCatalogUrl}?bigIds={Uri.EscapeDataString(bigIds)}&market={Uri.EscapeDataString(market)}&languages={Uri.EscapeDataString(language)}&fieldsTemplate=Details";
+
+                try
                 {
-                    var entry = MapToAppEntry(product);
-                    if (entry != null)
+                    using var response = await _httpClient.GetAsync(url, cancellationToken);
+                    if (!response.IsSuccessStatusCode)
                     {
-                        result.Add(entry);
+                        Console.WriteLine($"      [AVISO] Display Catalog respondeu {(int)response.StatusCode} para o lote atual, pulando.");
+                        continue;
+                    }
+
+                    await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    var payload = await System.Text.Json.JsonSerializer.DeserializeAsync<DisplayCatalogResponse>(
+                        stream, WinProvisionJsonOptions.Default, cancellationToken);
+
+                    foreach (var product in payload?.Products ?? [])
+                    {
+                        var entry = MapToAppEntry(product);
+                        if (entry != null)
+                        {
+                            _productCache[entry.Id] = entry;
+                        }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"      [AVISO] Falha ao consultar Display Catalog: {ex.Message}");
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"      [AVISO] Falha ao consultar Display Catalog: {ex.Message}");
+                }
             }
         }
+        finally
+        {
+            _fetchLock.Release();
+        }
 
-        return result;
+        return ids.Where(_productCache.ContainsKey).Select(id => _productCache[id]).ToList();
     }
 
     private static AppEntry? MapToAppEntry(DisplayCatalogProduct product)
@@ -81,13 +149,31 @@ public class MsStoreCatalogService
             return null;
         }
 
-        string? iconUrl = localized.Images?
-            .Where(i => string.Equals(i.ImagePurpose, "Logo", StringComparison.OrdinalIgnoreCase)
-                     || string.Equals(i.ImagePurpose, "Tile", StringComparison.OrdinalIgnoreCase)
-                     || string.Equals(i.ImagePurpose, "BoxArt", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(i => i.Height)
-            .Select(i => NormalizeImageUrl(i.Uri))
-            .FirstOrDefault(u => u != null);
+        var images = localized.Images ?? [];
+        string? iconUrl = images
+            .Where(image => !string.IsNullOrWhiteSpace(image.Uri))
+            .OrderBy(image => GetIconPurposeRank(image.ImagePurpose))
+            .ThenBy(image => GetSquareAspectDifference(image.Width, image.Height))
+            .ThenByDescending(image => Math.Min(image.Width, image.Height))
+            .Select(image => NormalizeImageUrl(image.Uri))
+            .FirstOrDefault(uri => uri is not null);
+
+        string? bannerUrl = images
+            .Where(image => !string.IsNullOrWhiteSpace(image.Uri) && image.Width > 0 && image.Height > 0)
+            .OrderBy(image => string.Equals(image.ImagePurpose, "SuperHeroArt", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenByDescending(image => image.Width / (double)image.Height)
+            .ThenByDescending(image => image.Width)
+            .Select(image => NormalizeImageUrl(image.Uri))
+            .FirstOrDefault(uri => uri is not null);
+
+        var allTimeRating = product.MarketProperties?
+            .SelectMany(market => market.UsageData ?? [])
+            .FirstOrDefault(usage => string.Equals(
+                usage.AggregateTimeSpan, "AllTime", StringComparison.OrdinalIgnoreCase));
+        var rating = allTimeRating ?? product.MarketProperties?
+            .SelectMany(market => market.UsageData ?? [])
+            .OrderByDescending(usage => usage.RatingCount)
+            .FirstOrDefault();
 
         return new AppEntry
         {
@@ -102,7 +188,35 @@ public class MsStoreCatalogService
             Homepage = $"https://apps.microsoft.com/detail/{product.ProductId}",
             Description = localized.ShortDescription ?? localized.Description,
             StoreIconUrl = iconUrl,
+            StoreBannerUrl = bannerUrl,
+            StoreCategory = product.Properties?.Category,
+            StoreSubCategory = product.Properties?.SubCategory,
+            StoreScreenshotUrls = images
+                .Where(image => string.Equals(image.ImagePurpose, "Screenshot", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(image => image.Width)
+                .Select(image => NormalizeImageUrl(image.Uri))
+                .Where(uri => uri is not null)
+                .Cast<string>()
+                .ToList(),
+            StoreRating = rating?.AverageRating is > 0 and <= 5 ? rating.AverageRating : null,
+            StoreRatingCount = rating?.RatingCount is > 0 ? rating.RatingCount : null,
         };
+    }
+
+    private static int GetIconPurposeRank(string? purpose) => purpose?.ToLowerInvariant() switch
+    {
+        "logo" => 0,
+        "tile" => 1,
+        "boxart" => 2,
+        _ => 3
+    };
+
+    private static double GetSquareAspectDifference(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+            return double.MaxValue;
+
+        return Math.Abs(1d - width / (double)height);
     }
 
     private static string? NormalizeImageUrl(string? uri)
@@ -113,6 +227,12 @@ public class MsStoreCatalogService
         }
 
         return uri.StartsWith("//", StringComparison.Ordinal) ? $"https:{uri}" : uri;
+    }
+
+    private class DisplayCatalogSearchResponse
+    {
+        [JsonPropertyName("Products")]
+        public List<DisplayCatalogProduct>? Products { get; set; }
     }
 
     private class DisplayCatalogResponse
@@ -128,6 +248,39 @@ public class MsStoreCatalogService
 
         [JsonPropertyName("LocalizedProperties")]
         public List<LocalizedProperty>? LocalizedProperties { get; set; }
+
+        [JsonPropertyName("MarketProperties")]
+        public List<MarketProperty>? MarketProperties { get; set; }
+
+        [JsonPropertyName("Properties")]
+        public DisplayCatalogProductProperties? Properties { get; set; }
+    }
+
+    private class DisplayCatalogProductProperties
+    {
+        [JsonPropertyName("Category")]
+        public string? Category { get; set; }
+
+        [JsonPropertyName("SubCategory")]
+        public string? SubCategory { get; set; }
+    }
+
+    private class MarketProperty
+    {
+        [JsonPropertyName("UsageData")]
+        public List<UsageData>? UsageData { get; set; }
+    }
+
+    private class UsageData
+    {
+        [JsonPropertyName("AggregateTimeSpan")]
+        public string AggregateTimeSpan { get; set; } = string.Empty;
+
+        [JsonPropertyName("AverageRating")]
+        public double AverageRating { get; set; }
+
+        [JsonPropertyName("RatingCount")]
+        public int RatingCount { get; set; }
     }
 
     private class LocalizedProperty
@@ -158,5 +311,8 @@ public class MsStoreCatalogService
 
         [JsonPropertyName("Height")]
         public int Height { get; set; }
+
+        [JsonPropertyName("Width")]
+        public int Width { get; set; }
     }
 }

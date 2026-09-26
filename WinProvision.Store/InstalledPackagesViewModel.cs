@@ -11,6 +11,7 @@ using WinProvision.Core.Models;
 using WinProvision.Core.Models.Office;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Office;
+using Wpf.Ui.Controls;
 
 namespace WinProvision.Store;
 
@@ -59,6 +60,7 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
             _isBusy = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanRemove));
+            OnPropertyChanged(nameof(CanAddToCollection));
             foreach (var package in Packages)
                 package.NotifySelectionStateChanged();
         }
@@ -77,7 +79,58 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
         }
     }
 
+    private DateTime _lastChecked = DateTime.Now;
+    public DateTime LastChecked
+    {
+        get => _lastChecked;
+        set { _lastChecked = value; OnPropertyChanged(); OnPropertyChanged(nameof(Subtitle)); }
+    }
+
+    public int TotalCount => Packages.Count;
+    public string Subtitle => $"{TotalCount} pacotes foram encontrados, dos quais {VisibleCount} correspondem aos filtros especificados. ({SelectedCount} selecionado(s)) (Última verificação: {_lastChecked:dd/MM/yyyy HH:mm:ss})";
+
+    public string CurrentSortColumn { get; private set; } = "Name";
+    public bool CurrentSortAscending { get; private set; } = true;
+
+    public void ApplySort(string column, bool? ascending = null)
+    {
+        if (ascending.HasValue)
+        {
+            CurrentSortAscending = ascending.Value;
+        }
+        else if (string.Equals(CurrentSortColumn, column, StringComparison.OrdinalIgnoreCase))
+        {
+            CurrentSortAscending = !CurrentSortAscending;
+        }
+        else
+        {
+            CurrentSortAscending = true;
+        }
+        CurrentSortColumn = column;
+
+        var sorted = column.ToLowerInvariant() switch
+        {
+            "id" => CurrentSortAscending ? Packages.OrderBy(x => x.Id, StringComparer.OrdinalIgnoreCase).ToList() : Packages.OrderByDescending(x => x.Id, StringComparer.OrdinalIgnoreCase).ToList(),
+            "version" => CurrentSortAscending ? Packages.OrderBy(x => x.Version, StringComparer.OrdinalIgnoreCase).ToList() : Packages.OrderByDescending(x => x.Version, StringComparer.OrdinalIgnoreCase).ToList(),
+            "source" => CurrentSortAscending ? Packages.OrderBy(x => x.SourceLabel, StringComparer.OrdinalIgnoreCase).ToList() : Packages.OrderByDescending(x => x.SourceLabel, StringComparer.OrdinalIgnoreCase).ToList(),
+            _ => CurrentSortAscending ? Packages.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList() : Packages.OrderByDescending(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+        };
+
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            int oldIndex = Packages.IndexOf(sorted[i]);
+            if (oldIndex != i)
+            {
+                Packages.Move(oldIndex, i);
+            }
+        }
+
+        OnPropertyChanged(nameof(CurrentSortColumn));
+        OnPropertyChanged(nameof(CurrentSortAscending));
+    }
+
     public bool CanRemove => !IsBusy && Packages.Any(x => x.IsSearchMatch && x.IsSelected && x.CanRemove);
+    public bool CanAddToCollection => !IsBusy && Packages.Any(x => x.IsSearchMatch && x.IsSelected && x.CanAddToCollection);
     public int SelectedCount => Packages.Count(x => x.IsSearchMatch && x.IsSelected);
     public int VisibleCount => Packages.Count(x => x.IsSearchMatch);
     public bool HasPackages => VisibleCount > 0;
@@ -90,7 +143,7 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
         private set { _hasError = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsEmpty)); }
     }
 
-    public string Status { get => _status; private set { _status = value; OnPropertyChanged(); } }
+    public string Status { get => _status; set { _status = value; OnPropertyChanged(); } }
 
     public InstalledPackagesViewModel(
         Services.InstalledPackagesService service,
@@ -168,8 +221,8 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
             {
                 var classified = item with { IsOffice = _classifier.IsMicrosoftOffice(item.Id, item.Name) };
                 var row = new InstalledPackageRow(classified, this);
-                // UniGetUI lists installed packages even when it has no uninstall
-                // command for them. Keep those entries visible; CanSelect/CanRemove
+                // Keep installed packages visible even when there is no uninstall
+                // command for them. CanSelect/CanRemove
                 // still prevents an unsupported removal action.
                 if (row.IsSystemComponent)
                     continue;
@@ -180,7 +233,9 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
                 Packages.Add(row);
             }
 
+            _lastChecked = DateTime.Now;
             UpdateVisibleCount();
+            ApplySort(CurrentSortColumn, CurrentSortAscending);
             Status = FormatInstalledCount(VisibleCount);
         }
         catch
@@ -247,12 +302,12 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
 
     public void ToggleSelectAll()
     {
-        bool select = Packages.Any(x => x.IsSearchMatch && x.CanRemove && !x.IsSelected);
-        foreach (var package in Packages.Where(x => x.IsSearchMatch && x.CanRemove))
+        bool select = Packages.Any(x => x.IsSearchMatch && x.CanSelect && !x.IsSelected);
+        foreach (var package in Packages.Where(x => x.IsSearchMatch && x.CanSelect))
             package.IsSelected = select;
     }
 
-    public async Task RemoveSelectedAsync()
+    public async Task RemoveSelectedAsync(bool interactive = false)
     {
         var selected = Packages.Where(x => x.IsSearchMatch && x.IsSelected && x.CanRemove).ToArray();
         if (selected.Length == 0)
@@ -268,7 +323,7 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
 
             if (office.Length > 0)
             {
-                bool officeSuccess = await RemoveOfficeWithOfficeTabMethodAsync(office);
+                bool officeSuccess = await RemoveOfficeWithOfficeTabMethodAsync(office, interactive);
                 if (officeSuccess)
                 {
                     successCount++;
@@ -284,7 +339,7 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
 
             foreach (var item in nonOffice)
             {
-                bool removed = await RemoveExternalPackageAsync(item);
+                bool removed = await RemoveExternalPackageAsync(item, interactive);
                 if (removed)
                 {
                     successCount++;
@@ -327,10 +382,10 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
         _ => $"{count} aplicativos instalados."
     };
 
-    public async Task<bool> RemoveByIdentityAsync(string id, string name, string iconUrl)
+    public async Task<bool> RemoveByIdentityAsync(string id, string name, string iconUrl, bool interactive = false)
     {
         if (_classifier.IsMicrosoftOffice(id, name))
-            return await RemoveOfficeWithOfficeTabMethodAsync(id, name);
+            return await RemoveOfficeWithOfficeTabMethodAsync(id, name, interactive);
 
         await _installedAppsService.EnsureLoadedAsync();
         var match = _installedAppsService.GetAllInstalledApps().FirstOrDefault(app =>
@@ -340,6 +395,21 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
         var row = Packages.FirstOrDefault(x =>
             x.Id.Equals(id, StringComparison.OrdinalIgnoreCase)
             || x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (interactive)
+        {
+            var result = await OperationRunner.RunUninstallAsync(
+                _queue,
+                _executor,
+                id,
+                name,
+                iconUrl,
+                _installedAppsService,
+                row?.Package.Source,
+                row?.Package.Version,
+                interactive: true);
+            return result.Success;
+        }
 
         return await OperationRunner.RunUninstallWithFallbackAsync(
             _queue,
@@ -357,12 +427,27 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
             _apiService);
     }
 
-    public async Task<bool> RemoveSinglePackageAsync(string id, string name, string iconUrl, string uninstallString, string quietUninstallString, string installLocation, string? source = null, string? installedVersion = null)
+    public async Task<bool> RemoveSinglePackageAsync(string id, string name, string iconUrl, string uninstallString, string quietUninstallString, string installLocation, string? source = null, string? installedVersion = null, bool interactive = false)
     {
         if (_classifier.IsMicrosoftOffice(id, name))
-            return await RemoveOfficeWithOfficeTabMethodAsync(id, name);
+            return await RemoveOfficeWithOfficeTabMethodAsync(id, name, interactive);
 
         WinProvision.Store.Services.WinProvisionLog.Write($"SINGLE UNINSTALL id=\"{id}\" name=\"{name}\"");
+        if (interactive)
+        {
+            var result = await OperationRunner.RunUninstallAsync(
+                _queue,
+                _executor,
+                id,
+                name,
+                iconUrl,
+                _installedAppsService,
+                source,
+                installedVersion,
+                interactive: true);
+            return result.Success;
+        }
+
         return await OperationRunner.RunUninstallWithFallbackAsync(
             _queue,
             _executor,
@@ -383,20 +468,20 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
 
     public async Task ForceRemoveSelectedAsync() => await RemoveSelectedAsync();
 
-    private async Task<bool> RemoveOfficeWithOfficeTabMethodAsync(IReadOnlyList<InstalledPackageRow> officeRows)
+    private async Task<bool> RemoveOfficeWithOfficeTabMethodAsync(IReadOnlyList<InstalledPackageRow> officeRows, bool interactive = false)
     {
         string ids = string.Join(",", officeRows.Select(x => x.Id));
         WinProvision.Store.Services.WinProvisionLog.Write(
             $"INSTALLED UNINSTALL office-group count={officeRows.Count} ids=\"{ids}\"");
-        return await RemoveOfficeWithOfficeTabMethodAsync(officeRows[0].Id, "Microsoft Office");
+        return await RemoveOfficeWithOfficeTabMethodAsync(officeRows[0].Id, "Microsoft Office", interactive);
     }
 
-    private async Task<bool> RemoveOfficeWithOfficeTabMethodAsync(string id, string name)
+    private async Task<bool> RemoveOfficeWithOfficeTabMethodAsync(string id, string name, bool interactive = false)
     {
         WinProvision.Store.Services.WinProvisionLog.Write($"OFFICE TAB UNINSTALL id=\"{id}\" name=\"{name}\"");
         var request = new OfficeRemoveRequest(
             true,
-            DisplayLevel: OfficeDisplayLevel.Silent,
+            DisplayLevel: interactive ? OfficeDisplayLevel.Visible : OfficeDisplayLevel.Silent,
             CleanStoreEdition: true,
             UseRemoveMSI: true,
             UseAggressiveUninstall: true);
@@ -410,7 +495,7 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
         return success;
     }
 
-    private Task<bool> RemoveExternalPackageAsync(InstalledPackageRow item) =>
+    private Task<bool> RemoveExternalPackageAsync(InstalledPackageRow item, bool interactive = false) =>
         RemoveSinglePackageAsync(
             item.Id,
             item.Name,
@@ -419,7 +504,8 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
             item.Package.QuietUninstallString,
             item.Package.InstallLocation,
             item.Package.Source,
-            item.Package.Version);
+            item.Package.Version,
+            interactive);
 
     private void ApplySearch()
     {
@@ -430,16 +516,27 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
     internal void SelectionChanged()
     {
         OnPropertyChanged(nameof(CanRemove));
+        OnPropertyChanged(nameof(CanAddToCollection));
         OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(Subtitle));
+    }
+
+    internal void RefreshFilteredState()
+    {
+        UpdateVisibleCount();
+        SelectionChanged();
     }
 
     private void UpdateVisibleCount()
     {
+        OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(VisibleCount));
         OnPropertyChanged(nameof(HasPackages));
         OnPropertyChanged(nameof(IsEmpty));
         OnPropertyChanged(nameof(CanRemove));
+        OnPropertyChanged(nameof(CanAddToCollection));
         OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(Subtitle));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -462,14 +559,41 @@ public sealed class InstalledPackageRow : INotifyPropertyChanged
         || Version.Equals("(Unknown)", StringComparison.OrdinalIgnoreCase)
             ? "Versão desconhecida"
             : Version.Trim().TrimStart('v', 'V');
-    public string SourceLabel => Source.Trim().ToLowerInvariant() switch
+
+    public string SourceCategory
     {
-        "winget" => "WinGet",
-        "msstore" => "Microsoft Store",
-        "programas instalados" => "Windows",
-        "" => "Origem local",
-        _ => Source.Trim()
+        get
+        {
+            string source = (Source ?? string.Empty).Trim();
+
+            if (source.Equals("winget", StringComparison.OrdinalIgnoreCase)
+                || source.StartsWith("WinGet:", StringComparison.OrdinalIgnoreCase))
+                return "WinGet";
+
+            if (source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+                || source.Equals("Microsoft Store", StringComparison.OrdinalIgnoreCase))
+                return "Microsoft Store";
+
+            // Fontes externas ou desconhecidas são mostradas como itens detectados localmente.
+            // O WinProvision não afirma oferecer suporte a gerenciadores como Pip ou Chocolatey.
+            return "Local";
+        }
+    }
+
+    public string SourceLabel => SourceCategory switch
+    {
+        "WinGet" => "WinGet",
+        "Microsoft Store" => "Microsoft Store",
+        _ => "Windows (local)"
     };
+
+    public SymbolRegular SourceIcon => SourceCategory switch
+    {
+        "WinGet" => SymbolRegular.ArrowDownload24,
+        "Microsoft Store" => SymbolRegular.ShoppingBag24,
+        _ => SymbolRegular.Desktop24
+    };
+
     public string InstallationMethodLabel => Package.InstallationMethod switch
     {
         WingetMethod.ComApi => "WinGet COM",
@@ -497,7 +621,9 @@ public sealed class InstalledPackageRow : INotifyPropertyChanged
             && !Id.Contains('…')
             && !Id.Contains("...", StringComparison.Ordinal)
             && (!string.IsNullOrWhiteSpace(Package.UninstallString)
-                || !string.IsNullOrWhiteSpace(Package.QuietUninstallString)));
+                || !string.IsNullOrWhiteSpace(Package.QuietUninstallString)
+                || string.Equals(Package.Source, "winget", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Package.Source, "msstore", StringComparison.OrdinalIgnoreCase)));
 
     public bool IsSelected
     {
@@ -505,9 +631,22 @@ public sealed class InstalledPackageRow : INotifyPropertyChanged
         set { if (_selected == value) return; _selected = value; OnPropertyChanged(); _owner.SelectionChanged(); }
     }
 
-    public bool CanSelect => !_owner.IsBusy && CanRemove;
+    public bool CanAddToCollection => SourceCategory is "WinGet" or "Microsoft Store";
+    public bool CanSelect => !_owner.IsBusy
+        && !IsSystemComponent
+        && !string.IsNullOrWhiteSpace(Id)
+        && !Id.Contains('…')
+        && !Id.Contains("...", StringComparison.Ordinal);
 
     internal void NotifySelectionStateChanged() => OnPropertyChanged(nameof(CanSelect));
+
+    internal void SetSearchMatch(bool isMatch)
+    {
+        if (_isSearchMatch == isMatch)
+            return;
+        _isSearchMatch = isMatch;
+        OnPropertyChanged(nameof(IsSearchMatch));
+    }
 
     internal void ApplySearch(string searchText)
     {

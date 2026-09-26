@@ -2,6 +2,8 @@ using System.Text.Json;
 
 namespace WinProvision.Core.Services;
 
+public sealed record IgnoredUpdateEntry(string AppId, string Version);
+
 public sealed class IgnoredUpdatesService
 {
     private readonly string _filePath;
@@ -55,6 +57,11 @@ public sealed class IgnoredUpdatesService
             // Melhor-esforço, mesma filosofia do resto do app
         }
     }
+
+    public IReadOnlyList<IgnoredUpdateEntry> GetIgnoredUpdates() => _ignored
+        .Select(entry => new IgnoredUpdateEntry(entry.Key, entry.Value))
+        .OrderBy(entry => entry.AppId, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
 
     public void Ignore(string appId, string availableVersion)
     {
