@@ -55,7 +55,10 @@ public sealed class PackageIndexEntry
 {
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("version")] public string Version { get; set; } = "";
+    [JsonPropertyName("source")] public string Source { get; set; } = "winget";
     [JsonPropertyName("architectures")] public List<string> Architectures { get; set; } = [];
+    [JsonPropertyName("manifestPath")] public string? ManifestPath { get; set; }
+    [JsonPropertyName("manifestSha256")] public string? ManifestSha256 { get; set; }
 }
 
 public sealed class PackageManifest
@@ -63,6 +66,7 @@ public sealed class PackageManifest
     [JsonPropertyName("schema")] public int Schema { get; set; }
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("version")] public string Version { get; set; } = "";
+    [JsonPropertyName("source")] public string Source { get; set; } = "winget";
     [JsonPropertyName("installers")] public List<PackageInstaller> Installers { get; set; } = [];
 }
 
@@ -107,7 +111,8 @@ public enum WinProvisionInstallOutcome
     ExtractionFailed,
     InstallProcessFailed,
     ElevationCanceled,
-    InvalidManifest
+    InvalidManifest,
+    RequiresWinget
 }
 
 public sealed record WinProvisionInstallResult(
@@ -157,6 +162,7 @@ public sealed class WinProvisionApiService
     private PackageIndex? _indexCache;
     private DateTimeOffset _indexCachedAt;
     private static readonly TimeSpan IndexTtl = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan MaxStaleCacheAge = TimeSpan.FromDays(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(12);
     private const int MaxRequestAttempts = 4;
@@ -207,21 +213,23 @@ public sealed class WinProvisionApiService
             {
                 var index = await GetJsonWithRetryAsync<PackageIndex>(BaseUrl + "index.json", ct)
                     ?? throw new InvalidDataException("index.json vazio ou inválido.");
+                ValidateIndex(index);
                 _indexCache = index;
                 _indexCachedAt = DateTimeOffset.UtcNow;
                 await WriteCacheFileAsync(IndexCachePath, JsonSerializer.Serialize(index), ct);
                 return index;
             }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException)
+            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
             {
                 var cached = await ReadCacheFileAsync<PackageIndex>(IndexCachePath, ct);
-                if (cached is not null)
+                if (cached is not null && IsRecentCache(IndexCachePath))
                 {
+                    ValidateIndex(cached);
                     _indexCache = cached;
                     _indexCachedAt = DateTimeOffset.UtcNow;
                     return cached;
                 }
-                throw new HttpRequestException("Não foi possível consultar a API e não há índice local disponível.", ex);
+                throw new HttpRequestException("Não foi possível consultar a API e não há índice local recente disponível.", ex);
             }
         }
         finally
@@ -233,29 +241,104 @@ public sealed class WinProvisionApiService
     public async Task<PackageManifest?> GetPackageAsync(string id, CancellationToken ct = default)
     {
         string cachePath = GetManifestCachePath(id);
+        PackageIndex index;
         try
         {
-            var manifest = await GetJsonWithRetryAsync<PackageManifest>(
-                $"{BaseUrl}packages/{Uri.EscapeDataString(id)}.json", ct);
+            index = await GetIndexAsync(ct: ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
+        {
+            throw new HttpRequestException("Não foi possível validar o pacote contra o índice da API.", ex);
+        }
+
+        var entry = index.Packages.FirstOrDefault(p =>
+            string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(p.Source, "winget", StringComparison.OrdinalIgnoreCase));
+        if (entry is null) return null;
+        if (!IsValidManifestReference(entry))
+            throw new InvalidDataException($"Referência do manifesto de '{id}' inválida no índice.");
+
+        string manifestUrl = entry.ManifestPath is { Length: > 0 } path
+            ? BaseUrl + path
+            : $"{BaseUrl}packages/{Uri.EscapeDataString(id)}.json";
+        try
+        {
+            var manifest = await GetJsonWithRetryAsync<PackageManifest>(manifestUrl, ct, entry.ManifestSha256,
+                (payload, token) => WriteCacheBytesAsync(cachePath, payload, token));
             if (manifest is not null)
             {
-                await WriteCacheFileAsync(cachePath, JsonSerializer.Serialize(manifest), ct);
+                ValidateManifest(manifest, entry);
                 return manifest;
             }
-            return await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
+            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
+            return cached is not null && IsManifestCacheValid(cachePath, entry) && IsManifestForEntry(cached, entry) ? cached : null;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            return null;
+            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
+            return cached is not null && IsManifestCacheValid(cachePath, entry) && IsManifestForEntry(cached, entry) ? cached : null;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
         {
             var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
-            if (cached is not null) return cached;
-            throw new HttpRequestException($"Falha ao consultar o manifesto de '{id}' e não há cache local.", ex);
+            if (cached is not null && IsManifestCacheValid(cachePath, entry) && IsManifestForEntry(cached, entry)) return cached;
+            throw new HttpRequestException($"Falha ao consultar o manifesto de '{id}' e não há cache local válido.", ex);
         }
     }
 
+    private static bool IsValidManifestReference(PackageIndexEntry entry)
+    {
+        if (string.IsNullOrWhiteSpace(entry.ManifestPath) && string.IsNullOrWhiteSpace(entry.ManifestSha256)) return true;
+        if (!IsValidSha256(entry.ManifestSha256)) return false;
+        string expected = $"packages/{Uri.EscapeDataString(entry.Id)}/{entry.ManifestSha256!.ToLowerInvariant()}.json";
+        return string.Equals(entry.ManifestPath, expected, StringComparison.Ordinal);
+    }
+
+    private static void ValidateIndex(PackageIndex index)
+    {
+        if (index.Schema != 1 || index.Packages is null || index.Count != index.Packages.Count
+            || index.GeneratedAt == default || index.GeneratedAt > DateTimeOffset.UtcNow.AddMinutes(10))
+            throw new InvalidDataException("O índice da API tem estrutura ou data inválida.");
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in index.Packages)
+        {
+            if (entry is null || string.IsNullOrWhiteSpace(entry.Id) || string.IsNullOrWhiteSpace(entry.Version)
+                || !ids.Add(entry.Id) || (entry.Source is not ("winget" or "msstore")))
+                throw new InvalidDataException("O índice da API contém uma entrada inválida ou duplicada.");
+            if (!IsValidManifestReference(entry))
+                throw new InvalidDataException($"Referência do manifesto de '{entry.Id}' inválida.");
+        }
+    }
+
+    private static bool IsManifestForEntry(PackageManifest manifest, PackageIndexEntry entry) =>
+        manifest.Schema == 1
+        && string.Equals(manifest.Id, entry.Id, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(manifest.Version, entry.Version, StringComparison.Ordinal)
+        && string.Equals(manifest.Source, entry.Source, StringComparison.OrdinalIgnoreCase);
+
+    private static void ValidateManifest(PackageManifest manifest, PackageIndexEntry entry)
+    {
+        if (!IsManifestForEntry(manifest, entry) || manifest.Installers is null)
+            throw new InvalidDataException("O manifesto não corresponde à entrada validada do índice.");
+    }
+
+    private static bool IsManifestCacheValid(string path, PackageIndexEntry entry)
+    {
+        if (!IsRecentCache(path)) return false;
+        if (string.IsNullOrWhiteSpace(entry.ManifestSha256)) return true;
+        try
+        {
+            byte[] expected = Convert.FromHexString(entry.ManifestSha256);
+            byte[] actual = SHA256.HashData(File.ReadAllBytes(path));
+            return CryptographicOperations.FixedTimeEquals(expected, actual);
+        }
+        catch (Exception ex) when (ex is IOException or FormatException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+    private static bool IsRecentCache(string path) =>
+        File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) <= MaxStaleCacheAge;
     private string IndexCachePath => Path.Combine(_cacheDir, "index.json");
 
     private string GetManifestCachePath(string id)
@@ -264,7 +347,7 @@ public sealed class WinProvisionApiService
         return Path.Combine(_cacheDir, $"manifest-{key}.json");
     }
 
-    private async Task<T?> GetJsonWithRetryAsync<T>(string url, CancellationToken ct)
+    private async Task<T?> GetJsonWithRetryAsync<T>(string url, CancellationToken ct, string? expectedSha256 = null, Func<byte[], CancellationToken, Task>? onPayloadReceived = null)
     {
         for (int attempt = 1; ; attempt++)
         {
@@ -275,7 +358,18 @@ public sealed class WinProvisionApiService
                 using var response = await SendWithRetryAsync(url, timeout.Token).ConfigureAwait(false);
                 if (response.StatusCode == HttpStatusCode.NotFound) return default;
                 response.EnsureSuccessStatusCode();
-                return await response.Content.ReadFromJsonAsync<T>(cancellationToken: timeout.Token).ConfigureAwait(false);
+                byte[] payload = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(expectedSha256))
+                {
+                    byte[] expected = Convert.FromHexString(expectedSha256);
+                    byte[] actual = SHA256.HashData(payload);
+                    if (!CryptographicOperations.FixedTimeEquals(expected, actual))
+                        throw new InvalidDataException("O SHA-256 do manifesto não corresponde ao índice.");
+                }
+                T? value = JsonSerializer.Deserialize<T>(payload);
+                if (value is not null && onPayloadReceived is not null)
+                    await onPayloadReceived(payload, timeout.Token).ConfigureAwait(false);
+                return value;
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested && attempt < MaxRequestAttempts)
             {
@@ -327,7 +421,7 @@ public sealed class WinProvisionApiService
 
     private async Task<T?> ReadCacheFileAsync<T>(string path, CancellationToken ct)
     {
-        if (!File.Exists(path)) return default;
+        if (!IsRecentCache(path)) return default;
         try
         {
             await using var stream = File.OpenRead(path);
@@ -339,6 +433,20 @@ public sealed class WinProvisionApiService
         }
     }
 
+    private async Task WriteCacheBytesAsync(string path, byte[] contents, CancellationToken ct)
+    {
+        await _manifestCacheLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            string temp = path + ".tmp";
+            await File.WriteAllBytesAsync(temp, contents, ct).ConfigureAwait(false);
+            File.Move(temp, path, overwrite: true);
+        }
+        finally
+        {
+            _manifestCacheLock.Release();
+        }
+    }
     private async Task WriteCacheFileAsync(string path, string contents, CancellationToken ct)
     {
         await _manifestCacheLock.WaitAsync(ct).ConfigureAwait(false);
@@ -444,10 +552,17 @@ public sealed class WinProvisionApiService
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.PackageNotFound,
                 Message: $"Pacote '{packageId}' não encontrado na API própria.");
 
-        if (!string.Equals(manifest.Id, packageId, StringComparison.OrdinalIgnoreCase)
-            || manifest.Installers is null || manifest.Installers.Count == 0)
+        if (!string.Equals(manifest.Id, packageId, StringComparison.OrdinalIgnoreCase))
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.InvalidManifest,
-                Message: "O manifesto retornado não corresponde ao pacote ou não possui instaladores.");
+                Message: "O manifesto retornado não corresponde ao pacote.");
+
+        if (string.Equals(manifest.Source, "msstore", StringComparison.OrdinalIgnoreCase))
+            return new WinProvisionInstallResult(WinProvisionInstallOutcome.RequiresWinget,
+                Message: "O pacote pertence à Microsoft Store e será instalado pela fonte oficial msstore do WinGet.");
+
+        if (manifest.Installers is null || manifest.Installers.Count == 0)
+            return new WinProvisionInstallResult(WinProvisionInstallOutcome.InvalidManifest,
+                Message: "O manifesto não possui instaladores.");
 
         var requestedArchitecture = preferredArchitecture?.Trim().ToLowerInvariant() switch
         {
@@ -958,7 +1073,7 @@ public sealed class WinProvisionApiService
         bool canReportPercentage = expectedLength is > 0
             && !response.Content.Headers.ContentEncoding.Any();
         long bytesRead = 0;
-        int lastPercent = -1;
+        double lastPercent = -1;
         var buffer = new byte[128 * 1024];
 
         onProgress?.Invoke(new InstallProgressUpdate(
@@ -979,8 +1094,8 @@ public sealed class WinProvisionApiService
 
             if (canReportPercentage && expectedLength is > 0)
             {
-                int percent = (int)Math.Clamp(
-                    Math.Floor(bytesRead * 100d / expectedLength.Value), 0, 99);
+                double percent = Math.Clamp(
+                    Math.Floor(bytesRead * 10_000d / expectedLength.Value) / 100d, 0, 99.99);
                 if (percent != lastPercent)
                 {
                     lastPercent = percent;

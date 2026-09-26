@@ -13,6 +13,7 @@ public partial class MainWindow : FluentWindow
 {
     private readonly INavigationService _navigationService;
     private readonly OperationsQueueService _queueService;
+    private readonly DispatcherTimer _queueAutoCloseTimer = new() { Interval = TimeSpan.FromSeconds(4) };
 
     public MainWindow(
         INavigationViewPageProvider pageProvider,
@@ -25,11 +26,23 @@ public partial class MainWindow : FluentWindow
         _navigationService = navigationService;
         _queueService = queueService;
         QueuePanel.Queue = _queueService;
+        _queueAutoCloseTimer.Tick += (_, _) =>
+        {
+            _queueAutoCloseTimer.Stop();
+            if (_queueService.HasOperations
+                && _queueService.TotalCount == _queueService.CompletedCount)
+            {
+                QueuePanel.Visibility = Visibility.Collapsed;
+            }
+        };
 
         _queueService.PropertyChanged += QueueService_PropertyChanged;
         UpdateQueueBadge();
         if (_queueService.HasOperations)
+        {
             ShowQueuePanel();
+            ScheduleQueueAutoCloseIfFinished();
+        }
 
         // Overlay de Detalhes do pacote (ver AppDetailsOverlay/AppDetailsOverlayService)
         // - resolvido via DI porque depende de vários serviços (PackageCollectionService,
@@ -68,30 +81,37 @@ public partial class MainWindow : FluentWindow
 
     private void QueueService_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(OperationsQueueService.TotalCount) or nameof(OperationsQueueService.CompletedCount))
+        if (e.PropertyName is not (nameof(OperationsQueueService.TotalCount) or nameof(OperationsQueueService.CompletedCount)))
+            return;
+
+        Dispatcher.BeginInvoke(() =>
         {
-            Dispatcher.Invoke(UpdateQueueBadge);
-            if (e.PropertyName == nameof(OperationsQueueService.TotalCount))
+            UpdateQueueBadge();
+            if (!_queueService.HasOperations)
             {
-                Dispatcher.Invoke(() =>
-                {
-                    if (!_queueService.HasOperations)
-                        QueuePanel.Visibility = Visibility.Collapsed;
-                    else
-                        ShowQueuePanel();
-                });
+                _queueAutoCloseTimer.Stop();
+                QueuePanel.Visibility = Visibility.Collapsed;
+            }
+            else if (_queueService.TotalCount > _queueService.CompletedCount)
+            {
+                _queueAutoCloseTimer.Stop();
+                if (e.PropertyName == nameof(OperationsQueueService.TotalCount))
+                    ShowQueuePanel();
             }
             else
             {
-                Dispatcher.Invoke(() =>
-                {
-                    if (_queueService.TotalCount > 0 &&
-                        _queueService.CompletedCount >= _queueService.TotalCount)
-                    {
-                        QueuePanel.Visibility = Visibility.Collapsed;
-                    }
-                });
+                ScheduleQueueAutoCloseIfFinished();
             }
+        });
+    }
+
+    private void ScheduleQueueAutoCloseIfFinished()
+    {
+        if (_queueService.HasOperations
+            && _queueService.TotalCount == _queueService.CompletedCount)
+        {
+            _queueAutoCloseTimer.Stop();
+            _queueAutoCloseTimer.Start();
         }
     }
 

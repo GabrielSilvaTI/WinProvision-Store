@@ -488,7 +488,7 @@ public class AutoInstallCliService
                     appRef.Id,
                     onLogReceived: line => { LogLine(displayName, line); if (TryParsePercent(line, out var pct)) progress?.Invoke(pct); },
                     cancellationToken: ct,
-                    onProgress: update => { if (update.Percent is int percent) progress?.Invoke(percent); },
+                    onProgress: update => { if (update.Percent is double percent) progress?.Invoke((int)Math.Floor(percent)); },
                     source: source);
 
                 if (!result.Success)

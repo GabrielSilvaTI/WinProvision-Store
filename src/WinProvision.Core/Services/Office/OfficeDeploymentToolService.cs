@@ -6,8 +6,8 @@ using WinProvision.Core.Services;
 namespace WinProvision.Core.Services.Office;
 
 /// <summary>
-/// Obtém o Office Deployment Tool via download direto do R2 (método principal)
-/// com fallback para winget (pacote Microsoft.OfficeDeploymentTool) caso o download falhe.
+/// Obtém o Office Deployment Tool pelo fluxo de instalação do WinGet (COM, API própria
+/// e CLI), usando o download do setup.exe da API WinProvision como alternativa.
 ///
 /// O configuration.xml não precisa ficar do lado do setup.exe: passamos o caminho
 /// completo de cada um como argumento, então tanto faz onde o setup.exe está localizado.
@@ -26,6 +26,7 @@ public class OfficeDeploymentToolService : IDisposable
         @"C:\Program Files\Common Files\microsoft shared\ClickToRun\OfficeC2RClient.exe";
 
     private readonly WingetExecutor _wingetExecutor;
+    private readonly Func<string, Action<string>?, CancellationToken, Task<WingetExecutionResult>>? _installWithPreferredFlowAsync;
     private readonly string _workRoot;
     private readonly HttpClient _httpClient;
     private readonly OfficeUninstallService _uninstallService;
@@ -34,9 +35,13 @@ public class OfficeDeploymentToolService : IDisposable
     /// <summary>Pasta onde ficam o configuration.xml gerado e os logs desta ferramenta (não do ODT em si).</summary>
     public string WorkRoot => _workRoot;
 
-    public OfficeDeploymentToolService(WingetExecutor wingetExecutor, string? workRoot = null)
+    public OfficeDeploymentToolService(
+        WingetExecutor wingetExecutor,
+        string? workRoot = null,
+        Func<string, Action<string>?, CancellationToken, Task<WingetExecutionResult>>? installWithPreferredFlowAsync = null)
     {
         _wingetExecutor = wingetExecutor;
+        _installWithPreferredFlowAsync = installWithPreferredFlowAsync;
         _workRoot = workRoot ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "WinProvision", "Office");
@@ -78,8 +83,8 @@ public class OfficeDeploymentToolService : IDisposable
     }
 
     /// <summary>
-    /// Garante que setup.exe existe localmente, baixando do R2 primeiro (método principal)
-    /// e usando winget como fallback caso o download falhe.
+    /// Garante que setup.exe existe localmente, tentando primeiro a cadeia de instalação
+    /// do WinGet e usando o download da API WinProvision como alternativa.
     /// </summary>
     public async Task<string> EnsureSetupExeAsync(Action<string>? onStatus = null, CancellationToken cancellationToken = default)
     {
@@ -89,42 +94,54 @@ public class OfficeDeploymentToolService : IDisposable
             return existing;
         }
 
-        // Tenta baixar do R2 primeiro (método principal)
-        onStatus?.Invoke("Baixando Office Deployment Tool do R2...");
+        string wingetFailure;
+        onStatus?.Invoke("Obtendo Office Deployment Tool pelo WinGet...");
         try
         {
-            string? downloadedPath = await DownloadFromR2Async(onStatus, cancellationToken);
-            if (downloadedPath != null)
+            var result = _installWithPreferredFlowAsync is not null
+                ? await _installWithPreferredFlowAsync(
+                    OdtWingetPackageId,
+                    line => onStatus?.Invoke(line),
+                    cancellationToken)
+                : await _wingetExecutor.InstallAppAsync(
+                    OdtWingetPackageId,
+                    onLogReceived: line => onStatus?.Invoke(line),
+                    cancellationToken: cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (result.Success)
             {
-                return downloadedPath;
+                string? installedPath = KnownInstallPaths().FirstOrDefault(File.Exists);
+                if (installedPath is not null)
+                {
+                    return installedPath;
+                }
+
+                wingetFailure = "A instalação pelo WinGet terminou, mas setup.exe não foi encontrado nos locais conhecidos.";
             }
+            else
+            {
+                wingetFailure = $"A instalação pelo WinGet falhou (código {result.ExitCode}). {result.Output}";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            onStatus?.Invoke($"Falha ao baixar do R2: {ex.Message}. Tentando via winget...");
+            wingetFailure = $"Falha ao obter o ODT pelo WinGet: {ex.Message}";
         }
 
-        // Fallback: usar winget
-        onStatus?.Invoke("Instalando Office Deployment Tool via winget (fallback)...");
-
-        var result = await _wingetExecutor.InstallAppAsync(
-            OdtWingetPackageId,
-            onLogReceived: line => onStatus?.Invoke(line),
-            cancellationToken: cancellationToken);
-
-        if (!result.Success)
+        onStatus?.Invoke($"{wingetFailure} Tentando download alternativo da API WinProvision...");
+        string? downloadedPath = await DownloadFromR2Async(onStatus, cancellationToken);
+        if (downloadedPath is not null)
         {
-            throw new InvalidOperationException($"Falha ao instalar o ODT via winget (código {result.ExitCode}). {result.Output}");
+            return downloadedPath;
         }
 
-        string? installed = KnownInstallPaths().FirstOrDefault(File.Exists);
-        if (installed == null)
-        {
-            throw new FileNotFoundException(
-                "winget reportou sucesso, mas setup.exe não foi encontrado em nenhum dos locais conhecidos.");
-        }
-
-        return installed;
+        throw new InvalidOperationException(
+            $"Não foi possível obter o Office Deployment Tool. {wingetFailure} O download alternativo da API WinProvision também falhou.");
     }
 
     /// <summary>
@@ -178,6 +195,10 @@ public class OfficeDeploymentToolService : IDisposable
 
             onStatus?.Invoke("Download do setup.exe concluído.");
             return localPath;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

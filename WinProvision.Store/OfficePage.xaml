@@ -47,84 +47,38 @@
         <!--  Cartão "Mica-Friendly"  -->
         <Style x:Key="CardStyle"
                TargetType="Border"
-               BasedOn="{StaticResource FluentCardStyle}">
+               BasedOn="{StaticResource StoreCardSurfaceStyle}">
             <Setter Property="Padding" Value="{StaticResource Spacing24}" />
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000"
-                                      Opacity="0.2"
-                                      BlurRadius="24"
-                                      ShadowDepth="0" />
-                </Setter.Value>
-            </Setter>
         </Style>
 
-        <!--  Ações Rápidas: Botões em Grade (Ícone em cima, texto embaixo)  -->
-        <Style x:Key="ActionGridButtonStyle"
+        <!-- Barra de ações no mesmo padrão compacto usado em Atualizações. -->
+        <Style x:Key="ToolbarButtonStyle"
                TargetType="ui:Button"
                BasedOn="{StaticResource {x:Type ui:Button}}">
-            <Setter Property="Height" Value="76" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Appearance" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="{StaticResource StorePillCornerRadius}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
         </Style>
 
-        <Style x:Key="ActionGridToggleButtonStyle" TargetType="ToggleButton">
-            <Setter Property="Height" Value="76" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <!--  CornerRadius aplicado diretamente no Border para evitar erros  -->
-                        <Border x:Name="ToggleRoot"
-                                CornerRadius="{StaticResource OverlayCornerRadius}"
-                                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                BorderThickness="1">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ToggleRoot" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ToggleRoot" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-                            </Trigger>
-                            <!--
-                                Antes: mesmo ControlFillColorDefaultBrush do estado ocioso (linha de
-                                Background acima) — marcado e desmarcado ficavam visualmente idênticos.
-                                Agora usa o mesmo verde de "aceso" do AppTileToggleStyle, nesta mesma
-                                página, pra ter uma cor consistente pra "ativo" no app inteiro.
-                            -->
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="ToggleRoot" Property="Background" Value="#154CAF6B" />
-                                <Setter TargetName="ToggleRoot" Property="BorderBrush" Value="#4CAF6B" />
-                                <Setter Property="Foreground" Value="#4CAF6B" />
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="True" />
-                                    <Condition Property="IsMouseOver" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="ToggleRoot" Property="Background" Value="#254CAF6B" />
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+        <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton"
+               BasedOn="{StaticResource {x:Type ToggleButton}}">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
 
         <!--  Seleção de Apps: Estilo Windows 11 Fluent Settings Card  -->
@@ -133,8 +87,8 @@
             <Setter Property="Height" Value="116" />
             <Setter Property="Margin" Value="0,0,12,12" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="#0AFFFFFF" />
-            <Setter Property="BorderBrush" Value="#1AFFFFFF" />
+            <Setter Property="Background" Value="{DynamicResource StoreBrush_0AFFFFFF}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StoreBrush_1AFFFFFF}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
             <Setter Property="Template">
@@ -160,19 +114,19 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RootBorder" Property="Background" Value="#14FFFFFF" />
+                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource StoreBrush_14FFFFFF}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="RootBorder" Property="BorderBrush" Value="#4CAF6B" />
-                                <Setter TargetName="RootBorder" Property="Background" Value="#154CAF6B" />
-                                <Setter TargetName="CheckIcon" Property="Foreground" Value="#4CAF6B" />
+                                <Setter TargetName="RootBorder" Property="BorderBrush" Value="{DynamicResource StoreBrush_4CAF6B}" />
+                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource StoreBrush_154CAF6B}" />
+                                <Setter TargetName="CheckIcon" Property="Foreground" Value="{DynamicResource StoreBrush_4CAF6B}" />
                             </Trigger>
                             <MultiTrigger>
                                 <MultiTrigger.Conditions>
                                     <Condition Property="IsChecked" Value="True" />
                                     <Condition Property="IsMouseOver" Value="True" />
                                 </MultiTrigger.Conditions>
-                                <Setter TargetName="RootBorder" Property="Background" Value="#254CAF6B" />
+                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource StoreBrush_254CAF6B}" />
                             </MultiTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -182,9 +136,10 @@
     </Page.Resources>
 
     <Grid Margin="{StaticResource PageContentMargin}"
-          MaxWidth="1600"
+          MaxWidth="{StaticResource PageContentMaxWidth}"
           HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -194,19 +149,99 @@
         <StackPanel Grid.Row="0"
                     Orientation="Horizontal"
                     Margin="{StaticResource PageHeaderMargin}">
-            <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xEFDA;" />
+            <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Office" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="Instale, repare, atualize ou remova o Office."
-                           FontFamily="Segoe UI Variable Text"
-                           FontSize="14"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           Margin="0,4,0,0" />
+                <TextBlock Text="Instale, repare, atualize ou remova o Office." Style="{StaticResource FluentPageSubtitleStyle}" Margin="0,4,0,0" />
             </StackPanel>
         </StackPanel>
 
+        <!-- Barra de ações no topo da página, alinhada ao padrão de Atualizações. -->
+        <Border Grid.Row="1" Style="{StaticResource PageToolbarContainerStyle}">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border CornerRadius="{StaticResource ControlCornerRadius}"
+                            Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                            Margin="0,0,6,0"
+                            Height="34">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button x:Name="InstallRepairButton"
+                                       Appearance="Transparent"
+                                       Foreground="White"
+                                       Height="34"
+                                       Padding="12,0"
+                                       ToolTip="Instalar ou reparar o Office de forma autônoma"
+                                       Click="InstallRepairButton_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="16" Margin="0,0,6,0" Foreground="White" />
+                                    <TextBlock Text="Instalar" FontWeight="SemiBold" FontSize="12" Foreground="White" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
+                            <Rectangle Width="1" Fill="{DynamicResource StoreBrush_33FFFFFF}" VerticalAlignment="Stretch" Margin="0,5" />
+                            <ui:Button x:Name="InstallVariantsButton"
+                                       Appearance="Transparent"
+                                       Foreground="White"
+                                       Width="26"
+                                       Height="34"
+                                       Padding="0"
+                                       ToolTip="Mais opções de instalação"
+                                       Click="InstallVariantsButton_Click">
+                                <ui:SymbolIcon Symbol="ChevronDown24" FontSize="12" Foreground="White" />
+                            </ui:Button>
+                        </StackPanel>
+                    </Border>
+
+                    <Rectangle Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+
+                    <ui:Button x:Name="AddToCatalogButton"
+                               Style="{StaticResource ToolbarButtonStyle}"
+                               ToolTip="Adicionar este plano do Office ao catálogo de pacotes"
+                               Click="AddToCatalogButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="AddCircle24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Catálogo" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+
+                    <ToggleButton x:Name="AutoUpdatesToggleButton"
+                                  Style="{StaticResource ToolbarToggleButtonStyle}"
+                                  IsChecked="True"
+                                  ToolTip="Ativar ou desativar atualizações automáticas do Office"
+                                  Checked="AutoUpdatesToggleButton_Toggled"
+                                  Unchecked="AutoUpdatesToggleButton_Toggled">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Atualizar" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ToggleButton>
+
+                    <Rectangle Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+
+                    <ui:Button x:Name="UninstallButton"
+                               Style="{StaticResource ToolbarButtonStyle}"
+                               ToolTip="Remover todas as instalações do Office"
+                               Click="UninstallButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Delete24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Desinstalar" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+
+                    <ui:Button x:Name="OpenWorkFolderButton"
+                               Style="{StaticResource ToolbarButtonStyle}"
+                               ToolTip="Abrir a pasta de trabalho do Office Deployment Tool"
+                               Click="OpenWorkFolderButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="FolderOpen24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Abrir pasta" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
         <!--  ================= Corpo =================  -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="6.5*" MinWidth="400" />
                 <ColumnDefinition Width="32" />
@@ -335,15 +370,6 @@
                                         <ComboBoxItem Content="Deutsch" Tag="de-de" />
                                     </ComboBox>
                                 </StackPanel>
-                                <StackPanel Grid.Row="4" Grid.Column="2">
-                                    <TextBlock Text="Tipo de instalação" Style="{StaticResource FieldLabelStyle}" />
-                                    <ComboBox x:Name="InstallDisplayModeComboBox" HorizontalAlignment="Stretch">
-                                        <ComboBoxItem Content="Silenciosa (recomendado)"
-                                                      Tag="silent"
-                                                      IsSelected="True" />
-                                        <ComboBoxItem Content="Visível" Tag="visible" />
-                                    </ComboBox>
-                                </StackPanel>
                             </Grid>
 
                             <Expander Header="Opções avançadas"
@@ -433,29 +459,38 @@
                         <ItemsControl x:Name="AppStatusItemsControl">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,0,0,12">
+                                    <Grid MinHeight="64" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="44" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
                                         <Image Grid.Column="0"
                                                conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                               Width="24"
-                                               Height="24"
+                                               Width="32"
+                                               Height="32"
                                                Margin="0,0,12,0"
                                                Stretch="Uniform" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding DisplayName}"
-                                                   VerticalAlignment="Center"
-                                                   FontFamily="Segoe UI Variable Text" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontWeight="SemiBold"
+                                                       FontFamily="{StaticResource StoreFontFamily}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
 
-                                        <ui:SymbolIcon Grid.Column="2"
-                                                       Symbol="{Binding StatusSymbol}"
-                                                       Foreground="{Binding StatusBrush}"
-                                                       FontSize="18"
-                                                       VerticalAlignment="Center"
-                                                       ToolTip="{Binding StatusText}" />
+                                        <Border Grid.Column="2"
+                                                Background="{Binding StatusBrush}"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="1"
+                                                CornerRadius="{StaticResource StorePillCornerRadius}"
+                                                Padding="12,6"
+                                                VerticalAlignment="Center"
+                                                ToolTip="{Binding StatusText}">
+                                            <TextBlock Text="{Binding StatusText}"
+                                                       Foreground="White"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold" />
+                                        </Border>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -471,138 +506,17 @@
                     </StackPanel>
                 </Border>
 
-                <!--  Ações Rápidas (Estilo Grid exatamente como a imagem)  -->
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Ações Rápidas"
-                                   Style="{StaticResource CardTitleStyle}"
-                                   Margin="0,0,0,16" />
-
-                        <!--  Linha Superior (3 Botões)  -->
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <ui:Button Grid.Column="0"
-                                       x:Name="InstallRepairButton"
-                                       Style="{StaticResource ActionGridButtonStyle}"
-                                       Background="{StaticResource InstallActionBrush}"
-                                       MouseOverBackground="{StaticResource InstallActionHoverBrush}"
-                                       PressedBackground="{StaticResource InstallActionPressedBrush}"
-                                       Foreground="White"
-                                       PressedForeground="White"
-                                       Click="InstallRepairButton_Click">
-                                <StackPanel VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="ArrowDownload24"
-                                                   FontSize="20"
-                                                   Margin="0,0,8,0"
-                                                   HorizontalAlignment="Center" />
-                                    <TextBlock Text="Instalar"
-                                               FontSize="12"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </ui:Button>
-
-                            <ui:Button Grid.Column="2"
-                                       x:Name="AddToCatalogButton"
-                                       Style="{StaticResource ActionGridButtonStyle}"
-                                       Appearance="Secondary"
-                                       Click="AddToCatalogButton_Click">
-                                <StackPanel VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="AddCircle24"
-                                                   FontSize="20"
-                                                   Margin="0,0,8,0"
-                                                   HorizontalAlignment="Center" />
-                                    <TextBlock Text="Catálogo"
-                                               FontSize="12"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </ui:Button>
-
-                            <ToggleButton Grid.Column="4"
-                                          x:Name="AutoUpdatesToggleButton"
-                                          Style="{StaticResource ActionGridToggleButtonStyle}"
-                                          IsChecked="True"
-                                          ToolTip="Atualizações automáticas"
-                                          Checked="AutoUpdatesToggleButton_Toggled"
-                                          Unchecked="AutoUpdatesToggleButton_Toggled">
-                                <StackPanel VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="ArrowSync24"
-                                                   FontSize="20"
-                                                   Margin="0,0,8,0"
-                                                   HorizontalAlignment="Center" />
-                                    <TextBlock Text="Atualizar"
-                                               FontSize="12"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </ToggleButton>
-                        </Grid>
-
-                        <!--  Linha Inferior (2 Botões mais largos)  -->
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="8" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <ui:Button Grid.Column="0"
-                                       x:Name="UninstallButton"
-                                       Style="{StaticResource ActionGridButtonStyle}"
-                                       Appearance="Secondary"
-                                       Click="UninstallButton_Click">
-                                <StackPanel VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="Delete24"
-                                                   FontSize="20"
-                                                   Margin="0,0,8,0"
-                                                   HorizontalAlignment="Center" />
-                                    <TextBlock Text="Desinstalar"
-                                               FontSize="12"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </ui:Button>
-
-                            <ui:Button Grid.Column="2"
-                                       x:Name="OpenWorkFolderButton"
-                                       Style="{StaticResource ActionGridButtonStyle}"
-                                       Appearance="Secondary"
-                                       Click="OpenWorkFolderButton_Click">
-                                <StackPanel VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="FolderOpen24"
-                                                   FontSize="20"
-                                                   Margin="0,0,8,0"
-                                                   HorizontalAlignment="Center" />
-                                    <TextBlock Text="Abrir Pasta"
-                                               FontSize="12"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </ui:Button>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
             </StackPanel>
         </Grid>
 
         <!--  ================= Rodapé (Status) =================  -->
-        <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    Margin="4,8,0,0">
-            <ui:SymbolIcon Symbol="Info24"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                           FontSize="18"
-                           Margin="0,0,10,0"
-                           VerticalAlignment="Center" />
+        <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">
+          <StackPanel Orientation="Horizontal">
+            <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
             <TextBlock x:Name="StatusText"
                        Text="Escolha as opções e inicie."
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       FontFamily="Segoe UI Variable Text"
-                       VerticalAlignment="Center" />
-        </StackPanel>
+                       Style="{StaticResource PageStatusTextStyle}" />
+          </StackPanel>
+        </Border>
     </Grid>
 </Page>

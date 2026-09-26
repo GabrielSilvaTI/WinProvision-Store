@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -29,7 +29,6 @@ public partial class ProvisioningPage : Page
     private readonly PackageCollectionService _packageCollectionService;
     private readonly IconService _iconService;
     private readonly ProfileService _profileService;
-
     // Guardados à parte (em vez de num controle de UI) porque o wallpaper é um arquivo, não um
     // valor editável — ficam aqui até o usuário exportar ou aplicar, e são preenchidos de volta
     // ao importar um perfil que já tenha wallpaper embutido.
@@ -145,6 +144,8 @@ public partial class ProvisioningPage : Page
     {
         SectionPanel.Visibility = Visibility.Collapsed;
         ProfileOverviewPanel.Visibility = Visibility.Visible;
+        ProfileSummarySidebar.Visibility = Visibility.Visible;
+        ApplyButton.Visibility = Visibility.Visible;
         RefreshProfileSummary();
     }
 
@@ -161,6 +162,12 @@ public partial class ProvisioningPage : Page
     }
 
     private void JsonNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(JsonSectionPanel, "Visualização do JSON");
+
+    private void UnattendCanvasNavCard_Click(object sender, RoutedEventArgs e)
+    {
+        App.Services.GetRequiredService<Wpf.Ui.INavigationService>()
+            .Navigate(typeof(UnattendCanvasPage));
+    }
 
     private void PackageCollectionChanged()
     {

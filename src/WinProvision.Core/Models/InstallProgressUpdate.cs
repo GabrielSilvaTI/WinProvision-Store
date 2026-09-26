@@ -9,5 +9,5 @@ public enum InstallProgressPhase
 
 public sealed record InstallProgressUpdate(
     InstallProgressPhase Phase,
-    int? Percent = null,
+    double? Percent = null,
     WingetMethod Method = WingetMethod.Unknown);

@@ -1,0 +1,81 @@
+<Page x:Class="WinProvision.Store.LogViewerPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Log de diagnóstico"
+      Background="Transparent"
+      TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+      TextElement.FontSize="14"
+      TextOptions.TextRenderingMode="ClearType"
+      TextOptions.TextFormattingMode="Ideal"
+      UseLayoutRounding="True">
+    <Grid Margin="{StaticResource PageContentMargin}"
+          MaxWidth="{StaticResource PageContentMaxWidth}"
+          HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="{StaticResource PageHeaderMargin}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource PageHeaderIconTileStyle}">
+                    <ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Log de diagnóstico" Style="{StaticResource FluentPageTitleStyle}" />
+                    <TextBlock x:Name="LogFilePathText"
+                               Text="WinProvision-Log.log · pasta temporária"
+                               Style="{StaticResource FluentPageSubtitleStyle}"
+                               Margin="0,4,0,0"
+                               ToolTip="Caminho completo do arquivo de log" />
+                </StackPanel>
+            </StackPanel>
+            <ui:Button Grid.Column="1"
+                       Content="Atualizar"
+                       Appearance="Secondary"
+                       VerticalAlignment="Center"
+                       Click="RefreshLog_Click">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowSync24" /></ui:Button.Icon>
+            </ui:Button>
+        </Grid>
+
+        <Border Grid.Row="1"
+                Style="{StaticResource FluentCardStyle}"
+                Background="{DynamicResource AppCardBackgroundBrush}"
+                BorderBrush="{DynamicResource AppCardBorderBrush}"
+                BorderThickness="1"
+                Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="LogStatusText"
+                           Text="Carregando log..."
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           Margin="4,0,4,10" />
+                <TextBox x:Name="LogTextBox"
+                         Grid.Row="1"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="NoWrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Auto"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         Padding="12"
+                         Background="{DynamicResource AppSurfaceBrush}"
+                         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                         BorderBrush="{DynamicResource AppBorderSubtleBrush}"
+                         BorderThickness="1"
+                         AutomationProperties.Name="Conteúdo do log de diagnóstico" />
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

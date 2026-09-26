@@ -2,7 +2,7 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      xmlns:behaviors="clr-namespace:WinProvision.Store.Behaviors"
+      xmlns:conv="clr-namespace:WinProvision.Store.Converters"
       ScrollViewer.CanContentScroll="False"
       Title="Configurações"
       Background="Transparent"
@@ -15,288 +15,310 @@
       UseLayoutRounding="True">
 
     <Page.Resources>
-        <!--  Tipografia Fluent  -->
-        <Style x:Key="PageTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentPageTitleStyle}" />
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
 
-        <Style x:Key="CardSubtitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-        </Style>
-
-        <!--  Cartão de Configurações (Estilo Lista do Win11)  -->
-        <Style x:Key="SettingsCardStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource FluentCardStyle}">
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-            <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="BorderThickness" Value="1" />
+        <!-- Estilo base dos cartões de categoria -->
+        <Style x:Key="CategoryCardStyle" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000"
-                                      Opacity="0.2"
-                                      BlurRadius="24"
-                                      ShadowDepth="0" />
-                </Setter.Value>
-            </Setter>
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
-        <!--  Estilos para as Linhas de Configuração internas  -->
-        <Style x:Key="SettingsRowTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <!-- Estilo dos cartões de configuração internos -->
+        <Style x:Key="SubSettingCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
         </Style>
 
-        <Style x:Key="SettingsRowSubtitleStyle"
+        <Style x:Key="SectionHeaderStyle"
                TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Margin" Value="0,4,0,0" />
+               BasedOn="{StaticResource FluentSectionTitleStyle}">
+            <Setter Property="Margin" Value="0,20,0,8" />
         </Style>
     </Page.Resources>
 
-    <Border Background="Transparent"
-            Margin="{StaticResource PageContentMargin}"
-            CornerRadius="{StaticResource OverlayCornerRadius}">
-        <Grid Margin="0">
+    <Grid Margin="{StaticResource PageContentMargin}" MaxWidth="1100" HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Cabeçalho com Título, Botão Voltar e Busca -->
+            <RowDefinition Height="*" />    <!-- Conteúdo: Homepage ou Subpágina -->
+            <RowDefinition Height="Auto" /> <!-- Rodapé com Versão e Status -->
+        </Grid.RowDefinitions>
+
+        <!-- ─── Cabeçalho Superior ─────────────────────────────────────────── -->
+        <Grid Grid.Row="0" Margin="0,4,0,16">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
 
-            <!--  ================= Cabeçalho Global =================  -->
-            <StackPanel Grid.Row="0"
-                        Orientation="Horizontal"
-                        Margin="{StaticResource PageHeaderMargin}">
-                <TextBlock Style="{StaticResource FluentPageIconStyle}" Text="&#xE713;" />
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Configurações" Style="{StaticResource PageTitleStyle}" />
-                    <TextBlock Text="Personalize o aplicativo."
-                               Style="{StaticResource CardSubtitleStyle}"
-                               Margin="0,4,0,0" />
-                </StackPanel>
-            </StackPanel>
+            <!-- Botão Voltar (Aparece ao entrar em sub-categoria) -->
+            <ui:Button x:Name="BackButton" Grid.Row="0" Grid.Column="0" Appearance="Transparent"
+                       Padding="8,6" Margin="0,0,8,0" VerticalAlignment="Center"
+                       Visibility="Collapsed" ToolTip="Voltar para as configurações principais"
+                       Click="BackButton_Click">
+                <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="20" />
+            </ui:Button>
 
-            <!--  ================= Conteúdo Principal =================  -->
-            <ScrollViewer Grid.Row="1"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
-                <StackPanel Margin="0,0,16,0"
-                            MaxWidth="1000"
-                            HorizontalAlignment="Center">
+            <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource PageHeaderIconTileStyle}">
+                <ui:SymbolIcon Symbol="Settings24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+            </Border>
 
-                    <!--  1. Tema  -->
-                    <Border Style="{StaticResource SettingsCardStyle}">
-                        <StackPanel>
-                            <Grid Margin="24,16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,24,0">
-                                    <TextBlock Text="Tema do Aplicativo" Style="{StaticResource SettingsRowTitleStyle}" />
-                                    <TextBlock Text="Escolha um tema para o aplicativo." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <ui:Button x:Name="LightThemeButton"
-                                               Content="Claro"
-                                               Appearance="Secondary"
-                                               Margin="0,0,8,0"
-                                               Click="LightThemeButton_Click"
-                                               CornerRadius="{StaticResource ControlCornerRadius}">
-                                        <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="WeatherSunny24" />
-                                        </ui:Button.Icon>
-                                    </ui:Button>
-                                    <ui:Button x:Name="DarkThemeButton"
-                                               Content="Escuro"
-                                               Appearance="Secondary"
-                                               Click="DarkThemeButton_Click"
-                                               CornerRadius="{StaticResource ControlCornerRadius}">
-                                        <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="WeatherMoon24" />
-                                        </ui:Button.Icon>
-                                    </ui:Button>
-                                </StackPanel>
-                            </Grid>
-                        </StackPanel>
-                    </Border>
+            <!-- Título Principal -->
+            <TextBlock x:Name="SettingsTitleTextBlock" Grid.Row="0" Grid.Column="2"
+                       Text="Configurações do WinProvision Store"
+                       Style="{StaticResource FluentPageTitleStyle}"
+                       VerticalAlignment="Center" />
 
-                    <!--  Método preferido para instalações  -->
-                    <Border Style="{StaticResource SettingsCardStyle}">
-                        <Grid Margin="24,16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"
-                                        Margin="0,0,24,0"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="Método de instalação" Style="{StaticResource SettingsRowTitleStyle}" />
-                                <TextBlock x:Name="InstallMethodDescriptionText"
-                                           Text="Automático tenta outros métodos se uma instalação falhar."
-                                           Style="{StaticResource SettingsRowSubtitleStyle}" />
-                            </StackPanel>
-                            <ComboBox x:Name="InstallMethodComboBox"
-                                      Grid.Column="1"
-                                      Width="230"
-                                      MinHeight="38"
-                                      VerticalAlignment="Center"
-                                      SelectionChanged="InstallMethodComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Automático (recomendado)" Tag="Automatic" />
-                                <ComboBoxItem Content="API COM do WinGet" Tag="ComApi" />
-                                <ComboBoxItem Content="API da WinProvision Store" Tag="WinProvisionApi" />
-                                <ComboBoxItem Content="WinGet CLI" Tag="WingetCli" />
-                            </ComboBox>
+            <!-- Caixa de Busca (Search settings) -->
+            <ui:TextBox x:Name="SettingsSearchBox" Grid.Row="0" Grid.Column="3"
+                        PlaceholderText="Pesquisar configurações"
+                        Icon="Search24" Width="260" Height="34"
+                        VerticalAlignment="Center" ClearButtonEnabled="True"
+                        TextChanged="SettingsSearchBox_TextChanged"
+                        KeyDown="SettingsSearchBox_KeyDown" />
+            <TextBlock x:Name="SettingsSearchResultText"
+                       Grid.Row="1"
+                       Grid.Column="2"
+                       Grid.ColumnSpan="2"
+                       Visibility="Collapsed"
+                       FontSize="11.5"
+                       Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                       Margin="0,6,0,0"
+                       TextWrapping="Wrap" />
+        </Grid>
+
+        <!-- ─── Conteúdo Principal ─────────────────────────────────────────── -->
+        <Grid Grid.Row="1">
+
+            <!-- 1. HOMEPAGE: Categorias funcionais -->
+            <ScrollViewer x:Name="HomepageScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,4,0,16">
+                    <Border x:Name="CardGeneral" Style="{StaticResource CategoryCardStyle}" MouseLeftButtonUp="Category_Click" KeyDown="CategoryCard_KeyDown" Focusable="True" KeyboardNavigation.IsTabStop="True" Tag="General">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Settings24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="Preferências gerais" FontWeight="SemiBold" FontSize="13.5" /><TextBlock Text="Método de instalação, atualizador e preferências do aplicativo" FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel>
+                            <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="16" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
-
-                    <!--  2. Cache local  -->
-                    <Border Style="{StaticResource SettingsCardStyle}">
-                        <Grid Margin="24,16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0"
-                                        Margin="0,0,24,0"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="Cache Local" Style="{StaticResource SettingsRowTitleStyle}" />
-                                <TextBlock Text="Remove os dados temporários baixados pelo aplicativo." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                            </StackPanel>
-                            <ui:Button x:Name="ClearCacheButton"
-                                       Grid.Column="1"
-                                       Content="Limpar cache"
-                                       Appearance="Secondary"
-                                       VerticalAlignment="Center"
-                                       Click="ClearCacheButton_Click"
-                                       CornerRadius="{StaticResource ControlCornerRadius}">
-                                <ui:Button.Icon>
-                                    <ui:SymbolIcon Symbol="Broom24" />
-                                </ui:Button.Icon>
-                            </ui:Button>
+                    <Border Height="14" />
+                    <Border x:Name="CardInterface" Style="{StaticResource CategoryCardStyle}" MouseLeftButtonUp="Category_Click" KeyDown="CategoryCard_KeyDown" Focusable="True" KeyboardNavigation.IsTabStop="True" Tag="Interface">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Color24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="Interface e inicialização" FontWeight="SemiBold" FontSize="13.5" /><TextBlock Text="Tema do aplicativo e inicialização com o Windows" FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel>
+                            <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="16" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
-
-                    <!--  3. Atualizações do app  -->
-                    <Border Style="{StaticResource SettingsCardStyle}">
-                        <StackPanel Margin="24,16">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,24,0">
-                                    <TextBlock Text="Atualizações do WinProvision Store" Style="{StaticResource SettingsRowTitleStyle}" />
-                                    <TextBlock x:Name="UpdateSubtitleText"
-                                               Text="Procura uma versão mais recente."
-                                               Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                </StackPanel>
-                                <ui:Button x:Name="CheckUpdateButton"
-                                           Grid.Column="1"
-                                           Content="Verificar atualizações"
-                                           Appearance="Secondary"
-                                           VerticalAlignment="Center"
-                                           Click="CheckUpdateButton_Click"
-                                           CornerRadius="{StaticResource ControlCornerRadius}">
-                                    <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="ArrowClockwise24" />
-                                    </ui:Button.Icon>
-                                </ui:Button>
-                            </Grid>
-
-                            <Border x:Name="UpdateAvailablePanel"
-                                    Visibility="Collapsed"
-                                    Margin="0,16,0,0"
-                                    BorderThickness="1"
-                                    BorderBrush="{DynamicResource AppCardBorderBrush}"
-                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                    CornerRadius="{StaticResource ControlCornerRadius}"
-                                    Padding="16,12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,16,0">
-                                        <TextBlock x:Name="UpdateAvailableText"
-                                                   FontWeight="Medium"
-                                                   TextWrapping="Wrap" />
-                                        <TextBlock x:Name="UpdateProgressText"
-                                                   Style="{StaticResource SettingsRowSubtitleStyle}"
-                                                   Visibility="Collapsed" />
-                                    </StackPanel>
-                                    <ui:Button x:Name="InstallUpdateButton"
-                                               Grid.Column="1"
-                                               Content="Atualizar agora"
-                                               Appearance="Primary"
-                                               VerticalAlignment="Center"
-                                               Click="InstallUpdateButton_Click"
-                                               CornerRadius="{StaticResource ControlCornerRadius}">
-                                        <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="ArrowDownload24" />
-                                        </ui:Button.Icon>
-                                    </ui:Button>
-                                </Grid>
-                            </Border>
-
-                            <ProgressBar x:Name="UpdateProgressBar"
-                                         Style="{StaticResource GradientProgressBarStyle}"
-                                         Height="4"
-                                         Margin="0,16,0,0"
-                                         Minimum="0"
-                                         Maximum="1"
-                                         Value="0"
-                                         Visibility="Collapsed" />
-                        </StackPanel>
+                    <Border Height="14" />
+                    <Border x:Name="CardOperations" Style="{StaticResource CategoryCardStyle}" MouseLeftButtonUp="Category_Click" KeyDown="CategoryCard_KeyDown" Focusable="True" KeyboardNavigation.IsTabStop="True" Tag="Operations">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Box24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="Armazenamento e cache" FontWeight="SemiBold" FontSize="13.5" /><TextBlock Text="Gerencie arquivos temporários das operações de pacotes" FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel>
+                            <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="16" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
-
+                    <Border Height="14" />
+                    <Border x:Name="CardBackup" Style="{StaticResource CategoryCardStyle}" MouseLeftButtonUp="Category_Click" KeyDown="CategoryCard_KeyDown" Focusable="True" KeyboardNavigation.IsTabStop="True" Tag="Backup">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Save24" FontSize="20" Margin="0,0,16,0" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="Backup e restauração" FontWeight="SemiBold" FontSize="13.5" /><TextBlock Text="Exporte ou restaure coleções de aplicativos em arquivo" FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel>
+                            <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24" FontSize="16" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
 
-            <!--  ================= Rodapé com status e versão =================  -->
-            <Grid Grid.Row="2" Margin="0,8,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBlock x:Name="StatusText"
-                           Grid.Column="0"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                           FontFamily="Segoe UI Variable Text" />
-                <TextBlock x:Name="VersionText"
-                           Grid.Column="1"
-                           Margin="16,0,0,0"
-                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                           FontFamily="Segoe UI Variable Text"
-                           VerticalAlignment="Center" />
-            </Grid>
+            <!-- 2. SUB-PÁGINA DE CONFIGURAÇÕES DETALHADAS ───────────────────── -->
+            <ScrollViewer x:Name="SubCategoryScrollViewer" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="0,4,0,16">
+
+                    <!-- Painel 1: Geral -->
+                    <StackPanel x:Name="PanelGeneral" Visibility="Collapsed">
+                        <TextBlock Text="Método de instalação de pacotes" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Método de instalação preferencial" FontWeight="SemiBold" />
+                                    <TextBlock x:Name="InstallMethodDescriptionText" Text="Automático (recomendado) seleciona a rota disponível e usa fallback quando necessário." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <ComboBox x:Name="InstallMethodComboBox" Grid.Column="1" Width="220" SelectionChanged="InstallMethodComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="Automático (recomendado)" Tag="Automatic" />
+                                    <ComboBoxItem Content="API COM do WinGet" Tag="ComApi" />
+                                    <ComboBoxItem Content="WinProvision API" Tag="WinProvisionApi" />
+                                    <ComboBoxItem Content="WinGet CLI" Tag="WingetCli" />
+                                </ComboBox>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="Atualizador do WinProvision Store" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                        <TextBlock Text="Verificação de atualizações" FontWeight="SemiBold" />
+                                        <TextBlock x:Name="UpdateSubtitleText" Text="Procura uma nova versão do aplicativo no GitHub." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="CheckUpdateButton" Grid.Column="1" Content="Verificar agora" Appearance="Secondary" Click="CheckUpdateButton_Click">
+                                        <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowClockwise24" /></ui:Button.Icon>
+                                    </ui:Button>
+                                </Grid>
+
+                        <Border x:Name="UpdateAvailablePanel" Visibility="Collapsed" Margin="0,12,0,0" Padding="12" Background="{DynamicResource ControlFillColorSecondaryBrush}" CornerRadius="{StaticResource ControlCornerRadius}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="UpdateAvailableText" Grid.Column="0" VerticalAlignment="Center" FontWeight="Medium" />
+                                        <ui:Button x:Name="InstallUpdateButton" Grid.Column="1" Content="Atualizar agora" Appearance="Primary" Click="InstallUpdateButton_Click">
+                                            <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></ui:Button.Icon>
+                                        </ui:Button>
+                                    </Grid>
+                                </Border>
+                                <ProgressBar x:Name="UpdateProgressBar" Height="4" Margin="0,10,0,0" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+
+
+                        <TextBlock Text="Privacidade e Gerenciamento" Style="{StaticResource SectionHeaderStyle}" />
+
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <WrapPanel>
+                                <ui:Button Content="Exportar configurações" Appearance="Secondary" Margin="0,0,8,0" Click="ExportSettingsButton_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowExport24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button Content="Importar configurações" Appearance="Secondary" Margin="0,0,8,0" Click="ImportSettingsButton_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowImport24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button Content="Abrir pasta de logs" Appearance="Secondary" Margin="0,0,8,0" Click="OpenLogsButton_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="DocumentText24" /></ui:Button.Icon>
+                                </ui:Button>
+                                <ui:Button Content="Restaurar padrões" Appearance="Secondary" Click="ResetPreferencesButton_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowReset24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </WrapPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Painel 2: Interface -->
+                    <StackPanel x:Name="PanelInterface" Visibility="Collapsed">
+                        <TextBlock Text="Aparência" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Tema do aplicativo" FontWeight="SemiBold" />
+                                    <TextBlock Text="Escolha o esquema de cores preferido para a interface." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <ui:Button x:Name="LightThemeButton" Content="Claro" Appearance="Secondary" Margin="0,0,6,0" Click="LightThemeButton_Click" />
+                                    <ui:Button x:Name="DarkThemeButton" Content="Escuro" Appearance="Secondary" Margin="0,0,6,0" Click="DarkThemeButton_Click" />
+                                    <ui:Button x:Name="SystemThemeButton" Content="Sistema" Appearance="Secondary" Click="SystemThemeButton_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+
+
+                        <TextBlock Text="Inicialização e Sistema" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Iniciar com o Windows" FontWeight="SemiBold" />
+                                    <TextBlock Text="Abre o WinProvision automaticamente ao fazer login no Windows." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <ui:ToggleSwitch x:Name="LaunchAtStartupSwitch" Grid.Column="1" Click="LaunchAtStartupSwitch_Click" />
+                            </Grid>
+                        </Border>
+
+
+                    </StackPanel>
+                    <!-- Painel 5: Operações de pacotes -->
+                    <StackPanel x:Name="PanelOperations" Visibility="Collapsed">
+
+
+                        <TextBlock Text="Armazenamento e Cache" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Cache local de instaladores" FontWeight="SemiBold" />
+                                    <TextBlock Text="Remove instaladores baixados temporariamente para liberar espaço em disco." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="1" Content="Limpar cache" Appearance="Secondary" Click="ClearCacheButton_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Broom24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                    <!-- Painel 8: Backup -->
+                    <StackPanel x:Name="PanelBackup" Visibility="Collapsed">
+                        <TextBlock Text="Backup e Restauração" Style="{StaticResource SectionHeaderStyle}" />
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Exportar pacote de backup local" FontWeight="SemiBold" />
+                                    <TextBlock Text="Salva a lista completa de aplicativos instalados em um arquivo JSON." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="1" Content="Criar backup" Appearance="Secondary" Click="ExportBackup_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Save24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+                        </Border>
+                        <Border Style="{StaticResource SubSettingCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
+                                    <TextBlock Text="Restaurar de arquivo de backup" FontWeight="SemiBold" />
+                                    <TextBlock Text="Carrega uma lista salva para reinstalar aplicativos em lote." FontSize="11.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                </StackPanel>
+                                <ui:Button Grid.Column="1" Content="Restaurar" Appearance="Secondary" Click="ImportBackup_Click">
+                                    <ui:Button.Icon><ui:SymbolIcon Symbol="ArrowImport24" /></ui:Button.Icon>
+                                </ui:Button>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
         </Grid>
-    </Border>
+
+        <!-- ─── Rodapé com Status e Versão ─────────────────────────────────── -->
+        <Border Grid.Row="2" Style="{StaticResource PageStatusBarStyle}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
+                <TextBlock x:Name="StatusText"
+                           Style="{StaticResource PageStatusTextStyle}" />
+            </StackPanel>
+            <TextBlock x:Name="VersionText" Grid.Column="1" Margin="16,0,0,0"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                       FontSize="11.5" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+    </Grid>
 </Page>

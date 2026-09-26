@@ -38,7 +38,7 @@ public static class WinGetFactoryHelper
     // Estratégias de ativação da COM. LowerTrust vem primeiro porque é a que já foi validada neste app
     // (instalações via COM funcionando sem elevação, build Debug x64) e é a única que funciona com o
     // processo elevado. Packaged (CLSCTX_LOCAL_SERVER puro, igual ao WindowsPackageManagerStandardFactory
-    // da Microsoft e ao modo "packaged COM registration" do UniGetUI) fica como reserva, caso a flag
+    // da Microsoft) fica como reserva, caso a flag
     // lower-trust seja recusada em algum contexto. A estratégia que conectar ao catálogo é fixada para a
     // sessão inteira: PackageManager, InstallOptions, FindPackagesOptions etc. precisam usar a mesma.
     private static readonly object StrategyGate = new();
@@ -65,7 +65,7 @@ public static class WinGetFactoryHelper
 
     // CLSID/IID do PackageManager (runtime class + interface nativa), não de
     // uma "fábrica" COM à parte, essa não existe. Confirmados via stack trace
-    // real de crash do UniGetUI (issue #4750, Devolutions/UniGetUI):
+    // real de falha de ativação COM:
     // "WinGet COM activation failed for CLSID c53a4f16-787e-42a4-b304-29effb4bf597
     //  (IID b375e3b9-f2e0-5c93-87a7-b67497f7e593, AllowLowerTrustRegistration=True)"
     private static readonly Guid ClsidPackageManager = new("C53A4F16-787E-42A4-B304-29EFFB4BF597");
@@ -74,8 +74,7 @@ public static class WinGetFactoryHelper
     // Release CLSIDs: microsoft/winget-cli ComClsids.h,
     // commit 5b62860167520b1503b3880d5a026809eb07c6f4.
     // The interface IIDs are the CsWinRT projections generated from PackageManager.idl;
-    // the same CLSID/IID mapping is used by Devolutions/UniGetUI ClassesDefinition.cs,
-    // commit 5e8b14e102780e05a72dd79afc9e20f584da8d12.
+    // Esta associação CLSID/IID também é usada pela projeção CsWinRT do PackageManager.
     private static readonly Guid ClsidFindPackagesOptions = new("572DED96-9C60-4526-8F92-EE7D91D38C1A");
     private static readonly Guid IidFindPackagesOptions = new("A5270EDD-7DA7-57A3-BACE-F2593553561F");
     private static readonly Guid ClsidInstallOptions = new("1095F097-EB96-453B-B4E6-1613637F3B14");

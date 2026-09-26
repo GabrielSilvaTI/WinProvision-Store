@@ -81,18 +81,34 @@ public class InstallerApiExporter
 
         foreach (var app in apps.OrderBy(a => a.Id, StringComparer.OrdinalIgnoreCase))
         {
-            // Apps "msstore" não têm manifesto de instalador do winget-pkgs.
-            if (!string.Equals(app.Source, "winget", StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (!bundlesByAppId.TryGetValue(app.Id, out var bundle))
-                continue;
-
             if (!IsSafeFileName(app.Id))
             {
                 skippedInvalidId++;
                 continue;
             }
+
+            if (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase))
+            {
+                var storePackage = new ApiPackage
+                {
+                    Schema = SchemaVersion,
+                    Id = app.Id,
+                    Version = app.Version,
+                    Source = "msstore"
+                };
+                await WriteAsync(Path.Combine(packagesDir, app.Id + ".json"), storePackage);
+                indexItems.Add(new ApiIndexItem
+                {
+                    Id = app.Id,
+                    Version = app.Version,
+                    Source = "msstore"
+                });
+                continue;
+            }
+
+            if (!string.Equals(app.Source, "winget", StringComparison.OrdinalIgnoreCase)
+                || !bundlesByAppId.TryGetValue(app.Id, out var bundle))
+                continue;
 
             var installers = BuildInstallers(bundle);
             if (installers.Count == 0)
@@ -106,6 +122,7 @@ public class InstallerApiExporter
                 Schema = SchemaVersion,
                 Id = app.Id,
                 Version = app.Version,
+                Source = "winget",
                 Installers = installers
             };
 
@@ -336,6 +353,7 @@ public class ApiIndexItem
 {
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
     [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
+    [JsonPropertyName("source")] public string Source { get; set; } = "winget";
     [JsonPropertyName("architectures")] public List<string> Architectures { get; set; } = [];
 }
 
@@ -344,6 +362,7 @@ public class ApiPackage
     [JsonPropertyName("schema")] public int Schema { get; set; }
     [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
     [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
+    [JsonPropertyName("source")] public string Source { get; set; } = "winget";
     [JsonPropertyName("installers")] public List<ApiInstaller> Installers { get; set; } = [];
 }
 

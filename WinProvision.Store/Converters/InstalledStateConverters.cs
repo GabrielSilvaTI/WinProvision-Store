@@ -17,7 +17,8 @@ public class InstallStateToLabelConverter : IMultiValueConverter
         bool isInstalling = values.Length > 1 && values[1] is true;
 
         if (isInstalling) return "Instalando";
-        return isInstalled ? "Instalado" : "Instalar";
+        string availableAction = parameter as string ?? "Instalar";
+        return isInstalled ? "Instalado" : availableAction;
     }
 
     public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>

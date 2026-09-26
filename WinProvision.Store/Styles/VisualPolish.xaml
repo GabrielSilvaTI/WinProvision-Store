@@ -25,25 +25,25 @@
         Mica base is supplied by FluentWindow; these alpha colors let it show
         through while preserving a stable reading surface.
     -->
-    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#E01D3047" />
-    <SolidColorBrush x:Key="AppSurfaceElevatedBrush" Color="#E0263446" />
-    <SolidColorBrush x:Key="AppSurfaceStrongBrush" Color="#F02D4056" />
-    <SolidColorBrush x:Key="AppBorderBrush" Color="#8050657D" />
-    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#5050657D" />
+    <SolidColorBrush x:Key="AppSurfaceBrush" Color="#FF292929" />
+    <SolidColorBrush x:Key="AppSurfaceElevatedBrush" Color="#FF303030" />
+    <SolidColorBrush x:Key="AppSurfaceStrongBrush" Color="#FF383838" />
+    <SolidColorBrush x:Key="AppBorderBrush" Color="#FF454545" />
+    <SolidColorBrush x:Key="AppBorderSubtleBrush" Color="#FF3D3D3D" />
     <SolidColorBrush x:Key="AppTextPrimaryBrush" Color="#F5F7FA" />
-    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#C6D1E0" />
-    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#95A5B9" />
-    <SolidColorBrush x:Key="AppIconBrush" Color="#E0E9F5" />
-    <SolidColorBrush x:Key="AppIconMutedBrush" Color="#9BAAC0" />
-    <SolidColorBrush x:Key="AppAccentBrush" Color="#1688E8" />
-    <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#254A8DCE" />
+    <SolidColorBrush x:Key="AppTextSecondaryBrush" Color="#FFD0D0D0" />
+    <SolidColorBrush x:Key="AppTextTertiaryBrush" Color="#FFA8A8A8" />
+    <SolidColorBrush x:Key="AppIconBrush" Color="#FFE6E6E6" />
+    <SolidColorBrush x:Key="AppIconMutedBrush" Color="#FFAAAAAA" />
+    <SolidColorBrush x:Key="AppAccentBrush" Color="#FF0078D4" />
+    <SolidColorBrush x:Key="AppAccentSoftBrush" Color="#3A0078D4" />
 
     <!--
         Superfície comum dos cartões: translúcida para preservar o efeito Mica e
         adaptável aos temas claro/escuro do WPF-UI.
     -->
-    <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#E0263446" />
-    <SolidColorBrush x:Key="AppCardBorderBrush" Color="#8050657D" />
+    <SolidColorBrush x:Key="AppCardBackgroundBrush" Color="#FF303030" />
+    <SolidColorBrush x:Key="AppCardBorderBrush" Color="#FF454545" />
     <SolidColorBrush x:Key="AppOperationSuccessBrush" Color="#FF79D99A" />
     <SolidColorBrush x:Key="AppOperationSuccessSurfaceBrush" Color="#2679D99A" />
     <SolidColorBrush x:Key="AppOperationFailureBrush" Color="#FFFF8585" />
@@ -51,9 +51,9 @@
     <SolidColorBrush x:Key="AppOperationCanceledBrush" Color="#FFC6D1E0" />
     <SolidColorBrush x:Key="AppOperationCanceledSurfaceBrush" Color="#18C6D1E0" />
     <SolidColorBrush x:Key="AppOperationComBrush" Color="#FFB991FF" />
-    <SolidColorBrush x:Key="AppOperationApiBrush" Color="#FFFFD166" />
-    <SolidColorBrush x:Key="AppOperationWingetBrush" Color="#FF59D5E5" />
-    <SolidColorBrush x:Key="AppOperationDefaultBrush" Color="#FF68A8FF" />
+    <SolidColorBrush x:Key="AppOperationApiBrush" Color="#FFFF9A3D" />
+    <SolidColorBrush x:Key="AppOperationWingetBrush" Color="#FF1688E8" />
+    <SolidColorBrush x:Key="AppOperationDefaultBrush" Color="#FF1688E8" />
     <SolidColorBrush x:Key="AppProgressTrackBrush" Color="#24FFFFFF" />
     <Color x:Key="AppPanelShadowColor">#FF000000</Color>
 
@@ -73,6 +73,7 @@
 
     <Style TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
+        <Setter Property="TextWrapping" Value="Wrap" />
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
         <Setter Property="TextOptions.TextHintingMode" Value="Auto" />
@@ -96,6 +97,15 @@
         branca sempre) que sofreria exatamente do mesmo problema já corrigido pro texto
         (sumiria no tema Claro, ver comentário no Style de TextBlock).
     -->
+    <Style TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Setter Property="CornerRadius" Value="{DynamicResource StorePillCornerRadius}" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <Style TargetType="ui:SymbolIcon">
         <Setter Property="FontSize" Value="20" />
         <Setter Property="Opacity" Value="0.94" />

@@ -44,6 +44,7 @@ public partial class App : Application
             // Serviços Core
             services.AddSingleton<IconService>();
             services.AddSingleton<StoreService>();
+            services.AddSingleton(_ => new WinProvision.Core.Services.Indexing.MsStoreCatalogService());
             services.AddSingleton<WingetExecutor>();
             services.AddSingleton<WinProvision.Core.Services.UninstallerEngineService>();
             services.AddSingleton<WinProvisionApiService>();
@@ -52,6 +53,7 @@ public partial class App : Application
             services.AddSingleton<WingetBootstrapper>();
             services.AddSingleton<PackageCollectionService>();
             services.AddSingleton<ProfileService>();
+            services.AddSingleton<OperationHistoryService>();
             services.AddSingleton<OperationsQueueService>();
             services.AddSingleton<InstalledAppsService>();
 
@@ -60,11 +62,19 @@ public partial class App : Application
             services.AddSingleton<IgnoredUpdatesService>();
             services.AddSingleton<ScheduledTempCleanerService>();
 
-            services.AddSingleton<OfficeDeploymentToolService>();
+            services.AddSingleton<OfficeDeploymentToolService>(serviceProvider =>
+                new OfficeDeploymentToolService(
+                    serviceProvider.GetRequiredService<WingetExecutor>(),
+                    installWithPreferredFlowAsync: (packageId, onLogReceived, cancellationToken) =>
+                        serviceProvider.GetRequiredService<WinGetService>().InstallAsync(
+                            packageId,
+                            onLogReceived,
+                            cancellationToken)));
             services.AddSingleton<OfficeUninstallService>();
             services.AddSingleton<OfficeInstalledProductsDetector>();
             services.AddSingleton<WinGetService>();
             services.AddSingleton<InstallationPreferencesService>();
+            services.AddSingleton<ApplicationPreferencesService>();
             services.AddSingleton<InstalledPackagesService>();
             services.AddSingleton<InstalledPackageClassifier>();
             services.AddSingleton<AutoInstallCliService>();
@@ -92,10 +102,15 @@ public partial class App : Application
             services.AddTransient<PackagesPage>();
             services.AddSingleton<OfficePage>();
             services.AddSingleton<UpdatesPage>();
+
             services.AddSingleton<AccountSyncPage>();
             services.AddSingleton<SettingsPage>();
             services.AddSingleton<AboutPage>();
+            services.AddSingleton<MorePage>();
+            services.AddSingleton<HistoryPage>();
+            services.AddSingleton<LogViewerPage>();
             services.AddSingleton<ProvisioningPage>();
+            services.AddTransient<UnattendCanvasPage>();
         })
         .Build();
 
@@ -103,6 +118,16 @@ public partial class App : Application
 
     private async void OnStartup(object sender, StartupEventArgs e)
     {
+        DispatcherUnhandledException += (_, args) =>
+            WinProvisionLog.Write($"UNHANDLED UI exception={args.Exception}");
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            WinProvisionLog.Write($"UNHANDLED process terminating={args.IsTerminating} exception={args.ExceptionObject}");
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            WinProvisionLog.Write($"UNOBSERVED task exception={args.Exception}");
+            args.SetObserved();
+        };
+
         var executablePath = Environment.ProcessPath ?? AppContext.BaseDirectory;
         bool isAuto = HasAutoFlag(e.Args);
         bool isElevated = WinProvisionLog.IsElevated();
@@ -163,6 +188,8 @@ public partial class App : Application
             WinProvisionLog.Write("STARTUP decision=interactive-user-context");
         }
 
+        var appPreferences = _host.Services.GetRequiredService<ApplicationPreferencesService>();
+        ApplicationPreferencesService.ApplyTheme(appPreferences.Theme);
         ApplicationThemeManager.Changed += ApplicationThemeManager_Changed;
         ApplyThemePalette(ApplicationThemeManager.GetAppTheme());
 
@@ -294,22 +321,35 @@ public partial class App : Application
             }
         }
 
-        await _host.StartAsync();
-        OperationRunner.ConfigureInstallHandler(
-            _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
-        OperationRunner.ConfigureUpdateHandler(
-            _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
-        WinProvisionLog.Write(
-            "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
-        WinProvisionLog.Write(
-            "UPDATE HANDLER CONFIGURED startupPath=interactive handler=WinGetService.UpdateAsync");
-        _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
-        _host.Services.GetRequiredService<BackupAutoSyncService>();
+        try
+        {
+            await _host.StartAsync();
+            OperationRunner.ConfigureInstallHandler(
+                _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
+            OperationRunner.ConfigureUpdateHandler(
+                _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
+            WinProvisionLog.Write(
+                "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
+            WinProvisionLog.Write(
+                "UPDATE HANDLER CONFIGURED startupPath=interactive handler=WinGetService.UpdateAsync");
+            _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
+            _host.Services.GetRequiredService<BackupAutoSyncService>();
 
-        var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        SystemThemeWatcher.Watch(mainWindow);
-        mainWindow.Show();
-        StartUiResponsivenessMonitor();
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            SystemThemeWatcher.Watch(mainWindow);
+            mainWindow.Show();
+            StartUiResponsivenessMonitor();
+        }
+        catch (Exception ex)
+        {
+            WinProvisionLog.Write($"STARTUP fatal interactive exception={ex}");
+            MessageBox.Show(
+                ex.ToString(),
+                "Falha ao iniciar o WinProvision Store",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown(-1);
+        }
     }
 
     private static void ApplicationThemeManager_Changed(ApplicationTheme theme, Color systemAccent)
@@ -365,10 +405,10 @@ public partial class App : Application
         SetBrushColor("AppOperationFailureSurfaceBrush", isLight ? "#FFFFEFED" : "#26FF8585");
         SetBrushColor("AppOperationCanceledBrush", isLight ? "#FF526274" : "#FFC6D1E0");
         SetBrushColor("AppOperationCanceledSurfaceBrush", isLight ? "#FFF0F3F6" : "#18C6D1E0");
-        SetBrushColor("AppOperationComBrush", isLight ? "#FF7141C8" : "#FFB991FF");
-        SetBrushColor("AppOperationApiBrush", isLight ? "#FF997000" : "#FFFFD166");
-        SetBrushColor("AppOperationWingetBrush", isLight ? "#FF007E94" : "#FF59D5E5");
-        SetBrushColor("AppOperationDefaultBrush", isLight ? "#FF245FB7" : "#FF68A8FF");
+        SetBrushColor("AppOperationComBrush", "#FFB991FF");
+        SetBrushColor("AppOperationApiBrush", "#FFFF9A3D");
+        SetBrushColor("AppOperationWingetBrush", "#FF1688E8");
+        SetBrushColor("AppOperationDefaultBrush", "#FF1688E8");
         SetBrushColor("AppProgressTrackBrush", isLight ? "#FFD7E0E8" : "#24FFFFFF");
         Current.Resources["AppPanelShadowColor"] = (Color)ColorConverter.ConvertFromString(
             isLight ? "#FF536273" : "#FF000000");

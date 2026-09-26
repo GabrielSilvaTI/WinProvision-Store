@@ -76,6 +76,12 @@ jobs:
             Store/Api/v1/_state/package-hashes.json \
             "$(pwd)/catalog-output/api-previous/package-hashes.json"
 
+      - name: Atualizar catálogo da Microsoft Store para o apps.json e a API
+        run: >
+          dotnet run --project src/WinProvision.Indexer -c Release --
+          --msstore
+          "$(pwd)/catalog-output"
+
       - name: Rodar o Indexer
         id: indexer
         env:
@@ -84,15 +90,6 @@ jobs:
           dotnet run --project src/WinProvision.Indexer -c Release -- \
             "$(pwd)/winget-pkgs/manifests" \
             "$(pwd)/catalog-output"
-
-      - name: Publicar apps.json no R2
-        env:
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-          APPS_JSON_SOURCE: ${{ github.workspace }}/catalog-output/apps.json
-          PREVIOUS_APPS_JSON_URL: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json
-        run: python3 scripts/database/upload_apps_json.py
 
       - name: Publicar API no R2 (só pacotes com hash alterado)
         env:
@@ -104,6 +101,25 @@ jobs:
             "$(pwd)/catalog-output/api" \
             "$(pwd)/catalog-output/api-previous/package-hashes.json" \
             Store/Api/v1
+
+      - name: Publicar catálogo MS Store atualizado no R2
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+        run: |
+          python3 scripts/database/r2_upload.py \
+            "$(pwd)/catalog-output/msstore-catalog.json" \
+            Store/Database/msstore-catalog.json
+
+      - name: Publicar apps.json no R2
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          APPS_JSON_SOURCE: ${{ github.workspace }}/catalog-output/apps.json
+          PREVIOUS_APPS_JSON_URL: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json
+        run: python3 scripts/database/upload_apps_json.py
 
       - name: Devolver metrics-cache.json atualizado pro R2
         if: always() && steps.indexer.conclusion == 'success'

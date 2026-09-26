@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using WinProvision.Core.Models.Office;
@@ -35,6 +36,27 @@ public class AppEntry : INotifyPropertyChanged
     /// </summary>
     [JsonPropertyName("storeIconUrl")]
     public string? StoreIconUrl { get; set; }
+
+    /// <summary>Arte horizontal da Microsoft Store para banners da Visão Geral; preenchida sob demanda.</summary>
+    [JsonIgnore]
+    public string? StoreBannerUrl { get; set; }
+
+    [JsonIgnore]
+    public string? StoreCategory { get; set; }
+
+    [JsonIgnore]
+    public string? StoreSubCategory { get; set; }
+
+    [JsonIgnore]
+    public List<string> StoreScreenshotUrls { get; set; } = [];
+
+    /// <summary>Nota média do produto na Microsoft Store, quando publicada.</summary>
+    [JsonPropertyName("storeRating")]
+    public double? StoreRating { get; set; }
+
+    /// <summary>Quantidade de avaliações que compõe StoreRating.</summary>
+    [JsonPropertyName("storeRatingCount")]
+    public int? StoreRatingCount { get; set; }
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -136,8 +158,15 @@ public class AppEntry : INotifyPropertyChanged
             if (_installerSizeBytes == value) return;
             _installerSizeBytes = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(InstallerSizeDisplay));
         }
     }
+
+    /// <summary>Apresentação do tamanho estimado em MB; o JSON continua guardando bytes.</summary>
+    [JsonIgnore]
+    public string InstallerSizeDisplay => InstallerSizeBytes is > 0
+        ? $"{(InstallerSizeBytes.Value / 1024d / 1024d).ToString("0.0", CultureInfo.CurrentCulture)} MB"
+        : "—";
 
     private bool _isInstalled;
 
@@ -187,8 +216,7 @@ public class AppEntry : INotifyPropertyChanged
     /// <summary>
     /// Estado do CheckBox de seleção na tela Pacotes (ver PackagesPage). Não vem do
     /// apps.json nem do perfil (.json) — é só o estado transitório de "marcado pra
-    /// instalar" usado pelo botão geral "Instalar" da barra de ferramentas, ao estilo
-    /// do UnigetUI, em vez de um botão de instalar por item.
+    /// instalar" usado pelo botão geral "Instalar" da barra de ferramentas.
     /// </summary>
     [JsonIgnore]
     public bool IsSelectedForInstall

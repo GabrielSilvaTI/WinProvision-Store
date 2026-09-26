@@ -165,6 +165,28 @@ public partial class OfficePage : Page
     // ----------------------------------------------------------------
 
     private async void InstallRepairButton_Click(object sender, RoutedEventArgs e)
+        => await InstallOfficeAsync(silent: true);
+
+    private async void InstallInteractiveMenuItem_Click(object sender, RoutedEventArgs e)
+        => await InstallOfficeAsync(silent: false);
+
+    private void InstallVariantsButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement element)
+            return;
+
+        var menu = new ContextMenu();
+        var interactiveItem = new System.Windows.Controls.MenuItem
+        {
+            Header = "UI visível"
+        };
+        interactiveItem.Click += InstallInteractiveMenuItem_Click;
+        menu.Items.Add(interactiveItem);
+        menu.PlacementTarget = element;
+        menu.IsOpen = true;
+    }
+
+    private async Task InstallOfficeAsync(bool silent)
     {
         if (PlanComboBox.SelectedItem is not OfficePlan plan)
         {
@@ -174,7 +196,6 @@ public partial class OfficePage : Page
 
         int architecture = (ArchitectureComboBox.SelectedItem as ComboBoxItem)?.Tag as string == "32" ? 32 : 64;
         string languageId = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "pt-br";
-        bool silent = (InstallDisplayModeComboBox.SelectedItem as ComboBoxItem)?.Tag as string != "visible";
         string? channelOverride = plan.Category == OfficeEditionCategory.Corporate365
             ? (ChannelComboBox.SelectedItem as ChannelOption)?.Id
             : null;
@@ -285,7 +306,6 @@ public partial class OfficePage : Page
 
         int architecture = (ArchitectureComboBox.SelectedItem as ComboBoxItem)?.Tag as string == "32" ? 32 : 64;
         string languageId = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "pt-br";
-        bool silent = (InstallDisplayModeComboBox.SelectedItem as ComboBoxItem)?.Tag as string != "visible";
         string? channelOverride = plan.Category == OfficeEditionCategory.Corporate365
             ? (ChannelComboBox.SelectedItem as ChannelOption)?.Id
             : null;
@@ -326,7 +346,7 @@ public partial class OfficePage : Page
             LanguageId = languageId,
             AdditionalLanguageIds = additionalLanguages,
             ExcludedApps = excludedApps,
-            Silent = silent,
+            Silent = true,
             ChannelOverride = channelOverride,
             AutoUpdatesEnabled = AutoUpdatesToggleButton.IsChecked == true,
         };
@@ -357,6 +377,15 @@ public partial class OfficePage : Page
 
     private async void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
+        // A instalação pode ter sido removida enquanto a página permaneceu aberta.
+        // Revalida antes de exibir a confirmação ou iniciar a operação.
+        if (!_installedDetector.HasAnyInstallation())
+        {
+            RefreshInstalledProducts();
+            StatusText.Text = "Nenhuma instalação do Office foi encontrada.";
+            return;
+        }
+
         var confirmDialog = new Wpf.Ui.Controls.MessageBox
         {
             Title = "Remover o Office",
@@ -370,7 +399,7 @@ public partial class OfficePage : Page
         if (confirm != Wpf.Ui.Controls.MessageBoxResult.Primary)
             return;
 
-        bool silent = (InstallDisplayModeComboBox.SelectedItem as ComboBoxItem)?.Tag as string != "visible";
+        const bool silent = true;
         bool cleanStore = CleanStoreEditionCheckBox.IsChecked == true;
 
         var request = new OfficeRemoveRequest(
@@ -419,6 +448,10 @@ public partial class OfficePage : Page
     private void RefreshInstalledProducts()
     {
         var installed = _installedDetector.GetInstalledProducts();
+        UninstallButton.IsEnabled = installed.Count > 0;
+        UninstallButton.ToolTip = installed.Count > 0
+            ? "Remover todas as instalações do Office"
+            : "Instale o Office antes de desinstalar.";
 
         _appStatusRows.Clear();
         int installedCount = 0;

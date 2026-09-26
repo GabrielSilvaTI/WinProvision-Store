@@ -1,0 +1,89 @@
+<Page x:Class="WinProvision.Store.HistoryPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Histórico"
+      Background="Transparent"
+      TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+      TextElement.FontSize="14"
+      TextOptions.TextRenderingMode="ClearType"
+      TextOptions.TextFormattingMode="Ideal"
+      UseLayoutRounding="True">
+    <Page.Resources>
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock"
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
+        <Style x:Key="CardStyle" TargetType="Border"
+               BasedOn="{StaticResource FluentCardStyle}">
+            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#000000" Opacity="0.2" BlurRadius="24" ShadowDepth="0" />
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+    <Grid Margin="{StaticResource PageContentMargin}" MaxWidth="{StaticResource PageContentMaxWidth}" HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="{StaticResource PageHeaderMargin}">
+            <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Clock24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="Histórico de operações" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock Text="Consulte instalações, atualizações e remoções recentes." Style="{StaticResource FluentPageSubtitleStyle}" Margin="0,4,0,0" />
+            </StackPanel>
+            <ui:Button Content="Limpar histórico" Appearance="Secondary" Margin="20,0,0,0"
+                       VerticalAlignment="Center" Click="ClearHistory_Click">
+                <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+            </ui:Button>
+        </StackPanel>
+
+        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="16">
+            <Grid>
+                <TextBlock x:Name="EmptyText" Text="As operações concluídas aparecerão aqui."
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                <ListBox x:Name="HistoryList" Background="Transparent" BorderThickness="0"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Padding="14,12" Margin="0,0,0,8"
+                                    Background="{DynamicResource AppSurfaceBrush}"
+                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}" BorderThickness="1"
+                                    CornerRadius="{StaticResource OverlayCornerRadius}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" FontSize="14">
+                                            <Run Text="{Binding KindLabel, Mode=OneWay}" />
+                                            <Run Text=" · " />
+                                            <Run Text="{Binding AppName, Mode=OneWay}" />
+                                        </TextBlock>
+                                        <TextBlock FontSize="11"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,4,0,0">
+                                            <Run Text="{Binding FinishedAtLocal, Mode=OneWay}" />
+                                            <Run Text=" · " />
+                                            <Run Text="{Binding MethodLabel, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Padding="9,4" CornerRadius="10"
+                                            VerticalAlignment="Center" Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                        <TextBlock Text="{Binding StateLabel, Mode=OneWay}" FontSize="11" FontWeight="SemiBold" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

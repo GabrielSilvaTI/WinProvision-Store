@@ -1,6 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,11 +21,8 @@ using Wpf.Ui.Controls;
 namespace WinProvision.Store.Controls;
 
 /// <summary>
-/// Painel de detalhes do pacote, exibido como overlay sobre o MainWindow (ver
-/// MainWindow.xaml/.xaml.cs) em vez de uma janela separada. Singleton resolvido via DI
-/// (ver App.xaml.cs) e assina AppDetailsOverlayService.Requested para saber quando
-/// aparecer - qualquer página (hoje só a HomePage) pode pedir para mostrá-lo chamando
-/// esse serviço, sem precisar conhecer este controle.
+/// Painel de detalhes do pacote, exibido como overlay sobre o MainWindow.
+/// Apresenta metadados e ações para pacotes disponíveis no catálogo.
 /// </summary>
 public partial class AppDetailsOverlay : UserControl
 {
@@ -29,8 +31,30 @@ public partial class AppDetailsOverlay : UserControl
     private readonly OperationsQueueService _queueService;
     private readonly InstalledAppsService _installedAppsService;
     private readonly InstalledPackagesViewModel _installedPackagesViewModel;
+
     private AppEntry? _app;
     private string? _installLocation;
+    private string? _availableUpdateVersion;
+    private CancellationTokenSource? _detailsCts;
+
+    private sealed class ExtendedPackageInfo
+    {
+        public string? Version { get; set; }
+        public string? Publisher { get; set; }
+        public string? Author { get; set; }
+        public string? Description { get; set; }
+        public string? Homepage { get; set; }
+        public string? License { get; set; }
+        public string? LicenseUrl { get; set; }
+        public string? ReleaseDate { get; set; }
+        public string? InstallerType { get; set; }
+        public string? InstallerUrl { get; set; }
+        public string? Sha256 { get; set; }
+        public string? Dependencies { get; set; }
+        public string? ReleaseNotes { get; set; }
+        public string? ReleaseNotesUrl { get; set; }
+        public List<string> Tags { get; } = [];
+    }
 
     public AppDetailsOverlay(AppDetailsOverlayService overlayService, PackageCollectionService collectionService,
         WingetExecutor wingetExecutor, OperationsQueueService queueService,
@@ -45,46 +69,103 @@ public partial class AppDetailsOverlay : UserControl
         _installedPackagesViewModel = installedPackagesViewModel;
 
         Visibility = Visibility.Collapsed;
-        overlayService.Requested += Show;
+        SizeChanged += AppDetailsOverlay_SizeChanged;
+        overlayService.Requested += app => Show(app, null, null);
+        overlayService.UpdateRequested += (app, current, available) => Show(app, current, available);
     }
 
-    private void Show(AppEntry app)
+    private void AppDetailsOverlay_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        Card.Width = Math.Clamp(e.NewSize.Width - 40, 760, 1040);
+        Card.MaxHeight = Math.Max(480, e.NewSize.Height - 40);
+    }
+
+    private void Show(AppEntry app, string? currentVersion, string? availableVersion)
+    {
+        _detailsCts?.Cancel();
+        _detailsCts = new CancellationTokenSource();
+
         if (_app is not null)
         {
             _app.PropertyChanged -= AppOnPropertyChanged;
         }
 
         _app = app;
+        _availableUpdateVersion = availableVersion;
 
+        // ── 1. Inicialização síncrona com os dados já disponíveis no AppEntry ──
         AsyncImage.SetSourceUrl(AppIcon, app.IconUrl);
         AppNameText.Text = app.Name;
-        PackageSourceText.Text = app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+
+        string sourceLabel = IsMicrosoftStoreSource(app.Source)
             ? "Microsoft Store"
-            : "WinGet · winget-pkgs";
-        VersionBadgeText.Text = string.IsNullOrWhiteSpace(app.Version) ? "Versão não informada" : app.Version;
-        DescriptionText.Text = app.Description;
-        DescriptionText.Visibility = string.IsNullOrWhiteSpace(app.Description) ? Visibility.Collapsed : Visibility.Visible;
+            : IsSupportedCollectionSource(app.Source)
+                ? $"WinGet: {app.Source}"
+                : "Windows (local)";
+        PackageSourceText.Text = sourceLabel;
+        PackageManagerText.Text = sourceLabel;
 
-        IdText.Text = app.Id;
-        VersionText.Text = app.Version;
-        ScoreText.Text = app.Score.ToString();
+        string displayedVersion = availableVersion ?? app.Version;
+        PackageVersionText.Text = string.IsNullOrWhiteSpace(displayedVersion) ? "Não informada" : displayedVersion;
 
-        SetupPublisher();
-        SetupTags();
-        SetupSize();
-        SetupGitHubStars();
-        SetupLicense();
-        SetupLinkButtons();
+        DescriptionText.Text = string.IsNullOrWhiteSpace(app.Description)
+            ? "Nenhuma descrição disponível."
+            : app.Description;
 
+        // Tags
+        TagsList.ItemsSource = app.Tags;
+        TagsList.Visibility = app.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // ID do Pacote
+        PackageIdText.Text = app.Id;
+
+        // Manifesto URL
+        SetupManifestUrl(app.Id, app.Source);
+
+        // Página Inicial
+        SetupHomepage(app.Homepage);
+
+        // Desenvolvedor e Autor
+        DeveloperText.Text = !string.IsNullOrWhiteSpace(app.Publisher) ? app.Publisher : "—";
+        AuthorText.Text = !string.IsNullOrWhiteSpace(app.Publisher) ? app.Publisher : "—";
+
+        // Licença
+        SetupLicense(app.License, app.LicenseUrl);
+
+        // Última atualização
+        LastUpdatedText.Text = "Carregando...";
+
+        // Tipo de instalador e detalhes
+        InstallerTypeText.Text = "Carregando...";
+        InstallerUrlLink.Visibility = Visibility.Collapsed;
+        InstallerUrlLink.Tag = null;
+        Sha256Text.Text = "Carregando...";
+
+        // Tamanho do instalador
+        SetupSize(app.InstallerSizeBytes);
+
+        // Dependências e Notas
+        DependenciesText.Text = "Nenhuma dependência especificada";
+        ReleaseNotesText.Text = "Não disponível";
+        SetupReleaseNotesUrl(app.ReleaseNotesUrl);
+
+        // Update comparison panel
+        UpdateVersionPanel.Visibility = currentVersion is not null && availableVersion is not null
+            ? Visibility.Visible : Visibility.Collapsed;
+        CurrentUpdateVersionText.Text = currentVersion ?? string.Empty;
+        AvailableUpdateVersionText.Text = availableVersion ?? string.Empty;
+
+        // Status & Opções
         StatusText.Text = string.Empty;
         _installLocation = null;
-        SelectLocationButton.ToolTip = "Usar um local de instalação personalizado";
-        ClearLocationButton.Visibility = Visibility.Collapsed;
+        SelectedLocationText.Text = "Local padrão do sistema";
+        OptionsBodyPanel.Visibility = Visibility.Collapsed;
+        OptionsChevronIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.ChevronDown16;
 
         _app.PropertyChanged += AppOnPropertyChanged;
         UpdateInstallActionsVisibility();
 
+        // ── 2. Animação de entrada ──
         Scrim.BeginAnimation(UIElement.OpacityProperty, null);
         Card.BeginAnimation(UIElement.OpacityProperty, null);
         CardTransform.BeginAnimation(TranslateTransform.YProperty, null);
@@ -94,10 +175,275 @@ public partial class AppDetailsOverlay : UserControl
         Visibility = Visibility.Visible;
         AnimateIn();
         Focus();
+
+        // ── 3. Busca assíncrona de informações completas via winget show ──
+        _ = LoadExtendedDetailsAsync(app, _detailsCts.Token);
+    }
+
+    private void SetupManifestUrl(string id, string source)
+    {
+        if (string.Equals(source, "msstore", StringComparison.OrdinalIgnoreCase))
+        {
+            string url = $"https://apps.microsoft.com/detail/{id}";
+            ManifestLinkText.Text = url;
+            ManifestLink.Tag = url;
+            ManifestLink.Visibility = Visibility.Visible;
+            return;
+        }
+
+        // WinGet manifest no GitHub
+        string firstChar = id.Length > 0 ? char.ToLowerInvariant(id[0]).ToString() : "a";
+        string parts = id.Replace('.', '/');
+        string manifestUrl = $"https://github.com/microsoft/winget-pkgs/tree/master/manifests/{firstChar}/{parts}";
+        ManifestLinkText.Text = manifestUrl;
+        ManifestLink.Tag = manifestUrl;
+        ManifestLink.Visibility = Visibility.Visible;
+    }
+
+    private void SetupHomepage(string? url)
+    {
+        bool hasUrl = !string.IsNullOrWhiteSpace(url);
+        HomepageLink.Visibility = hasUrl ? Visibility.Visible : Visibility.Collapsed;
+        HomepageNotAvailableText.Visibility = hasUrl ? Visibility.Collapsed : Visibility.Visible;
+
+        if (hasUrl)
+        {
+            HomepageLinkText.Text = url;
+            HomepageLink.Tag = url;
+        }
+    }
+
+    private void SetupLicense(string? name, string? url)
+    {
+        bool hasName = !string.IsNullOrWhiteSpace(name);
+        bool hasUrl = !string.IsNullOrWhiteSpace(url);
+
+        LicenseText.Text = hasName ? name : (hasUrl ? string.Empty : "Não informada");
+        LicenseLink.Visibility = hasUrl ? Visibility.Visible : Visibility.Collapsed;
+
+        if (hasUrl)
+        {
+            LicenseLinkText.Text = url;
+            LicenseLink.Tag = url;
+        }
+    }
+
+    private void SetupSize(long? sizeBytes)
+    {
+        if (sizeBytes is > 0)
+        {
+            double mb = sizeBytes.Value / 1024d / 1024d;
+            InstallerSizeText.Text = mb >= 1024
+                ? $"(~ {mb / 1024:0.0} GB)"
+                : $"(~ {mb:0} MB)";
+        }
+        else
+        {
+            InstallerSizeText.Text = "(Tamanho desconhecido)";
+        }
+    }
+
+    private void SetupReleaseNotesUrl(string? url)
+    {
+        bool hasUrl = !string.IsNullOrWhiteSpace(url);
+        ReleaseNotesUrlLink.Visibility = hasUrl ? Visibility.Visible : Visibility.Collapsed;
+        ReleaseNotesUrlNotAvailableText.Visibility = hasUrl ? Visibility.Collapsed : Visibility.Visible;
+
+        if (hasUrl)
+        {
+            ReleaseNotesUrlLinkText.Text = url;
+            ReleaseNotesUrlLink.Tag = url;
+        }
+    }
+
+    private async Task LoadExtendedDetailsAsync(AppEntry app, CancellationToken cancellationToken)
+    {
+        LoadingProgressBar.Visibility = Visibility.Visible;
+
+        try
+        {
+            string args = $"show --id \"{app.Id}\" --exact --source {app.Source} --accept-source-agreements --disable-interactivity";
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "winget.exe",
+                    Arguments = args,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8
+                }
+            };
+
+            process.Start();
+            string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested || _app != app)
+                return;
+
+            var info = ParseWingetShowOutput(output);
+
+            Dispatcher.Invoke(() =>
+            {
+                if (_app != app) return;
+
+                if (!string.IsNullOrWhiteSpace(info.Version))
+                    PackageVersionText.Text = info.Version;
+
+                if (!string.IsNullOrWhiteSpace(info.Publisher))
+                    DeveloperText.Text = info.Publisher;
+
+                if (!string.IsNullOrWhiteSpace(info.Author))
+                    AuthorText.Text = info.Author;
+
+                if (!string.IsNullOrWhiteSpace(info.Homepage))
+                    SetupHomepage(info.Homepage);
+
+                if (!string.IsNullOrWhiteSpace(info.License) || !string.IsNullOrWhiteSpace(info.LicenseUrl))
+                    SetupLicense(info.License ?? app.License, info.LicenseUrl ?? app.LicenseUrl);
+
+                LastUpdatedText.Text = !string.IsNullOrWhiteSpace(info.ReleaseDate)
+                    ? info.ReleaseDate
+                    : "Não informada";
+
+                InstallerTypeText.Text = !string.IsNullOrWhiteSpace(info.InstallerType)
+                    ? info.InstallerType
+                    : "exe";
+
+                if (!string.IsNullOrWhiteSpace(info.InstallerUrl))
+                {
+                    InstallerUrlLink.Visibility = Visibility.Visible;
+                    InstallerUrlLinkText.Text = info.InstallerUrl;
+                    InstallerUrlLink.Tag = info.InstallerUrl;
+                    DownloadInstallerLink.Tag = info.InstallerUrl;
+                    DownloadInstallerLink.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    InstallerUrlLink.Visibility = Visibility.Collapsed;
+                    DownloadInstallerLink.Visibility = Visibility.Collapsed;
+                }
+
+                Sha256Text.Text = !string.IsNullOrWhiteSpace(info.Sha256)
+                    ? info.Sha256.ToUpperInvariant()
+                    : "Não especificado";
+
+                if (!string.IsNullOrWhiteSpace(info.Dependencies))
+                    DependenciesText.Text = info.Dependencies;
+
+                if (!string.IsNullOrWhiteSpace(info.ReleaseNotes))
+                    ReleaseNotesText.Text = info.ReleaseNotes;
+
+                if (!string.IsNullOrWhiteSpace(info.ReleaseNotesUrl))
+                    SetupReleaseNotesUrl(info.ReleaseNotesUrl);
+
+                if (info.Tags.Count > 0)
+                {
+                    TagsList.ItemsSource = info.Tags;
+                    TagsList.Visibility = Visibility.Visible;
+                }
+
+                if (!string.IsNullOrWhiteSpace(info.Description) && string.IsNullOrWhiteSpace(app.Description))
+                {
+                    DescriptionText.Text = info.Description;
+                }
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelado normalmente ao mudar de pacote
+        }
+        catch
+        {
+            // Fallback gracioso mantendo os metadados existentes
+            Dispatcher.Invoke(() =>
+            {
+                if (_app == app)
+                {
+                    LastUpdatedText.Text = "Não disponível";
+                    InstallerTypeText.Text = "Padrão";
+                    Sha256Text.Text = "Não disponível";
+                }
+            });
+        }
+        finally
+        {
+            Dispatcher.Invoke(() =>
+            {
+                LoadingProgressBar.Visibility = Visibility.Collapsed;
+            });
+        }
+    }
+
+    private static ExtendedPackageInfo ParseWingetShowOutput(string output)
+    {
+        var info = new ExtendedPackageInfo();
+        var lines = output.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        string currentSection = "";
+
+        foreach (var rawLine in lines)
+        {
+            string line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            // Seções pai (ex.: Marcas:, Instaladora:, Documentação:)
+            if (line.EndsWith(':') && !line.Contains("://", StringComparison.OrdinalIgnoreCase))
+            {
+                currentSection = line.TrimEnd(':').Trim();
+                continue;
+            }
+
+            int colonIdx = line.IndexOf(':');
+            if (colonIdx > 0 && !line.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                string key = line[..colonIdx].Trim();
+                string val = line[(colonIdx + 1)..].Trim();
+
+                if (key.Equals("Versão", StringComparison.OrdinalIgnoreCase) || key.Equals("Version", StringComparison.OrdinalIgnoreCase))
+                    info.Version = val;
+                else if (key.Equals("Fornecedor", StringComparison.OrdinalIgnoreCase) || key.Equals("Publisher", StringComparison.OrdinalIgnoreCase))
+                    info.Publisher = val;
+                else if (key.Equals("Autor", StringComparison.OrdinalIgnoreCase) || key.Equals("Author", StringComparison.OrdinalIgnoreCase))
+                    info.Author = val;
+                else if (key.Equals("Descrição", StringComparison.OrdinalIgnoreCase) || key.Equals("Description", StringComparison.OrdinalIgnoreCase))
+                    info.Description = val;
+                else if (key.Equals("Página inicial", StringComparison.OrdinalIgnoreCase) || key.Equals("Homepage", StringComparison.OrdinalIgnoreCase))
+                    info.Homepage = val;
+                else if (key.Equals("Licença", StringComparison.OrdinalIgnoreCase) || key.Equals("License", StringComparison.OrdinalIgnoreCase))
+                    info.License = val;
+                else if (key.Equals("URL da licença", StringComparison.OrdinalIgnoreCase) || key.Equals("License Url", StringComparison.OrdinalIgnoreCase))
+                    info.LicenseUrl = val;
+                else if (key.Equals("Tipo de instalador", StringComparison.OrdinalIgnoreCase) || key.Equals("Installer Type", StringComparison.OrdinalIgnoreCase))
+                    info.InstallerType = val;
+                else if (key.Contains("URL do instalador", StringComparison.OrdinalIgnoreCase) || key.Contains("Installer Url", StringComparison.OrdinalIgnoreCase))
+                    info.InstallerUrl = val;
+                else if (key.Contains("SHA256", StringComparison.OrdinalIgnoreCase))
+                    info.Sha256 = val;
+                else if (key.Contains("Lançamento", StringComparison.OrdinalIgnoreCase) || key.Contains("Release Date", StringComparison.OrdinalIgnoreCase))
+                    info.ReleaseDate = val;
+                else if (key.Contains("Dependência", StringComparison.OrdinalIgnoreCase) || key.Contains("Dependencies", StringComparison.OrdinalIgnoreCase))
+                    info.Dependencies = val;
+                else if (key.Contains("Notas de lançamento", StringComparison.OrdinalIgnoreCase) || key.Contains("Release Notes", StringComparison.OrdinalIgnoreCase))
+                    info.ReleaseNotes = val;
+                else if (key.Contains("URL das notas", StringComparison.OrdinalIgnoreCase) || key.Contains("Release Notes Url", StringComparison.OrdinalIgnoreCase))
+                    info.ReleaseNotesUrl = val;
+            }
+            else if (currentSection.Equals("Marcas", StringComparison.OrdinalIgnoreCase) || currentSection.Equals("Tags", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                    info.Tags.Add(line);
+            }
+        }
+
+        return info;
     }
 
     private void Close()
     {
+        _detailsCts?.Cancel();
         if (_app is not null)
         {
             _app.PropertyChanged -= AppOnPropertyChanged;
@@ -150,9 +496,6 @@ public partial class AppDetailsOverlay : UserControl
 
     private void AppDetailsOverlay_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        // Esc fecha o painel — só funciona enquanto o controle está visível e com
-        // foco (ver Show acima, que chama Focus()); sem isso, PreviewKeyDown nunca
-        // chegaria aqui porque um UserControl escondido não recebe foco/entrada.
         if ((bool)e.NewValue)
         {
             PreviewKeyDown += AppDetailsOverlay_PreviewKeyDown;
@@ -180,146 +523,133 @@ public partial class AppDetailsOverlay : UserControl
         }
     }
 
-    /// <summary>Alterna entre "Instalar" (não instalado) e "Desinstalar" (instalado).</summary>
     private void UpdateInstallActionsVisibility()
     {
         if (_app is null) return;
 
-        InstallButton.Visibility = _app.IsInstalled ? Visibility.Collapsed : Visibility.Visible;
-        UninstallButton.Visibility = _app.IsInstalled ? Visibility.Visible : Visibility.Collapsed;
-    }
+        bool isUpdateContext = !string.IsNullOrWhiteSpace(_availableUpdateVersion);
+        UpdateButton.Visibility = isUpdateContext ? Visibility.Visible : Visibility.Collapsed;
+        InstallSplitGroup.Visibility = isUpdateContext || _app.IsInstalled ? Visibility.Collapsed : Visibility.Visible;
+        UninstallSplitGroup.Visibility = isUpdateContext || !_app.IsInstalled ? Visibility.Collapsed : Visibility.Visible;
 
-    private void SetupPublisher()
-    {
-        if (_app is null) return;
-
-        bool hasUrl = !string.IsNullOrWhiteSpace(_app.PublisherUrl);
-        PublisherLink.Visibility = hasUrl ? Visibility.Visible : Visibility.Collapsed;
-        PublisherPlainText.Visibility = hasUrl ? Visibility.Collapsed : Visibility.Visible;
-
-        if (hasUrl)
-        {
-            PublisherLinkText.Text = _app.Publisher;
-            PublisherLink.NavigateUri = _app.PublisherUrl!;
-        }
-        else
-        {
-            PublisherPlainText.Text = _app.Publisher;
-        }
-    }
-
-    private void SetupTags()
-    {
-        if (_app is null) return;
-
-        TagsList.ItemsSource = _app.Tags;
-        TagsList.Visibility = _app.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    /// <summary>
-    /// Mostra o tamanho estimado do instalador quando disponível (ver
-    /// AppEntry.InstallerSizeBytes, calculado pelo Indexer na sincronização diária a
-    /// partir da InstallerUrl do manifesto). Ausente = linha inteira escondida, em vez
-    /// de mostrar "0 B" ou um valor enganoso.
-    /// </summary>
-    private void SetupSize()
-    {
-        if (_app is null) return;
-
-        bool hasSize = _app.InstallerSizeBytes is > 0;
-        SizeLabel.Visibility = hasSize ? Visibility.Visible : Visibility.Collapsed;
-        SizeText.Visibility = hasSize ? Visibility.Visible : Visibility.Collapsed;
-
-        if (hasSize)
-        {
-            double megabytes = _app.InstallerSizeBytes!.Value / 1024d / 1024d;
-            SizeText.Text = megabytes >= 1024
-                ? $"~ {megabytes / 1024:0.0} GB"
-                : $"~ {megabytes:0} MB";
-        }
-    }
-
-    private void SetupGitHubStars()
-    {
-        if (_app is null) return;
-
-        bool hasStars = _app.HasGitHubMetrics;
-        GitHubStarsLabel.Visibility = hasStars ? Visibility.Visible : Visibility.Collapsed;
-        GitHubStarsRow.Visibility = hasStars ? Visibility.Visible : Visibility.Collapsed;
-
-        if (hasStars)
-        {
-            GitHubStarsText.Text = _app.GitHubStars?.ToString() ?? "0";
-        }
-    }
-
-    private void SetupLicense()
-    {
-        if (_app is null) return;
-
-        bool hasLicense = !string.IsNullOrWhiteSpace(_app.License);
-        bool hasLicenseUrl = hasLicense && !string.IsNullOrWhiteSpace(_app.LicenseUrl);
-
-        LicenseLabel.Visibility = hasLicense ? Visibility.Visible : Visibility.Collapsed;
-        LicenseLink.Visibility = hasLicenseUrl ? Visibility.Visible : Visibility.Collapsed;
-        LicensePlainText.Visibility = hasLicense && !hasLicenseUrl ? Visibility.Visible : Visibility.Collapsed;
-
-        if (hasLicenseUrl)
-        {
-            LicenseLinkText.Text = _app.License;
-            LicenseLink.NavigateUri = _app.LicenseUrl!;
-        }
-        else if (hasLicense)
-        {
-            LicensePlainText.Text = _app.License;
-        }
-    }
-
-    private void SetupLinkButtons()
-    {
-        if (_app is null) return;
-
-        bool hasHomepage = !string.IsNullOrWhiteSpace(_app.Homepage);
-        HomepageButton.Visibility = hasHomepage ? Visibility.Visible : Visibility.Collapsed;
-        HomepageButton.Tag = _app.Homepage;
-
-        bool hasReleaseNotes = !string.IsNullOrWhiteSpace(_app.ReleaseNotesUrl);
-        ReleaseNotesButton.Visibility = hasReleaseNotes ? Visibility.Visible : Visibility.Collapsed;
-        ReleaseNotesButton.Tag = _app.ReleaseNotesUrl;
     }
 
     private void Scrim_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => Close();
 
-    // Impede que o clique dentro do cartão borbulhe até o Scrim (que fecharia o
-    // painel) - cobre cliques em espaços vazios do cartão, já que cliques em botões
-    // já chegam "Handled" por conta própria (ButtonBase marca isso ao processar).
     private void Card_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void AddToCatalogButton_Click(object sender, RoutedEventArgs e)
+    private void OptionsHeader_Click(object sender, MouseButtonEventArgs e)
     {
-        if (_app is null) return;
-
-        int added = _collectionService.AddRangeToActive([_app]);
-
-        var tabTitle = _collectionService.ActiveTab?.Title ?? "Perfil Padrão";
-        StatusText.Text = added == 1
-            ? $"Adicionado à guia '{tabTitle}'."
-            : $"Já estava na guia '{tabTitle}'.";
+        bool isExpanded = OptionsBodyPanel.Visibility == Visibility.Visible;
+        OptionsBodyPanel.Visibility = isExpanded ? Visibility.Collapsed : Visibility.Visible;
+        OptionsChevronIcon.Symbol = isExpanded
+            ? Wpf.Ui.Controls.SymbolRegular.ChevronDown16
+            : Wpf.Ui.Controls.SymbolRegular.ChevronUp24;
     }
 
+    private void SaveOptionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        OptionsBodyPanel.Visibility = Visibility.Collapsed;
+        OptionsChevronIcon.Symbol = Wpf.Ui.Controls.SymbolRegular.ChevronDown16;
+        StatusText.Text = "Opções salvas para esta sessão.";
+    }
+
+    private void InstallChevronButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement fe)
+        {
+            var menu = new ContextMenu();
+
+            var miUser = new System.Windows.Controls.MenuItem { Header = "Instalar para o usuário atual" };
+            miUser.Click += (_, _) =>
+            {
+                InstallAllUsersCheckBox.IsChecked = false;
+                InstallButton_Click(sender, e);
+            };
+            menu.Items.Add(miUser);
+
+            var miAll = new System.Windows.Controls.MenuItem { Header = "Instalar para todos os usuários (Admin)" };
+            miAll.Click += (_, _) =>
+            {
+                InstallAllUsersCheckBox.IsChecked = true;
+                InstallButton_Click(sender, e);
+            };
+            menu.Items.Add(miAll);
+
+            if (!string.IsNullOrWhiteSpace(InstallerUrlLink.Tag as string))
+            {
+                var miDownload = new System.Windows.Controls.MenuItem { Header = "Baixar instalador apenas" };
+                miDownload.Click += (_, _) => OpenUrl((string)InstallerUrlLink.Tag);
+                menu.Items.Add(miDownload);
+            }
+
+            menu.Items.Add(new Separator());
+            bool alreadyAdded = _app is not null && _collectionService.ActiveTab.Items.Any(item =>
+                string.Equals(item.Id, _app.Id, StringComparison.OrdinalIgnoreCase));
+            var miAddToPackages = new System.Windows.Controls.MenuItem
+            {
+                Header = !CanAddCurrentAppToPackages ? "Disponível apenas para WinGet e Microsoft Store" : alreadyAdded ? "Já está nos pacotes" : "Adicionar app aos pacotes",
+                IsEnabled = CanAddCurrentAppToPackages && !alreadyAdded
+            };
+            miAddToPackages.Click += (_, _) => AddCurrentAppToPackages();
+            menu.Items.Add(miAddToPackages);
+            menu.PlacementTarget = fe;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void UninstallChevronButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement target) return;
+
+        bool alreadyAdded = _app is not null && _collectionService.ActiveTab.Items.Any(item =>
+            string.Equals(item.Id, _app.Id, StringComparison.OrdinalIgnoreCase));
+        var menu = new ContextMenu();
+        var addToPackages = new System.Windows.Controls.MenuItem
+        {
+            Header = !CanAddCurrentAppToPackages ? "Disponível apenas para WinGet e Microsoft Store" : alreadyAdded ? "Já está nos pacotes" : "Adicionar app aos pacotes",
+            IsEnabled = CanAddCurrentAppToPackages && !alreadyAdded
+        };
+        addToPackages.Click += (_, _) => AddCurrentAppToPackages();
+        menu.Items.Add(addToPackages);
+        menu.PlacementTarget = target;
+        menu.IsOpen = true;
+    }
+    private bool CanAddCurrentAppToPackages => _app is not null && IsSupportedCollectionSource(_app.Source);
+
+    private static bool IsMicrosoftStoreSource(string? source) =>
+        string.Equals(source?.Trim(), "msstore", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(source?.Trim(), "Microsoft Store", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSupportedCollectionSource(string? source) =>
+        string.Equals(source?.Trim(), "winget", StringComparison.OrdinalIgnoreCase)
+        || source?.Trim().StartsWith("WinGet:", StringComparison.OrdinalIgnoreCase) == true
+        || string.Equals(source?.Trim(), "msstore", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(source?.Trim(), "Microsoft Store", StringComparison.OrdinalIgnoreCase);
+
+    private void AddCurrentAppToPackages()
+    {
+        if (_app is null) return;
+        if (!CanAddCurrentAppToPackages)
+        {
+            StatusText.Text = "Somente pacotes WinGet e Microsoft Store podem ser adicionados à coleção.";
+            return;
+        }
+
+        int added = _collectionService.AddRangeToActive([_app]);
+        string tabTitle = _collectionService.ActiveTab?.Title ?? "Perfil Padrão";
+        StatusText.Text = added > 0
+            ? $"{_app.Name} adicionado à coleção '{tabTitle}'."
+            : $"{_app.Name} já está na coleção '{tabTitle}'.";
+    }
     private async void InstallButton_Click(object sender, RoutedEventArgs e)
     {
         if (_app is null) return;
 
-        // Captura numa variável local: o painel pode ser fechado (Close() zera _app)
-        // enquanto este await está pendente — ex.: o usuário fecha o painel enquanto
-        // aguarda a resposta ao prompt de UAC de uma elevação sob demanda. Usar _app
-        // direto depois do await arriscava NullReferenceException nesse cenário.
         var app = _app;
-
         InstallButton.IsEnabled = false;
+        InstallChevronButton.IsEnabled = false;
         StatusText.Text = $"{app.Name} entrou na fila de instalação.";
 
         try
@@ -330,16 +660,10 @@ public partial class AppDetailsOverlay : UserControl
 
             if (result.Success)
             {
-                // Dispara AppOnPropertyChanged -> UpdateInstallActionsVisibility, que troca
-                // "Instalar" por "Abrir"/"Desinstalar" automaticamente — só faz sentido se o
-                // painel ainda estiver mostrando esse mesmo app.
                 app.IsInstalled = true;
                 if (_app == app)
-                {
                     StatusText.Text = $"{app.Name} instalado.";
-                }
             }
-
             else if (_app == app)
             {
                 StatusText.Text = WingetErrorTranslator.ToMessage(result.FailureReason, "instalar", app.Name);
@@ -348,13 +672,43 @@ public partial class AppDetailsOverlay : UserControl
         catch
         {
             if (_app == app)
-            {
                 StatusText.Text = $"Não foi possível instalar {app.Name}. Tente novamente.";
-            }
         }
         finally
         {
             InstallButton.IsEnabled = true;
+            InstallChevronButton.IsEnabled = true;
+        }
+    }
+
+    private async void UpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_app is null) return;
+
+        var app = _app;
+        UpdateButton.IsEnabled = false;
+        StatusText.Text = $"{app.Name} entrou na fila de atualização.";
+
+        try
+        {
+            var result = await OperationRunner.RunUpdateAsync(
+                _queueService, _wingetExecutor, app.Id, app.Name, app.IconUrl, app.Source);
+
+            if (_app == app)
+            {
+                StatusText.Text = result.Success
+                    ? $"{app.Name} atualizado."
+                    : WingetErrorTranslator.ToMessage(result.FailureReason, "atualizar", app.Name);
+            }
+        }
+        catch
+        {
+            if (_app == app)
+                StatusText.Text = $"Não foi possível atualizar {app.Name}. Tente novamente.";
+        }
+        finally
+        {
+            UpdateButton.IsEnabled = true;
         }
     }
 
@@ -367,41 +721,20 @@ public partial class AppDetailsOverlay : UserControl
         };
 
         if (dialog.ShowDialog() != true || string.IsNullOrWhiteSpace(dialog.FolderName))
-        {
             return;
-        }
 
         _installLocation = dialog.FolderName;
-        SelectLocationButton.ToolTip = _installLocation;
-        ClearLocationButton.Visibility = Visibility.Visible;
-    }
-
-    private void ClearLocationButton_Click(object sender, RoutedEventArgs e)
-    {
-        _installLocation = null;
-        SelectLocationButton.ToolTip = "Usar um local de instalação personalizado";
-        ClearLocationButton.Visibility = Visibility.Collapsed;
+        SelectedLocationText.Text = _installLocation;
     }
 
     private async void UninstallButton_Click(object sender, RoutedEventArgs e)
     {
         if (_app is null) return;
 
-        // Confirmação antes de qualquer ação destrutiva - mesmo padrão (Wpf.Ui MessageBox)
-        // já usado no rodapé do MainWindow para confirmar o fechamento do app.
-        //
-        // O botão primário do MessageBox é um ui:Button interno do próprio template da
-        // janela, sem Background/MouseOverBackground/PressedBackground expostos nas
-        // propriedades públicas do MessageBox. A forma que já funciona no resto do app
-        // (ver o Style com BasedOn="{StaticResource {x:Type ui:Button}}" nos cards da
-        // HomePage) é sobrescrever o Style implícito de ui:Button só dentro da janela do
-        // diálogo, herdando do Style padrão e adicionando um Trigger para
-        // Appearance="Primary" que aplica o mesmo azul fixo (InstallActionBrush) usado
-        // nos outros botões de ação - não mexe no Style global do app, só nesse diálogo.
         var confirmDialog = new Wpf.Ui.Controls.MessageBox
         {
             Title = "Desinstalar aplicativo",
-            Content = $"Desinstalar “{_app.Name}”?",
+            Content = $"Desinstalar {_app.Name}?",
             PrimaryButtonText = "Desinstalar",
             CloseButtonText = "Cancelar"
         };
@@ -425,18 +758,11 @@ public partial class AppDetailsOverlay : UserControl
 
         var confirmResult = await confirmDialog.ShowDialogAsync();
         if (confirmResult != Wpf.Ui.Controls.MessageBoxResult.Primary)
-        {
             return;
-        }
 
         if (_app is null) return;
 
-        // Mesmo motivo do InstallButton_Click: captura local pra sobreviver ao painel
-        // sendo fechado (Close() zera _app) enquanto aguarda o await abaixo — cenário bem
-        // mais provável agora que uma desinstalação pode ficar esperando o usuário
-        // responder a um prompt de UAC (elevação sob demanda).
         var app = _app;
-
         UninstallButton.IsEnabled = false;
         StatusText.Text = $"{app.Name} entrou na fila de desinstalação.";
 
@@ -457,9 +783,7 @@ public partial class AppDetailsOverlay : UserControl
         catch
         {
             if (_app == app)
-            {
                 StatusText.Text = $"Não foi possível desinstalar {app.Name}. Tente novamente.";
-            }
         }
         finally
         {
@@ -469,18 +793,18 @@ public partial class AppDetailsOverlay : UserControl
 
     private void OpenLink_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: string { Length: > 0 } url })
+        if (sender is FrameworkElement { Tag: string { Length: > 0 } url })
         {
-            return;
+            OpenUrl(url);
         }
+    }
 
+    private static void OpenUrl(string url)
+    {
         try
         {
             Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         }
-        catch
-        {
-            StatusText.Text = "Não foi possível abrir o link. Tente novamente.";
-        }
+        catch { }
     }
 }

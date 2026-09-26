@@ -16,6 +16,10 @@ namespace WinProvision.Store.Services;
 public sealed class AppDetailsOverlayService
 {
     public event Action<AppEntry>? Requested;
+    public event Action<AppEntry, string, string>? UpdateRequested;
 
     public void Show(AppEntry app) => Requested?.Invoke(app);
+
+    public void ShowUpdate(AppEntry app, string currentVersion, string availableVersion) =>
+        UpdateRequested?.Invoke(app, currentVersion, availableVersion);
 }

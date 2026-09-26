@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 using WinProvision.Core.Models;
@@ -7,59 +8,40 @@ using WinProvision.Core.Models;
 namespace WinProvision.Store.Converters;
 
 /// <summary>
-/// Resolve a cor de um GradientStop da barra de progresso (ver GradientProgressBar.xaml)
-/// conforme a via da operação (<see cref="WingetMethod"/>). Usado via Binding direto no
-/// próprio Color do GradientStop — não dá pra usar Setter.TargetName num GradientStop (erro de
-/// compilação MC4111: "o destino deve aparecer antes dos Setters/Triggers que o utilizem", que
-/// só vale pra FrameworkElement, não pra Freezable declarado dentro de uma árvore de
-/// propriedades). Bindar o Color diretamente contorna isso e continua funcionando tanto no
-/// preenchimento determinado (download/instalação com %) quanto na faixa indeterminada — a
-/// mesma via colore os dois.
-///
-/// ConverterParameter é "A", "B" ou "C", correspondendo aos mesmos três tons que cada via já
-/// usa (GradientProgressColorA/B/C é o padrão sem via identificada).
+/// Resolve tons derivados da cor fixa do método para compatibilidade com preenchimentos em gradiente.
+/// O preenchimento sólido da fila usa <see cref="WingetMethodBrushConverter"/>.
 /// </summary>
 public class WingetMethodStopColorConverter : IValueConverter
 {
-    private static readonly Color DefaultA = Color.FromRgb(0x3A, 0x8D, 0xFF);
-    private static readonly Color DefaultB = Color.FromRgb(0x7C, 0xD4, 0xFD);
-    private static readonly Color DefaultC = Color.FromRgb(0xEA, 0xF6, 0xFF);
-
-    private static readonly Color ComA = Color.FromRgb(0x8A, 0x4F, 0xFF);
-    private static readonly Color ComB = Color.FromRgb(0xC9, 0xA6, 0xFF);
-    private static readonly Color ComC = Color.FromRgb(0xEF, 0xE6, 0xFF);
-
-    private static readonly Color OwnApiA = Color.FromRgb(0xE0, 0xB4, 0x00);
-    private static readonly Color OwnApiB = Color.FromRgb(0xFF, 0xDE, 0x7A);
-    private static readonly Color OwnApiC = Color.FromRgb(0xFF, 0xF6, 0xD8);
-
-    private static readonly Color WingetA = Color.FromRgb(0x00, 0xB8, 0xD9);
-    private static readonly Color WingetB = Color.FromRgb(0x7F, 0xE8, 0xF5);
-    private static readonly Color WingetC = Color.FromRgb(0xE6, 0xFB, 0xFF);
-
     public object Convert(object? value, Type targetType, object parameter, CultureInfo culture)
     {
-        var slot = parameter as string ?? "A";
-        var method = value as WingetMethod? ?? WingetMethod.Unknown;
-
-        return (method, slot) switch
+        var method = value is WingetMethod typed ? typed : WingetMethod.Unknown;
+        var resourceKey = method switch
         {
-            (WingetMethod.ComApi, "A") => ComA,
-            (WingetMethod.ComApi, "B") => ComB,
-            (WingetMethod.ComApi, "C") => ComC,
-
-            (WingetMethod.OwnApi, "A") => OwnApiA,
-            (WingetMethod.OwnApi, "B") => OwnApiB,
-            (WingetMethod.OwnApi, "C") => OwnApiC,
-
-            (WingetMethod.WingetExe, "A") => WingetA,
-            (WingetMethod.WingetExe, "B") => WingetB,
-            (WingetMethod.WingetExe, "C") => WingetC,
-
-            (_, "B") => DefaultB,
-            (_, "C") => DefaultC,
-            _ => DefaultA
+            WingetMethod.ComApi => "AppOperationComBrush",
+            WingetMethod.OwnApi => "AppOperationApiBrush",
+            WingetMethod.WingetExe => "AppOperationWingetBrush",
+            _ => "AppOperationDefaultBrush"
         };
+        var baseColor = Application.Current?.TryFindResource(resourceKey) is SolidColorBrush brush
+            ? brush.Color
+            : Color.FromRgb(0x16, 0x88, 0xE8);
+
+        var slot = parameter as string ?? "A";
+        return slot switch
+        {
+            "B" => Lighten(baseColor, 0.35),
+            "C" => Lighten(baseColor, 0.72),
+            _ => baseColor
+        };
+    }
+
+    private static Color Lighten(Color color, double amount)
+    {
+        static byte Mix(byte source, double amount) =>
+            (byte)Math.Clamp(source + ((byte.MaxValue - source) * amount), 0, byte.MaxValue);
+
+        return Color.FromArgb(color.A, Mix(color.R, amount), Mix(color.G, amount), Mix(color.B, amount));
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
@@ -72,14 +54,26 @@ public sealed class WingetMethodBrushConverter : IValueConverter
     public object Convert(object? value, Type targetType, object parameter, CultureInfo culture)
     {
         var method = value is WingetMethod typed ? typed : WingetMethod.Unknown;
-        Color color = method switch
+        var resourceKey = method switch
         {
-            WingetMethod.ComApi => Color.FromRgb(0x8A, 0x4F, 0xFF),
-            WingetMethod.OwnApi => Color.FromRgb(0xE0, 0xB4, 0x00),
-            WingetMethod.WingetExe => Color.FromRgb(0x00, 0xB8, 0xD9),
-            _ => Color.FromRgb(0x3A, 0x8D, 0xFF)
+            WingetMethod.ComApi => "AppOperationComBrush",
+            WingetMethod.OwnApi => "AppOperationApiBrush",
+            WingetMethod.WingetExe => "AppOperationWingetBrush",
+            _ => "AppOperationDefaultBrush"
         };
-        return new SolidColorBrush(color);
+
+        if (Application.Current?.TryFindResource(resourceKey) is Brush resourceBrush)
+        {
+            return resourceBrush;
+        }
+
+        Color fallback = method switch
+        {
+            WingetMethod.ComApi => Color.FromRgb(0xB9, 0x91, 0xFF),
+            WingetMethod.OwnApi => Color.FromRgb(0xFF, 0x9A, 0x3D),
+            _ => Color.FromRgb(0x16, 0x88, 0xE8)
+        };
+        return new SolidColorBrush(fallback);
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>

@@ -13,7 +13,7 @@ namespace WinProvision.Core.Services.Backup;
 
 /// <summary>
 /// Backup em nuvem de TODAS as guias de pacotes (ver <see cref="ProfileBackupSet"/>),
-/// num Gist SECRETO do GitHub do próprio usuário — mesma ideia do UnigetUI, mas via
+/// num Gist SECRETO do GitHub do próprio usuário — usando
 /// Personal Access Token colado direto (sem precisar registrar um GitHub OAuth App
 /// para o Device Flow).
 ///

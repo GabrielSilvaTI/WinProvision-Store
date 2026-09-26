@@ -1,12 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Win32;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Services;
@@ -15,6 +18,15 @@ namespace WinProvision.Store;
 
 public partial class UpdatesPage : Page
 {
+    private enum SortField
+    {
+        Name,
+        Id,
+        Version,
+        NewVersion,
+        Source
+    }
+
     private readonly WingetExecutor _wingetExecutor;
     private readonly WinGetService _winGetService;
     private readonly StoreService _storeService;
@@ -23,9 +35,19 @@ public partial class UpdatesPage : Page
     private readonly IgnoredUpdatesService _ignoredUpdatesService;
     private readonly AppDetailsOverlayService _detailsOverlayService;
 
-    private readonly ObservableCollection<UpgradablePackage> _packages = new();
+    // Coleções
+    private readonly List<UpgradablePackage> _rawPackages = [];
+    private readonly ObservableCollection<UpgradablePackage> _filteredPackages = [];
+    private readonly ObservableCollection<IgnoredUpdateEntry> _ignoredPackages = [];
 
+    // Estado de ordenação e filtros
+    private SortField _currentSortField = SortField.Name;
+    private bool _sortAscending = true;
+    private bool _suppressSortModeSelectionChanged;
+    private DateTime? _lastVerificationTime;
     private bool _suppressAutoUpdateToggleEvent;
+    private bool _selectAllByDefault = true;
+    private UpgradablePackage? _selectedPackage;
 
     public UpdatesPage()
     {
@@ -39,9 +61,12 @@ public partial class UpdatesPage : Page
         _ignoredUpdatesService = App.Services.GetRequiredService<IgnoredUpdatesService>();
         _detailsOverlayService = App.Services.GetRequiredService<AppDetailsOverlayService>();
 
-        UpdatesList.ItemsSource = _packages;
-        UpdatesListView.ItemsSource = _packages;
-        SetViewMode(list: false);
+        UpdatesTableView.ItemsSource = _filteredPackages;
+        UpdatesGridView.ItemsSource = _filteredPackages;
+        UpdatesIconsView.ItemsSource = _filteredPackages;
+        IgnoredUpdatesModalList.ItemsSource = _ignoredPackages;
+
+        RefreshIgnoredUpdates();
 
         Loaded += async (_, _) =>
         {
@@ -51,7 +76,7 @@ public partial class UpdatesPage : Page
     }
 
     // ----------------------------------------------------------------
-    // Atualizações Automáticas (Tarefa Agendada)
+    // Atualizações Automáticas & Opções
     // ----------------------------------------------------------------
 
     private async Task LoadAutoUpdateStateAsync()
@@ -60,7 +85,7 @@ public partial class UpdatesPage : Page
         try
         {
             bool isEnabled = await _scheduledUpdatesService.IsEnabledAsync();
-            AutoUpdateToggle.IsChecked = isEnabled;
+            AutoUpdateSwitch.IsChecked = isEnabled;
         }
         finally
         {
@@ -68,39 +93,39 @@ public partial class UpdatesPage : Page
         }
     }
 
-    private async void AutoUpdateToggle_Checked(object sender, RoutedEventArgs e)
+    private async void AutoUpdateSwitch_Checked(object sender, RoutedEventArgs e)
     {
         if (_suppressAutoUpdateToggleEvent) return;
 
-        AutoUpdateToggle.IsEnabled = false;
+        AutoUpdateSwitch.IsEnabled = false;
         var result = await _scheduledUpdatesService.EnableAsync();
 
         if (!result.Success)
         {
             _suppressAutoUpdateToggleEvent = true;
-            AutoUpdateToggle.IsChecked = false;
+            AutoUpdateSwitch.IsChecked = false;
             _suppressAutoUpdateToggleEvent = false;
             StatusText.Text = FormatScheduledTaskFailure("ativar", result);
         }
         else
         {
-            StatusText.Text = "Atualizações automáticas ativadas (Ao iniciar o PC).";
+            StatusText.Text = "Atualizações automáticas ativadas (ao iniciar o PC).";
         }
 
-        AutoUpdateToggle.IsEnabled = true;
+        AutoUpdateSwitch.IsEnabled = true;
     }
 
-    private async void AutoUpdateToggle_Unchecked(object sender, RoutedEventArgs e)
+    private async void AutoUpdateSwitch_Unchecked(object sender, RoutedEventArgs e)
     {
         if (_suppressAutoUpdateToggleEvent) return;
 
-        AutoUpdateToggle.IsEnabled = false;
+        AutoUpdateSwitch.IsEnabled = false;
         var result = await _scheduledUpdatesService.DisableAsync();
 
         if (!result.Success)
         {
             _suppressAutoUpdateToggleEvent = true;
-            AutoUpdateToggle.IsChecked = true;
+            AutoUpdateSwitch.IsChecked = true;
             _suppressAutoUpdateToggleEvent = false;
             StatusText.Text = FormatScheduledTaskFailure("desativar", result);
         }
@@ -109,7 +134,7 @@ public partial class UpdatesPage : Page
             StatusText.Text = "Atualizações automáticas desativadas.";
         }
 
-        AutoUpdateToggle.IsEnabled = true;
+        AutoUpdateSwitch.IsEnabled = true;
     }
 
     private static string FormatScheduledTaskFailure(string action, WingetExecutionResult result)
@@ -123,37 +148,24 @@ public partial class UpdatesPage : Page
         return $"Falha ao {action}: {detail}";
     }
 
+    private void SelectAllByDefaultSwitch_Click(object sender, RoutedEventArgs e)
+    {
+        _selectAllByDefault = SelectAllByDefaultSwitch.IsChecked == true;
+    }
+
     // ----------------------------------------------------------------
-    // Verificar atualizações (winget upgrade)
+    // Verificação de Atualizações (CheckUpdatesAsync)
     // ----------------------------------------------------------------
 
     private async void CheckUpdatesButton_Click(object sender, RoutedEventArgs e) => await CheckUpdatesAsync();
 
-    private void GridViewToggleButton_Click(object sender, RoutedEventArgs e) => SetViewMode(list: false);
-
-    private void ListViewToggleButton_Click(object sender, RoutedEventArgs e) => SetViewMode(list: true);
-
-    private void SetViewMode(bool list)
-    {
-        GridViewScrollViewer.Visibility = list ? Visibility.Collapsed : Visibility.Visible;
-        ListViewScrollViewer.Visibility = list ? Visibility.Visible : Visibility.Collapsed;
-        GridViewToggleButton.IsChecked = !list;
-        ListViewToggleButton.IsChecked = list;
-
-        Brush accent = TryFindResource("SystemAccentColorPrimaryBrush") as Brush ?? SystemColors.HighlightBrush;
-        Brush primaryText = TryFindResource("TextFillColorPrimaryBrush") as Brush ?? SystemColors.ControlTextBrush;
-        GridViewToggleButton.Background = !list ? accent : Brushes.Transparent;
-        ListViewToggleButton.Background = list ? accent : Brushes.Transparent;
-        GridViewToggleButton.Foreground = !list ? Brushes.White : primaryText;
-        ListViewToggleButton.Foreground = list ? Brushes.White : primaryText;
-    }
-
     private async Task CheckUpdatesAsync()
     {
-        CheckUpdatesButton.IsEnabled = false;
+        ReloadButton.IsEnabled = false;
         UpdateSelectedButton.IsEnabled = false;
-        BusyIndicator.Visibility = Visibility.Visible;
-        StatusText.Text = "Procurando atualizações...";
+        TopProgressBar.Visibility = Visibility.Visible;
+        StatusText.Text = "Procurando atualizações disponíveis...";
+        SubtitleText.Text = "Procurando atualizações disponíveis...";
 
         try
         {
@@ -170,130 +182,511 @@ public partial class UpdatesPage : Page
                 }
             }
 
-            _packages.Clear();
+            _rawPackages.Clear();
             foreach (var package in upgradable)
             {
+                if (!HasNewerAvailableVersion(package))
+                {
+                    continue;
+                }
+
                 if (_ignoredUpdatesService.IsIgnored(package.Id, package.AvailableVersion))
                 {
                     continue;
                 }
-                _packages.Add(package);
+
+                package.IsSelectedForUpdate = _selectAllByDefault;
+                _rawPackages.Add(package);
             }
 
-            SetSelectAllButtonState(0);
-            LastSearchText.Text = $"Última busca: Hoje às {DateTime.Now:HH:mm}";
-
-            StatusText.Text = _packages.Count == 0
+            _lastVerificationTime = DateTime.Now;
+            ApplyFilters();
+            StatusText.Text = _rawPackages.Count == 0
                 ? "Nenhuma atualização disponível. Tudo em dia."
-                : FormatAvailableUpdatesMessage(_packages.Count);
+                : $"Encontradas {_rawPackages.Count} atualizações.";
         }
         catch (Exception ex)
         {
             WinProvisionLog.Write($"UPDATE UI discovery failed {ex.GetType().Name}: {ex.Message}");
             StatusText.Text = "Não foi possível verificar atualizações. Tente novamente.";
+            SubtitleText.Text = "Falha ao verificar atualizações.";
         }
         finally
         {
-            CheckUpdatesButton.IsEnabled = true;
+            ReloadButton.IsEnabled = true;
             UpdateSelectedButton.IsEnabled = true;
-            BusyIndicator.Visibility = Visibility.Collapsed;
-            SyncSelectAllCheckBoxState();
+            TopProgressBar.Visibility = Visibility.Collapsed;
         }
     }
 
-    private static string FormatAvailableUpdatesMessage(int count)
+    private static bool HasNewerAvailableVersion(UpgradablePackage package)
     {
-        return count == 1
-            ? "Há 1 atualização disponível."
-            : $"Há {count} atualizações disponíveis.";
+        string current = package.CurrentVersion.Trim();
+        string available = package.AvailableVersion.Trim();
+
+        if (string.IsNullOrEmpty(current)
+            || string.IsNullOrEmpty(available)
+            || current.Equals("Unknown", StringComparison.OrdinalIgnoreCase)
+            || available.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (current.Equals(available, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (Version.TryParse(current, out Version? currentParsed)
+            && Version.TryParse(available, out Version? availableParsed))
+        {
+            var normalizedCurrent = new Version(
+                currentParsed.Major, currentParsed.Minor, Math.Max(currentParsed.Build, 0), Math.Max(currentParsed.Revision, 0));
+            var normalizedAvailable = new Version(
+                availableParsed.Major, availableParsed.Minor, Math.Max(availableParsed.Build, 0), Math.Max(availableParsed.Revision, 0));
+            return normalizedAvailable > normalizedCurrent;
+        }
+
+        return true;
     }
 
     // ----------------------------------------------------------------
-    // Seleção (checkbox por item + "Selecionar todos")
+    // Filtragem, pesquisa e ordenação
     // ----------------------------------------------------------------
 
-    private void UpdateItemCard_Click(object sender, MouseButtonEventArgs e)
+    private void ApplyFilters()
     {
-        if (e.OriginalSource is DependencyObject source && FindVisualParent<Button>(source) is not null)
+        string query = SearchBox.Text?.Trim() ?? string.Empty;
+        bool filterWinget = SourceWingetCheck.IsChecked == true;
+        bool filterMsStore = SourceMsStoreCheck.IsChecked == true;
+        bool filterOther = SourceOtherCheck.IsChecked == true;
+        bool hideSameVersion = HideSameVersionCheck.IsChecked == true;
+
+        IEnumerable<UpgradablePackage> queryable = _rawPackages;
+
+        // Filtro de fontes
+        queryable = queryable.Where(p =>
         {
-            return;
+            string source = (p.Source ?? string.Empty).ToLowerInvariant();
+            if (source.Contains("winget")) return filterWinget;
+            if (source.Contains("msstore")) return filterMsStore;
+            return filterOther;
+        });
+
+        // Ocultar versões idênticas se marcado
+        if (hideSameVersion)
+        {
+            queryable = queryable.Where(p => !string.Equals(p.CurrentVersion.Trim(), p.AvailableVersion.Trim(), StringComparison.OrdinalIgnoreCase));
         }
 
-        if (sender is not FrameworkElement element
-            || element.DataContext is not UpgradablePackage package
-            || package.IsUpdating)
+        // Pesquisa de texto
+        if (!string.IsNullOrWhiteSpace(query))
         {
-            return;
-        }
+            bool exact = SearchModeExactRadio.IsChecked == true;
+            bool onlyName = SearchModeNameRadio.IsChecked == true;
+            bool onlyId = SearchModeIdRadio.IsChecked == true;
 
-        package.IsSelectedForUpdate = !package.IsSelectedForUpdate;
-        SyncSelectAllCheckBoxState();
-        e.Handled = true;
-    }
-
-    private static T? FindVisualParent<T>(DependencyObject? child)
-        where T : DependencyObject
-    {
-        while (child is not null)
-        {
-            if (child is T parent)
+            queryable = queryable.Where(p =>
             {
-                return parent;
-            }
+                if (exact)
+                {
+                    if (onlyName) return string.Equals(p.Name, query, StringComparison.OrdinalIgnoreCase);
+                    if (onlyId) return string.Equals(p.Id, query, StringComparison.OrdinalIgnoreCase);
+                    return string.Equals(p.Name, query, StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(p.Id, query, StringComparison.OrdinalIgnoreCase);
+                }
 
-            child = VisualTreeHelper.GetParent(child);
+                if (onlyName) return p.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
+                if (onlyId) return p.Id.Contains(query, StringComparison.OrdinalIgnoreCase);
+                return p.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                       p.Id.Contains(query, StringComparison.OrdinalIgnoreCase);
+            });
         }
 
-        return null;
-    }
-
-    private void SelectAllCheckBox_Click(object sender, RoutedEventArgs e)
-    {
-        if (_packages.Count == 0) return;
-
-        bool selectAll = !_packages.All(p => p.IsSelectedForUpdate);
-
-        foreach (var package in _packages)
+        // Ordenação
+        queryable = _currentSortField switch
         {
-            package.IsSelectedForUpdate = selectAll;
+            SortField.Name => _sortAscending
+                ? queryable.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                : queryable.OrderByDescending(p => p.Name, StringComparer.OrdinalIgnoreCase),
+            SortField.Id => _sortAscending
+                ? queryable.OrderBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
+                : queryable.OrderByDescending(p => p.Id, StringComparer.OrdinalIgnoreCase),
+            SortField.Version => _sortAscending
+                ? queryable.OrderBy(p => p.CurrentVersion, StringComparer.OrdinalIgnoreCase)
+                : queryable.OrderByDescending(p => p.CurrentVersion, StringComparer.OrdinalIgnoreCase),
+            SortField.NewVersion => _sortAscending
+                ? queryable.OrderBy(p => p.AvailableVersion, StringComparer.OrdinalIgnoreCase)
+                : queryable.OrderByDescending(p => p.AvailableVersion, StringComparer.OrdinalIgnoreCase),
+            SortField.Source => _sortAscending
+                ? queryable.OrderBy(p => p.SourceLabel, StringComparer.OrdinalIgnoreCase)
+                : queryable.OrderByDescending(p => p.SourceLabel, StringComparer.OrdinalIgnoreCase),
+            _ => queryable
+        };
+
+        var filteredList = queryable.ToList();
+        _filteredPackages.Clear();
+        foreach (var item in filteredList)
+        {
+            _filteredPackages.Add(item);
         }
 
-        SetSelectAllButtonState(selectAll ? _packages.Count : 0);
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+
+        // Estado Vazio
+        bool isEmpty = _filteredPackages.Count == 0;
+        EmptyStatePanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        TableScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeListRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
+        GridViewScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeGridRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
+        IconsViewScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeIconsRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
     }
 
-    private void SyncSelectAllCheckBoxState()
+    private void UpdateSubtitleAndCounters()
     {
-        int selected = _packages.Count(p => p.IsSelectedForUpdate);
+        int total = _rawPackages.Count;
+        int filtered = _filteredPackages.Count;
+        int selected = _filteredPackages.Count(p => p.IsSelectedForUpdate);
 
-        SetSelectAllButtonState(selected);
-    }
+        string lastChecked = _lastVerificationTime.HasValue
+            ? _lastVerificationTime.Value.ToString("dd/MM/yyyy HH:mm:ss")
+            : DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
 
-    private void SetSelectAllButtonState(int selected)
-    {
-        bool allSelected = _packages.Count > 0 && selected == _packages.Count;
-        SelectAllText.Text = allSelected ? "Desmarcar todos" : "Selecionar todos";
-        SelectAllIcon.Symbol = allSelected
+        SubtitleText.Text = $"{total} pacotes encontrados; {filtered} correspondem aos filtros. Última verificação: {lastChecked}";
+        SelectionSummaryText.Text = $"Selecionados: {selected} · Ação: Atualizar seleção";
+
+        bool hasSelection = selected > 0;
+        UpdateSelectedButton.IsEnabled = hasSelection;
+        UpdateVariantsButton.IsEnabled = hasSelection;
+        UninstallSelectedButton.IsEnabled = hasSelection;
+        IgnoreSelectedButton.IsEnabled = hasSelection;
+        PackageDetailsToolbarButton.IsEnabled = _filteredPackages.Count > 0;
+
+        ToggleSelectAllToolbarButton.IsEnabled = _filteredPackages.Count > 0;
+        bool allSelected = _filteredPackages.Count > 0 && selected == _filteredPackages.Count;
+        ToggleSelectAllToolbarText.Text = allSelected ? "Limpar seleção" : "Selecionar todos";
+        ToggleSelectAllToolbarIcon.Symbol = allSelected
             ? Wpf.Ui.Controls.SymbolRegular.DismissCircle24
             : Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24;
     }
 
-    // ----------------------------------------------------------------
-    // Atualizar selecionados (winget update)
-    // ----------------------------------------------------------------
-
-    private async void UpdateSelectedButton_Click(object sender, RoutedEventArgs e)
+    private void SyncMasterCheckBoxState()
     {
-        var selected = _packages.Where(p => p.IsSelectedForUpdate).ToList();
+        if (_filteredPackages.Count == 0)
+        {
+            MasterSelectCheckBox.IsChecked = false;
+            return;
+        }
 
+        int selected = _filteredPackages.Count(p => p.IsSelectedForUpdate);
+        if (selected == _filteredPackages.Count)
+        {
+            MasterSelectCheckBox.IsChecked = true;
+        }
+        else if (selected == 0)
+        {
+            MasterSelectCheckBox.IsChecked = false;
+        }
+        else
+        {
+            MasterSelectCheckBox.IsChecked = null; // Indeterminado
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Interações de Cabeçalho / Ordenação
+    // ----------------------------------------------------------------
+
+    private void HeaderSortName_Click(object sender, RoutedEventArgs e) => SetSort(SortField.Name);
+    private void HeaderSortId_Click(object sender, RoutedEventArgs e) => SetSort(SortField.Id);
+    private void HeaderSortVersion_Click(object sender, RoutedEventArgs e) => SetSort(SortField.Version);
+    private void HeaderSortNewVersion_Click(object sender, RoutedEventArgs e) => SetSort(SortField.NewVersion);
+    private void HeaderSortSource_Click(object sender, RoutedEventArgs e) => SetSort(SortField.Source);
+
+    private void SetSort(SortField field)
+    {
+        if (_currentSortField == field)
+        {
+            _sortAscending = !_sortAscending;
+        }
+        else
+        {
+            _currentSortField = field;
+            _sortAscending = true;
+        }
+
+        UpdateSortIcons();
+        ApplyFilters();
+    }
+
+    private void UpdateSortIcons()
+    {
+        SortNameIcon.Visibility = _currentSortField == SortField.Name ? Visibility.Visible : Visibility.Collapsed;
+        SortIdIcon.Visibility = _currentSortField == SortField.Id ? Visibility.Visible : Visibility.Collapsed;
+        SortVersionIcon.Visibility = _currentSortField == SortField.Version ? Visibility.Visible : Visibility.Collapsed;
+        SortNewVersionIcon.Visibility = _currentSortField == SortField.NewVersion ? Visibility.Visible : Visibility.Collapsed;
+        SortSourceIcon.Visibility = _currentSortField == SortField.Source ? Visibility.Visible : Visibility.Collapsed;
+
+        var symbol = _sortAscending ? Wpf.Ui.Controls.SymbolRegular.ArrowUp24 : Wpf.Ui.Controls.SymbolRegular.ArrowDown24;
+        SortNameIcon.Symbol = symbol;
+        SortIdIcon.Symbol = symbol;
+        SortVersionIcon.Symbol = symbol;
+        SortNewVersionIcon.Symbol = symbol;
+        SortSourceIcon.Symbol = symbol;
+
+        int selectedIndex = _currentSortField switch
+        {
+            SortField.Id => 1,
+            SortField.Version => 2,
+            SortField.NewVersion => 3,
+            SortField.Source => 4,
+            _ => 0
+        };
+        _suppressSortModeSelectionChanged = true;
+        SortModeComboBox.SelectedIndex = selectedIndex;
+        _suppressSortModeSelectionChanged = false;
+    }
+
+    private void SortModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || _suppressSortModeSelectionChanged || SortModeComboBox.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        _currentSortField = SortModeComboBox.SelectedIndex switch
+        {
+            1 => SortField.Id,
+            2 => SortField.Version,
+            3 => SortField.NewVersion,
+            4 => SortField.Source,
+            _ => SortField.Name
+        };
+        _sortAscending = true;
+        UpdateSortIcons();
+        ApplyFilters();
+    }
+
+    // ----------------------------------------------------------------
+    // Seleção de Pacotes & Interações de Linha
+    // ----------------------------------------------------------------
+
+    private void MasterSelectCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        bool selectAll = MasterSelectCheckBox.IsChecked == true;
+        foreach (var p in _filteredPackages)
+        {
+            p.IsSelectedForUpdate = selectAll;
+        }
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+    }
+
+    private void ToggleSelectAllToolbarButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_filteredPackages.Count == 0)
+            return;
+
+        bool selectAll = _filteredPackages.Any(package => !package.IsSelectedForUpdate);
+        foreach (var package in _filteredPackages)
+            package.IsSelectedForUpdate = selectAll;
+
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+    }
+
+    private void RowCheckBox_Click(object sender, RoutedEventArgs e)
+    {
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+    }
+
+    private void PackageRow_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && FindVisualParent<Button>(source) is not null)
+            return;
+
+        if (sender is not FrameworkElement element || element.Tag is not UpgradablePackage package)
+            return;
+
+        _selectedPackage = package;
+
+        // Se o usuário deu duplo clique, abre detalhes
+        if (e.ClickCount == 2)
+        {
+            OpenPackageDetails(package);
+            return;
+        }
+
+        package.IsSelectedForUpdate = !package.IsSelectedForUpdate;
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+    }
+
+    private void PackageRow_RightClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.Tag is UpgradablePackage package)
+        {
+            _selectedPackage = package;
+        }
+    }
+
+    private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            if (child is T parent) return parent;
+            child = System.Windows.Media.VisualTreeHelper.GetParent(child);
+        }
+        return null;
+    }
+
+    // ----------------------------------------------------------------
+    // Modos de Visualização (Lista / Grade / Ícones)
+    // ----------------------------------------------------------------
+
+    private void ViewModeList_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModeListRadio.IsChecked = true;
+        ViewModeGridRadio.IsChecked = false;
+        ViewModeIconsRadio.IsChecked = false;
+        TableScrollViewer.Visibility = Visibility.Visible;
+        GridViewScrollViewer.Visibility = Visibility.Collapsed;
+        IconsViewScrollViewer.Visibility = Visibility.Collapsed;
+        TableHeaderBar.Visibility = Visibility.Collapsed;
+    }
+
+    private void ViewModeGrid_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModeListRadio.IsChecked = false;
+        ViewModeGridRadio.IsChecked = true;
+        ViewModeIconsRadio.IsChecked = false;
+        TableScrollViewer.Visibility = Visibility.Collapsed;
+        GridViewScrollViewer.Visibility = Visibility.Visible;
+        IconsViewScrollViewer.Visibility = Visibility.Collapsed;
+        TableHeaderBar.Visibility = Visibility.Collapsed;
+    }
+
+    private void ViewModeIcons_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModeListRadio.IsChecked = false;
+        ViewModeGridRadio.IsChecked = false;
+        ViewModeIconsRadio.IsChecked = true;
+        TableScrollViewer.Visibility = Visibility.Collapsed;
+        GridViewScrollViewer.Visibility = Visibility.Collapsed;
+        IconsViewScrollViewer.Visibility = Visibility.Visible;
+        TableHeaderBar.Visibility = Visibility.Collapsed;
+    }
+
+    // ----------------------------------------------------------------
+    // Painel Lateral de Filtros (Expandir / Ocultar)
+    // ----------------------------------------------------------------
+
+    private void ToggleFiltersButton_Click(object sender, RoutedEventArgs e)
+    {
+        bool isOpen = ToggleFiltersButton.IsChecked == true;
+        FilterSidebarColumn.Width = isOpen ? new GridLength(230) : new GridLength(0);
+        FilterSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
+        FilterSidebarPanel.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+        FilterSplitter.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void MoreActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        MoreActionsButton.ContextMenu!.PlacementTarget = MoreActionsButton;
+        MoreActionsButton.ContextMenu.IsOpen = true;
+    }
+
+    private void SourceFilter_Changed(object sender, RoutedEventArgs e)
+    {
+        AllSourcesChip.IsChecked = SourceWingetCheck.IsChecked == true
+            && SourceMsStoreCheck.IsChecked == true
+            && SourceOtherCheck.IsChecked == true;
+        ApplyFilters();
+    }
+
+    private void AllSourcesChip_Click(object sender, RoutedEventArgs e)
+    {
+        bool selectAll = AllSourcesChip.IsChecked == true;
+        SourceWingetCheck.IsChecked = selectAll;
+        SourceMsStoreCheck.IsChecked = selectAll;
+        SourceOtherCheck.IsChecked = selectAll;
+        ApplyFilters();
+    }
+
+    private void FilterOption_Changed(object sender, RoutedEventArgs e) => ApplyFilters();
+    private void SearchMode_Changed(object sender, RoutedEventArgs e) => ApplyFilters();
+    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
+
+    private void SelectAllSources_Click(object sender, RoutedEventArgs e)
+    {
+        AllSourcesChip.IsChecked = true;
+        SourceWingetCheck.IsChecked = true;
+        SourceMsStoreCheck.IsChecked = true;
+        SourceOtherCheck.IsChecked = true;
+        ApplyFilters();
+    }
+
+    private void ClearSources_Click(object sender, RoutedEventArgs e)
+    {
+        AllSourcesChip.IsChecked = false;
+        SourceWingetCheck.IsChecked = false;
+        SourceMsStoreCheck.IsChecked = false;
+        SourceOtherCheck.IsChecked = false;
+        ApplyFilters();
+    }
+
+    // ----------------------------------------------------------------
+    // Operações de Atualização (UpdateSelectedButton & Variantes)
+    // ----------------------------------------------------------------
+
+    private void UpdateSelectedButton_Click(object sender, RoutedEventArgs e)
+    {
+        _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList());
+    }
+
+    private void UninstallSelectedButton_Click(object sender, RoutedEventArgs e) =>
+        _ = UninstallSelectedPackagesAsync();
+
+    private void UpdateVariantsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var menu = new ContextMenu();
+
+        var adminItem = new MenuItem { Header = "Atualizar como administrador" };
+        adminItem.Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Shield24 };
+        adminItem.Click += (_, _) => _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList(), elevated: true);
+        menu.Items.Add(adminItem);
+
+        var interactiveItem = new MenuItem { Header = "Atualização interativa" };
+        interactiveItem.Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Window24 };
+        interactiveItem.Click += (_, _) => _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList(), interactive: true);
+        menu.Items.Add(interactiveItem);
+
+        var skipHashItem = new MenuItem { Header = "Pular verificação de integridade" };
+        skipHashItem.Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Warning24 };
+        skipHashItem.Click += (_, _) => _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList());
+        menu.Items.Add(skipHashItem);
+
+        menu.Items.Add(new Separator());
+
+        menu.PlacementTarget = UpdateVariantsButton;
+        menu.IsOpen = true;
+    }
+
+    private async Task RunUpdateOnPackagesAsync(List<UpgradablePackage> selected, bool elevated = false, bool interactive = false)
+    {
         if (selected.Count == 0)
         {
-            StatusText.Text = "Selecione um aplicativo.";
+            StatusText.Text = "Nenhum pacote selecionado. Marque ao menos um aplicativo para atualizar.";
             return;
         }
 
         UpdateSelectedButton.IsEnabled = false;
-        CheckUpdatesButton.IsEnabled = false;
-        StatusText.Text = "Atualizando aplicativos...";
+        UpdateVariantsButton.IsEnabled = false;
+        UninstallSelectedButton.IsEnabled = false;
+        ToggleSelectAllToolbarButton.IsEnabled = false;
+        ReloadButton.IsEnabled = false;
+        StatusText.Text = $"Iniciando atualização de {selected.Count} aplicativo(s)...";
 
         int succeeded = 0;
         int failed = 0;
@@ -301,7 +694,6 @@ public partial class UpdatesPage : Page
         foreach (var package in selected)
         {
             package.IsUpdating = true;
-
             try
             {
                 var result = await OperationRunner.RunUpdateAsync(
@@ -315,7 +707,8 @@ public partial class UpdatesPage : Page
                 if (result.Success)
                 {
                     succeeded++;
-                    _packages.Remove(package);
+                    _rawPackages.Remove(package);
+                    _filteredPackages.Remove(package);
                 }
                 else
                 {
@@ -335,53 +728,307 @@ public partial class UpdatesPage : Page
         }
 
         StatusText.Text = failed == 0
-            ? "Atualização concluída."
-            : $"Atualização concluída. Falhas: {failed}. Veja a fila para detalhes.";
+            ? $"Atualização concluída: {succeeded} pacote(s) atualizado(s) com sucesso."
+            : $"Atualização concluída: {succeeded} sucesso(s), {failed} falha(s). Verifique a fila.";
 
-        SyncSelectAllCheckBoxState();
-        UpdateSelectedButton.IsEnabled = true;
-        CheckUpdatesButton.IsEnabled = true;
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+        ReloadButton.IsEnabled = true;
+    }
+
+    private async Task UninstallSelectedPackagesAsync()
+    {
+        var selected = _filteredPackages.Where(p => p.IsSelectedForUpdate).ToList();
+        if (selected.Count == 0) return;
+
+        var confirm = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "Desinstalar Pacotes",
+            Content = $"Deseja desinstalar os {selected.Count} pacote(s) selecionado(s)?",
+            PrimaryButtonText = "Desinstalar",
+            CloseButtonText = "Cancelar"
+        };
+
+        if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
+            return;
+
+        foreach (var package in selected)
+        {
+            try
+            {
+                var result = await _wingetExecutor.UninstallAppAsync(package.Id, installedVersion: package.CurrentVersion);
+                if (result.Success)
+                {
+                    _rawPackages.Remove(package);
+                    _filteredPackages.Remove(package);
+                }
+            }
+            catch { }
+        }
+
+        ApplyFilters();
     }
 
     private void SingleUpdateButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement element && element.DataContext is UpgradablePackage appToUpdate)
+        if (sender is FrameworkElement element && element.DataContext is UpgradablePackage package)
         {
-            appToUpdate.IsSelectedForUpdate = true;
-            UpdateSelectedButton_Click(sender, e);
+            _ = RunUpdateOnPackagesAsync([package]);
         }
     }
 
     // ----------------------------------------------------------------
-    // Menu de Contexto (Três Pontinhos)
+    // Context Menu Handlers
     // ----------------------------------------------------------------
 
-    private void IgnoreVersionMenuItem_Click(object sender, RoutedEventArgs e)
+    private UpgradablePackage? GetContextPackage(object sender)
     {
-        if (sender is FrameworkElement element && element.DataContext is UpgradablePackage package)
+        if (sender is MenuItem mi && mi.DataContext is UpgradablePackage p) return p;
+        return _selectedPackage;
+    }
+
+    private void ContextMenuUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextPackage(sender) is { } pkg) _ = RunUpdateOnPackagesAsync([pkg]);
+    }
+
+    private void ContextMenuUpdateAdmin_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextPackage(sender) is { } pkg) _ = RunUpdateOnPackagesAsync([pkg], elevated: true);
+    }
+
+    private void ContextMenuUpdateInteractive_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextPackage(sender) is { } pkg) _ = RunUpdateOnPackagesAsync([pkg], interactive: true);
+    }
+
+    private void ContextMenuUpdateSkipHash_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextPackage(sender) is { } pkg) _ = RunUpdateOnPackagesAsync([pkg]);
+    }
+
+    private void ContextMenuDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextPackage(sender) is { } pkg) OpenPackageDetails(pkg);
+    }
+
+    private void ContextMenuIgnoreVersion_Click(object sender, RoutedEventArgs e)
+    {
+        if (GetContextPackage(sender) is { } pkg)
         {
-            _ignoredUpdatesService.Ignore(package.Id, package.AvailableVersion);
-            _packages.Remove(package);
-            SyncSelectAllCheckBoxState();
-            StatusText.Text = $"Versão {package.AvailableVersion} de {package.Name} ignorada.";
+            _ignoredUpdatesService.Ignore(pkg.Id, pkg.AvailableVersion);
+            RefreshIgnoredUpdates();
+            _rawPackages.Remove(pkg);
+            _filteredPackages.Remove(pkg);
+            UpdateSubtitleAndCounters();
+            SyncMasterCheckBoxState();
+            StatusText.Text = $"Versão {pkg.AvailableVersion} de {pkg.Name} ignorada.";
         }
     }
 
-    private void DetailsMenuItem_Click(object sender, RoutedEventArgs e)
+    private void ContextMenuCopyId_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement element && element.DataContext is UpgradablePackage package)
+        if (GetContextPackage(sender) is { } pkg)
         {
-            var catalog = _storeService.GetAll();
-            var appEntry = catalog.FirstOrDefault(a => string.Equals(a.Id, package.Id, StringComparison.OrdinalIgnoreCase));
-
-            if (appEntry is not null)
+            try
             {
-                _detailsOverlayService.Show(appEntry);
+                Clipboard.SetText(pkg.Id);
+                StatusText.Text = $"ID '{pkg.Id}' copiado para a área de transferência.";
             }
-            else
-            {
-                StatusText.Text = "Detalhes não disponíveis para este pacote (não encontrado no catálogo).";
-            }
+            catch { }
         }
+    }
+
+    private void OpenPackageDetails(UpgradablePackage package)
+    {
+        var catalog = _storeService.GetAll();
+        var appEntry = catalog.FirstOrDefault(a =>
+            string.Equals(a.Id, package.Id, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(a.Source, package.Source, StringComparison.OrdinalIgnoreCase));
+
+        appEntry ??= new AppEntry
+        {
+            Id = package.Id,
+            Name = package.Name,
+            Source = string.IsNullOrWhiteSpace(package.Source) ? "winget" : package.Source,
+            Version = package.AvailableVersion,
+            IconUrl = package.IconUrl
+        };
+
+        _detailsOverlayService.ShowUpdate(appEntry, package.CurrentVersion, package.AvailableVersion);
+    }
+
+    // ----------------------------------------------------------------
+    // Toolbar: Detalhes, Ignorar, CSV, Opções, Manual
+    // ----------------------------------------------------------------
+
+    private void PackageDetailsToolbarButton_Click(object sender, RoutedEventArgs e)
+    {
+        var target = _selectedPackage ?? _filteredPackages.FirstOrDefault(p => p.IsSelectedForUpdate) ?? _filteredPackages.FirstOrDefault();
+        if (target is not null)
+        {
+            OpenPackageDetails(target);
+        }
+        else
+        {
+            StatusText.Text = "Selecione um pacote na lista para visualizar os detalhes.";
+        }
+    }
+
+    private void IgnoreSelectedButton_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = _filteredPackages.Where(p => p.IsSelectedForUpdate).ToList();
+        if (selected.Count == 0)
+        {
+            StatusText.Text = "Nenhum pacote selecionado para ignorar.";
+            return;
+        }
+
+        foreach (var pkg in selected)
+        {
+            _ignoredUpdatesService.Ignore(pkg.Id, pkg.AvailableVersion);
+            _rawPackages.Remove(pkg);
+            _filteredPackages.Remove(pkg);
+        }
+
+        RefreshIgnoredUpdates();
+        UpdateSubtitleAndCounters();
+        SyncMasterCheckBoxState();
+        StatusText.Text = $"{selected.Count} pacote(s) ignorado(s).";
+    }
+
+    private void ManageIgnoredButton_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshIgnoredUpdates();
+        IgnoredUpdatesOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void CloseIgnoredOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        IgnoredUpdatesOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void RefreshIgnoredUpdates()
+    {
+        _ignoredPackages.Clear();
+        foreach (var entry in _ignoredUpdatesService.GetIgnoredUpdates())
+        {
+            _ignoredPackages.Add(entry);
+        }
+
+        IgnoredUpdatesEmptyModalText.Visibility = _ignoredPackages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void RestoreIgnoredUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: IgnoredUpdateEntry entry }) return;
+
+        _ignoredUpdatesService.Unignore(entry.AppId);
+        RefreshIgnoredUpdates();
+        StatusText.Text = $"Versão {entry.Version} de {entry.AppId} restaurada.";
+        _ = CheckUpdatesAsync();
+    }
+
+    private void RestoreAllIgnored_Click(object sender, RoutedEventArgs e)
+    {
+        var entries = _ignoredUpdatesService.GetIgnoredUpdates();
+        foreach (var entry in entries)
+        {
+            _ignoredUpdatesService.Unignore(entry.AppId);
+        }
+
+        RefreshIgnoredUpdates();
+        IgnoredUpdatesOverlay.Visibility = Visibility.Collapsed;
+        StatusText.Text = "Todas as versões ignoradas foram restauradas.";
+        _ = CheckUpdatesAsync();
+    }
+
+    private void ExportCsvButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_filteredPackages.Count == 0)
+        {
+            StatusText.Text = "Nenhum pacote para exportar.";
+            return;
+        }
+
+        var saveDialog = new SaveFileDialog
+        {
+            Title = "Exportar Atualizações para CSV",
+            Filter = "Arquivo CSV (*.csv)|*.csv",
+            FileName = $"Atualizacoes_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+        };
+
+        if (saveDialog.ShowDialog() != true) return;
+
+        try
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Nome,ID,VersaoAtual,NovaVersao,Origem");
+            foreach (var p in _filteredPackages)
+            {
+                sb.AppendLine($"\"{EscapeCsv(p.Name)}\",\"{EscapeCsv(p.Id)}\",\"{EscapeCsv(p.CurrentVersion)}\",\"{EscapeCsv(p.AvailableVersion)}\",\"{EscapeCsv(p.SourceLabel)}\"");
+            }
+
+            File.WriteAllText(saveDialog.FileName, sb.ToString(), Encoding.UTF8);
+            StatusText.Text = $"Exportado para '{Path.GetFileName(saveDialog.FileName)}' com sucesso.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Erro ao exportar CSV: {ex.Message}";
+        }
+    }
+
+    private static string EscapeCsv(string value) => value.Replace("\"", "\"\"");
+
+    // Diálogo Manual
+    private void ManualUpdateButton_Click(object sender, RoutedEventArgs e)
+    {
+        ManualPackageIdBox.Text = _selectedPackage?.Id ?? string.Empty;
+        ManualUpdateOverlay.Visibility = Visibility.Visible;
+        ManualPackageIdBox.Focus();
+    }
+
+    private void CloseManualOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        ManualUpdateOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private async void ExecuteManualUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        string input = ManualPackageIdBox.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(input)) return;
+
+        ManualUpdateOverlay.Visibility = Visibility.Collapsed;
+        StatusText.Text = $"Executando atualização de '{input}'...";
+
+        var result = await OperationRunner.RunUpdateAsync(_queue, _wingetExecutor, input, input);
+        StatusText.Text = result.Success
+            ? $"Atualização de '{input}' concluída com sucesso."
+            : $"Falha ao atualizar '{input}'. Verifique o log.";
+
+        await CheckUpdatesAsync();
+    }
+
+    // Diálogo Opções
+    private void OptionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        OptionsOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void CloseOptionsOverlay_Click(object sender, RoutedEventArgs e)
+    {
+        OptionsOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void DismissModalOverlay_Click(object sender, MouseButtonEventArgs e)
+    {
+        IgnoredUpdatesOverlay.Visibility = Visibility.Collapsed;
+        ManualUpdateOverlay.Visibility = Visibility.Collapsed;
+        OptionsOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    private void ModalCard_Click(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true; // Impede que o clique dentro do cartão feche o modal
     }
 }

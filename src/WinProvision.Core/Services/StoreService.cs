@@ -163,6 +163,14 @@ public class StoreService
         if (app.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase)))
             return 8;
 
+        if ((app.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+            return 9;
+
+        if ((app.Homepage?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (app.PublisherUrl?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (app.PackageUrl?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+            return 10;
+
         return int.MaxValue;
     }
 
