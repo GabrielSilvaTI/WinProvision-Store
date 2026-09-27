@@ -57,8 +57,14 @@ public static class ManifestMapper
             .Select(i => i.GetString("InstallerUrl"))
             .Where(u => !string.IsNullOrWhiteSpace(u))
             .Select(u => u!)
+            .Where(IsHttpsUrl)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(2)
             .ToList();
     }
+
+    private static bool IsHttpsUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(uri.Host);
 }

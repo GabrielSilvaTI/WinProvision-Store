@@ -341,7 +341,8 @@ var apiExporter = new InstallerApiExporter();
 var apiStats = await apiExporter.ExportAsync(published, bundlesByAppId, Path.Combine(outputDir, "api"));
 Console.WriteLine($"      {apiStats.Packages:N0} pacotes e {apiStats.Installers:N0} instaladores exportados");
 Console.WriteLine($"      {apiStats.InstallersWithoutSilent:N0} instaladores sem instalação silenciosa suportada (silentSupported=false)");
-Console.WriteLine($"      {apiStats.SkippedNoInstaller:N0} pacotes ignorados por não terem instalador com URL, {apiStats.SkippedInvalidId:N0} por ID inválido como nome de arquivo");
+Console.WriteLine($"      {apiStats.SkippedInsecureInstallerUrls:N0} instalador(es) HTTP/URL inválida descartado(s) por exigir HTTPS");
+Console.WriteLine($"      {apiStats.SkippedNoInstaller:N0} pacotes ignorados por não terem instalador HTTPS, {apiStats.SkippedInvalidId:N0} por ID inválido como nome de arquivo");
 Lap("exportação da API");
 
 totalTimer.Stop();
