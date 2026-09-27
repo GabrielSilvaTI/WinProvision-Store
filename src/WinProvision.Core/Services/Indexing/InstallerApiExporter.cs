@@ -8,12 +8,14 @@ namespace WinProvision.Core.Services.Indexing;
 /// <param name="Installers">Total de instaladores dentro desses pacotes.</param>
 /// <param name="InstallersWithoutSilent">Instaladores com silentSupported=false (msix, zip, portable, exe genérico sem switch etc.).</param>
 /// <param name="SkippedNoInstaller">Pacotes sem nenhum instalador com URL no manifesto.</param>
+/// <param name="SkippedInsecureInstallerUrls">Instaladores descartados por não usarem URL HTTPS absoluta.</param>
 /// <param name="SkippedInvalidId">Pacotes cujo ID não serve como nome de arquivo.</param>
 public record ApiExportStats(
     int Packages,
     int Installers,
     int InstallersWithoutSilent,
     int SkippedNoInstaller,
+    int SkippedInsecureInstallerUrls,
     int SkippedInvalidId);
 
 /// <summary>
@@ -77,6 +79,7 @@ public class InstallerApiExporter
         int installerCount = 0;
         int withoutSilent = 0;
         int skippedNoInstaller = 0;
+        int skippedInsecureInstallerUrls = 0;
         int skippedInvalidId = 0;
 
         foreach (var app in apps.OrderBy(a => a.Id, StringComparer.OrdinalIgnoreCase))
@@ -110,7 +113,8 @@ public class InstallerApiExporter
                 || !bundlesByAppId.TryGetValue(app.Id, out var bundle))
                 continue;
 
-            var installers = BuildInstallers(bundle);
+            var installers = BuildInstallers(bundle, out int insecureInstallerUrls);
+            skippedInsecureInstallerUrls += insecureInstallerUrls;
             if (installers.Count == 0)
             {
                 skippedNoInstaller++;
@@ -155,15 +159,17 @@ public class InstallerApiExporter
 
         await WriteAsync(Path.Combine(apiDir, "index.json"), index);
 
-        return new ApiExportStats(indexItems.Count, installerCount, withoutSilent, skippedNoInstaller, skippedInvalidId);
+        return new ApiExportStats(indexItems.Count, installerCount, withoutSilent, skippedNoInstaller,
+            skippedInsecureInstallerUrls, skippedInvalidId);
     }
 
     /// <summary>
     /// Um item por entrada de "Installers". Campos da raiz do manifesto valem como padrão
     /// e o item sobrescreve (InstallerSwitches é mesclado chave a chave).
     /// </summary>
-    private static List<ApiInstaller> BuildInstallers(RawManifestBundle bundle)
+    private static List<ApiInstaller> BuildInstallers(RawManifestBundle bundle, out int insecureUrlCount)
     {
+        insecureUrlCount = 0;
         var root = bundle.InstallerManifest;
         if (root is null)
             return [];
@@ -175,8 +181,12 @@ public class InstallerApiExporter
         foreach (var item in root.GetObjectList("Installers"))
         {
             string? url = Clean(Pick(item, root, "InstallerUrl"));
-            if (url is null)
+            if (url is null || !IsHttpsUrl(url))
+            {
+                if (url is not null)
+                    insecureUrlCount++;
                 continue;
+            }
 
             string? type = Clean(Pick(item, root, "InstallerType"))?.ToLowerInvariant();
 
@@ -255,6 +265,11 @@ public class InstallerApiExporter
             .ThenBy(i => i.Url, StringComparer.Ordinal)
             .ToList();
     }
+
+    private static bool IsHttpsUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(uri.Host);
 
     /// <summary>
     /// Ordem: InstallerSwitches.Silent do manifesto → SilentWithProgress do manifesto →
