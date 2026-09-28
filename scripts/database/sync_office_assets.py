@@ -16,7 +16,7 @@ import sys
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 import boto3
 import requests
@@ -46,6 +46,18 @@ def safe_source_url(value: str | None) -> str | None:
         or host == "xboxlive.com" or host.endswith(".xboxlive.com")
     )
     return url if parsed.scheme == "https" and allowed else None
+
+
+def high_resolution_screenshot_url(value: str | None) -> str | None:
+    """Ask the Microsoft image CDN for its high-quality 1080p screenshot rendition."""
+    url = safe_source_url(value)
+    if not url:
+        return None
+    parts = urlsplit(url)
+    query = [(key, item) for key, item in parse_qsl(parts.query, keep_blank_values=True)
+             if key.casefold() not in {"q", "w", "h"}]
+    query.extend((("q", "97"), ("w", "1920"), ("h", "1080")))
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 def load_image_map(path: Path) -> dict[str, dict[str, str]]:
@@ -94,7 +106,7 @@ def extract_media(product: dict) -> dict[str, object]:
     screenshots: list[str] = []
     seen: set[str] = set()
     for image in screenshot_images:
-        uri = safe_source_url(image.get("Uri"))
+        uri = high_resolution_screenshot_url(image.get("Uri"))
         if uri and uri not in seen:
             screenshots.append(uri)
             seen.add(uri)
