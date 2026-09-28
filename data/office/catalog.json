@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-27T23:11:28Z",
+  "products": [
+    {
+      "productId": "O365HomePremRetail",
+      "displayName": "Microsoft 365 Family / Personal",
+      "category": "Personal",
+      "channel": "Current",
+      "isVolumeLicensed": false,
+      "description": "Plano de assinatura pessoal. A oferta comercial da Microsoft Store permanece registrada separadamente em storeOffers.",
+      "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/icon-a367a013f8.jpg",
+      "bannerUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/banner-621d10f640.jpg",
+      "screenshots": [
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-01-251657ef92.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-02-474cb84919.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-03-226404e8e5.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-04-68ca3ba7b2.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-05-b53ff5745f.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-06-2c44458c1e.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-07-f29e34bf28.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-08-99a6905cd3.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-09-4cd71ed82a.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-10-dcc01486e4.jpg"
+      ]
+    },
+    {
+      "productId": "O365BusinessRetail",
+      "displayName": "Microsoft 365 Apps for business",
+      "category": "Corporate365",
+      "channel": "Current",
+      "isVolumeLicensed": false,
+      "description": "Aplicativos Microsoft 365 para empresas.",
+      "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png"
+    }
+  ],
+  "storeOffers": [
+    {
+      "storeProductId": "CFQ7TTC0K5DM",
+      "displayName": "Microsoft 365 Family",
+      "odtProductId": "O365HomePremRetail",
+      "description": "Oferta Microsoft Store; não é o Product ID usado pelo ODT.",
+      "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/icon-a367a013f8.jpg",
+      "bannerUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/banner-621d10f640.jpg",
+      "screenshots": [
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-01-251657ef92.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-02-474cb84919.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-03-226404e8e5.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-04-68ca3ba7b2.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-05-b53ff5745f.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-06-2c44458c1e.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-07-f29e34bf28.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-08-99a6905cd3.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-09-4cd71ed82a.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/screenshot-10-dcc01486e4.jpg"
+      ]
+    },
+    {
+      "storeProductId": "CFQ7TTC0K5BF",
+      "displayName": "Microsoft 365 Personal",
+      "odtProductId": "O365HomePremRetail",
+      "description": "Oferta Microsoft Store; não é o Product ID usado pelo ODT.",
+      "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/icon-62c5d1846a.jpg",
+      "bannerUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/banner-5aa31aa7be.jpg",
+      "screenshots": [
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-01-9134f7a60a.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-02-474cb84919.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-03-226404e8e5.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-04-68ca3ba7b2.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-05-b53ff5745f.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-06-2c44458c1e.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-07-f29e34bf28.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-08-99a6905cd3.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-09-4cd71ed82a.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-10-dcc01486e4.jpg"
+      ]
+    },
+    {
+      "storeProductId": "CFQ7TTC0K5BD",
+      "displayName": "Microsoft 365 Personal",
+      "odtProductId": "O365HomePremRetail",
+      "description": "Oferta Microsoft Store; não é o Product ID usado pelo ODT.",
+      "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/icon-62c5d1846a.jpg",
+      "bannerUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/banner-5aa31aa7be.jpg",
+      "screenshots": [
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-01-9134f7a60a.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-02-474cb84919.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-03-226404e8e5.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-04-68ca3ba7b2.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-05-b53ff5745f.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-06-2c44458c1e.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-07-f29e34bf28.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-08-99a6905cd3.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-09-4cd71ed82a.jpg",
+        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5BF/screenshot-10-dcc01486e4.jpg"
+      ]
+    },
+    {
+      "storeProductId": "CFQ7TTC0K5CH",
+      "displayName": "Microsoft 365 Business Standard",
+      "odtProductId": "O365BusinessRetail",
+      "description": "Oferta Microsoft Store; não é o Product ID usado pelo ODT.",
+      "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png"
+    }
+  ]
+}
