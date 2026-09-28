@@ -1,0 +1,2 @@
+# Dependency set shared by R2/database maintenance scripts.
+boto3==1.43.103
