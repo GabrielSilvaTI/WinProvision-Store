@@ -200,7 +200,7 @@ public class MsStoreCatalogService
             StoreScreenshotUrls = images
                 .Where(image => string.Equals(image.ImagePurpose, "Screenshot", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(image => (long)image.Width * image.Height)
-                .Select(image => NormalizeImageUrl(image.Uri))
+                .Select(image => NormalizeScreenshotUrl(image.Uri))
                 .Where(uri => uri is not null)
                 .Cast<string>()
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -234,6 +234,37 @@ public class MsStoreCatalogService
         }
 
         return uri.StartsWith("//", StringComparison.Ordinal) ? $"https:{uri}" : uri;
+    }
+
+    private static string? NormalizeScreenshotUrl(string? uri)
+    {
+        string? normalized = NormalizeImageUrl(uri);
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out var parsed) ||
+            !(parsed.Host.Equals("s-microsoft.com", StringComparison.OrdinalIgnoreCase) ||
+              parsed.Host.EndsWith(".s-microsoft.com", StringComparison.OrdinalIgnoreCase)))
+        {
+            return normalized;
+        }
+
+        // Display Catalog may provide a small rendition such as 480x270. Request
+        // the high-quality 1080p variant so the UI and R2 cache receive real detail.
+        var builder = new UriBuilder(parsed);
+        var query = builder.Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Where(parameter =>
+            {
+                int separator = parameter.IndexOf('=');
+                string name = separator < 0 ? parameter : parameter[..separator];
+                return !name.Equals("q", StringComparison.OrdinalIgnoreCase) &&
+                       !name.Equals("w", StringComparison.OrdinalIgnoreCase) &&
+                       !name.Equals("h", StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+        query.Add("q=97");
+        query.Add("w=1920");
+        query.Add("h=1080");
+        builder.Query = string.Join('&', query);
+        return builder.Uri.AbsoluteUri;
     }
 
     private class DisplayCatalogSearchResponse
