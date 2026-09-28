@@ -11,6 +11,8 @@ on:
       - "scripts/database/sync_office_assets.py"
       - "scripts/database/r2_download.py"
       - "scripts/database/r2_upload.py"
+      - "scripts/requirements/base.txt"
+      - "scripts/requirements/msstore.txt"
       - ".github/workflows/upload-office-catalog.yml"
 
 permissions:

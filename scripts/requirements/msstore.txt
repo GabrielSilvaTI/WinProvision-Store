@@ -1,0 +1,3 @@
+-r base.txt
+Pillow==12.3.0
+requests==2.34.2
