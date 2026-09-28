@@ -80,11 +80,20 @@ def extract_media(product: dict) -> dict[str, object]:
         -(image.get("Width", 0) * image.get("Height", 0)),
     ))
 
+    screenshot_images = [
+        image for image in images
+        if (image.get("ImagePurpose") or "").casefold() == "screenshot"
+    ]
+    screenshot_images.sort(
+        key=lambda image: (
+            -(int(image.get("Width") or 0) * int(image.get("Height") or 0)),
+            -int(image.get("Width") or 0),
+        )
+    )
+
     screenshots: list[str] = []
     seen: set[str] = set()
-    for image in images:
-        if (image.get("ImagePurpose") or "").lower() != "screenshot":
-            continue
+    for image in screenshot_images:
         uri = safe_source_url(image.get("Uri"))
         if uri and uri not in seen:
             screenshots.append(uri)

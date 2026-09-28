@@ -1,33 +1,47 @@
-name: Update Microsoft Store catalog (R2)
+name: Sincronizar Microsoft Store e Office no R2
 
 on:
   schedule:
-    - cron: "0 7 * * 0" # ~04h Brasília (UTC-3), semanal — a lista curada muda raramente
+    - cron: "0 7 * * 0" # semanal, ~04h Brasília (UTC-3)
   workflow_dispatch: {}
   push:
+    branches:
+      - main
     paths:
       - "src/WinProvision.Indexer/config/msstore-curated.json"
       - "src/WinProvision.Indexer/config/msstore-search-terms.json"
+      - "src/WinProvision.Core/Services/Indexing/MsStoreCatalogService.cs"
+      - "data/office/catalog.json"
+      - "scripts/database/sync_msstore_assets.py"
+      - "scripts/database/sync_office_assets.py"
+      - "scripts/database/validate_catalog.py"
+      - "scripts/database/validate_office_catalog.py"
+      - "scripts/database/r2_download.py"
+      - "scripts/database/r2_upload.py"
+      - "scripts/requirements/base.txt"
+      - "scripts/requirements/msstore.txt"
+      - ".github/workflows/update-msstore-catalog.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: msstore-catalog-sync
-  cancel-in-progress: true
+  group: microsoft-store-catalog-r2
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
 
     steps:
-      - name: Checkout deste repositório (main)
+      - name: Checkout do repositório
         uses: actions/checkout@v4
 
       - name: Setup .NET
@@ -35,8 +49,6 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      # Sem packages.lock.json no repo, então cacheia por hash dos .csproj em vez de
-      # usar o cache nativo do setup-dotnet (que exige lock file).
       - name: Cache de pacotes NuGet
         uses: actions/cache@v4
         with:
@@ -50,17 +62,69 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Instalar boto3
-        run: python -m pip install boto3
+      - name: Instalar dependências de catálogo e mídia
+        run: python -m pip install -r scripts/requirements/msstore.txt
 
-      - name: Rodar o Indexer em modo --msstore
+      - name: Restaurar caches e catálogo anterior do R2
+        run: |
+          python scripts/database/r2_download.py \
+            Store/Database/msstore-assets-map.json \
+            "${{ github.workspace }}/msstore-output/msstore-assets-map.json"
+          python scripts/database/r2_download.py \
+            Store/Database/msstore-catalog.json \
+            "${{ github.workspace }}/msstore-output/msstore-catalog.previous.json"
+          python scripts/database/r2_download.py \
+            Office/Database/office-assets-map.json \
+            "${{ github.workspace }}/office-output/office-assets-map.json"
+
+      - name: Gerar catálogo da Microsoft Store
         run: >
           dotnet run --project src/WinProvision.Indexer -c Release --
           --msstore
           "${{ github.workspace }}/msstore-output"
 
-      - name: Publicar msstore-catalog.json no R2
-        run: >
-          python scripts/database/r2_upload.py
-          "${{ github.workspace }}/msstore-output/msstore-catalog.json"
-          Store/Database/msstore-catalog.json
+      - name: Validar catálogo da Microsoft Store
+        run: |
+          python scripts/database/validate_catalog.py \
+            "${{ github.workspace }}/msstore-output/msstore-catalog.json" \
+            --previous "${{ github.workspace }}/msstore-output/msstore-catalog.previous.json" \
+            --min-count 20 \
+            --min-retention 0.50 \
+            --expected-source msstore
+
+      - name: Armazenar imagens da Microsoft Store no R2
+        run: |
+          python scripts/database/sync_msstore_assets.py \
+            "${{ github.workspace }}/msstore-output/msstore-catalog.json" \
+            --map "${{ github.workspace }}/msstore-output/msstore-assets-map.json" \
+            --previous "${{ github.workspace }}/msstore-output/msstore-catalog.previous.json"
+
+      - name: Buscar e armazenar imagens das ofertas Office no R2
+        run: |
+          python scripts/database/sync_office_assets.py \
+            data/office/catalog.json \
+            --map "${{ github.workspace }}/office-output/office-assets-map.json" \
+            --public-base "$R2_PUBLIC_BASE" \
+            --market BR \
+            --language pt-BR
+
+      - name: Validar catálogo Office
+        run: python scripts/database/validate_office_catalog.py data/office/catalog.json
+
+      - name: Publicar assets e catálogo da Microsoft Store
+        run: |
+          python scripts/database/r2_upload.py \
+            "${{ github.workspace }}/msstore-output/msstore-assets-map.json" \
+            Store/Database/msstore-assets-map.json
+          python scripts/database/r2_upload.py \
+            "${{ github.workspace }}/msstore-output/msstore-catalog.json" \
+            Store/Database/msstore-catalog.json
+
+      - name: Publicar assets e catálogo Office
+        run: |
+          python scripts/database/r2_upload.py \
+            "${{ github.workspace }}/office-output/office-assets-map.json" \
+            Office/Database/office-assets-map.json
+          python scripts/database/r2_upload.py \
+            data/office/catalog.json \
+            Office/Database/catalog.json

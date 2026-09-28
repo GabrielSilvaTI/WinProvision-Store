@@ -490,6 +490,65 @@
 
                         <!-- ═══════════════════ COLUNA DIREITA ═══════════════════ -->
                         <StackPanel Grid.Column="2">
+                            <!-- A galeria ocupa o mesmo espaço de mídia dos detalhes do UniGetUI. -->
+                            <Border x:Name="ScreenshotsPanel"
+                                    Height="220"
+                                    Margin="0,0,0,14"
+                                    CornerRadius="8"
+                                    ClipToBounds="True"
+                                    Background="{DynamicResource AppSurfaceBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <TextBlock x:Name="ScreenshotsEmptyText"
+                                               Text="As capturas de tela não puderam ser carregadas."
+                                               TextWrapping="Wrap"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Margin="24"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Visibility="Collapsed" />
+                                    <ProgressBar x:Name="ScreenshotLoadingBar"
+                                                 Width="54" Height="3"
+                                                 IsIndeterminate="True"
+                                                 HorizontalAlignment="Center"
+                                                 VerticalAlignment="Center"
+                                                 Visibility="Collapsed" />
+                                    <Image x:Name="ScreenshotImage"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           Cursor="Hand"
+                                           MouseLeftButtonUp="ScreenshotImage_MouseLeftButtonUp" />
+                                    <ui:Button x:Name="PreviousScreenshotButton"
+                                               Width="36" Height="36"
+                                               Padding="0"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Left"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0"
+                                               ToolTip="Captura anterior"
+                                               Click="PreviousScreenshotButton_Click">
+                                        <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="18" />
+                                    </ui:Button>
+                                    <ui:Button x:Name="NextScreenshotButton"
+                                               Width="36" Height="36"
+                                               Padding="0"
+                                               Appearance="Secondary"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0"
+                                               ToolTip="Próxima captura"
+                                               Click="NextScreenshotButton_Click">
+                                        <ui:SymbolIcon Symbol="ChevronRight24" FontSize="18" />
+                                    </ui:Button>
+                                    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                            Margin="0,0,0,8" Padding="8,3" CornerRadius="6"
+                                            Background="#CC111820">
+                                        <TextBlock x:Name="ScreenshotCounterText"
+                                                   Foreground="White" FontSize="11" />
+                                    </Border>
+                                </Grid>
+                            </Border>
 <!-- Metadados detalhados do pacote -->
                             <StackPanel>
 
@@ -609,5 +668,47 @@
 
             </Grid>
         </Border>
+
+        <!-- Visualização ampliada da captura selecionada. -->
+        <Grid x:Name="ScreenshotLightbox"
+              Panel.ZIndex="10"
+              Background="#E6000000"
+              Visibility="Collapsed"
+              MouseLeftButtonUp="ScreenshotLightbox_MouseLeftButtonUp">
+            <Border Margin="56" MaxWidth="1500" MaxHeight="1000"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource ApplicationBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
+                    MouseLeftButtonUp="Card_MouseLeftButtonUp">
+                <Image x:Name="ScreenshotLightboxImage"
+                       Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+            </Border>
+            <ui:Button x:Name="CloseScreenshotLightboxButton"
+                       Width="60" Height="60" MinWidth="60" MinHeight="60" Padding="12"
+                       HorizontalAlignment="Right" VerticalAlignment="Top"
+                       Margin="20" Appearance="Secondary"
+                       Cursor="Hand"
+                       AutomationProperties.Name="Fechar captura ampliada"
+                       ToolTip="Fechar imagem"
+                       Click="CloseScreenshotLightboxButton_Click">
+                <ui:SymbolIcon Symbol="Dismiss24" FontSize="20" />
+            </ui:Button>
+            <ui:Button Width="42" Height="42" Padding="0"
+                       HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Margin="12,0" Appearance="Secondary"
+                       ToolTip="Captura anterior"
+                       Click="PreviousScreenshotButton_Click">
+                <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="20" />
+            </ui:Button>
+            <ui:Button Width="42" Height="42" Padding="0"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       Margin="12,0" Appearance="Secondary"
+                       ToolTip="Próxima captura"
+                       Click="NextScreenshotButton_Click">
+                <ui:SymbolIcon Symbol="ChevronRight24" FontSize="20" />
+            </ui:Button>
+        </Grid>
     </Grid>
 </UserControl>
