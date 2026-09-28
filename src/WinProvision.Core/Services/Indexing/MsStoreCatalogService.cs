@@ -138,7 +138,13 @@ public class MsStoreCatalogService
             _fetchLock.Release();
         }
 
-        return ids.Where(_productCache.ContainsKey).Select(id => _productCache[id]).ToList();
+        var results = new List<AppEntry>(ids.Count);
+        foreach (string id in ids)
+        {
+            if (_productCache.TryGetValue(id, out var app))
+                results.Add(app);
+        }
+        return results;
     }
 
     private static AppEntry? MapToAppEntry(DisplayCatalogProduct product)
@@ -193,10 +199,11 @@ public class MsStoreCatalogService
             StoreSubCategory = product.Properties?.SubCategory,
             StoreScreenshotUrls = images
                 .Where(image => string.Equals(image.ImagePurpose, "Screenshot", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(image => image.Width)
+                .OrderByDescending(image => (long)image.Width * image.Height)
                 .Select(image => NormalizeImageUrl(image.Uri))
                 .Where(uri => uri is not null)
                 .Cast<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList(),
             StoreRating = rating?.AverageRating is > 0 and <= 5 ? rating.AverageRating : null,
             StoreRatingCount = rating?.RatingCount is > 0 ? rating.RatingCount : null,

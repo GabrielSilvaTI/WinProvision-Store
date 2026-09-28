@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
@@ -36,6 +37,9 @@ public partial class AppDetailsOverlay : UserControl
     private string? _installLocation;
     private string? _availableUpdateVersion;
     private CancellationTokenSource? _detailsCts;
+    private CancellationTokenSource? _screenshotLoadCts;
+    private string[] _screenshots = [];
+    private int _screenshotIndex;
 
     private sealed class ExtendedPackageInfo
     {
@@ -84,6 +88,8 @@ public partial class AppDetailsOverlay : UserControl
     {
         _detailsCts?.Cancel();
         _detailsCts = new CancellationTokenSource();
+        _screenshotLoadCts?.Cancel();
+        _screenshotLoadCts = new CancellationTokenSource();
 
         if (_app is not null)
         {
@@ -101,7 +107,7 @@ public partial class AppDetailsOverlay : UserControl
             ? "Microsoft Store"
             : IsSupportedCollectionSource(app.Source)
                 ? $"WinGet: {app.Source}"
-                : "Windows (local)";
+                : "PC Local";
         PackageSourceText.Text = sourceLabel;
         PackageManagerText.Text = sourceLabel;
 
@@ -111,6 +117,25 @@ public partial class AppDetailsOverlay : UserControl
         DescriptionText.Text = string.IsNullOrWhiteSpace(app.Description)
             ? "Nenhuma descrição disponível."
             : app.Description;
+
+        _screenshots = app.StoreScreenshotUrls?
+            .Where(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray() ?? [];
+        _screenshotIndex = 0;
+        ScreenshotsPanel.Visibility = Visibility.Visible;
+        ScreenshotsEmptyText.Text = _screenshots.Length == 0
+            ? "Este pacote ainda não tem capturas de tela no catálogo."
+            : "Não foi possível carregar esta captura. Verifique sua conexão e tente novamente.";
+        ScreenshotsEmptyText.Visibility = _screenshots.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ScreenshotImage.Visibility = _screenshots.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        ScreenshotLoadingBar.Visibility = Visibility.Collapsed;
+        PreviousScreenshotButton.Visibility = _screenshots.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
+        NextScreenshotButton.Visibility = _screenshots.Length > 1 ? Visibility.Visible : Visibility.Collapsed;
+        ScreenshotLightbox.Visibility = Visibility.Collapsed;
+        if (_screenshots.Length > 0)
+            _ = LoadCurrentScreenshotAsync(_app, _screenshotLoadCts.Token);
 
         // Tags
         TagsList.ItemsSource = app.Tags;
@@ -133,13 +158,14 @@ public partial class AppDetailsOverlay : UserControl
         SetupLicense(app.License, app.LicenseUrl);
 
         // Última atualização
-        LastUpdatedText.Text = "Carregando...";
+        bool isOfficeStoreOffer = app.Tags.Contains("Office", StringComparer.OrdinalIgnoreCase);
+        LastUpdatedText.Text = isOfficeStoreOffer ? "Microsoft Store" : "Carregando...";
 
         // Tipo de instalador e detalhes
-        InstallerTypeText.Text = "Carregando...";
+        InstallerTypeText.Text = isOfficeStoreOffer ? "Produto Microsoft 365" : "Carregando...";
         InstallerUrlLink.Visibility = Visibility.Collapsed;
         InstallerUrlLink.Tag = null;
-        Sha256Text.Text = "Carregando...";
+        Sha256Text.Text = isOfficeStoreOffer ? "Não aplicável" : "Carregando...";
 
         // Tamanho do instalador
         SetupSize(app.InstallerSizeBytes);
@@ -177,7 +203,16 @@ public partial class AppDetailsOverlay : UserControl
         Focus();
 
         // ── 3. Busca assíncrona de informações completas via winget show ──
-        _ = LoadExtendedDetailsAsync(app, _detailsCts.Token);
+        if (isOfficeStoreOffer)
+        {
+            LoadingProgressBar.Visibility = Visibility.Collapsed;
+            DependenciesText.Text = "Gerenciado pela Microsoft Store";
+            ReleaseNotesText.Text = "Consulte os detalhes do produto na Microsoft Store.";
+        }
+        else
+        {
+            _ = LoadExtendedDetailsAsync(app, _detailsCts.Token);
+        }
     }
 
     private void SetupManifestUrl(string id, string source)
@@ -444,6 +479,8 @@ public partial class AppDetailsOverlay : UserControl
     private void Close()
     {
         _detailsCts?.Cancel();
+        _screenshotLoadCts?.Cancel();
+        ScreenshotLightbox.Visibility = Visibility.Collapsed;
         if (_app is not null)
         {
             _app.PropertyChanged -= AppOnPropertyChanged;
@@ -510,7 +547,10 @@ public partial class AppDetailsOverlay : UserControl
     {
         if (e.Key == Key.Escape)
         {
-            Close();
+            if (ScreenshotLightbox.Visibility == Visibility.Visible)
+                ScreenshotLightbox.Visibility = Visibility.Collapsed;
+            else
+                Close();
             e.Handled = true;
         }
     }
@@ -539,6 +579,68 @@ public partial class AppDetailsOverlay : UserControl
     private void Card_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => e.Handled = true;
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private async Task LoadCurrentScreenshotAsync(AppEntry? app, CancellationToken cancellationToken)
+    {
+        if (app is null || _screenshots.Length == 0) return;
+
+        int requestedIndex = _screenshotIndex;
+        string url = _screenshots[requestedIndex];
+        ScreenshotImage.Source = null;
+        ScreenshotLightboxImage.Source = null;
+        ScreenshotsEmptyText.Visibility = Visibility.Collapsed;
+        ScreenshotLoadingBar.Visibility = Visibility.Visible;
+        ScreenshotCounterText.Text = $"{requestedIndex + 1} / {_screenshots.Length}";
+
+        BitmapSource? bitmap = await AsyncImage.LoadBitmapAsync(url);
+        if (cancellationToken.IsCancellationRequested || !ReferenceEquals(_app, app) || requestedIndex != _screenshotIndex)
+            return;
+
+        ScreenshotLoadingBar.Visibility = Visibility.Collapsed;
+        if (bitmap is null)
+        {
+            ScreenshotsEmptyText.Text = "Não foi possível carregar esta captura. Verifique o endereço da imagem no catálogo.";
+            ScreenshotsEmptyText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        ScreenshotImage.Source = bitmap;
+        if (ScreenshotLightbox.Visibility == Visibility.Visible)
+            ScreenshotLightboxImage.Source = bitmap;
+    }
+
+    private void PreviousScreenshotButton_Click(object sender, RoutedEventArgs e) => MoveScreenshot(-1);
+    private void NextScreenshotButton_Click(object sender, RoutedEventArgs e) => MoveScreenshot(1);
+
+    private void MoveScreenshot(int offset)
+    {
+        if (_screenshots.Length < 2 || _app is null) return;
+        _screenshotIndex = (_screenshotIndex + offset + _screenshots.Length) % _screenshots.Length;
+        _screenshotLoadCts?.Cancel();
+        _screenshotLoadCts = new CancellationTokenSource();
+        _ = LoadCurrentScreenshotAsync(_app, _screenshotLoadCts.Token);
+    }
+
+    private void ScreenshotImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (ScreenshotImage.Source is null) return;
+        ScreenshotLightboxImage.Source = ScreenshotImage.Source;
+        ScreenshotLightbox.Visibility = Visibility.Visible;
+        e.Handled = true;
+    }
+
+    private void CloseScreenshotLightboxButton_Click(object sender, RoutedEventArgs e)
+    {
+        ScreenshotLightbox.Visibility = Visibility.Collapsed;
+        e.Handled = true;
+    }
+
+    private void ScreenshotLightbox_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, ScreenshotLightbox))
+            ScreenshotLightbox.Visibility = Visibility.Collapsed;
+        e.Handled = true;
+    }
     private void OptionsHeader_Click(object sender, MouseButtonEventArgs e)
     {
         bool isExpanded = OptionsBodyPanel.Visibility == Visibility.Visible;
