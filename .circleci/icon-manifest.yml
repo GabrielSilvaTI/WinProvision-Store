@@ -12,7 +12,7 @@ jobs:
     working_directory: ~/project
     resource_class: medium
     environment:
-      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Icon_Database
     steps:
       - checkout
       - run:
