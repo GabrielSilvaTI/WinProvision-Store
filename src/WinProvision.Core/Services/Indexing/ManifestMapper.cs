@@ -29,6 +29,7 @@ public static class ManifestMapper
             Publisher = locale.GetString("Publisher") ?? "Desconhecido",
             PublisherUrl = locale.GetString("PublisherUrl") ?? locale.GetString("PublisherSupportUrl"),
             Description = locale.GetString("ShortDescription") ?? locale.GetString("Description"),
+            PackageLocale = locale.GetString("PackageLocale"),
             Homepage = locale.GetString("Homepage") ?? locale.GetString("PackageUrl"),
             PackageUrl = locale.GetString("PackageUrl"),
             License = locale.GetString("License"),

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Automation;
 using System.Windows;
 using System.Windows.Threading;
 using WinProvision.Core.Services;
@@ -18,6 +19,8 @@ public partial class MainWindow : FluentWindow
     public MainWindow(
         INavigationViewPageProvider pageProvider,
         INavigationService navigationService,
+        ISnackbarService snackbarService,
+        IContentDialogService contentDialogService,
         OperationsQueueService queueService,
         AppDetailsOverlay detailsOverlay)
     {
@@ -25,6 +28,8 @@ public partial class MainWindow : FluentWindow
 
         _navigationService = navigationService;
         _queueService = queueService;
+        snackbarService.SetSnackbarPresenter(MainSnackbarPresenter);
+        contentDialogService.SetDialogHost(RootContentDialog);
         QueuePanel.Queue = _queueService;
         _queueAutoCloseTimer.Tick += (_, _) =>
         {
@@ -50,26 +55,16 @@ public partial class MainWindow : FluentWindow
         // vazio e atribuir aqui do que reconstruir a árvore de injeção dentro do XAML.
         DetailsOverlayHost.Content = detailsOverlay;
 
-        // Associa o provedor de páginas v4 e o controle de navegação[cite: 1]
+        // Registra o provedor de páginas e o NavigationView na navegação do WPF-UI.
         RootNavigation.SetPageProviderService(pageProvider);
         _navigationService.SetNavigationControl(RootNavigation);
 
-        // Navega para a HomePage (vitrine de destaques) assim que o layout for renderizado
-        Loaded += (s, e) =>
-        {
-            _navigationService.Navigate(typeof(HomePage));
-        };
-
-        // Quando a janela é ajustada para meia tela (< 1020px), recolhe o menu para modo compacto (48px),
-        // liberando mais de 160px para o conteúdo principal não cortar.
-        SizeChanged += (s, e) =>
-        {
-            if (e.WidthChanged)
-            {
-                RootNavigation.IsPaneOpen = e.NewSize.Width >= 1020;
-            }
-        };
+        // Abre a vitrine inicial assim que a árvore visual estiver pronta.
+        Loaded += MainWindow_Loaded;
     }
+
+    private void MainWindow_Loaded(object sender, RoutedEventArgs e) =>
+        _navigationService.Navigate(typeof(HomePage));
 
     private void QueueToggleButton_Click(object sender, RoutedEventArgs e)
     {
@@ -120,6 +115,11 @@ public partial class MainWindow : FluentWindow
         int pending = _queueService.TotalCount - _queueService.CompletedCount;
         QueueBadge.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
         QueueBadgeText.Text = pending.ToString();
+        string queueDescription = pending == 0
+            ? "Fila de operações"
+            : $"Fila de operações, {pending} pendente(s)";
+        QueueToggleButton.ToolTip = queueDescription;
+        AutomationProperties.SetName(QueueToggleButton, queueDescription);
     }
 
     private void ShowQueuePanel() => QueuePanel.Visibility = Visibility.Visible;

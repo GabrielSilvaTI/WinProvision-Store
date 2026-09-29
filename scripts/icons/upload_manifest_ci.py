@@ -30,7 +30,7 @@ def main():
         "icon-manifest.json",
         BUCKET,
         DEST_KEY,
-        ExtraArgs={"ContentType": "application/json"},
+        ExtraArgs={"ContentType": "application/json", "CacheControl": "no-cache"},
     )
     print(f"Enviado: icon-manifest.json -> {BUCKET}/{DEST_KEY}")
 

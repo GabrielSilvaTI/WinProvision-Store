@@ -16,126 +16,15 @@
       UseLayoutRounding="True">
 
     <Page.Resources>
-        <!--  Tipografia Fluent  -->
-        <Style x:Key="PageTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentPageTitleStyle}" />
-
-        <Style x:Key="CardTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentCardTitleStyle}" />
-
-        <Style x:Key="CardSubtitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
-
-        <Style x:Key="FieldLabelStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-        </Style>
-
-        <!--  Cartão "Mica-Friendly"  -->
-        <Style x:Key="CardStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource StoreCardSurfaceStyle}">
-            <Setter Property="Padding" Value="{StaticResource Spacing24}" />
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-            <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
-        </Style>
-
-        <!-- Barra de ações no mesmo padrão compacto usado em Atualizações. -->
-        <Style x:Key="ToolbarButtonStyle"
-               TargetType="ui:Button"
-               BasedOn="{StaticResource {x:Type ui:Button}}">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="Margin" Value="0,0,4,0" />
-            <Setter Property="Appearance" Value="Transparent" />
-            <Setter Property="CornerRadius" Value="{StaticResource StorePillCornerRadius}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
-
-        <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton"
-               BasedOn="{StaticResource {x:Type ToggleButton}}">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="Padding" Value="10,0" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
-
-        <!--  Seleção de Apps: Estilo Windows 11 Fluent Settings Card  -->
-        <Style x:Key="AppTileToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Width" Value="116" />
-            <Setter Property="Height" Value="116" />
-            <Setter Property="Margin" Value="0,0,12,12" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Background" Value="{DynamicResource StoreBrush_0AFFFFFF}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource StoreBrush_1AFFFFFF}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="RootBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{StaticResource OverlayCornerRadius}"
-                                Padding="12">
-                            <Grid>
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <ui:SymbolIcon x:Name="CheckIcon"
-                                               Symbol="CheckmarkCircle24"
-                                               FontSize="18"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Top"
-                                               Foreground="Transparent" />
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource StoreBrush_14FFFFFF}" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="RootBorder" Property="BorderBrush" Value="{DynamicResource StoreBrush_4CAF6B}" />
-                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource StoreBrush_154CAF6B}" />
-                                <Setter TargetName="CheckIcon" Property="Foreground" Value="{DynamicResource StoreBrush_4CAF6B}" />
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="True" />
-                                    <Condition Property="IsMouseOver" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="RootBorder" Property="Background" Value="{DynamicResource StoreBrush_254CAF6B}" />
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+        <!-- Todos os botões desta página usam a geometria compacta compartilhada. -->
+        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
         </Style>
     </Page.Resources>
 
-    <Grid Margin="{StaticResource PageContentMargin}"
+<Grid Margin="{StaticResource PageContentMargin}"
           MaxWidth="{StaticResource PageContentMaxWidth}"
           HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
@@ -151,7 +40,7 @@
                     Margin="{StaticResource PageHeaderMargin}">
             <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="DocumentText24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="Office" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock Text="Office" Style="{StaticResource FluentPageTitleStyle}" />
                 <TextBlock Text="Instale, repare, atualize ou remova o Office." Style="{StaticResource FluentPageSubtitleStyle}" Margin="0,4,0,0" />
             </StackPanel>
         </StackPanel>
@@ -160,41 +49,26 @@
         <Border Grid.Row="1" Style="{StaticResource PageToolbarContainerStyle}">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border CornerRadius="{StaticResource ControlCornerRadius}"
-                            Background="{DynamicResource SystemAccentColorPrimaryBrush}"
-                            Margin="0,0,6,0"
-                            Height="34">
+                    <ui:Button x:Name="InstallRepairButton"
+                               Appearance="Primary"
+                               Height="34"
+                               MinHeight="34"
+                               Margin="0,0,8,0"
+                               CornerRadius="{StaticResource ControlCornerRadius}"
+                               Padding="12,0"
+                               ToolTip="Instalar ou reparar o Office com a interface escolhida abaixo"
+                               Click="InstallRepairButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:Button x:Name="InstallRepairButton"
-                                       Appearance="Transparent"
-                                       Foreground="White"
-                                       Height="34"
-                                       Padding="12,0"
-                                       ToolTip="Instalar ou reparar o Office de forma autônoma"
-                                       Click="InstallRepairButton_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="16" Margin="0,0,6,0" Foreground="White" />
-                                    <TextBlock Text="Instalar" FontWeight="SemiBold" FontSize="12" Foreground="White" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ui:Button>
-                            <Rectangle Width="1" Fill="{DynamicResource StoreBrush_33FFFFFF}" VerticalAlignment="Stretch" Margin="0,5" />
-                            <ui:Button x:Name="InstallVariantsButton"
-                                       Appearance="Transparent"
-                                       Foreground="White"
-                                       Width="26"
-                                       Height="34"
-                                       Padding="0"
-                                       ToolTip="Mais opções de instalação"
-                                       Click="InstallVariantsButton_Click">
-                                <ui:SymbolIcon Symbol="ChevronDown24" FontSize="12" Foreground="White" />
-                            </ui:Button>
+                            <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Instalar" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                         </StackPanel>
-                    </Border>
+                    </ui:Button>
 
-                    <Rectangle Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                    <Rectangle Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
 
                     <ui:Button x:Name="AddToCatalogButton"
-                               Style="{StaticResource ToolbarButtonStyle}"
+                               Style="{StaticResource StoreActionButtonStyle}"
+                               Margin="0,0,8,0"
                                ToolTip="Adicionar este plano do Office ao catálogo de pacotes"
                                Click="AddToCatalogButton_Click">
                         <StackPanel Orientation="Horizontal">
@@ -203,8 +77,25 @@
                         </StackPanel>
                     </ui:Button>
 
+                    <ui:Button x:Name="PreviewConfigurationButton"
+                               Style="{StaticResource StoreActionButtonStyle}"
+                               Margin="0,0,8,0"
+                               ToolTip="Conferir e exportar o XML que será enviado ao ODT"
+                               Click="PreviewConfigurationButton_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="DocumentText24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Prévia XML" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </ui:Button>
+
                     <ToggleButton x:Name="AutoUpdatesToggleButton"
-                                  Style="{StaticResource ToolbarToggleButtonStyle}"
+                                  Style="{StaticResource StoreToggleButtonStyle}"
+                                  Margin="0,0,8,0"
+                                  Width="Auto"
+                                  MinWidth="0"
+                                  Height="34"
+                                  MinHeight="34"
+                                  Padding="10,0"
                                   IsChecked="True"
                                   ToolTip="Ativar ou desativar atualizações automáticas do Office"
                                   Checked="AutoUpdatesToggleButton_Toggled"
@@ -215,10 +106,11 @@
                         </StackPanel>
                     </ToggleButton>
 
-                    <Rectangle Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
 
                     <ui:Button x:Name="UninstallButton"
-                               Style="{StaticResource ToolbarButtonStyle}"
+                               Style="{StaticResource StoreActionButtonStyle}"
+                               Margin="0,0,8,0"
                                ToolTip="Remover todas as instalações do Office"
                                Click="UninstallButton_Click">
                         <StackPanel Orientation="Horizontal">
@@ -228,7 +120,8 @@
                     </ui:Button>
 
                     <ui:Button x:Name="OpenWorkFolderButton"
-                               Style="{StaticResource ToolbarButtonStyle}"
+                               Style="{StaticResource StoreActionButtonStyle}"
+                               Margin="0,0,8,0"
                                ToolTip="Abrir a pasta de trabalho do Office Deployment Tool"
                                Click="OpenWorkFolderButton_Click">
                         <StackPanel Orientation="Horizontal">
@@ -241,24 +134,81 @@
         </Border>
 
         <!--  ================= Corpo =================  -->
-        <Grid Grid.Row="2">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="6.5*" MinWidth="400" />
-                <ColumnDefinition Width="32" />
-                <ColumnDefinition Width="3.5*"
-                                  MinWidth="320"
-                                  MaxWidth="450" />
-            </Grid.ColumnDefinitions>
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
+          <Grid>
+              <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="6.5*" MinWidth="440" />
+                  <ColumnDefinition Width="{StaticResource PageColumnGap}" />
+                  <ColumnDefinition Width="3.5*"
+                                    MinWidth="320"
+                                    MaxWidth="450" />
+              </Grid.ColumnDefinitions>
 
             <!--  Esquerda: Configurações e Apps  -->
-            <ScrollViewer Grid.Column="0"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
-                <StackPanel Margin="0,0,8,0">
+                <StackPanel Grid.Column="0">
+
+                    <!-- Ofertas Microsoft 365 da Microsoft Store. -->
+                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Microsoft 365" Style="{StaticResource FluentCardTitleStyle}" />
+                            <TextBlock Text="Ofertas Microsoft 365 com mídia servida pelo catálogo WinProvision."
+                                       Style="{StaticResource StoreCardSubtitleStyle}" Margin="0,4,0,12" />
+                            <ItemsControl x:Name="StoreOffersItemsControl">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="4" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <ui:Button Click="StoreOfferButton_Click"
+                                                       Margin="0,0,8,0" Padding="0"
+                                                       BorderThickness="0" Appearance="Transparent"
+                                                       CornerRadius="{StaticResource ControlCornerRadius}"
+                                                       Background="Transparent" Cursor="Hand"
+                                                       ToolTip="{Binding DisplayName}">
+                                                <Border MinHeight="190" CornerRadius="{StaticResource StoreCardCornerRadius}"
+                                                        Background="{DynamicResource AppCardBackgroundBrush}"
+                                                        BorderBrush="{DynamicResource AppCardBorderBrush}" BorderThickness="1" ClipToBounds="True">
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="96" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid Grid.Row="0" Background="{DynamicResource AppSurfaceBrush}">
+                                                            <Image conv:AsyncImage.SourceUrl="{Binding BannerUrl}" Stretch="UniformToFill" />
+                                                            <Border Width="42" Height="42" Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="{DynamicResource AppCardBackgroundBrush}" BorderBrush="{DynamicResource AppCardBorderBrush}"
+                                                                    BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="5">
+                                                                <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
+                                                            </Border>
+                                                            <ui:SymbolIcon Symbol="DocumentText24" FontSize="28"
+                                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Visibility="{Binding HasBanner, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                                        </Grid>
+                                                        <StackPanel Grid.Row="1" Margin="12,8,12,10" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                       TextTrimming="CharacterEllipsis" MaxHeight="30" TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                        <Border Grid.RowSpan="2" BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                                BorderThickness="2" CornerRadius="{StaticResource StoreCardCornerRadius}" IsHitTestVisible="False"
+                                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                    </Grid>
+                                                </Border>
+                                            </ui:Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
 
                     <!--  Seleção de Aplicativos  -->
-                    <Border Style="{StaticResource CardStyle}">
+                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
                         <StackPanel>
                             <Grid Margin="0,0,0,20">
                                 <Grid.ColumnDefinitions>
@@ -266,13 +216,13 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Seleção de Aplicativos" Style="{StaticResource CardTitleStyle}" />
-                                    <TextBlock Text="Selecione os aplicativos do plano." Style="{StaticResource CardSubtitleStyle}" />
+                                    <TextBlock Text="Seleção de Aplicativos" Style="{StaticResource FluentCardTitleStyle}" />
+                                    <TextBlock Text="Escolha os aplicativos da suíte e inclua Visio ou Project se precisar." Style="{StaticResource StoreCardSubtitleStyle}" />
                                 </StackPanel>
                                 <ui:Button Grid.Column="1"
                                            x:Name="SelectAllAppsButton"
                                            Content="Selecionar todos"
-                                           Style="{StaticResource SelectAllButtonStyle}"
+                                           Style="{StaticResource StoreActionButtonStyle}"
                                            Click="SelectAllAppsButton_Click">
                                     <ui:Button.Icon>
                                         <ui:SymbolIcon Symbol="Checkmark24" />
@@ -288,13 +238,21 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <ToggleButton Style="{StaticResource AppTileToggleStyle}" IsChecked="{Binding IsOn, Mode=TwoWay}">
+                                        <ToggleButton Style="{StaticResource StoreOfficeAppTileStyle}"
+                                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                                      IsEnabled="{Binding IsEnabled}"
+                                                      Click="AppTileToggle_Click">
                                             <StackPanel>
                                                 <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}"
                                                        Width="44"
                                                        Height="44"
                                                        Margin="0,0,0,12"
-                                                       Stretch="Uniform" />
+                                                       Stretch="Uniform"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                    <Image.RenderTransform>
+                                                        <ScaleTransform ScaleX="{Binding IconScale}" ScaleY="{Binding IconScale}" />
+                                                    </Image.RenderTransform>
+                                                </Image>
                                                 <TextBlock Text="{Binding DisplayName}"
                                                            FontSize="13"
                                                            HorizontalAlignment="Center"
@@ -309,11 +267,11 @@
                     </Border>
 
                     <!--  Configurações de Instalação  -->
-                    <Border Style="{StaticResource CardStyle}">
+                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
                         <StackPanel>
-                            <TextBlock Text="Instalação" Style="{StaticResource CardTitleStyle}" />
+                            <TextBlock Text="Instalação" Style="{StaticResource FluentCardTitleStyle}" />
                             <TextBlock Text="Escolha a arquitetura, o idioma e o canal."
-                                       Style="{StaticResource CardSubtitleStyle}"
+                                       Style="{StaticResource StoreCardSubtitleStyle}"
                                        Margin="0,0,0,24" />
 
                             <Grid>
@@ -331,13 +289,13 @@
                                 </Grid.RowDefinitions>
 
                                 <StackPanel Grid.Row="0" Grid.Column="0">
-                                    <TextBlock Text="Categoria" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBlock Text="Categoria" Style="{StaticResource StoreFieldLabelStyle}" />
                                     <ComboBox x:Name="CategoryComboBox"
                                               SelectionChanged="CategoryComboBox_SelectionChanged"
                                               HorizontalAlignment="Stretch" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="0" Grid.Column="2">
-                                    <TextBlock Text="Plano (nome oficial)" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBlock Text="Plano (nome oficial)" Style="{StaticResource StoreFieldLabelStyle}" />
                                     <ComboBox x:Name="PlanComboBox"
                                               DisplayMemberPath="DisplayName"
                                               SelectionChanged="PlanComboBox_SelectionChanged"
@@ -345,11 +303,12 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="2" Grid.Column="0">
-                                    <TextBlock Text="Canal de atualização" Style="{StaticResource FieldLabelStyle}" />
-                                    <ComboBox x:Name="ChannelComboBox" HorizontalAlignment="Stretch" />
+                                    <TextBlock Text="Canal de atualização" Style="{StaticResource StoreFieldLabelStyle}" />
+                                    <ComboBox x:Name="ChannelComboBox" HorizontalAlignment="Stretch"
+                                              SelectionChanged="ChannelComboBox_SelectionChanged" />
                                 </StackPanel>
                                 <StackPanel Grid.Row="2" Grid.Column="2">
-                                    <TextBlock Text="Arquitetura" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBlock Text="Arquitetura" Style="{StaticResource StoreFieldLabelStyle}" />
                                     <ComboBox x:Name="ArchitectureComboBox" HorizontalAlignment="Stretch">
                                         <ComboBoxItem Content="64 bits"
                                                       Tag="64"
@@ -359,7 +318,7 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Row="4" Grid.Column="0">
-                                    <TextBlock Text="Idioma" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBlock Text="Idioma" Style="{StaticResource StoreFieldLabelStyle}" />
                                     <ComboBox x:Name="LanguageComboBox" HorizontalAlignment="Stretch">
                                         <ComboBoxItem Content="Português (Brasil)"
                                                       Tag="pt-br"
@@ -370,14 +329,38 @@
                                         <ComboBoxItem Content="Deutsch" Tag="de-de" />
                                     </ComboBox>
                                 </StackPanel>
+                                <StackPanel Grid.Row="4" Grid.Column="2">
+                                    <TextBlock Text="Interface" Style="{StaticResource StoreFieldLabelStyle}" />
+                                    <ComboBox x:Name="InterfaceComboBox" HorizontalAlignment="Stretch"
+                                              ToolTip="Escolha se o instalador do Office exibirá sua interface.">
+                                        <ComboBoxItem Content="Oculto" Tag="Silent" IsSelected="True" />
+                                        <ComboBoxItem Content="Visível" Tag="Visible" />
+                                    </ComboBox>
+                                </StackPanel>
                             </Grid>
+
+                            <StackPanel x:Name="AdditionalProductsPanel" Visibility="Collapsed" Margin="0,20,0,0">
+                                <TextBlock Text="Edições adicionais para instalar junto ao Office" Style="{StaticResource StoreFieldLabelStyle}" />
+                                <WrapPanel>
+                                    <StackPanel x:Name="VisioProductSelector" Width="280" Margin="0,0,16,8" Visibility="Collapsed">
+                                        <TextBlock Text="Edição do Visio" Style="{StaticResource StoreFieldLabelStyle}" />
+                                        <ComboBox x:Name="VisioProductComboBox" DisplayMemberPath="DisplayName"
+                                                  ToolTip="Escolha a edição do Visio a incluir no XML ODT." />
+                                    </StackPanel>
+                                    <StackPanel x:Name="ProjectProductSelector" Width="280" Margin="0,0,16,8" Visibility="Collapsed">
+                                        <TextBlock Text="Edição do Project" Style="{StaticResource StoreFieldLabelStyle}" />
+                                        <ComboBox x:Name="ProjectProductComboBox" DisplayMemberPath="DisplayName"
+                                                  ToolTip="Escolha a edição do Project a incluir no XML ODT." />
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
 
                             <Expander Header="Opções avançadas"
                                       Margin="0,24,0,0"
                                       FontFamily="Segoe UI Variable Text"
                                       Style="{StaticResource SmoothExpanderStyle}">
                                 <StackPanel Margin="0,12,0,0">
-                                    <TextBlock Text="Idiomas adicionais no mesmo produto" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBlock Text="Idiomas adicionais no mesmo produto" Style="{StaticResource StoreFieldLabelStyle}" />
                                     <WrapPanel Margin="0,0,0,16">
                                         <CheckBox x:Name="LangAdditionalPtBr"
                                                   Content="pt-br"
@@ -401,7 +384,7 @@
                                                   Margin="0,0,16,8" />
                                     </WrapPanel>
 
-                                    <TextBlock Text="Excluir também (Ferramentas legadas)" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBlock Text="Excluir também (Ferramentas legadas)" Style="{StaticResource StoreFieldLabelStyle}" />
                                     <WrapPanel Margin="0,0,0,16">
                                         <CheckBox x:Name="ExcludeOneDriveCheckBox"
                                                   Content="OneDrive (Groove)"
@@ -425,13 +408,12 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-            </ScrollViewer>
 
             <!--  Direita: Barra Lateral  -->
             <StackPanel Grid.Column="2">
 
                 <!--  Produtos Instalados (Movido para o topo)  -->
-                <Border Style="{StaticResource CardStyle}">
+                <Border Style="{StaticResource StoreCardSurfaceStyle}">
                     <StackPanel>
                         <Grid Margin="0,0,0,16">
                             <Grid.ColumnDefinitions>
@@ -439,14 +421,14 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <TextBlock Text="Instalados" Style="{StaticResource CardTitleStyle}" />
+                                <TextBlock Text="Instalados" Style="{StaticResource FluentCardTitleStyle}" />
                                 <TextBlock x:Name="InstalledSummaryText"
                                            Text="Status da máquina atual"
-                                           Style="{StaticResource CardSubtitleStyle}"
+                                           Style="{StaticResource StoreCardSubtitleStyle}"
                                            Margin="0,2,0,0" />
                             </StackPanel>
                             <ui:Button Grid.Column="1"
-                                       Appearance="Transparent"
+                                       Appearance="Secondary"
                                        Padding="8"
                                        Click="RefreshInstalledButton_Click"
                                        ToolTip="Recarregar"
@@ -459,9 +441,9 @@
                         <ItemsControl x:Name="AppStatusItemsControl">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid MinHeight="64" Margin="0,0,0,8">
+                    <Grid MinHeight="64" Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="44" />
+                                        <ColumnDefinition Width="60" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
@@ -469,8 +451,12 @@
                                                conv:AsyncImage.SourceUrl="{Binding IconUrl}"
                                                Width="32"
                                                Height="32"
-                                               Margin="0,0,12,0"
-                                               Stretch="Uniform" />
+                                               Stretch="Uniform"
+                                               RenderTransformOrigin="0.5,0.5">
+                                            <Image.RenderTransform>
+                                                <ScaleTransform ScaleX="{Binding IconScale}" ScaleY="{Binding IconScale}" />
+                                            </Image.RenderTransform>
+                                        </Image>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DisplayName}"
                                                        FontWeight="SemiBold"
@@ -482,7 +468,7 @@
                                                 Background="{Binding StatusBrush}"
                                                 BorderBrush="Transparent"
                                                 BorderThickness="1"
-                                                CornerRadius="{StaticResource StorePillCornerRadius}"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
                                                 Padding="12,6"
                                                 VerticalAlignment="Center"
                                                 ToolTip="{Binding StatusText}">
@@ -507,7 +493,8 @@
                 </Border>
 
             </StackPanel>
-        </Grid>
+          </Grid>
+        </ScrollViewer>
 
         <!--  ================= Rodapé (Status) =================  -->
         <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">

@@ -27,16 +27,21 @@ static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync(string localCatalo
         }
     }
 
-    try
+    // O catálogo é restaurado do R2 pelo workflow diário. Baixar a mesma cópia
+    // novamente só adicionava tráfego e podia manter duplicatas antes do merge.
+    if (catalogEntries.Count == 0)
     {
-        using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
-        var remoteEntries = JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? [];
-        catalogEntries.AddRange(remoteEntries);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2: {ex.Message}");
+        try
+        {
+            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
+            catalogEntries.AddRange(
+                JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? []);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2: {ex.Message}");
+        }
     }
 
     return catalogEntries
@@ -260,6 +265,12 @@ await Parallel.ForEachAsync(
 
 Console.WriteLine($"      {withRepo:N0} pacotes com repositório GitHub identificado");
 Console.WriteLine($"      {githubService.RequestsMade:N0} requisições feitas à API do GitHub nesta execução");
+if (githubService.FailureCounts.Count > 0)
+{
+    string failures = string.Join(", ", githubService.FailureCounts.OrderBy(pair => pair.Key)
+        .Select(pair => $"{pair.Key}: {pair.Value:N0}"));
+    Console.WriteLine($"      [AVISO] Falhas de métricas GitHub (cache/score alternativo usado): {failures}");
+}
 if (githubService.RateLimitHit)
 {
     Console.WriteLine("      [AVISO] Rate limit da API do GitHub atingido - o restante usou cache/score neutro.");

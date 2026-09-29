@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.HomePage"
+<Page x:Class="WinProvision.Store.HomePage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -22,6 +22,8 @@
         <conv:InstallStateToIconConverter x:Key="InstallStateToIconConverter" />
         <conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+        <Style TargetType="ui:Button" BasedOn="{StaticResource StoreActionButtonStyle}" />
 
         <!--  Tipografia Fluent  -->
         <Style x:Key="PageTitleStyle"
@@ -50,33 +52,36 @@
         </DataTemplate>
 
         <DataTemplate x:Key="StoreBannerTileTemplate">
-            <Border Height="82"
-                    Margin="0,0,0,10"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}"
-                    ClipToBounds="True"
-                    Cursor="Hand"
-                    MouseLeftButtonUp="AppCard_Click">
-                <Grid>
-                    <Image conv:AsyncImage.SourceUrl="{Binding StoreBannerUrl}" Stretch="UniformToFill" Opacity="0.72" />
-                    <Border>
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                <GradientStop Color="#CC07111E" Offset="0" />
-                                <GradientStop Color="#7007111E" Offset="0.62" />
-                                <GradientStop Color="#1807111E" Offset="1" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                    </Border>
-                    <StackPanel VerticalAlignment="Center" Margin="14,8" MaxWidth="210" HorizontalAlignment="Left">
-                        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold"
-                                   TextTrimming="CharacterEllipsis" Foreground="White" />
-                        <TextBlock Text="{Binding Publisher}" FontSize="10" Margin="0,3,0,0"
-                                   TextTrimming="CharacterEllipsis" Foreground="#DDE8F4" />
-                    </StackPanel>
-                    <ui:SymbolIcon Symbol="ChevronRight24" FontSize="16" Foreground="White"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <ui:Button Click="StorefrontApp_Click" Margin="0,0,8,0" Padding="0" Appearance="Transparent"
+                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                       AutomationProperties.Name="{Binding Name}">
+                <Grid Background="{DynamicResource AppSurfaceElevatedBrush}">
+                    <Image conv:AsyncImage.SourceUrl="{Binding StoreBannerUrl}" Stretch="UniformToFill" />
+                    <Border Background="{DynamicResource StorefrontImageScrimBrush}" />
+                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="White"
+                               TextWrapping="Wrap" VerticalAlignment="Bottom" Margin="16" />
                 </Grid>
-            </Border>
+            </ui:Button>
+        </DataTemplate>
+        <DataTemplate x:Key="StorefrontRowTemplate">
+            <ui:Button Click="StorefrontApp_Click" Appearance="Transparent" HorizontalAlignment="Stretch"
+                       HorizontalContentAlignment="Stretch" Padding="8" Margin="0,4,8,4" AutomationProperties.Name="{Binding Name}">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="56" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Width="56" Height="56" Stretch="Uniform" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Publisher}" FontSize="12" Margin="0,5,0,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                    Visibility="{Binding StoreRating, Converter={StaticResource NullToVisibilityConverter}}">
+                            <TextBlock Text="★ " Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding StoreRating, StringFormat={}{0:F1}}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding StoreRatingCount, StringFormat={} · {0:N0} avaliações}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                        <TextBlock Text="Instalado" FontSize="11" Margin="0,4,0,0" Foreground="{DynamicResource SystemFillColorSuccessBrush}" Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    </StackPanel>
+                </Grid>
+            </ui:Button>
         </DataTemplate>
 
         <DataTemplate x:Key="PopularAppTileTemplate">
@@ -87,7 +92,7 @@
                         <ColumnDefinition Width="30" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border Width="28" Height="28" CornerRadius="6" ClipToBounds="True" VerticalAlignment="Center">
+                    <Border Width="28" Height="28" CornerRadius="{StaticResource CompactCornerRadius}" ClipToBounds="True" VerticalAlignment="Center">
                         <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
                     </Border>
                     <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="10" FontWeight="SemiBold"
@@ -101,168 +106,6 @@
             <Setter Property="Padding" Value="14" />
             <Setter Property="Margin" Value="0,0,0,10" />
         </Style>
-
-        <!--  Template dos Banners em Destaque  -->
-        <DataTemplate x:Key="FeaturedAppTemplate">
-            <Border Height="148"
-                    Margin="0,0,8,8"
-                    CornerRadius="{StaticResource OverlayCornerRadius}"
-                    ClipToBounds="True"
-                    Cursor="Hand"
-                    MouseLeftButtonUp="AppCard_Click"
-                    Background="{DynamicResource AppCardBackgroundBrush}"
-                    BorderBrush="{DynamicResource AppCardBorderBrush}"
-                    BorderThickness="1">
-
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <!--  Topo: Ícone e Badge "Destaque"  -->
-                    <Grid Grid.Row="0">
-                        <Border CornerRadius="{StaticResource OverlayCornerRadius}"
-                                ClipToBounds="True"
-                                HorizontalAlignment="Left">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Width" Value="34" />
-                                    <Setter Property="Height" Value="34" />
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Source}" Value="msstore">
-                                            <Setter Property="Width" Value="44" />
-                                            <Setter Property="Height" Value="44" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <Grid>
-                                <ui:SymbolIcon Symbol="Box24"
-                                               FontSize="20"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               VerticalAlignment="Center"
-                                               HorizontalAlignment="Center"
-                                               Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=FeaturedIconImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                <Image x:Name="FeaturedIconImage"
-                                       conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                       Stretch="UniformToFill"
-                                       Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=FeaturedIconImage, Converter={StaticResource BoolToVisibilityConverter}}" />
-                            </Grid>
-                        </Border>
-
-                        <Border Background="#1AFFFFFF"
-                                CornerRadius="{StaticResource ControlCornerRadius}"
-                                Padding="7,4"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Top"
-                                Margin="0,8,8,0">
-                            <TextBlock Text="Destaque"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </Border>
-                    </Grid>
-
-                    <!--  Centro: Textos  -->
-                    <StackPanel Grid.Row="1"
-                                VerticalAlignment="Top"
-                                Margin="0,6,0,4">
-                        <TextBlock Text="{Binding Name, TargetNullValue=Aplicativo sem nome, FallbackValue=Aplicativo sem nome}"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                   FontWeight="SemiBold"
-                                   FontSize="13"
-                                   TextTrimming="CharacterEllipsis" />
-                        <Grid Margin="0,2,0,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding Publisher}"
-                                       FontSize="10"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       TextTrimming="CharacterEllipsis" />
-                            <StackPanel Grid.Column="1"
-                                        Orientation="Horizontal"
-                                        Margin="8,0,0,0"
-                                        VerticalAlignment="Center"
-                                        Visibility="{Binding StoreRating, Converter={StaticResource NullToVisibilityConverter}}">
-                                <TextBlock Text="★"
-                                           FontSize="12"
-                                           Foreground="#D6A644"
-                                           Margin="0,0,3,0" />
-                                <TextBlock Text="{Binding StoreRating, StringFormat={}{0:F1}}"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text="{Binding StoreRatingCount, StringFormat={} · {0:N0}}"
-                                           FontSize="10"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           Margin="3,0,0,0" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1"
-                                        Orientation="Horizontal"
-                                        Margin="8,0,0,0"
-                                        VerticalAlignment="Center"
-                                        ToolTip="Estrelas no GitHub">
-                                <StackPanel.Style>
-                                    <Style TargetType="StackPanel">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding GitHubStars}" Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding Source}" Value="msstore">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </StackPanel.Style>
-                                <TextBlock Text="★" FontSize="12" Foreground="#D6A644" Margin="0,0,3,0" />
-                                <TextBlock Text="{Binding GitHubStars, StringFormat={}{0:N0}}"
-                                           FontSize="11" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </StackPanel>
-                        </Grid>
-                        <TextBlock Text="{Binding Description}"
-                                   FontSize="10"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   TextTrimming="CharacterEllipsis"
-                                   MaxHeight="22"
-                                   TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <!--  Base: Botão  -->
-                    <ui:Button Grid.Row="2"
-                               Style="{StaticResource StorePillButtonStyle}"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Bottom"
-                               Padding="14,6"
-                               Background="{StaticResource InstallActionBrush}"
-                               MouseOverBackground="{StaticResource InstallActionHoverBrush}"
-                               PressedBackground="{StaticResource InstallActionPressedBrush}"
-                               Foreground="White"
-                               PressedForeground="White"
-                               IsHitTestVisible="{Binding IsInstalled, Converter={StaticResource InverseBooleanConverter}}"
-                               Click="InstallButton_Click"
-                               Tag="{Binding}">
-                        <ui:Button.Content>
-                            <MultiBinding Converter="{StaticResource InstallStateToLabelConverter}">
-                                <Binding Path="IsInstalled" />
-                                <Binding Path="IsInstalling" />
-                                <Binding Source="Adquirir" />
-                            </MultiBinding>
-                        </ui:Button.Content>
-                        <ui:Button.Icon>
-                            <MultiBinding Converter="{StaticResource InstallStateToIconConverter}">
-                                <Binding Path="IsInstalled" />
-                                <Binding Path="IsInstalling" />
-                            </MultiBinding>
-                        </ui:Button.Icon>
-                    </ui:Button>
-                </Grid>
-            </Border>
-        </DataTemplate>
 
         <DataTemplate x:Key="AppListTemplate">
             <Border Margin="0,0,0,8"
@@ -279,7 +122,7 @@
 
                     <Border Grid.Column="0"
                             Margin="0,0,12,0"
-                            CornerRadius="{StaticResource OverlayCornerRadius}"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
                             ClipToBounds="True"
                             VerticalAlignment="Center">
                         <Border.Style>
@@ -402,14 +245,13 @@
         </DataTemplate>
     </Page.Resources>
 
-    <!--  Layout Principal: 3 Colunas (Conteúdo | Espaço | Sidebar)  -->
-    <Grid Margin="12"
+    <!-- A vitrine usa toda a largura disponível. -->
+    <Grid Margin="{StaticResource PageContentMargin}"
           MaxWidth="{StaticResource PageContentMaxWidth}"
           HorizontalAlignment="Stretch">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
-            <ColumnDefinition x:Name="SidebarGapColumn" Width="{StaticResource PageColumnGap}" />
-            <ColumnDefinition x:Name="SidebarColumn" Width="220" />
+
         </Grid.ColumnDefinitions>
 
         <!--  ================= COLUNA ESQUERDA (Principal) =================  -->
@@ -443,6 +285,7 @@
                 </StackPanel>
 
                 <!--  Campo de Busca embutido no topo direito com largura segura  -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                 <ui:TextBox x:Name="SearchBox"
                             Grid.Column="2"
                             VerticalAlignment="Center"
@@ -457,6 +300,11 @@
                         <ui:FontIcon Glyph="&#xE721;" FontFamily="Segoe Fluent Icons" />
                     </ui:TextBox.Icon>
                 </ui:TextBox>
+                <ui:Button x:Name="RefreshCatalogButton" Style="{StaticResource StoreActionButtonStyle}" Width="36" Height="36" Padding="0" Margin="8,0,0,0"
+                           Click="RefreshButton_Click" ToolTip="Atualizar catálogo" AutomationProperties.Name="Atualizar catálogo">
+                    <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" />
+                </ui:Button>
+                </StackPanel>
             </Grid>
 
             <!--  2. CHIPS DE CATEGORIA (WrapPanel para quebrar linha em meia tela sem cortar)  -->
@@ -475,38 +323,11 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type local:CategoryChip}">
                             <RadioButton GroupName="CategoryFilter"
+                                         Style="{StaticResource StoreCategoryFilterStyle}"
                                          IsChecked="{Binding IsSelected, Mode=OneWay}"
                                          Checked="CategoryChip_Checked"
                                          Tag="{Binding Tag}"
-                                         Margin="0,0,8,8"
-                                         Cursor="Hand">
-                                <RadioButton.Template>
-                                    <ControlTemplate TargetType="RadioButton">
-                                        <Border x:Name="Chip"
-                                                CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                Padding="16,8"
-                                                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                                BorderThickness="1"
-                                                BorderBrush="{DynamicResource AppBorderSubtleBrush}">
-                                            <StackPanel Orientation="Horizontal">
-                                                <ui:FontIcon Glyph="{Binding Icon}"
-                                                             FontFamily="Segoe Fluent Icons"
-                                                             Margin="0,0,8,0"
-                                                             FontSize="16" />
-                                                <TextBlock Text="{Binding Label}"
-                                                           FontSize="13"
-                                                           FontWeight="Medium" />
-                                            </StackPanel>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="Chip" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
-                                                <Setter TargetName="Chip" Property="BorderBrush" Value="Transparent" />
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </RadioButton.Template>
-                            </RadioButton>
+                                         Margin="0,0,8,8" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -521,11 +342,11 @@
                 <StackPanel Margin="0,0,4,0">
 
                     <!-- Banners editoriais carregados pelo Display Catalog da Microsoft Store. -->
-                    <Grid Height="176" Margin="0,0,0,10">
+                    <Grid x:Name="StorefrontHeroGrid" Height="440" Margin="0,0,0,24">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2.08*" />
-                            <ColumnDefinition Width="10" />
-                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="1.55*" />
+                            <ColumnDefinition x:Name="HeroGapColumn" Width="12" />
+                            <ColumnDefinition x:Name="HeroPromotionsColumn" Width="1*" />
                         </Grid.ColumnDefinitions>
 
                         <Border x:Name="HeroBanner" Grid.Column="0" CornerRadius="{StaticResource StoreCardCornerRadius}"
@@ -534,41 +355,38 @@
                             <Grid>
                                 <Image x:Name="HeroBannerImage" conv:AsyncImage.SourceUrl="{Binding StoreBannerUrl}"
                                        Stretch="UniformToFill" Opacity="0.86" />
-                                <Border>
-                                    <Border.Background>
-                                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                            <GradientStop Color="#D9091A2C" Offset="0" />
-                                            <GradientStop Color="#9C091A2C" Offset="0.38" />
-                                            <GradientStop Color="#18091A2C" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Border.Background>
-                                </Border>
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left" Margin="24,12,24,14" MaxWidth="340">
-                                    <TextBlock Text="Descubra" FontSize="25" FontWeight="Bold" Foreground="White" />
-                                    <TextBlock Text="Aplicativos, jogos e mais para o seu dia a dia"
+                                <Border Background="{DynamicResource StorefrontHeroScrimBrush}" />
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Left" Margin="36,24,36,64" MaxWidth="340">
+                                    <TextBlock Text="{Binding Name, FallbackValue=Descubra seu próximo aplicativo}" FontSize="32" TextWrapping="Wrap" FontWeight="Bold" Foreground="White" />
+                                    <TextBlock Text="{Binding Publisher, FallbackValue=Aplicativos para o seu dia a dia}"
                                                FontSize="12" Foreground="#E6EDF7" Margin="0,2,0,12" TextWrapping="Wrap" />
-                                    <ui:Button Content="Ver detalhes" Click="HeroBannerDetails_Click"
+                                    <ui:Button x:Name="HeroDetailsButton" Content="Ver detalhes" Click="HeroBannerDetails_Click" IsEnabled="False"
                                                HorizontalAlignment="Left" MinHeight="30" Padding="14,4"
                                                Background="{DynamicResource InstallActionBrush}" Foreground="White" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10">
                                     <ui:Button x:Name="HeroBannerPreviousButton" Appearance="Transparent" Padding="4" MinWidth="24" MinHeight="24"
+                                               CornerRadius="{StaticResource CompactCornerRadius}"
                                                Click="HeroBannerPrevious_Click" ToolTip="Banner anterior">
                                         <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="14" Foreground="White" />
                                     </ui:Button>
                                     <ui:Button x:Name="HeroBannerDot0" Tag="0" Appearance="Transparent" Padding="4" MinWidth="18" MinHeight="24"
+                                               CornerRadius="{StaticResource CompactCornerRadius}"
                                                Click="HeroBannerDot_Click" ToolTip="Primeiro banner">
-                                        <Ellipse x:Name="HeroBannerIndicator0" Width="6" Height="6" Fill="#FF32B5FF" />
+                                        <Rectangle x:Name="HeroBannerIndicator0" Width="14" Height="3" Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
                                     </ui:Button>
                                     <ui:Button x:Name="HeroBannerDot1" Tag="1" Appearance="Transparent" Padding="4" MinWidth="18" MinHeight="24"
+                                               CornerRadius="{StaticResource CompactCornerRadius}"
                                                Click="HeroBannerDot_Click" ToolTip="Segundo banner">
-                                        <Ellipse x:Name="HeroBannerIndicator1" Width="6" Height="6" Fill="#FFFFFFFF" />
+                                        <Rectangle x:Name="HeroBannerIndicator1" Width="14" Height="3" Fill="White" />
                                     </ui:Button>
                                     <ui:Button x:Name="HeroBannerDot2" Tag="2" Appearance="Transparent" Padding="4" MinWidth="18" MinHeight="24"
+                                               CornerRadius="{StaticResource CompactCornerRadius}"
                                                Click="HeroBannerDot_Click" ToolTip="Terceiro banner">
-                                        <Ellipse x:Name="HeroBannerIndicator2" Width="6" Height="6" Fill="#FFFFFFFF" />
+                                        <Rectangle x:Name="HeroBannerIndicator2" Width="14" Height="3" Fill="White" />
                                     </ui:Button>
                                     <ui:Button x:Name="HeroBannerNextButton" Appearance="Transparent" Padding="4" MinWidth="24" MinHeight="24"
+                                               CornerRadius="{StaticResource CompactCornerRadius}"
                                                Click="HeroBannerNext_Click" ToolTip="Próximo banner">
                                         <ui:SymbolIcon Symbol="ChevronRight24" FontSize="14" Foreground="White" />
                                     </ui:Button>
@@ -576,60 +394,68 @@
                             </Grid>
                         </Border>
 
-                        <ItemsControl x:Name="SideStoreBannerList" Grid.Column="2" ItemsSource="{Binding SideStoreBannerApps}"
-                                      ItemTemplate="{StaticResource StoreBannerTileTemplate}" />
+                        <Grid x:Name="HeroPromotions" Grid.Column="2">
+                            <Grid.RowDefinitions><RowDefinition Height="1.7*" /><RowDefinition Height="12" /><RowDefinition Height="1*" /></Grid.RowDefinitions>
+                            <ui:Button x:Name="RightStorePromo" Click="StorefrontApp_Click" Padding="0" Appearance="Transparent"
+                                       HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                       AutomationProperties.Name="{Binding Name}" Visibility="Collapsed">
+                                <Grid Background="{DynamicResource AppSurfaceElevatedBrush}">
+                                    <Image conv:AsyncImage.SourceUrl="{Binding StoreBannerUrl}" Stretch="UniformToFill" />
+                                    <Border Background="{DynamicResource StorefrontImageScrimBrush}" />
+                                    <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold" Foreground="White"
+                                               TextWrapping="Wrap" VerticalAlignment="Bottom" Margin="24" />
+                                </Grid>
+                            </ui:Button>
+                            <ItemsControl x:Name="SideStoreBannerList" Grid.Row="2" ItemsSource="{Binding SideStoreBannerApps}"
+                                          ItemTemplate="{StaticResource StoreBannerTileTemplate}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            </ItemsControl>
+                        </Grid>
                     </Grid>
 
-                    <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="Aplicativos em destaque" Style="{StaticResource CardTitleStyle}" FontSize="15" />
-                        <TextBlock Grid.Column="1" Text="{Binding FeaturedApps.Count, StringFormat={}{0} aplicativos}"
-                                   FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
-                    </Grid>
-
-                    <!-- Destaques do catálogo local seguem disponíveis nos três modos de visualização. -->
-                    <Grid Margin="0,0,0,12">
-                        <ItemsControl x:Name="FeaturedAppsList"
-                                      ItemsSource="{Binding FeaturedApps}"
-                                      ItemTemplate="{StaticResource FeaturedAppTemplate}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="{Binding FeaturedColumns, RelativeSource={RelativeSource AncestorType=local:HomePage}}" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                        </ItemsControl>
-
-                        <ItemsControl x:Name="FeaturedAppsListView"
-                                      Visibility="Collapsed"
-                                      ItemsSource="{Binding FeaturedApps}"
-                                      ItemTemplate="{StaticResource AppListTemplate}" />
-                        <ItemsControl x:Name="FeaturedAppsIconsList" Visibility="Collapsed"
-                                      ItemsSource="{Binding FeaturedApps}"
-                                      ItemTemplate="{StaticResource AppIconTileTemplate}">
-                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                        </ItemsControl>
-                    </Grid>
-
-                    <!--  SEÇÃO: Aplicativos em Destaque (Grade principal adaptativa)  -->
-                    <Grid Margin="0,0,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Mais aplicativos"
-                                       Style="{StaticResource CardTitleStyle}"
-                                       FontSize="16" />
-                            <TextBlock Text="Explore outras opções."
-                                       FontSize="12"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       Margin="0,2,0,0" />
-                        </StackPanel>
-                    </Grid>
-
+                    <UniformGrid x:Name="StorefrontShelves" Columns="2" Margin="0,0,0,16">
+                        <Border x:Name="PopularShelfCard" Style="{StaticResource StoreCardSurfaceStyle}" Margin="0,0,8,8" Effect="{x:Null}">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,16">
+                                    <ui:Button x:Name="PopularMoreButton" DockPanel.Dock="Right" Appearance="Transparent"
+                                               Width="32" Height="32" Padding="0" Click="PopularMoreButton_Click"
+                                               ToolTip="Ver mais aplicativos populares" AutomationProperties.Name="Ver mais aplicativos populares">
+                                        <ui:SymbolIcon x:Name="PopularMoreIcon" Symbol="ChevronRight24" FontSize="16" />
+                                    </ui:Button>
+                                    <TextBlock Text="Aplicativos populares" Style="{StaticResource FluentCardTitleStyle}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding PopularApps}" ItemTemplate="{StaticResource StorefrontRowTemplate}">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <TextBlock Text="Sincronize o catálogo para identificar os aplicativos com suporte a pt-BR.">
+                                    <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource StoreCardSubtitleStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding PopularApps.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="StoreShelfCard" Style="{StaticResource StoreCardSurfaceStyle}" Margin="8,0,0,8" Effect="{x:Null}">
+                            <StackPanel>
+                                <DockPanel Margin="0,0,0,16">
+                                    <ui:Button x:Name="StoreMoreButton" DockPanel.Dock="Right" Appearance="Transparent"
+                                               Width="32" Height="32" Padding="0" Click="StoreMoreButton_Click"
+                                               ToolTip="Ver mais aplicativos da Microsoft Store" AutomationProperties.Name="Ver mais aplicativos da Microsoft Store">
+                                        <ui:SymbolIcon x:Name="StoreMoreIcon" Symbol="ChevronRight24" FontSize="16" />
+                                    </ui:Button>
+                                    <TextBlock Text="Na Microsoft Store" Style="{StaticResource FluentCardTitleStyle}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8" />
+                                <ItemsControl ItemsSource="{Binding StoreHighlights}" ItemTemplate="{StaticResource StorefrontRowTemplate}">
+                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                                <TextBlock Text="Não há aplicativos da Microsoft Store com suporte a pt-BR conhecido.">
+                                    <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource StoreCardSubtitleStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding StoreHighlights.Count}" Value="0"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+                    <StackPanel x:Name="ResultsPanel" Visibility="Collapsed">
+                        <TextBlock x:Name="ResultsTitle" Text="Resultados da pesquisa"
+                                   Style="{StaticResource CardTitleStyle}" FontSize="18" Margin="0,0,0,12" />
                     <Grid>
                         <ScrollViewer x:Name="AppsGridScrollViewer"
                                       VerticalScrollBarVisibility="Disabled"
@@ -667,7 +493,7 @@
                                                             Width="40"
                                                             Height="40"
                                                             Margin="0,0,12,0"
-                                                            CornerRadius="{StaticResource OverlayCornerRadius}"
+                                                            CornerRadius="{StaticResource ControlCornerRadius}"
                                                             ClipToBounds="True">
                                                         <Grid>
                                                             <ui:SymbolIcon Symbol="Box24"
@@ -760,44 +586,17 @@
                             </ItemsControl>
                         </ScrollViewer>
                     </Grid>
-
-                    <!--  Rodapé / Paginação  -->
-                    <Grid Margin="0,16,0,24">
-                        <TextBlock VerticalAlignment="Center"
-                                   FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}">
-                            <Run Text="Mostrando " />
-                            <Run Text="{Binding Items.Count, ElementName=AppsList, Mode=OneWay}" />
-                            <Run Text=" aplicativos" />
-                        </TextBlock>
-
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                            <ui:Button Appearance="Transparent" Padding="8,4">
-                                <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="14" />
-                            </ui:Button>
-                            <TextBlock Text="Página 1 de 1"
-                                       VerticalAlignment="Center"
-                                       Margin="12,0"
-                                       FontSize="12"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <ui:Button Appearance="Transparent" Padding="8,4">
-                                <ui:SymbolIcon Symbol="ChevronRight24" FontSize="14" />
-                            </ui:Button>
-                        </StackPanel>
-                    </Grid>
-
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
 
-            <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">
+            <Border x:Name="ResultsStatusBar" Grid.Row="3" Style="{StaticResource PageStatusBarStyle}" Visibility="Collapsed">
               <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="Ordenar e exibir aplicativos"
+                <TextBlock x:Name="StatusText"
                            Style="{StaticResource PageStatusTextStyle}" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Text="Classificar por:" Style="{StaticResource PageStatusTextStyle}" Margin="0,0,8,0" />
@@ -823,196 +622,5 @@
             </Border>
         </Grid>
 
-        <!--  ================= COLUNA DIREITA (Sidebar) =================  -->
-        <StackPanel x:Name="SidebarPanel" Grid.Column="2">
-
-            <!--  1. Resumo do Catálogo  -->
-            <Border Style="{StaticResource DashboardSideCardStyle}">
-                <StackPanel>
-                    <Grid Margin="0,0,0,16">
-                        <TextBlock Text="Resumo do Catálogo"
-                                   Style="{StaticResource CardTitleStyle}"
-                                   VerticalAlignment="Center" />
-                        <ui:Button x:Name="RefreshCatalogButton"
-                                   Appearance="Transparent"
-                                   Padding="6"
-                                   HorizontalAlignment="Right"
-                                   Click="RefreshButton_Click"
-                                   ToolTip="Atualizar catálogo">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                           FontSize="16"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </ui:Button>
-                    </Grid>
-
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="24" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
-                            <TextBlock x:Name="CatalogCountText"
-                                       Text="0"
-                                       FontSize="32"
-                                       FontWeight="SemiBold" />
-                            <TextBlock Text="Aplicativos"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="8"
-                                       FontSize="32"
-                                       FontWeight="SemiBold" />
-                            <TextBlock Text="Categorias"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </StackPanel>
-                    </Grid>
-
-                    <TextBlock Text="Última atualização"
-                               FontSize="11"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <TextBlock x:Name="LastCatalogSyncText"
-                               Text="Sincronização ainda não realizada"
-                               FontSize="12"
-                               Margin="0,2,0,16" />
-                    <TextBlock x:Name="StatusText" Visibility="Collapsed" />
-
-                    <StackPanel Orientation="Horizontal">
-                        <ui:FontIcon x:Name="CatalogStatusIcon"
-                                     Glyph="&#xE930;"
-                                     FontFamily="Segoe Fluent Icons"
-                                     FontSize="14"
-                                     Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                     Margin="0,0,8,0" />
-                        <TextBlock x:Name="CatalogStatusText"
-                                   Text="Atualizado"
-                                   FontSize="12"
-                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!--  2. Categorias Populares  -->
-            <Border Style="{StaticResource DashboardSideCardStyle}">
-                <StackPanel>
-                    <TextBlock Text="Categorias populares"
-                               Style="{StaticResource CardTitleStyle}"
-                               Margin="0,0,0,16" />
-
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,12"
-                                VerticalAlignment="Center">
-                        <ui:FontIcon Glyph="&#xE943;"
-                                     FontFamily="Segoe Fluent Icons"
-                                     Width="24"
-                                     FontSize="16"
-                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                     Margin="0,0,12,0"
-                                     VerticalAlignment="Center" />
-                        <TextBlock Text="Desenvolvimento"
-                                   FontSize="13"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,12"
-                                VerticalAlignment="Center">
-                        <ui:FontIcon Glyph="&#xEC7A;"
-                                     FontFamily="Segoe Fluent Icons"
-                                     Width="24"
-                                     FontSize="16"
-                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                     Margin="0,0,12,0"
-                                     VerticalAlignment="Center" />
-                        <TextBlock Text="Utilitários"
-                                   FontSize="13"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,12"
-                                VerticalAlignment="Center">
-                        <ui:FontIcon Glyph="&#xE7C3;"
-                                     FontFamily="Segoe Fluent Icons"
-                                     Width="24"
-                                     FontSize="16"
-                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                     Margin="0,0,12,0"
-                                     VerticalAlignment="Center" />
-                        <TextBlock Text="Produtividade"
-                                   FontSize="13"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,12"
-                                VerticalAlignment="Center">
-                        <ui:FontIcon Glyph="&#xE768;"
-                                     FontFamily="Segoe Fluent Icons"
-                                     Width="24"
-                                     FontSize="16"
-                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                     Margin="0,0,12,0"
-                                     VerticalAlignment="Center" />
-                        <TextBlock Text="Multimídia"
-                                   FontSize="13"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <ui:FontIcon Glyph="&#xE83D;"
-                                     FontFamily="Segoe Fluent Icons"
-                                     Width="24"
-                                     FontSize="16"
-                                     Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                     Margin="0,0,12,0"
-                                     VerticalAlignment="Center" />
-                        <TextBlock Text="Segurança"
-                                   FontSize="13"
-                                   VerticalAlignment="Center" />
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <Border x:Name="RightStorePromo" Height="112" Margin="0,0,0,10"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}" ClipToBounds="True"
-                    Cursor="Hand" MouseLeftButtonUp="AppCard_Click"
-                    Background="{DynamicResource AppSurfaceElevatedBrush}">
-                <Grid>
-                    <Image conv:AsyncImage.SourceUrl="{Binding StoreBannerUrl}" Stretch="UniformToFill" Opacity="0.8" />
-                    <Border>
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                <GradientStop Color="#C8091828" Offset="0" />
-                                <GradientStop Color="#55091828" Offset="1" />
-                            </LinearGradientBrush>
-                        </Border.Background>
-                    </Border>
-                    <StackPanel VerticalAlignment="Bottom" Margin="12,8">
-                        <TextBlock Text="Destaque da Microsoft Store" FontSize="11" FontWeight="SemiBold" Foreground="White" />
-                        <TextBlock Text="Conheça o aplicativo Xbox" FontSize="10" Foreground="#DDE8F4" Margin="0,2,0,0" />
-                    </StackPanel>
-                    <ui:SymbolIcon Symbol="ChevronRight24" FontSize="14" Foreground="White"
-                                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,10,11" />
-                </Grid>
-            </Border>
-
-            <Border Style="{StaticResource DashboardSideCardStyle}">
-                <StackPanel>
-                    <TextBlock Text="Aplicativos populares" Style="{StaticResource CardTitleStyle}" FontSize="14" Margin="0,0,0,8" />
-                    <ItemsControl ItemsSource="{Binding PopularApps}" ItemTemplate="{StaticResource PopularAppTileTemplate}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <UniformGrid Columns="2" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
-
-        </StackPanel>
     </Grid>
 </Page>

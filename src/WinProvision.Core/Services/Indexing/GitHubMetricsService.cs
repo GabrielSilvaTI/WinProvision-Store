@@ -29,6 +29,7 @@ public class GitHubMetricsService
 
     private readonly HttpClient _httpClient;
     private readonly ConcurrentDictionary<string, GitHubRepoMetrics> _cache;
+    private readonly ConcurrentDictionary<string, int> _failureCounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly TimeSpan _cacheTtl = TimeSpan.FromDays(7);
     private readonly SemaphoreSlim _throttle = new(5);
 
@@ -37,6 +38,7 @@ public class GitHubMetricsService
 
     public bool RateLimitHit => _rateLimitHit;
     public int RequestsMade => _requestsMade;
+    public IReadOnlyDictionary<string, int> FailureCounts => _failureCounts;
 
     public GitHubMetricsService(string? githubToken, Dictionary<string, GitHubRepoMetrics>? existingCache = null)
     {
@@ -86,8 +88,8 @@ public class GitHubMetricsService
         {
             if (RateLimitHit) return hasCached ? cached : null;
 
-            var response = await _httpClient.GetAsync($"https://api.github.com/repos/{repoSlug}");
             Interlocked.Increment(ref _requestsMade);
+            using var response = await _httpClient.GetAsync($"https://api.github.com/repos/{repoSlug}");
 
             if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
             {
@@ -95,13 +97,23 @@ public class GitHubMetricsService
                 // só considera rate limit de verdade quando os headers dizem isso, senão um
                 // único repositório assim desligaria o enriquecimento do resto da rodada.
                 if (IsRateLimited(response))
+                {
                     _rateLimitHit = true;
+                    RecordFailure("rate_limit");
+                }
+                else
+                {
+                    RecordFailure("http_403");
+                }
 
                 return hasCached ? cached : null;
             }
 
             if (!response.IsSuccessStatusCode)
+            {
+                RecordFailure($"http_{(int)response.StatusCode}");
                 return hasCached ? cached : null;
+            }
 
             using var stream = await response.Content.ReadAsStreamAsync();
             using var doc = await JsonDocument.ParseAsync(stream);
@@ -120,8 +132,9 @@ public class GitHubMetricsService
             _cache[repoSlug] = metrics;
             return metrics;
         }
-        catch
+        catch (Exception ex)
         {
+            RecordFailure(ex is TaskCanceledException ? "timeout" : ex.GetType().Name);
             return hasCached ? cached : null;
         }
         finally
@@ -146,4 +159,7 @@ public class GitHubMetricsService
 
     /// <summary>Retorna o cache atualizado para ser persistido em disco pelo chamador.</summary>
     public Dictionary<string, GitHubRepoMetrics> ExportCache() => new(_cache);
+
+    private void RecordFailure(string category)
+        => _failureCounts.AddOrUpdate(category, 1, static (_, count) => count + 1);
 }

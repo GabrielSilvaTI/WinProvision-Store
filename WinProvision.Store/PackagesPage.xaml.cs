@@ -15,6 +15,8 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using WinProvision.Core.Models;
@@ -24,7 +26,9 @@ using WinProvision.Core.Services.Office;
 using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
 using WinProvision.Store.Services;
+using Wpf.Ui;
 using Wpf.Ui.Controls;
+using Wpf.Ui.Extensions;
 
 namespace WinProvision.Store;
 
@@ -45,20 +49,30 @@ public partial class PackagesPage : Page
     private readonly ProvisioningService _provisioningService;
     private readonly PackageMetricsService _metricsService;
     private readonly AppDetailsOverlayService _overlayService;
+    private readonly ISnackbarService _snackbarService;
+    private readonly IContentDialogService _contentDialogService;
 
     private PackageProfileTab? _observedTab;
     private ICollectionView? _collectionView;
     private CancellationTokenSource? _metricsCts;
     private readonly HashSet<AppEntry> _metricAttemptedItems = [];
+    private readonly DispatcherTimer _searchDebounceTimer;
 
     private string _currentSortProperty = "Name";
     private ListSortDirection _currentSortDirection = ListSortDirection.Ascending;
     private bool _suppressSortModeSelectionChanged;
     private bool _isSidebarCollapsed;
+    private bool _isBatchSelectionUpdate;
 
     public PackagesPage()
     {
         InitializeComponent();
+
+        _searchDebounceTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(220)
+        };
+        _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
 
         _collectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _profileService = App.Services.GetRequiredService<ProfileService>();
@@ -69,6 +83,8 @@ public partial class PackagesPage : Page
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
         _metricsService = App.Services.GetRequiredService<PackageMetricsService>();
         _overlayService = App.Services.GetRequiredService<AppDetailsOverlayService>();
+        _snackbarService = App.Services.GetRequiredService<ISnackbarService>();
+        _contentDialogService = App.Services.GetRequiredService<IContentDialogService>();
 
         ProfileTabControl.ItemsSource = _collectionService.Tabs;
         ProfileTabControl.SelectedItem = _collectionService.ActiveTab;
@@ -99,6 +115,7 @@ public partial class PackagesPage : Page
         _collectionView = CollectionViewSource.GetDefaultView(_observedTab.Items);
         _collectionView.Filter = FilterCollectionItem;
         ApplySorting();
+        RefreshSearchSuggestions();
 
         AppCollectionItemsControl.ItemsSource = _collectionView;
         AppCollectionListItemsControl.ItemsSource = _collectionView;
@@ -117,6 +134,7 @@ public partial class PackagesPage : Page
             foreach (AppEntry app in e.OldItems) app.PropertyChanged -= App_PropertyChanged;
 
         _collectionView?.Refresh();
+        RefreshSearchSuggestions();
         UpdateStatus();
         if (_observedTab is { } tab) _ = RefreshCollectionMetricsAsync(tab);
     }
@@ -125,6 +143,9 @@ public partial class PackagesPage : Page
     {
         if (e.PropertyName is nameof(AppEntry.IsSelectedForInstall) or nameof(AppEntry.InstallerSizeBytes))
         {
+            if (_isBatchSelectionUpdate && e.PropertyName == nameof(AppEntry.IsSelectedForInstall))
+                return;
+
             Dispatcher.BeginInvoke(() =>
             {
                 if (_collectionService.ActiveTab is { } tab)
@@ -170,12 +191,63 @@ public partial class PackagesPage : Page
         return true;
     }
 
-    private void PackageSearchTextBox_TextChanged(object sender, TextChangedEventArgs e) => _collectionView?.Refresh();
+    private void RefreshSearchSuggestions()
+    {
+        if (PackageSearchTextBox is null || _observedTab is null)
+            return;
+
+        // Mantém uma lista curta e sem duplicatas para que a busca nativa do WPF-UI
+        // não percorra a coleção inteira a cada tecla em perfis grandes.
+        PackageSearchTextBox.OriginalItemsSource = _observedTab.Items
+            .SelectMany(app => new[] { app.Name, app.Publisher, app.Id })
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(300)
+            .ToList();
+    }
+
+    private void PackageSearchTextBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+            _searchDebounceTimer.Start();
+        else
+            _collectionView?.Refresh();
+    }
+
+    private void SearchDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        _collectionView?.Refresh();
+        UpdateStatus();
+    }
+
+    private void PackageSearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        _collectionView?.Refresh();
+        UpdateStatus();
+    }
 
     private void ClearSearchButton_Click(object sender, RoutedEventArgs e)
     {
         PackageSearchTextBox.Text = string.Empty;
+        _searchDebounceTimer.Stop();
         _collectionView?.Refresh();
+        UpdateStatus();
+    }
+
+    private void ResetCollectionFilters_Click(object sender, RoutedEventArgs e)
+    {
+        PackageSearchTextBox.Text = string.Empty;
+        FilterSourceAllCheckBox.IsChecked = true;
+        FilterSourceWingetCheckBox.IsChecked = true;
+        FilterSourceMsStoreCheckBox.IsChecked = true;
+        FilterSourceOfficeCheckBox.IsChecked = true;
+        FilterOnlySelectedCheckBox.IsChecked = false;
+        _searchDebounceTimer.Stop();
+        _collectionView?.Refresh();
+        UpdateStatus();
     }
 
     private void FilterCheckBox_Click(object sender, RoutedEventArgs e)
@@ -195,6 +267,26 @@ public partial class PackagesPage : Page
                 FilterSourceOfficeCheckBox.IsChecked == true;
         }
 
+        _collectionView?.Refresh();
+        UpdateStatus();
+    }
+
+    private void SelectAllCollectionSources_Click(object sender, RoutedEventArgs e)
+    {
+        FilterSourceAllCheckBox.IsChecked = true;
+        FilterSourceWingetCheckBox.IsChecked = true;
+        FilterSourceMsStoreCheckBox.IsChecked = true;
+        FilterSourceOfficeCheckBox.IsChecked = true;
+        _collectionView?.Refresh();
+        UpdateStatus();
+    }
+
+    private void ClearCollectionSources_Click(object sender, RoutedEventArgs e)
+    {
+        FilterSourceAllCheckBox.IsChecked = false;
+        FilterSourceWingetCheckBox.IsChecked = false;
+        FilterSourceMsStoreCheckBox.IsChecked = false;
+        FilterSourceOfficeCheckBox.IsChecked = false;
         _collectionView?.Refresh();
         UpdateStatus();
     }
@@ -257,6 +349,23 @@ public partial class PackagesPage : Page
             _collectionView.SortDescriptions.Clear();
             _collectionView.SortDescriptions.Add(new SortDescription(_currentSortProperty, _currentSortDirection));
         }
+
+        UpdateSortIndicators();
+    }
+
+    private void UpdateSortIndicators()
+    {
+        if (NameSortHeader is null)
+            return;
+
+        const string ascending = " ↑";
+        const string descending = " ↓";
+        string indicator = _currentSortDirection == ListSortDirection.Ascending ? ascending : descending;
+
+        NameSortHeader.Text = "Nome do aplicativo" + (_currentSortProperty == "Name" ? indicator : string.Empty);
+        IdSortHeader.Text = "ID do Pacote" + (_currentSortProperty == "Id" ? indicator : string.Empty);
+        VersionSortHeader.Text = "Versão" + (_currentSortProperty == "Version" ? indicator : string.Empty);
+        SourceSortHeader.Text = "Origem" + (_currentSortProperty == "Source" ? indicator : string.Empty);
     }
 
     // ─── Atualização de Status e Indicadores ─────────────────────────────────
@@ -311,11 +420,13 @@ public partial class PackagesPage : Page
         if (EmptyCollectionPanel != null)
         {
             bool isEmpty = total == 0;
+            bool noResults = total > 0 && _collectionView?.IsEmpty == true;
             EmptyCollectionPanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
-            ListViewScrollViewer.Visibility = (!isEmpty && ListViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
-            GridViewScrollViewer.Visibility = (!isEmpty && GridViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
-            IconsViewScrollViewer.Visibility = (!isEmpty && IconsViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
-            TableHeaderBar.Visibility = (!isEmpty && ListViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            NoResultsPanel.Visibility = noResults ? Visibility.Visible : Visibility.Collapsed;
+            ListViewScrollViewer.Visibility = (!isEmpty && !noResults && ListViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            GridViewScrollViewer.Visibility = (!isEmpty && !noResults && GridViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            IconsViewScrollViewer.Visibility = (!isEmpty && !noResults && IconsViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+            TableHeaderBar.Visibility = (!isEmpty && !noResults && ListViewToggleButton.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
         }
 
         CloseProfileButton.IsEnabled = !active.IsDefault;
@@ -440,11 +551,7 @@ public partial class PackagesPage : Page
         var active = _collectionService.ActiveTab;
         if (active == null || active.Items.Count == 0) return;
 
-        bool target = SelectAllHeaderCheckBox.IsChecked == true;
-        foreach (var item in active.Items)
-            item.IsSelectedForInstall = target;
-
-        UpdateStatus();
+        SetSelection(active.Items, SelectAllHeaderCheckBox.IsChecked == true);
     }
 
     private void ToggleSelectAllButton_Click(object sender, RoutedEventArgs e)
@@ -453,11 +560,25 @@ public partial class PackagesPage : Page
         if (active == null || active.Items.Count == 0) return;
 
         bool allSelected = active.Items.All(a => a.IsSelectedForInstall);
-        bool targetState = !allSelected;
+        SetSelection(active.Items, !allSelected);
+    }
 
-        foreach (var item in active.Items)
-            item.IsSelectedForInstall = targetState;
+    private void SetSelection(IEnumerable<AppEntry> items, bool selected)
+    {
+        _isBatchSelectionUpdate = true;
+        try
+        {
+            foreach (AppEntry item in items)
+                item.IsSelectedForInstall = selected;
+        }
+        finally
+        {
+            _isBatchSelectionUpdate = false;
+        }
 
+        _collectionView?.Refresh();
+        if (_collectionService.ActiveTab is { } active)
+            RefreshCollectionSummary(active);
         UpdateStatus();
     }
 
@@ -469,7 +590,9 @@ public partial class PackagesPage : Page
 
     private void SetViewMode(bool tableMode, bool iconMode = false)
     {
-        bool hasItems = (_collectionService.ActiveTab?.Items.Count ?? 0) > 0;
+        bool hasItems = _collectionView is not null
+            ? !_collectionView.IsEmpty
+            : (_collectionService.ActiveTab?.Items.Count ?? 0) > 0;
 
         ListViewScrollViewer.Visibility = (tableMode && hasItems) ? Visibility.Visible : Visibility.Collapsed;
         TableHeaderBar.Visibility = (tableMode && hasItems) ? Visibility.Visible : Visibility.Collapsed;
@@ -479,14 +602,6 @@ public partial class PackagesPage : Page
         ListViewToggleButton.IsChecked = tableMode;
         GridViewToggleButton.IsChecked = !tableMode && !iconMode;
         IconsViewToggleButton.IsChecked = iconMode;
-
-        Brush accent = TryFindResource("SystemAccentColorPrimaryBrush") as Brush ?? Brushes.DodgerBlue;
-        ListViewToggleButton.Background = tableMode ? accent : Brushes.Transparent;
-        GridViewToggleButton.Background = !tableMode && !iconMode ? accent : Brushes.Transparent;
-        IconsViewToggleButton.Background = iconMode ? accent : Brushes.Transparent;
-        ListViewToggleButton.Foreground = tableMode ? Brushes.White : (TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Brushes.White);
-        GridViewToggleButton.Foreground = !tableMode && !iconMode ? Brushes.White : (TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Brushes.White);
-        IconsViewToggleButton.Foreground = iconMode ? Brushes.White : (TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Brushes.White);
     }
 
     // ─── Barra Lateral Retrátil ──────────────────────────────────────────────
@@ -498,9 +613,29 @@ public partial class PackagesPage : Page
 
         _isSidebarCollapsed = SidebarToggleToolbarButton.IsChecked != true;
 
-        FilterSidebarColumn.Width = _isSidebarCollapsed ? new GridLength(0) : new GridLength(220);
-        FilterSplitterColumn.Width = _isSidebarCollapsed ? new GridLength(0) : new GridLength(6);
+        FilterSidebarColumn.Width = _isSidebarCollapsed ? new GridLength(0) : new GridLength(260);
+        FilterSplitterColumn.Width = _isSidebarCollapsed ? new GridLength(0) : new GridLength(8);
         FilterSidebarPanel.Visibility = _isSidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void MoreActionsButton_Click(object sender, RoutedEventArgs e)
+    {
+        MoreActionsMenu.PlacementTarget = MoreActionsButton;
+        MoreActionsMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        MoreActionsMenu.IsOpen = true;
+    }
+
+    private async void ReloadCollectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_collectionService.ActiveTab is not { } tab) return;
+
+        foreach (var app in tab.Items)
+            _metricAttemptedItems.Remove(app);
+
+        StatusText.Text = "Atualizando dados da coleção…";
+        _collectionView?.Refresh();
+        await RefreshCollectionMetricsAsync(tab);
+        UpdateStatus();
     }
 
     // ─── Gestão de Guias e Perfis ────────────────────────────────────────────
@@ -594,36 +729,55 @@ public partial class PackagesPage : Page
 
     // ─── Ações de Instalação e Operações em Lote ─────────────────────────────
 
-    private void InstallVariantsButton_Click(object sender, RoutedEventArgs e)
+    private void InstallOption_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement fe)
+        switch ((sender as System.Windows.Controls.MenuItem)?.Tag as string)
         {
-            var menu = new ContextMenu();
-
-            var miAdmin = new System.Windows.Controls.MenuItem { Header = "Instalar como administrador" };
-            miAdmin.Click += (_, _) => InstallSelected(elevated: true);
-            menu.Items.Add(miAdmin);
-
-            var miInteractive = new System.Windows.Controls.MenuItem { Header = "Instalação interativa" };
-            miInteractive.Click += (_, _) => InstallSelected(interactive: true);
-            menu.Items.Add(miInteractive);
-
-            var miSkipHash = new System.Windows.Controls.MenuItem { Header = "Pular verificação de integridade" };
-            miSkipHash.Click += (_, _) => InstallSelected(skipHash: true);
-            menu.Items.Add(miSkipHash);
-
-            menu.Items.Add(new Separator());
-
-            var miDownload = new System.Windows.Controls.MenuItem { Header = "Baixar instaladores dos selecionados" };
-            miDownload.Click += (_, _) => DownloadSelectedInstallers();
-            menu.Items.Add(miDownload);
-
-            menu.PlacementTarget = fe;
-            menu.IsOpen = true;
+            case "Admin":
+                InstallSelected(elevated: true);
+                break;
+            case "Interactive":
+                InstallSelected(interactive: true);
+                break;
+            case "SkipHash":
+                InstallSelected(skipHash: true);
+                break;
+            case "Download":
+                DownloadSelectedInstallers();
+                break;
         }
     }
 
-    private void InstallSelectedButton_Click(object sender, RoutedEventArgs e) => InstallSelected();
+    private void InstallSelectedButton_Click(object sender, RoutedEventArgs e)
+    {
+        // O ToggleButton interno da seta propaga o Click pelo SplitButton em algumas
+        // versões do tema. A seta só abre o menu; nunca deve iniciar a instalação.
+        if (sender is SplitButton splitButton &&
+            (splitButton.IsDropDownOpen || IsSplitButtonDropDownSource(e.OriginalSource as DependencyObject, splitButton)))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        InstallSelected();
+    }
+
+    private static bool IsSplitButtonDropDownSource(DependencyObject? source, DependencyObject splitButton)
+    {
+        for (DependencyObject? current = source; current is not null && !ReferenceEquals(current, splitButton);)
+        {
+            if (current is System.Windows.Controls.Primitives.ToggleButton)
+                return true;
+
+            current = current switch
+            {
+                Visual or Visual3D => VisualTreeHelper.GetParent(current),
+                _ => LogicalTreeHelper.GetParent(current)
+            };
+        }
+
+        return false;
+    }
 
     private async void InstallSelected(bool elevated = false, bool interactive = false, bool skipHash = false)
     {
@@ -674,6 +828,13 @@ public partial class PackagesPage : Page
             return false;
         }
 
+        var additionalProducts = (options.AdditionalProductIds ?? []).Select(OfficePlanCatalog.ByProductId).ToArray();
+        if (additionalProducts.Any(p => p is null))
+        {
+            StatusText.Text = $"Não foi possível instalar \"{app.Name}\": o catálogo não contém todos os produtos adicionais deste perfil.";
+            return false;
+        }
+
         var request = new OfficeInstallRequest(
             plan,
             options.Architecture,
@@ -683,7 +844,8 @@ public partial class PackagesPage : Page
             AdditionalLanguageIds: options.AdditionalLanguageIds,
             DisplayLevel: interactive || !options.Silent ? OfficeDisplayLevel.Visible : OfficeDisplayLevel.Silent,
             ChannelOverride: options.ChannelOverride,
-            AutoUpdatesEnabled: options.AutoUpdatesEnabled);
+            AutoUpdatesEnabled: options.AutoUpdatesEnabled,
+            AdditionalProducts: additionalProducts.Cast<OfficePlan>().ToArray());
 
         try
         {
@@ -821,10 +983,14 @@ public partial class PackagesPage : Page
 
             AttachToActiveTab();
             StatusText.Text = $"Coleção \"{bundleName}\" aberta com {added} pacotes.";
+            CollectionInfoBar.IsOpen = false;
+            _snackbarService.Show("Coleção aberta", StatusText.Text, ControlAppearance.Success,
+                new SymbolIcon(SymbolRegular.CheckmarkCircle24), TimeSpan.FromSeconds(3));
         }
         catch (Exception ex)
         {
             StatusText.Text = $"Erro ao abrir arquivo: {ex.Message}";
+            ShowCollectionError("Não foi possível abrir o JSON", "Verifique se o arquivo contém uma coleção válida e tente novamente.");
         }
     }
 
@@ -865,10 +1031,14 @@ public partial class PackagesPage : Page
             await File.WriteAllTextAsync(saveDialog.FileName, json, Encoding.UTF8);
 
             StatusText.Text = $"Coleção salva com sucesso em \"{Path.GetFileName(saveDialog.FileName)}\".";
+            CollectionInfoBar.IsOpen = false;
+            _snackbarService.Show("Coleção exportada", StatusText.Text, ControlAppearance.Success,
+                new SymbolIcon(SymbolRegular.CheckmarkCircle24), TimeSpan.FromSeconds(3));
         }
         catch (Exception ex)
         {
             StatusText.Text = $"Erro ao salvar coleção: {ex.Message}";
+            ShowCollectionError("Não foi possível salvar o JSON", "Verifique o local escolhido e tente salvar novamente.");
         }
     }
 
@@ -953,21 +1123,30 @@ public partial class PackagesPage : Page
         var activeTab = _collectionService.ActiveTab;
         if (activeTab == null || activeTab.Items.Count == 0) return;
 
-        var confirmDialog = new Wpf.Ui.Controls.MessageBox
+        var result = await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
         {
-            Title = "Limpar coleção",
-            Content = $"Deseja remover todos os {activeTab.Items.Count} aplicativos da guia \"{activeTab.Title}\"?",
-            PrimaryButtonText = "Limpar",
+            Title = "Limpar coleção?",
+            Content = $"Os {activeTab.Items.Count} aplicativos da guia \"{activeTab.Title}\" serão removidos.",
+            PrimaryButtonText = "Limpar coleção",
             CloseButtonText = "Cancelar"
-        };
+        });
 
-        var result = await confirmDialog.ShowDialogAsync();
-        if (result == Wpf.Ui.Controls.MessageBoxResult.Primary)
+        if (result == ContentDialogResult.Primary)
         {
             activeTab.Items.Clear();
             UpdateStatus();
             StatusText.Text = "Coleção limpa.";
+            _snackbarService.Show("Coleção limpa", "Os aplicativos foram removidos do perfil atual.", ControlAppearance.Success,
+                new SymbolIcon(SymbolRegular.CheckmarkCircle24), TimeSpan.FromSeconds(3));
         }
+    }
+
+    private void ShowCollectionError(string title, string message)
+    {
+        CollectionInfoBar.Title = title;
+        CollectionInfoBar.Message = message;
+        CollectionInfoBar.Severity = InfoBarSeverity.Error;
+        CollectionInfoBar.IsOpen = true;
     }
 
     private void RemoveButton_Click(object sender, RoutedEventArgs e)
@@ -983,7 +1162,7 @@ public partial class PackagesPage : Page
 
     private void TableRow_Click(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: AppEntry app })
+        if (sender is FrameworkElement { Tag: AppEntry app } row && !IsInteractiveDescendant(e.OriginalSource as DependencyObject, row))
         {
             // Toggle seleção rápida ao clicar na linha
             app.IsSelectedForInstall = !app.IsSelectedForInstall;
@@ -997,10 +1176,30 @@ public partial class PackagesPage : Page
 
     private void Card_Click(object sender, MouseButtonEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: AppEntry app })
+        if (sender is FrameworkElement { Tag: AppEntry app } card && !IsInteractiveDescendant(e.OriginalSource as DependencyObject, card))
         {
             app.IsSelectedForInstall = !app.IsSelectedForInstall;
         }
+    }
+
+    private static bool IsInteractiveDescendant(DependencyObject? source, DependencyObject boundary)
+    {
+        for (DependencyObject? current = source; current is not null && !ReferenceEquals(current, boundary);)
+        {
+            if (current is System.Windows.Controls.Primitives.ButtonBase
+                or System.Windows.Controls.Primitives.TextBoxBase
+                or ComboBox
+                or System.Windows.Documents.Hyperlink)
+                return true;
+
+            current = current switch
+            {
+                Visual or Visual3D => VisualTreeHelper.GetParent(current),
+                _ => LogicalTreeHelper.GetParent(current)
+            };
+        }
+
+        return false;
     }
 
     private AppEntry? GetContextApp(object sender) =>

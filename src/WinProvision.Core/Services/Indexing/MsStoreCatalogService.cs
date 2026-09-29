@@ -60,7 +60,7 @@ public class MsStoreCatalogService
             var results = new List<AppEntry>();
             foreach (var product in payload?.Products ?? [])
             {
-                var entry = MapToAppEntry(product);
+                var entry = MapToAppEntry(product, language);
                 if (entry is null)
                     continue;
 
@@ -116,7 +116,7 @@ public class MsStoreCatalogService
 
                     foreach (var product in payload?.Products ?? [])
                     {
-                        var entry = MapToAppEntry(product);
+                        var entry = MapToAppEntry(product, language);
                         if (entry != null)
                         {
                             _productCache[entry.Id] = entry;
@@ -147,7 +147,7 @@ public class MsStoreCatalogService
         return results;
     }
 
-    private static AppEntry? MapToAppEntry(DisplayCatalogProduct product)
+    private static AppEntry? MapToAppEntry(DisplayCatalogProduct product, string requestedLanguage)
     {
         var localized = product.LocalizedProperties?.FirstOrDefault();
         if (localized is null || string.IsNullOrWhiteSpace(product.ProductId))
@@ -191,6 +191,8 @@ public class MsStoreCatalogService
             Version = "-",
             Name = localized.ProductTitle ?? product.ProductId,
             Publisher = localized.PublisherName ?? "Microsoft Store",
+            // A API devolveu a localização solicitada (pt-BR nos fluxos do app).
+            PackageLocale = requestedLanguage,
             Homepage = $"https://apps.microsoft.com/detail/{product.ProductId}",
             Description = localized.ShortDescription ?? localized.Description,
             StoreIconUrl = iconUrl,
@@ -246,8 +248,8 @@ public class MsStoreCatalogService
             return normalized;
         }
 
-        // Display Catalog may provide a small rendition such as 480x270. Request
-        // the high-quality 1080p variant so the UI and R2 cache receive real detail.
+        // A Display Catalog screenshot URI may already be constrained to a small
+        // rendition (commonly 480x270). Request the CDN's high-quality 1080p variant.
         var builder = new UriBuilder(parsed);
         var query = builder.Query.TrimStart('?')
             .Split('&', StringSplitOptions.RemoveEmptyEntries)

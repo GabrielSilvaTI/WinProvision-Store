@@ -37,18 +37,18 @@ public class AppEntry : INotifyPropertyChanged
     [JsonPropertyName("storeIconUrl")]
     public string? StoreIconUrl { get; set; }
 
-    /// <summary>Arte horizontal da Microsoft Store para banners da Visão Geral; preenchida sob demanda.</summary>
-    [JsonIgnore]
+    /// <summary>Arte horizontal da Microsoft Store para banners da Visão Geral.</summary>
     public string? StoreBannerUrl { get; set; }
 
-    [JsonIgnore]
     public string? StoreCategory { get; set; }
 
-    [JsonIgnore]
     public string? StoreSubCategory { get; set; }
 
-    [JsonIgnore]
-    public List<string> StoreScreenshotUrls { get; set; } = [];
+    public List<string>? StoreScreenshotUrls { get; set; }
+
+    /// <summary>Capturas sincronizadas do banco do UniGetUI para pacotes WinGet.</summary>
+    [JsonPropertyName("screenshotUrls")]
+    public List<string>? ScreenshotUrls { get; set; }
 
     /// <summary>Nota média do produto na Microsoft Store, quando publicada.</summary>
     [JsonPropertyName("storeRating")]
@@ -75,6 +75,10 @@ public class AppEntry : INotifyPropertyChanged
 
     [JsonPropertyName("description")]
     public string? Description { get; set; }
+
+    /// <summary>Localidade do manifesto usado para os metadados do pacote, quando conhecida.</summary>
+    [JsonPropertyName("packageLocale")]
+    public string? PackageLocale { get; set; }
 
     [JsonPropertyName("homepage")]
     public string? Homepage { get; set; }

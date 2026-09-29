@@ -40,4 +40,8 @@ public class OfficeInstallOptions
 
     [JsonPropertyName("autoUpdatesEnabled")]
     public bool AutoUpdatesEnabled { get; set; } = true;
+
+    /// <summary>IDs ODT de complementos Visio/Project compatíveis com o produto principal.</summary>
+    [JsonPropertyName("additionalProductIds")]
+    public List<string> AdditionalProductIds { get; set; } = new();
 }

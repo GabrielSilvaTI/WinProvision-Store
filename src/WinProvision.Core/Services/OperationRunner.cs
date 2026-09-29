@@ -145,7 +145,10 @@ public static partial class OperationRunner
         string appId,
         string appName,
         string? iconUrl = null,
-        string source = "winget")
+        string source = "winget",
+        bool elevated = false,
+        bool interactive = false,
+        bool ignoreSecurityHash = false)
     {
         var item = queue.Enqueue(appName, OperationKind.Update, iconUrl);
         item.State = OperationState.Running;
@@ -153,24 +156,31 @@ public static partial class OperationRunner
 
         try
         {
+            var updateHandler = _updateHandler;
             var onLogReceived = new Action<string>(line => ReportProgress(item, line));
             var onProgress = new Action<InstallProgressUpdate>(update => ReportInstallProgress(item, update));
 
             // Se não há handler configurado, usa winget.exe diretamente
-            if (_updateHandler is null)
+            // Os handlers de catálogo/API representam a atualização padrão. As variantes
+            // precisam chegar aos argumentos da CLI para honrar elevação, interação e hash.
+            bool useWingetCli = updateHandler is null || elevated || interactive || ignoreSecurityHash;
+            if (useWingetCli)
             {
                 item.Method = WingetMethod.WingetExe;
                 // Envia um progresso inicial para garantir que a cor seja aplicada
                 onProgress(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
             }
 
-            var result = _updateHandler is null
+            var result = useWingetCli
                 ? await executor.UpdateAppAsync(
                     appId,
                     onLogReceived,
                     cancellationToken: item.CancellationTokenSource.Token,
-                    source: source)
-                : await _updateHandler(
+                    source: source,
+                    requiresElevation: elevated,
+                    interactive: interactive,
+                    ignoreSecurityHash: ignoreSecurityHash)
+                : await updateHandler!(
                     appId,
                     onLogReceived,
                     item.CancellationTokenSource.Token,

@@ -146,15 +146,42 @@ public static class AsyncImage
             if (File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < DiskCacheTtl)
             {
                 byte[] cachedBytes = await File.ReadAllBytesAsync(path);
-                return await Task.Run(() => DecodeToBitmap(cachedBytes));
+                BitmapImage? cachedBitmap = await Task.Run(() => DecodeToBitmap(cachedBytes));
+                if (cachedBitmap is not null)
+                    return cachedBitmap;
+
+                // Downloads antigos podem ter gravado uma resposta inválida como
+                // imagem. Apaga o cache corrompido e tenta novamente a origem.
+                try { File.Delete(path); } catch { }
             }
 
-            string localPath = url.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
-                ? new Uri(url).LocalPath
-                : url;
-            byte[] bytes = File.Exists(localPath)
-                ? await File.ReadAllBytesAsync(localPath)
-                : await Client.GetByteArrayAsync(url);
+            byte[] bytes;
+            if (Uri.TryCreate(url, UriKind.Absolute, out var imageUri) && imageUri.Scheme == "pack")
+            {
+                var resource = Application.GetResourceStream(imageUri);
+                if (resource is null)
+                    return null;
+
+                using (resource.Stream)
+                using (var content = new MemoryStream())
+                {
+                    await resource.Stream.CopyToAsync(content);
+                    bytes = content.ToArray();
+                }
+            }
+            else
+            {
+                string localPath = url.StartsWith("file://", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(url).LocalPath
+                    : url;
+                bytes = File.Exists(localPath)
+                    ? await File.ReadAllBytesAsync(localPath)
+                    : await Client.GetByteArrayAsync(url);
+            }
+            BitmapImage? bitmap = await Task.Run(() => DecodeToBitmap(bytes));
+            if (bitmap is null)
+                return null;
+
             try
             {
                 await File.WriteAllBytesAsync(path, bytes);
@@ -164,7 +191,7 @@ public static class AsyncImage
                 // A imagem ainda pode ser exibida mesmo se o cache de disco falhar.
             }
 
-            return await Task.Run(() => DecodeToBitmap(bytes));
+            return bitmap;
         }
         catch
         {

@@ -13,6 +13,13 @@ using Microsoft.Win32;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Services;
+using Wpf.Ui;
+using AutoSuggestBox = Wpf.Ui.Controls.AutoSuggestBox;
+using AutoSuggestBoxQuerySubmittedEventArgs = Wpf.Ui.Controls.AutoSuggestBoxQuerySubmittedEventArgs;
+using AutoSuggestBoxTextChangedEventArgs = Wpf.Ui.Controls.AutoSuggestBoxTextChangedEventArgs;
+using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
+using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
+using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 
 namespace WinProvision.Store;
 
@@ -34,6 +41,7 @@ public partial class UpdatesPage : Page
     private readonly ScheduledUpdatesService _scheduledUpdatesService;
     private readonly IgnoredUpdatesService _ignoredUpdatesService;
     private readonly AppDetailsOverlayService _detailsOverlayService;
+    private readonly ISnackbarService _snackbarService;
 
     // Coleções
     private readonly List<UpgradablePackage> _rawPackages = [];
@@ -60,6 +68,7 @@ public partial class UpdatesPage : Page
         _scheduledUpdatesService = App.Services.GetRequiredService<ScheduledUpdatesService>();
         _ignoredUpdatesService = App.Services.GetRequiredService<IgnoredUpdatesService>();
         _detailsOverlayService = App.Services.GetRequiredService<AppDetailsOverlayService>();
+        _snackbarService = App.Services.GetRequiredService<ISnackbarService>();
 
         UpdatesTableView.ItemsSource = _filteredPackages;
         UpdatesGridView.ItemsSource = _filteredPackages;
@@ -170,13 +179,16 @@ public partial class UpdatesPage : Page
         try
         {
             var upgradable = await _winGetService.GetUpgradablePackagesAsync(
-                onLogReceived: line => StatusText.Text = line);
+                onLogReceived: line => _ = Dispatcher.InvokeAsync(() => StatusText.Text = line));
 
             var catalog = _storeService.GetAll();
+            var catalogById = new Dictionary<string, AppEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (var app in catalog)
+                catalogById.TryAdd(app.Id, app);
+
             foreach (var package in upgradable)
             {
-                var match = catalog.FirstOrDefault(a => string.Equals(a.Id, package.Id, StringComparison.OrdinalIgnoreCase));
-                if (match is not null)
+                if (catalogById.TryGetValue(package.Id, out var match))
                 {
                     package.IconUrl = match.IconUrl;
                 }
@@ -200,6 +212,8 @@ public partial class UpdatesPage : Page
             }
 
             _lastVerificationTime = DateTime.Now;
+            RefreshSearchSuggestions();
+            UpdatesInfoBar.IsOpen = false;
             ApplyFilters();
             StatusText.Text = _rawPackages.Count == 0
                 ? "Nenhuma atualização disponível. Tudo em dia."
@@ -210,6 +224,8 @@ public partial class UpdatesPage : Page
             WinProvisionLog.Write($"UPDATE UI discovery failed {ex.GetType().Name}: {ex.Message}");
             StatusText.Text = "Não foi possível verificar atualizações. Tente novamente.";
             SubtitleText.Text = "Falha ao verificar atualizações.";
+            UpdatesInfoBar.Message = "Confira sua conexão e tente recarregar a lista.";
+            UpdatesInfoBar.IsOpen = true;
         }
         finally
         {
@@ -337,6 +353,9 @@ public partial class UpdatesPage : Page
         // Estado Vazio
         bool isEmpty = _filteredPackages.Count == 0;
         EmptyStatePanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        TableHeaderBar.Visibility = !isEmpty && ViewModeListRadio.IsChecked == true
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         TableScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeListRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
         GridViewScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeGridRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
         IconsViewScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeIconsRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
@@ -357,7 +376,6 @@ public partial class UpdatesPage : Page
 
         bool hasSelection = selected > 0;
         UpdateSelectedButton.IsEnabled = hasSelection;
-        UpdateVariantsButton.IsEnabled = hasSelection;
         UninstallSelectedButton.IsEnabled = hasSelection;
         IgnoreSelectedButton.IsEnabled = hasSelection;
         PackageDetailsToolbarButton.IsEnabled = _filteredPackages.Count > 0;
@@ -495,12 +513,6 @@ public partial class UpdatesPage : Page
         SyncMasterCheckBoxState();
     }
 
-    private void RowCheckBox_Click(object sender, RoutedEventArgs e)
-    {
-        UpdateSubtitleAndCounters();
-        SyncMasterCheckBoxState();
-    }
-
     private void PackageRow_Click(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is DependencyObject source && FindVisualParent<Button>(source) is not null)
@@ -550,10 +562,7 @@ public partial class UpdatesPage : Page
         ViewModeListRadio.IsChecked = true;
         ViewModeGridRadio.IsChecked = false;
         ViewModeIconsRadio.IsChecked = false;
-        TableScrollViewer.Visibility = Visibility.Visible;
-        GridViewScrollViewer.Visibility = Visibility.Collapsed;
-        IconsViewScrollViewer.Visibility = Visibility.Collapsed;
-        TableHeaderBar.Visibility = Visibility.Collapsed;
+        ApplyFilters();
     }
 
     private void ViewModeGrid_Click(object sender, RoutedEventArgs e)
@@ -561,10 +570,7 @@ public partial class UpdatesPage : Page
         ViewModeListRadio.IsChecked = false;
         ViewModeGridRadio.IsChecked = true;
         ViewModeIconsRadio.IsChecked = false;
-        TableScrollViewer.Visibility = Visibility.Collapsed;
-        GridViewScrollViewer.Visibility = Visibility.Visible;
-        IconsViewScrollViewer.Visibility = Visibility.Collapsed;
-        TableHeaderBar.Visibility = Visibility.Collapsed;
+        ApplyFilters();
     }
 
     private void ViewModeIcons_Click(object sender, RoutedEventArgs e)
@@ -572,10 +578,7 @@ public partial class UpdatesPage : Page
         ViewModeListRadio.IsChecked = false;
         ViewModeGridRadio.IsChecked = false;
         ViewModeIconsRadio.IsChecked = true;
-        TableScrollViewer.Visibility = Visibility.Collapsed;
-        GridViewScrollViewer.Visibility = Visibility.Collapsed;
-        IconsViewScrollViewer.Visibility = Visibility.Visible;
-        TableHeaderBar.Visibility = Visibility.Collapsed;
+        ApplyFilters();
     }
 
     // ----------------------------------------------------------------
@@ -585,7 +588,7 @@ public partial class UpdatesPage : Page
     private void ToggleFiltersButton_Click(object sender, RoutedEventArgs e)
     {
         bool isOpen = ToggleFiltersButton.IsChecked == true;
-        FilterSidebarColumn.Width = isOpen ? new GridLength(230) : new GridLength(0);
+        FilterSidebarColumn.Width = isOpen ? new GridLength(260) : new GridLength(0);
         FilterSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
         FilterSidebarPanel.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
         FilterSplitter.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
@@ -615,8 +618,33 @@ public partial class UpdatesPage : Page
     }
 
     private void FilterOption_Changed(object sender, RoutedEventArgs e) => ApplyFilters();
-    private void SearchMode_Changed(object sender, RoutedEventArgs e) => ApplyFilters();
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilters();
+    private void SearchMode_Changed(object sender, RoutedEventArgs e)
+    {
+        RefreshSearchSuggestions();
+        ApplyFilters();
+    }
+
+    private void RefreshSearchSuggestions()
+    {
+        if (SearchBox is null)
+            return;
+
+        IEnumerable<string> suggestions = SearchModeNameRadio.IsChecked == true
+            ? _rawPackages.Select(package => package.Name)
+            : SearchModeIdRadio.IsChecked == true
+                ? _rawPackages.Select(package => package.Id)
+                : _rawPackages.SelectMany(package => new[] { package.Name, package.Id });
+
+        SearchBox.OriginalItemsSource = suggestions
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(300)
+            .ToList();
+    }
+
+    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e) => ApplyFilters();
+
+    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e) => ApplyFilters();
 
     private void SelectAllSources_Click(object sender, RoutedEventArgs e)
     {
@@ -642,38 +670,40 @@ public partial class UpdatesPage : Page
 
     private void UpdateSelectedButton_Click(object sender, RoutedEventArgs e)
     {
+        // O Click do ToggleButton interno do SplitButton também sobe pela árvore visual.
+        // A seta deve abrir o menu sem executar a ação principal.
+        if (e.OriginalSource is System.Windows.Controls.Primitives.ToggleButton || UpdateSelectedButton.IsDropDownOpen)
+        {
+            e.Handled = true;
+            return;
+        }
+
         _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList());
     }
 
     private void UninstallSelectedButton_Click(object sender, RoutedEventArgs e) =>
         _ = UninstallSelectedPackagesAsync();
 
-    private void UpdateVariantsButton_Click(object sender, RoutedEventArgs e)
+    private void UpdateVariant_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu();
+        if (sender is not MenuItem { Tag: string variant })
+            return;
 
-        var adminItem = new MenuItem { Header = "Atualizar como administrador" };
-        adminItem.Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Shield24 };
-        adminItem.Click += (_, _) => _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList(), elevated: true);
-        menu.Items.Add(adminItem);
-
-        var interactiveItem = new MenuItem { Header = "Atualização interativa" };
-        interactiveItem.Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Window24 };
-        interactiveItem.Click += (_, _) => _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList(), interactive: true);
-        menu.Items.Add(interactiveItem);
-
-        var skipHashItem = new MenuItem { Header = "Pular verificação de integridade" };
-        skipHashItem.Icon = new Wpf.Ui.Controls.SymbolIcon { Symbol = Wpf.Ui.Controls.SymbolRegular.Warning24 };
-        skipHashItem.Click += (_, _) => _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList());
-        menu.Items.Add(skipHashItem);
-
-        menu.Items.Add(new Separator());
-
-        menu.PlacementTarget = UpdateVariantsButton;
-        menu.IsOpen = true;
+        var selected = _filteredPackages.Where(package => package.IsSelectedForUpdate).ToList();
+        _ = variant switch
+        {
+            "Admin" => RunUpdateOnPackagesAsync(selected, elevated: true),
+            "Interactive" => RunUpdateOnPackagesAsync(selected, interactive: true),
+            "SkipHash" => RunUpdateOnPackagesAsync(selected, ignoreSecurityHash: true),
+            _ => Task.CompletedTask
+        };
     }
 
-    private async Task RunUpdateOnPackagesAsync(List<UpgradablePackage> selected, bool elevated = false, bool interactive = false)
+    private async Task RunUpdateOnPackagesAsync(
+        List<UpgradablePackage> selected,
+        bool elevated = false,
+        bool interactive = false,
+        bool ignoreSecurityHash = false)
     {
         if (selected.Count == 0)
         {
@@ -682,7 +712,6 @@ public partial class UpdatesPage : Page
         }
 
         UpdateSelectedButton.IsEnabled = false;
-        UpdateVariantsButton.IsEnabled = false;
         UninstallSelectedButton.IsEnabled = false;
         ToggleSelectAllToolbarButton.IsEnabled = false;
         ReloadButton.IsEnabled = false;
@@ -702,7 +731,10 @@ public partial class UpdatesPage : Page
                     package.Id,
                     package.Name,
                     package.IconUrl,
-                    string.IsNullOrWhiteSpace(package.Source) ? "winget" : package.Source);
+                    string.IsNullOrWhiteSpace(package.Source) ? "winget" : package.Source,
+                    elevated,
+                    interactive,
+                    ignoreSecurityHash);
 
                 if (result.Success)
                 {
@@ -730,9 +762,14 @@ public partial class UpdatesPage : Page
         StatusText.Text = failed == 0
             ? $"Atualização concluída: {succeeded} pacote(s) atualizado(s) com sucesso."
             : $"Atualização concluída: {succeeded} sucesso(s), {failed} falha(s). Verifique a fila.";
+        _snackbarService.Show(
+            failed == 0 ? "Atualização concluída" : "Atualização parcialmente concluída",
+            StatusText.Text,
+            failed == 0 ? ControlAppearance.Success : ControlAppearance.Caution,
+            new SymbolIcon(failed == 0 ? SymbolRegular.CheckmarkCircle24 : SymbolRegular.Warning24),
+            TimeSpan.FromSeconds(4));
 
-        UpdateSubtitleAndCounters();
-        SyncMasterCheckBoxState();
+        ApplyFilters();
         ReloadButton.IsEnabled = true;
     }
 
@@ -769,14 +806,6 @@ public partial class UpdatesPage : Page
         ApplyFilters();
     }
 
-    private void SingleUpdateButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement element && element.DataContext is UpgradablePackage package)
-        {
-            _ = RunUpdateOnPackagesAsync([package]);
-        }
-    }
-
     // ----------------------------------------------------------------
     // Context Menu Handlers
     // ----------------------------------------------------------------
@@ -804,7 +833,7 @@ public partial class UpdatesPage : Page
 
     private void ContextMenuUpdateSkipHash_Click(object sender, RoutedEventArgs e)
     {
-        if (GetContextPackage(sender) is { } pkg) _ = RunUpdateOnPackagesAsync([pkg]);
+        if (GetContextPackage(sender) is { } pkg) _ = RunUpdateOnPackagesAsync([pkg], ignoreSecurityHash: true);
     }
 
     private void ContextMenuDetails_Click(object sender, RoutedEventArgs e)
@@ -820,8 +849,7 @@ public partial class UpdatesPage : Page
             RefreshIgnoredUpdates();
             _rawPackages.Remove(pkg);
             _filteredPackages.Remove(pkg);
-            UpdateSubtitleAndCounters();
-            SyncMasterCheckBoxState();
+            ApplyFilters();
             StatusText.Text = $"Versão {pkg.AvailableVersion} de {pkg.Name} ignorada.";
         }
     }
@@ -864,7 +892,9 @@ public partial class UpdatesPage : Page
 
     private void PackageDetailsToolbarButton_Click(object sender, RoutedEventArgs e)
     {
-        var target = _selectedPackage ?? _filteredPackages.FirstOrDefault(p => p.IsSelectedForUpdate) ?? _filteredPackages.FirstOrDefault();
+        var target = _selectedPackage is not null && _filteredPackages.Contains(_selectedPackage)
+            ? _selectedPackage
+            : _filteredPackages.FirstOrDefault(p => p.IsSelectedForUpdate) ?? _filteredPackages.FirstOrDefault();
         if (target is not null)
         {
             OpenPackageDetails(target);
@@ -892,8 +922,7 @@ public partial class UpdatesPage : Page
         }
 
         RefreshIgnoredUpdates();
-        UpdateSubtitleAndCounters();
-        SyncMasterCheckBoxState();
+        ApplyFilters();
         StatusText.Text = $"{selected.Count} pacote(s) ignorado(s).";
     }
 
@@ -971,6 +1000,8 @@ public partial class UpdatesPage : Page
 
             File.WriteAllText(saveDialog.FileName, sb.ToString(), Encoding.UTF8);
             StatusText.Text = $"Exportado para '{Path.GetFileName(saveDialog.FileName)}' com sucesso.";
+            _snackbarService.Show("Exportação concluída", StatusText.Text, ControlAppearance.Success,
+                new SymbolIcon(SymbolRegular.CheckmarkCircle24), TimeSpan.FromSeconds(3));
         }
         catch (Exception ex)
         {

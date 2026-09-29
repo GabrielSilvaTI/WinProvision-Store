@@ -20,6 +20,7 @@ public class InstalledAppsService
     // Mudança: Deixamos de usar HashSet<string> para guardar a lista detalhada de apps
     private List<InstalledAppDetail> _installedApps = new();
     private HashSet<string> _wingetInstalledIds = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _installedDisplayNames = new(StringComparer.OrdinalIgnoreCase);
     private bool _hasWingetSnapshot;
     private bool _loaded;
 
@@ -51,7 +52,7 @@ public class InstalledAppsService
                 ? null
                 : _wingetExecutor.TryGetInstalledPackageIdsAsync(cancellationToken);
 
-            _installedApps = await registryTask;
+            var registryApps = await registryTask;
             if (wingetTask is not null)
             {
                 try
@@ -75,6 +76,11 @@ public class InstalledAppsService
                 _hasWingetSnapshot = false;
                 _wingetInstalledIds.Clear();
             }
+            _installedApps = registryApps;
+            _installedDisplayNames = registryApps
+                .Select(app => NormalizeDisplayName(app.DisplayName))
+                .Where(name => name.Length > 0)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             _loaded = true;
         }
         finally
@@ -102,8 +108,7 @@ public class InstalledAppsService
             return false;
 
         string expectedName = NormalizeDisplayName(displayName);
-        return _installedApps.Any(app =>
-            NormalizeDisplayName(app.DisplayName).Equals(expectedName, StringComparison.OrdinalIgnoreCase));
+        return _installedDisplayNames.Contains(expectedName);
     }
 
     private static string NormalizeDisplayName(string displayName) =>
@@ -135,6 +140,7 @@ public class InstalledAppsService
     private List<InstalledAppDetail> GetDesktopAppsFromRegistry()
     {
         var apps = new List<InstalledAppDetail>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // As 3 fontes principais de programas clássicos no Windows
         var registryLocations = new[]
@@ -170,7 +176,8 @@ public class InstalledAppsService
                 if (!string.IsNullOrWhiteSpace(displayName) && !string.IsNullOrWhiteSpace(uninstallString))
                 {
                     // Evita duplicatas se o mesmo app estiver registrado no HKLM e HKCU
-                    if (!apps.Any(a => a.DisplayName.Equals(displayName, StringComparison.OrdinalIgnoreCase)))
+                    string normalizedName = NormalizeDisplayName(displayName);
+                    if (seenNames.Add(normalizedName))
                     {
                         apps.Add(new InstalledAppDetail
                         {

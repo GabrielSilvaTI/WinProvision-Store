@@ -8,6 +8,7 @@ index is the commit point and is published only after every referenced object
 
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -45,6 +46,9 @@ def validate_api(local_dir: str):
     packages = index.get("packages")
     if not isinstance(packages, list) or index.get("count") != len(packages):
         raise ValueError("count do index.json não corresponde à lista packages.")
+    minimum = int(os.environ.get("WINPROVISION_MIN_API_PACKAGES", "5000"))
+    if len(packages) < minimum:
+        raise ValueError(f"índice tem {len(packages)} pacote(s); mínimo configurado: {minimum}.")
     generated_at = index.get("generatedAt")
     if not isinstance(generated_at, str):
         raise ValueError("generatedAt ausente no index.json.")
@@ -192,6 +196,19 @@ def main() -> int:
         return 1
 
     previous_hashes, has_immutable_state = load_previous_state(previous_state_path)
+    minimum_retention = float(os.environ.get("WINPROVISION_MIN_API_RETENTION", "0.70"))
+    if not 0.0 <= minimum_retention <= 1.0:
+        print("WINPROVISION_MIN_API_RETENTION precisa ficar entre 0 e 1.", file=sys.stderr)
+        return 2
+    previous_count = len(previous_hashes)
+    current_count = len(index["packages"])
+    if previous_count and current_count < math.ceil(previous_count * minimum_retention):
+        print(
+            f"Validação da API falhou; nada foi publicado: índice caiu de {previous_count} para "
+            f"{current_count} pacote(s), abaixo da retenção mínima ({minimum_retention:.0%}).",
+            file=sys.stderr,
+        )
+        return 1
     account_id = os.environ["R2_ACCOUNT_ID"]
     access_key = os.environ["R2_ACCESS_KEY_ID"]
     secret_key = os.environ["R2_SECRET_ACCESS_KEY"]

@@ -404,7 +404,9 @@ public class WingetExecutor
         string? scope = null,
         string? architecture = null,
         bool requiresElevation = false,
-        bool elevationProhibited = false)
+        bool elevationProhibited = false,
+        bool interactive = false,
+        bool ignoreSecurityHash = false)
     {
         // Mesma garantia do InstallAppAsync (ver comentário lá) — cobre quem chega direto
         // na tela Atualizações antes de qualquer instalação ter disparado o bootstrap.
@@ -428,7 +430,11 @@ public class WingetExecutor
                 FailureReason = WingetFailureReason.ElevationProhibited
             };
 
-        string args = $"update --id \"{appId}\" --exact --source {source} --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force";
+        string args = $"update --id \"{appId}\" --exact --source {source} --accept-source-agreements";
+        args += interactive ? " --interactive" : " --disable-interactivity --silent";
+        args += " --include-unknown --accept-package-agreements --force";
+        if (ignoreSecurityHash)
+            args += " --ignore-security-hash";
         string? normalizedScope = NormalizeScope(scope);
         string? normalizedArchitecture = NormalizeArchitecture(architecture);
         if (normalizedScope is not null) args += $" --scope {normalizedScope}";

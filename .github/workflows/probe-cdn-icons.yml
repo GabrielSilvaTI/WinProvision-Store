@@ -30,7 +30,7 @@ jobs:
           python-version: "3.12"
 
       - name: Instalar dependências
-        run: pip install pymszip pyyaml pillow
+        run: python -m pip install -r scripts/requirements/icons.txt
 
       - name: Sondar a CDN
         env:

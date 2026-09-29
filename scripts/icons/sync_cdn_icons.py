@@ -35,14 +35,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import probe_cdn_icons as probe  # noqa: E402
 
-ICON_EXTS = {"ico", "png", "jpg", "jpeg", "svg", "gif", "webp"}
-FORMAT_EXT = {"ICO": "ico", "PNG": "png", "JPEG": "jpg", "GIF": "gif", "WEBP": "webp"}
+ICON_EXTS = {"ico", "png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff"}
+FORMAT_EXT = {"ICO": "ico", "PNG": "png", "JPEG": "jpg", "GIF": "gif", "BMP": "bmp", "TIFF": "tif"}
 CONTENT_TYPES = {
     "ico": "image/x-icon",
     "png": "image/png",
     "jpg": "image/jpeg",
     "gif": "image/gif",
-    "webp": "image/webp",
+    "bmp": "image/bmp",
+    "tif": "image/tiff",
 }
 DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
 DEFAULT_PREFIX = "Store/Icon_Database/"
@@ -56,6 +57,7 @@ NEGATIVE_STATUS = {
     "icons_sem_url_https",
     "versiondata_http_404",
     "manifest_http_404",
+    "icone_invalido",
 }
 
 

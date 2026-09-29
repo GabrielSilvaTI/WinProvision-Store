@@ -22,6 +22,7 @@ public class StoreService
     private static readonly JsonSerializerOptions _jsonOptions = WinProvisionJsonOptions.Compact;
 
     private List<AppEntry> _cachedCatalog = [];
+    private SearchDocument[] _searchIndex = [];
     private readonly SemaphoreSlim _loadLock = new(1, 1);
     private readonly object _refreshSync = new();
     private Task<List<AppEntry>>? _refreshTask;
@@ -73,7 +74,7 @@ public class StoreService
                 try
                 {
                     string localJson = await File.ReadAllTextAsync(_cacheFilePath, cancellationToken);
-                    _cachedCatalog = JsonSerializer.Deserialize<List<AppEntry>>(localJson, _jsonOptions) ?? [];
+                    SetCachedCatalog(JsonSerializer.Deserialize<List<AppEntry>>(localJson, _jsonOptions) ?? []);
                     await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
                     PopulateIcons(_cachedCatalog);
 
@@ -110,65 +111,60 @@ public class StoreService
 
         string cleanQuery = query.Replace("-", "").Replace(" ", "").Replace(".", "");
 
-        return _cachedCatalog
-            .Select(app => (App: app, Score: ScoreMatch(app, query, cleanQuery)))
+        return _searchIndex
+            .Select(document => (Document: document, Score: ScoreMatch(document, query, cleanQuery)))
             .Where(x => x.Score < int.MaxValue)
             .OrderBy(x => x.Score)
-            .ThenBy(x => x.App.Name.Length)
-            .ThenBy(x => x.App.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => x.App);
+            .ThenBy(x => x.Document.Name.Length)
+            .ThenBy(x => x.Document.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Document.App);
     }
 
-    private static int ScoreMatch(AppEntry app, string query, string cleanQuery)
+    private static int ScoreMatch(SearchDocument document, string query, string cleanQuery)
     {
-        string name = app.Name ?? string.Empty;
-        string id = app.Id ?? string.Empty;
-        string publisher = app.Publisher ?? string.Empty;
-        string cleanName = name.Replace("-", "").Replace(" ", "").Replace(".", "");
-        string cleanId = id.Replace("-", "").Replace(".", "");
+        string name = document.Name;
+        string id = document.Id;
 
         if (name.Equals(query, StringComparison.OrdinalIgnoreCase) ||
             id.Equals(query, StringComparison.OrdinalIgnoreCase))
             return 0;
 
-        if (cleanName.Equals(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
-            cleanId.Equals(cleanQuery, StringComparison.OrdinalIgnoreCase))
+        if (document.CleanName.Equals(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
+            document.CleanId.Equals(cleanQuery, StringComparison.OrdinalIgnoreCase))
             return 1;
 
         if (name.StartsWith(query, StringComparison.OrdinalIgnoreCase) ||
             id.StartsWith(query, StringComparison.OrdinalIgnoreCase))
             return 2;
 
-        if (name.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries)
-                .Any(word => word.StartsWith(query, StringComparison.OrdinalIgnoreCase)) ||
-            id.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries)
-                .Any(word => word.StartsWith(query, StringComparison.OrdinalIgnoreCase)))
+        if (document.NameTokens.Any(word => word.StartsWith(query, StringComparison.OrdinalIgnoreCase)) ||
+            document.IdTokens.Any(word => word.StartsWith(query, StringComparison.OrdinalIgnoreCase)))
             return 3;
 
-        if (cleanName.StartsWith(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
-            cleanId.StartsWith(cleanQuery, StringComparison.OrdinalIgnoreCase))
+        if (document.CleanName.StartsWith(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
+            document.CleanId.StartsWith(cleanQuery, StringComparison.OrdinalIgnoreCase))
             return 4;
 
         if (name.Contains(query, StringComparison.OrdinalIgnoreCase) ||
             id.Contains(query, StringComparison.OrdinalIgnoreCase))
             return 5;
 
-        if (cleanName.Contains(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
-            cleanId.Contains(cleanQuery, StringComparison.OrdinalIgnoreCase))
+        if (document.CleanName.Contains(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
+            document.CleanId.Contains(cleanQuery, StringComparison.OrdinalIgnoreCase))
             return 6;
 
-        if (publisher.Contains(query, StringComparison.OrdinalIgnoreCase))
+        if (document.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase))
             return 7;
 
-        if (app.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase)))
+        if (document.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase)))
             return 8;
 
-        if ((app.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+        if (document.Description.Contains(query, StringComparison.OrdinalIgnoreCase))
             return 9;
 
-        if ((app.Homepage?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
-            (app.PublisherUrl?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false) ||
-            (app.PackageUrl?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false))
+        if (document.Homepage.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+            document.PublisherUrl.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+            document.PackageUrl.Contains(query, StringComparison.OrdinalIgnoreCase))
             return 10;
 
         return int.MaxValue;
@@ -203,7 +199,7 @@ public class StoreService
                 if (generation != Volatile.Read(ref _cacheGeneration))
                     return _cachedCatalog;
 
-                _cachedCatalog = catalog;
+                SetCachedCatalog(catalog);
                 await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
                 PopulateIcons(_cachedCatalog);
 
@@ -233,7 +229,7 @@ public class StoreService
     public void ClearCache()
     {
         Interlocked.Increment(ref _cacheGeneration);
-        _cachedCatalog = [];
+        SetCachedCatalog([]);
 
         lock (_refreshSync)
         {
@@ -255,6 +251,53 @@ public class StoreService
 
         CacheCleared?.Invoke();
     }
+
+    private void SetCachedCatalog(List<AppEntry> catalog)
+    {
+        _cachedCatalog = catalog;
+        _searchIndex = catalog.Select(app =>
+        {
+            string name = app.Name ?? string.Empty;
+            string id = app.Id ?? string.Empty;
+            return new SearchDocument(
+                app,
+                name,
+                id,
+                app.Publisher ?? string.Empty,
+                CleanSearchText(name, removeSpace: true, removeDot: true),
+                CleanSearchText(id, removeSpace: false, removeDot: true),
+                name.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries),
+                id.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries),
+                app.Tags?.ToArray() ?? [],
+                app.Description ?? string.Empty,
+                app.Homepage ?? string.Empty,
+                app.PublisherUrl ?? string.Empty,
+                app.PackageUrl ?? string.Empty);
+        }).ToArray();
+    }
+
+    private static string CleanSearchText(string value, bool removeSpace, bool removeDot)
+    {
+        string clean = value.Replace("-", "");
+        if (removeSpace) clean = clean.Replace(" ", "");
+        if (removeDot) clean = clean.Replace(".", "");
+        return clean;
+    }
+
+    private sealed record SearchDocument(
+        AppEntry App,
+        string Name,
+        string Id,
+        string Publisher,
+        string CleanName,
+        string CleanId,
+        string[] NameTokens,
+        string[] IdTokens,
+        string[] Tags,
+        string Description,
+        string Homepage,
+        string PublisherUrl,
+        string PackageUrl);
 
     private bool IsCacheStale()
     {
