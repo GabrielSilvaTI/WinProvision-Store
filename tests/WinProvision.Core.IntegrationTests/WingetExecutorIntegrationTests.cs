@@ -246,8 +246,10 @@ public class WinProvisionApiReliabilityTests
     [Fact]
     public async Task GetPackageAsync_Distingue404DeFalhaTemporaria()
     {
-        using var http = new HttpClient(new StubHttpMessageHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        using var http = new HttpClient(new StubHttpMessageHandler(request =>
+            request.RequestUri?.AbsolutePath.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase) == true
+                ? Json("""{"schema":1,"generatedAt":"2026-09-28T00:00:00Z","count":1,"packages":[{"id":"Vendor.Missing","version":"1.0"}]}""")
+                : new HttpResponseMessage(HttpStatusCode.NotFound)));
         string cache = Path.Combine(Path.GetTempPath(), $"WinProvisionApiTests-{Guid.NewGuid():N}");
         try
         {
