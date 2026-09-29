@@ -757,8 +757,8 @@ public partial class HomePage : Page
     {
         if (sender is FrameworkElement { DataContext: AppEntry app })
         {
-            // Alterado de "ShowDetails" para "Show" 
-            // Caso o erro continue, verifique no seu arquivo AppDetailsOverlayService.cs 
+            // Alterado de "ShowDetails" para "Show"
+            // Caso o erro continue, verifique no seu arquivo AppDetailsOverlayService.cs
             // qual o nome correto do método (pode ser Open, ShowAsync, etc).
             _detailsOverlayService.Show(app);
         }

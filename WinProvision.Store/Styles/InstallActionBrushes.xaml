@@ -1,7 +1,7 @@
-﻿<!--
+<!--
     Brushes de cor fixa (azul) para o botão de ação principal do catálogo
     (Instalar/Abrir), tanto no card da grade quanto no painel de detalhes.
-    
+
     Propositalmente NÃO usam DynamicResource de accent do Windows: o pedido
     era um azul consistente sempre, independente do usuário ter escolhido
     outra cor de destaque no sistema. Os três estados (normal/hover/pressed)
