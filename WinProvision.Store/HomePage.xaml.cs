@@ -217,7 +217,7 @@ public partial class HomePage : Page
             UpdatePopularApps();
 
             _catalogLoaded = true;
-                ApplyFilter();
+            ApplyFilter();
         }
         catch
         {
@@ -680,7 +680,7 @@ public partial class HomePage : Page
             SyncInstalledFlags(_allApps);
             UpdatePopularApps();
             _catalogLoaded = true;
-                ApplyFilter();
+            ApplyFilter();
         }
         catch
         {

@@ -1,4 +1,4 @@
-<Page x:Class="WinProvision.Store.ProvisioningPage"
+﻿<Page x:Class="WinProvision.Store.ProvisioningPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -180,7 +180,9 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
+                    <Border Style="{StaticResource PageHeaderIconTileStyle}">
+                        <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+                    </Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Provisionamento" Style="{StaticResource PageTitleStyle}" />
                         <TextBlock Text="Ajuste o Windows ou exporte um perfil."
@@ -1867,99 +1869,99 @@
                 <Grid Grid.Column="2">
                     <StackPanel x:Name="ProfileSummarySidebar">
 
-                    <!--  Resumo  -->
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Resumo do Perfil"
-                                       Style="{StaticResource CardTitleStyle}"
-                                       Margin="0,0,0,24" />
+                        <!--  Resumo  -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Resumo do Perfil"
+                                           Style="{StaticResource CardTitleStyle}"
+                                           Margin="0,0,0,24" />
 
-                            <Grid Margin="0,0,0,24">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
+                                <Grid Margin="0,0,0,24">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock x:Name="SectionsConfiguredCountText"
-                                               Text="0"
-                                               Style="{StaticResource StatValueStyle}" />
-                                    <TextBlock Text="Seções configuradas" Style="{StaticResource StatLabelStyle}" />
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="SectionsConfiguredCountText"
+                                                   Text="0"
+                                                   Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="Seções configuradas" Style="{StaticResource StatLabelStyle}" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock x:Name="KeysModifiedCountText"
+                                                   Text="0"
+                                                   Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="Chaves modificadas" Style="{StaticResource StatLabelStyle}" />
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock x:Name="WarningsCountText"
+                                                   Text="0"
+                                                   Style="{StaticResource StatValueStyle}" />
+                                        <TextBlock Text="Advertências" Style="{StaticResource StatLabelStyle}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                    <ui:FontIcon x:Name="ProfileValidIcon"
+                                                 Glyph="&#xE930;"
+                                                 FontFamily="Segoe Fluent Icons"
+                                                 Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                                 FontSize="18"
+                                                 Margin="0,0,8,0" />
+                                    <TextBlock x:Name="ProfileValidText"
+                                               Text="Perfil válido"
+                                               FontFamily="Segoe UI Variable Text"
+                                               VerticalAlignment="Center" />
                                 </StackPanel>
-
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock x:Name="KeysModifiedCountText"
-                                               Text="0"
-                                               Style="{StaticResource StatValueStyle}" />
-                                    <TextBlock Text="Chaves modificadas" Style="{StaticResource StatLabelStyle}" />
-                                </StackPanel>
-
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock x:Name="WarningsCountText"
-                                               Text="0"
-                                               Style="{StaticResource StatValueStyle}" />
-                                    <TextBlock Text="Advertências" Style="{StaticResource StatLabelStyle}" />
-                                </StackPanel>
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                <ui:FontIcon x:Name="ProfileValidIcon"
-                                             Glyph="&#xE930;"
-                                             FontFamily="Segoe Fluent Icons"
-                                             Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                             FontSize="18"
-                                             Margin="0,0,8,0" />
-                                <TextBlock x:Name="ProfileValidText"
-                                           Text="Perfil válido"
-                                           FontFamily="Segoe UI Variable Text"
-                                           VerticalAlignment="Center" />
                             </StackPanel>
-                        </StackPanel>
-                    </Border>
+                        </Border>
 
-                    <!--  Alterações Pendentes  -->
-                    <Border Style="{StaticResource CardStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Alterações Pendentes"
-                                       Style="{StaticResource CardTitleStyle}"
-                                       Margin="0,0,0,8" />
+                        <!--  Alterações Pendentes  -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Alterações Pendentes"
+                                           Style="{StaticResource CardTitleStyle}"
+                                           Margin="0,0,0,8" />
 
-                            <ScrollViewer MaxHeight="320"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled"
-                                          Margin="0,0,0,4">
-                                <ItemsControl x:Name="ChangesListItemsControl">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0"
-                                                           Text="•"
-                                                           Margin="0,0,8,0"
-                                                           Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                           FontWeight="Bold"
-                                                           VerticalAlignment="Top" />
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding}"
-                                                           Style="{StaticResource ChangeItemStyle}"
-                                                           VerticalAlignment="Top" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
+                                <ScrollViewer MaxHeight="320"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Margin="0,0,0,4">
+                                    <ItemsControl x:Name="ChangesListItemsControl">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="•"
+                                                               Margin="0,0,8,0"
+                                                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                               FontWeight="Bold"
+                                                               VerticalAlignment="Top" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding}"
+                                                               Style="{StaticResource ChangeItemStyle}"
+                                                               VerticalAlignment="Top" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
 
-                            <TextBlock x:Name="NoChangesText"
-                                       Text="Nenhuma alteração registrada neste perfil ainda."
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       FontFamily="Segoe UI Variable Text"
-                                       TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
+                                <TextBlock x:Name="NoChangesText"
+                                           Text="Nenhuma alteração registrada neste perfil ainda."
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontFamily="Segoe UI Variable Text"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
 
@@ -1970,8 +1972,7 @@
             <Border Grid.Row="2" Style="{StaticResource PageStatusBarStyle}">
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
-                    <TextBlock x:Name="StatusText"
-                               Style="{StaticResource PageStatusTextStyle}" />
+                    <TextBlock x:Name="StatusText" Style="{StaticResource PageStatusTextStyle}" />
                 </StackPanel>
             </Border>
         </Grid>
