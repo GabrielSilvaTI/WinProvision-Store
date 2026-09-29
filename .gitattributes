@@ -1,0 +1,3 @@
+*.cs text eol=lf
+*.xaml text eol=lf
+*.py text eol=lf

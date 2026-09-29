@@ -160,6 +160,8 @@ public sealed class WinProvisionApiService
     private readonly string _installRecordsPath;
 
     private PackageIndex? _indexCache;
+    private IReadOnlyDictionary<string, PackageIndexEntry> _wingetEntriesById =
+        new Dictionary<string, PackageIndexEntry>(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset _indexCachedAt;
     private static readonly TimeSpan IndexTtl = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan MaxStaleCacheAge = TimeSpan.FromDays(30);
@@ -167,6 +169,12 @@ public sealed class WinProvisionApiService
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(12);
     private const int MaxRequestAttempts = 4;
     private const long MaxInstallerBytes = 4L * 1024 * 1024 * 1024;
+
+    private sealed class RetryableDownloadException(string message, HttpStatusCode statusCode, TimeSpan retryDelay)
+        : HttpRequestException(message, null, statusCode)
+    {
+        public TimeSpan RetryDelay { get; } = retryDelay;
+    }
 
     public WinProvisionApiService(HttpClient? http = null, string? cacheDir = null)
     {
@@ -215,6 +223,9 @@ public sealed class WinProvisionApiService
                     ?? throw new InvalidDataException("index.json vazio ou inválido.");
                 ValidateIndex(index);
                 _indexCache = index;
+                _wingetEntriesById = index.Packages
+                    .Where(entry => string.Equals(entry.Source, "winget", StringComparison.OrdinalIgnoreCase))
+                    .ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
                 _indexCachedAt = DateTimeOffset.UtcNow;
                 await WriteCacheFileAsync(IndexCachePath, JsonSerializer.Serialize(index), ct);
                 return index;
@@ -226,6 +237,9 @@ public sealed class WinProvisionApiService
                 {
                     ValidateIndex(cached);
                     _indexCache = cached;
+                    _wingetEntriesById = cached.Packages
+                        .Where(entry => string.Equals(entry.Source, "winget", StringComparison.OrdinalIgnoreCase))
+                        .ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
                     _indexCachedAt = DateTimeOffset.UtcNow;
                     return cached;
                 }
@@ -251,10 +265,7 @@ public sealed class WinProvisionApiService
             throw new HttpRequestException("Não foi possível validar o pacote contra o índice da API.", ex);
         }
 
-        var entry = index.Packages.FirstOrDefault(p =>
-            string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(p.Source, "winget", StringComparison.OrdinalIgnoreCase));
-        if (entry is null) return null;
+        if (!_wingetEntriesById.TryGetValue(id, out var entry)) return null;
         if (!IsValidManifestReference(entry))
             throw new InvalidDataException($"Referência do manifesto de '{id}' inválida no índice.");
 
@@ -349,16 +360,24 @@ public sealed class WinProvisionApiService
 
     private async Task<T?> GetJsonWithRetryAsync<T>(string url, CancellationToken ct, string? expectedSha256 = null, Func<byte[], CancellationToken, Task>? onPayloadReceived = null)
     {
+        using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        operationTimeout.CancelAfter(RequestTimeout);
+
         for (int attempt = 1; ; attempt++)
         {
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(RequestTimeout);
             try
             {
-                using var response = await SendWithRetryAsync(url, timeout.Token).ConfigureAwait(false);
+                using var response = await SendAsync(url, operationTimeout.Token).ConfigureAwait(false);
                 if (response.StatusCode == HttpStatusCode.NotFound) return default;
+                if (IsTransientStatus(response.StatusCode) && attempt < MaxRequestAttempts)
+                {
+                    var delay = GetRetryDelay(response, attempt);
+                    response.Dispose();
+                    await Task.Delay(delay, operationTimeout.Token).ConfigureAwait(false);
+                    continue;
+                }
                 response.EnsureSuccessStatusCode();
-                byte[] payload = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+                byte[] payload = await response.Content.ReadAsByteArrayAsync(operationTimeout.Token).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(expectedSha256))
                 {
                     byte[] expected = Convert.FromHexString(expectedSha256);
@@ -368,44 +387,24 @@ public sealed class WinProvisionApiService
                 }
                 T? value = JsonSerializer.Deserialize<T>(payload);
                 if (value is not null && onPayloadReceived is not null)
-                    await onPayloadReceived(payload, timeout.Token).ConfigureAwait(false);
+                    await onPayloadReceived(payload, operationTimeout.Token).ConfigureAwait(false);
                 return value;
             }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested && attempt < MaxRequestAttempts)
+            catch (OperationCanceledException) when (
+                !ct.IsCancellationRequested && !operationTimeout.IsCancellationRequested && attempt < MaxRequestAttempts)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), operationTimeout.Token).ConfigureAwait(false);
             }
-            catch (HttpRequestException) when (attempt < MaxRequestAttempts)
+            catch (HttpRequestException ex) when (attempt < MaxRequestAttempts
+                && (ex.StatusCode is null || IsTransientStatus(ex.StatusCode.Value)))
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), ct).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), operationTimeout.Token).ConfigureAwait(false);
             }
         }
     }
 
-    private async Task<HttpResponseMessage> SendWithRetryAsync(string url, CancellationToken ct)
-    {
-        for (int attempt = 1; ; attempt++)
-        {
-            try
-            {
-                var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-                if (!IsTransientStatus(response.StatusCode) || attempt >= MaxRequestAttempts)
-                    return response;
-
-                var delay = GetRetryDelay(response, attempt);
-                response.Dispose();
-                await Task.Delay(delay, ct).ConfigureAwait(false);
-            }
-            catch (HttpRequestException) when (attempt < MaxRequestAttempts)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt), ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested && attempt < MaxRequestAttempts)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(400 * attempt), ct).ConfigureAwait(false);
-            }
-        }
-    }
+    private Task<HttpResponseMessage> SendAsync(string url, CancellationToken ct) =>
+        _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
 
     private static bool IsTransientStatus(HttpStatusCode status) =>
         status is HttpStatusCode.RequestTimeout or HttpStatusCode.TooManyRequests
@@ -1055,19 +1054,20 @@ public sealed class WinProvisionApiService
         Action<InstallProgressUpdate>? onProgress,
         CancellationToken ct)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(DownloadTimeout);
-        using var response = await SendWithRetryAsync(url, timeout.Token).ConfigureAwait(false);
+        using var response = await SendAsync(url, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException(
-                $"O servidor recusou o download (HTTP {(int)response.StatusCode} {response.ReasonPhrase}).",
-                null, response.StatusCode);
+        {
+            string message = $"O servidor recusou o download (HTTP {(int)response.StatusCode} {response.ReasonPhrase}).";
+            if (IsTransientStatus(response.StatusCode))
+                throw new RetryableDownloadException(message, response.StatusCode, GetRetryDelay(response, 1));
+            throw new HttpRequestException(message, null, response.StatusCode);
+        }
 
         long? expectedLength = response.Content.Headers.ContentLength;
         if (expectedLength is <= 0 || expectedLength > MaxInstallerBytes)
             throw new InvalidDataException($"Tamanho de download inválido ou acima do limite ({expectedLength} bytes).");
 
-        await using var input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+        await using var input = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         await using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None,
             bufferSize: 128 * 1024, useAsync: true);
         bool canReportPercentage = expectedLength is > 0
@@ -1083,14 +1083,14 @@ public sealed class WinProvisionApiService
 
         while (true)
         {
-            int count = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), timeout.Token).ConfigureAwait(false);
+            int count = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), ct).ConfigureAwait(false);
             if (count == 0) break;
 
             bytesRead += count;
             if (bytesRead > MaxInstallerBytes)
                 throw new InvalidDataException($"O download excedeu o limite de {MaxInstallerBytes} bytes.");
 
-            await output.WriteAsync(buffer.AsMemory(0, count), timeout.Token).ConfigureAwait(false);
+            await output.WriteAsync(buffer.AsMemory(0, count), ct).ConfigureAwait(false);
 
             if (canReportPercentage && expectedLength is > 0)
             {
@@ -1105,7 +1105,7 @@ public sealed class WinProvisionApiService
             }
         }
 
-        await output.FlushAsync(timeout.Token).ConfigureAwait(false);
+        await output.FlushAsync(ct).ConfigureAwait(false);
 
         if (output.Length == 0 || output.Length > MaxInstallerBytes)
             throw new InvalidDataException($"O download terminou com tamanho inválido ({output.Length} bytes).");
@@ -1122,21 +1122,32 @@ public sealed class WinProvisionApiService
         Action<InstallProgressUpdate>? onProgress,
         CancellationToken ct)
     {
+        // Um único prazo cobre todas as tentativas e os intervalos entre elas.
+        // Assim, três falhas não multiplicam o limite de 12 minutos por tentativa.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(DownloadTimeout);
+
         for (int attempt = 1; ; attempt++)
         {
             try
             {
-                await DownloadFileAsync(url, destination, onProgress, ct);
+                await DownloadFileAsync(url, destination, onProgress, timeout.Token);
                 return;
             }
             catch (Exception ex) when (attempt < 4
-                && (ex is HttpRequestException or IOException or InvalidDataException
+                && (ex is IOException
+                    || ex is RetryableDownloadException
+                    || ex is HttpRequestException { StatusCode: null }
                     || ex is OperationCanceledException && !ct.IsCancellationRequested)
-                && !ct.IsCancellationRequested)
+                && !ct.IsCancellationRequested
+                && !timeout.IsCancellationRequested)
             {
                 TryDeleteFile(destination);
                 onLog?.Report($"Falha temporária no download; nova tentativa {attempt + 1} de 4...");
-                await Task.Delay(TimeSpan.FromMilliseconds(700 * Math.Pow(2, attempt - 1)), ct);
+                TimeSpan delay = ex is RetryableDownloadException retryable
+                    ? retryable.RetryDelay
+                    : TimeSpan.FromMilliseconds(700 * Math.Pow(2, attempt - 1));
+                await Task.Delay(delay, timeout.Token);
             }
         }
     }

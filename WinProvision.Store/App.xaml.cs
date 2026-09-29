@@ -40,6 +40,8 @@ public partial class App : Application
             // Navegação v4
             services.AddSingleton<INavigationViewPageProvider, CustomNavigationViewPageProvider>();
             services.AddSingleton<INavigationService, NavigationService>();
+            services.AddSingleton<Wpf.Ui.ISnackbarService, Wpf.Ui.SnackbarService>();
+            services.AddSingleton<Wpf.Ui.IContentDialogService, Wpf.Ui.ContentDialogService>();
 
             // Serviços Core
             services.AddSingleton<IconService>();
@@ -70,6 +72,7 @@ public partial class App : Application
                             packageId,
                             onLogReceived,
                             cancellationToken)));
+            services.AddSingleton<OfficeCatalogService>();
             services.AddSingleton<OfficeUninstallService>();
             services.AddSingleton<OfficeInstalledProductsDetector>();
             services.AddSingleton<WinGetService>();
@@ -201,6 +204,7 @@ public partial class App : Application
             try
             {
                 await _host.StartAsync();
+                await _host.Services.GetRequiredService<OfficeCatalogService>().RefreshAsync();
                 OperationRunner.ConfigureInstallHandler(
                     _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
                 OperationRunner.ConfigureUpdateHandler(
@@ -324,6 +328,7 @@ public partial class App : Application
         try
         {
             await _host.StartAsync();
+            _ = _host.Services.GetRequiredService<OfficeCatalogService>().RefreshAsync();
             OperationRunner.ConfigureInstallHandler(
                 _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
             OperationRunner.ConfigureUpdateHandler(

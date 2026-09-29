@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using WinProvision.Core.Models;
@@ -33,7 +34,17 @@ public partial class SettingsPage : Page
     private bool _initializingPreferences = true;
     private bool _initializingInstallMethod = true;
     private AppUpdateCheckResult? _pendingUpdate;
-    private readonly List<string> _searchResultTags = [];
+    private readonly List<SettingSearchEntry> _searchEntries = [];
+    private readonly List<SettingSearchEntry> _searchResults = [];
+
+    private sealed record SettingSearchEntry(
+        string Title,
+        string Description,
+        string Category,
+        string CategoryKey,
+        string SearchTerms,
+        string Symbol,
+        Border Target);
 
     private readonly Dictionary<string, (string Title, StackPanel Panel)> _categories;
 
@@ -55,6 +66,8 @@ public partial class SettingsPage : Page
             ["Operations"] = ("Armazenamento e cache", PanelOperations),
             ["Backup"] = ("Backup e restauração", PanelBackup)
         };
+
+        InitializeSearchEntries();
 
         InstallMethodComboBox.SelectedItem = InstallMethodComboBox.Items
             .OfType<ComboBoxItem>()
@@ -133,68 +146,166 @@ public partial class SettingsPage : Page
         }
     }
 
+    private void InitializeSearchEntries()
+    {
+        _searchEntries.AddRange(
+        [
+            new("Método de instalação preferencial", "Escolha o método automático, WinGet COM, WinProvision API ou WinGet CLI.", "Preferências gerais", "General", "método instalar instalação pacote automático api com winget cli rota", "Settings24", InstallMethodCard),
+            new("Verificação de atualizações", "Procure uma versão mais recente do WinProvision Store.", "Preferências gerais", "General", "atualização atualizar versão github verificar update", "ArrowClockwise24", AppUpdateCard),
+            new("Exportar configurações", "Salve as preferências atuais em um arquivo JSON.", "Preferências gerais", "General", "exportar salvar configurações json", "ArrowExport24", PrivacyCard),
+            new("Importar configurações", "Carregue preferências de um arquivo JSON.", "Preferências gerais", "General", "importar carregar configurações json", "ArrowImport24", PrivacyCard),
+            new("Abrir pasta de logs", "Acesse os arquivos de log do aplicativo.", "Preferências gerais", "General", "log logs pasta diagnóstico arquivos", "DocumentText24", PrivacyCard),
+            new("Restaurar padrões", "Volte às preferências originais do aplicativo.", "Preferências gerais", "General", "restaurar padrões redefinir reset configurações", "ArrowReset24", PrivacyCard),
+            new("Tema do aplicativo", "Alterne entre os temas claro, escuro e do sistema.", "Interface e inicialização", "Interface", "tema aparência claro escuro sistema cor", "Color24", ThemeCard),
+            new("Iniciar com o Windows", "Abra o WinProvision automaticamente ao entrar nesta conta.", "Interface e inicialização", "Interface", "inicialização iniciar login windows automático", "Power24", StartupCard),
+            new("Limpar cache local de instaladores", "Remova os instaladores temporários para liberar espaço em disco.", "Armazenamento e cache", "Operations", "cache armazenamento espaço disco temporários instaladores limpar", "Broom24", CacheCard),
+            new("Exportar backup local", "Salve a lista de aplicativos instalados em um arquivo JSON.", "Backup e restauração", "Backup", "backup exportar salvar aplicativos instalados lista json", "Save24", BackupExportCard),
+            new("Restaurar de arquivo JSON", "Selecione um arquivo de backup para usar na Coleção de Pacotes.", "Backup e restauração", "Backup", "backup restaurar importar arquivo json coleção reinstalar", "ArrowImport24", BackupRestoreCard)
+        ]);
+    }
+
     private void SettingsSearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         string query = NormalizeSearchText(SettingsSearchBox.Text ?? string.Empty);
 
-        // Se estiver dentro de uma subcategoria e o usuário começar a pesquisar, volta pra home
         if (!string.IsNullOrEmpty(query) && SubCategoryScrollViewer.Visibility == Visibility.Visible)
         {
             BackButton_Click(sender, e);
         }
 
-        var allCards = new[]
-        {
-            (CardGeneral, "General", "Preferências gerais", "método de instalação automático api com winget cli atualizador verificar atualizar exportar importar configurações logs"),
-            (CardInterface, "Interface", "Interface e inicialização", "tema aparência claro escuro sistema iniciar inicialização windows"),
-            (CardOperations, "Operations", "Armazenamento e cache", "cache temporários arquivos instaladores limpar espaço disco armazenamento"),
-            (CardBackup, "Backup", "Backup e restauração", "backup restaurar restauração coleção aplicativos arquivo json exportar importar")
-        };
+        SettingsSearchResultsList.Children.Clear();
+        _searchResults.Clear();
+        bool isSearching = !string.IsNullOrWhiteSpace(query);
+        SettingsCategoryListPanel.Visibility = isSearching ? Visibility.Collapsed : Visibility.Visible;
+        SettingsSearchResultsPanel.Visibility = isSearching ? Visibility.Visible : Visibility.Collapsed;
+        SettingsSearchEmptyText.Visibility = Visibility.Collapsed;
 
-        _searchResultTags.Clear();
-        foreach (var (card, tag, title, terms) in allCards)
-        {
-            bool match = string.IsNullOrEmpty(query)
-                || NormalizeSearchText($"{title} {terms}").Contains(query, StringComparison.Ordinal);
-            card.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
-            card.BorderThickness = !string.IsNullOrEmpty(query) && match ? new Thickness(2) : new Thickness(1);
-            card.SetResourceReference(Border.BorderBrushProperty,
-                !string.IsNullOrEmpty(query) && match ? "AccentFillColorDefaultBrush" : "AppCardBorderBrush");
-            if (match && !string.IsNullOrEmpty(query))
-                _searchResultTags.Add(tag);
-        }
-
-        if (string.IsNullOrEmpty(query))
+        if (!isSearching)
         {
             SettingsSearchResultText.Visibility = Visibility.Collapsed;
             SettingsSearchResultText.Text = string.Empty;
+            return;
         }
-        else if (_searchResultTags.Count == 0)
+
+        string[] queryTerms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        _searchResults.AddRange(_searchEntries.Where(entry =>
         {
-            SettingsSearchResultText.Text = "Nenhuma categoria encontrada. Tente outro termo.";
-            SettingsSearchResultText.Visibility = Visibility.Visible;
+            string searchableText = NormalizeSearchText($"{entry.Title} {entry.Description} {entry.Category} {entry.SearchTerms}");
+            return queryTerms.All(term => searchableText.Contains(term, StringComparison.Ordinal));
+        }));
+
+        foreach (SettingSearchEntry entry in _searchResults)
+        {
+            SettingsSearchResultsList.Children.Add(CreateSearchResultButton(entry));
+        }
+
+        if (_searchResults.Count == 0)
+        {
+            SettingsSearchResultText.Text = "Nenhuma opção encontrada.";
+            SettingsSearchEmptyText.Visibility = Visibility.Visible;
         }
         else
         {
-            var titles = allCards
-                .Where(item => _searchResultTags.Contains(item.Item2))
-                .Select(item => item.Item3);
-            SettingsSearchResultText.Text = $"Categoria encontrada: {string.Join(", ", titles)}. Pressione Enter ou selecione o cartão para abrir.";
-            SettingsSearchResultText.Visibility = Visibility.Visible;
+            SettingsSearchResultText.Text = _searchResults.Count == 1
+                ? "1 opção encontrada. Selecione para abrir essa configuração."
+                : $"{_searchResults.Count} opções encontradas. Selecione uma para abrir a configuração correspondente.";
         }
+
+        SettingsSearchResultText.Visibility = Visibility.Visible;
+    }
+
+    private Wpf.Ui.Controls.Button CreateSearchResultButton(SettingSearchEntry entry)
+    {
+        var button = new Wpf.Ui.Controls.Button
+        {
+            Appearance = ControlAppearance.Secondary,
+            Style = (Style)FindResource("SettingsSearchResultButtonStyle"),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Tag = entry,
+            ToolTip = entry.Description
+        };
+        button.Click += SettingsSearchResultButton_Click;
+        System.Windows.Automation.AutomationProperties.SetName(button, $"{entry.Title}, {entry.Category}");
+        System.Windows.Automation.AutomationProperties.SetHelpText(button, entry.Description);
+
+        var content = new Grid();
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new SymbolIcon
+        {
+            Symbol = Enum.Parse<SymbolRegular>(entry.Symbol),
+            FontSize = 20,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        icon.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
+        content.Children.Add(icon);
+
+        var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        textStack.Children.Add(new System.Windows.Controls.TextBlock { Text = entry.Title, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        var description = new System.Windows.Controls.TextBlock
+        {
+            Text = entry.Description,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 3, 0, 0)
+        };
+        description.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        textStack.Children.Add(description);
+        Grid.SetColumn(textStack, 2);
+        content.Children.Add(textStack);
+
+        var category = new System.Windows.Controls.TextBlock
+        {
+            Text = entry.Category,
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            MaxWidth = 180
+        };
+        category.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        Grid.SetColumn(category, 4);
+        content.Children.Add(category);
+        button.Content = content;
+        return button;
+    }
+
+    private void SettingsSearchResultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Wpf.Ui.Controls.Button { Tag: SettingSearchEntry entry })
+        {
+            NavigateToSearchResult(entry);
+        }
+    }
+
+    private void NavigateToSearchResult(SettingSearchEntry entry)
+    {
+        if (!_categories.TryGetValue(entry.CategoryKey, out var category))
+        {
+            return;
+        }
+
+        NavigateToCategory(category.Title, category.Panel);
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            entry.Target.BringIntoView();
+            entry.Target.Focus();
+        }), DispatcherPriority.Loaded);
     }
 
     private void SettingsSearchBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter || _searchResultTags.Count == 0)
-            return;
-
-        string tag = _searchResultTags[0];
-        if (_categories.TryGetValue(tag, out var category))
+        if (e.Key != Key.Enter || _searchResults.Count == 0)
         {
-            NavigateToCategory(category.Title, category.Panel);
-            e.Handled = true;
+            return;
         }
+
+        NavigateToSearchResult(_searchResults[0]);
+        e.Handled = true;
     }
 
     private static string NormalizeSearchText(string value)
@@ -304,6 +415,9 @@ public partial class SettingsPage : Page
         try
         {
             await _cacheService.ClearAsync();
+            // Os ícones do Office e outras imagens remotas usam um cache WPF
+            // independente dos caches de catálogo e do IconService.
+            Converters.AsyncImage.ClearCache();
             StatusText.Text = "Cache local limpo com sucesso!";
         }
         catch (Exception ex)

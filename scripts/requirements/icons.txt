@@ -1,0 +1,4 @@
+-r base.txt
+Pillow==12.3.0
+PyYAML==6.0.3
+pymszip==1.0.1

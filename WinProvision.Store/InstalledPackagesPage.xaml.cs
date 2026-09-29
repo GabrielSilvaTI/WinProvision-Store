@@ -13,7 +13,9 @@ using Microsoft.Win32;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Services;
+using Wpf.Ui;
 using Wpf.Ui.Controls;
+using Wpf.Ui.Extensions;
 
 namespace WinProvision.Store;
 
@@ -27,6 +29,8 @@ public partial class InstalledPackagesPage : Page
     private readonly StoreService _storeService;
     private readonly WingetExecutor _wingetExecutor;
     private readonly OperationsQueueService _queue;
+    private readonly ISnackbarService _snackbarService;
+    private readonly IContentDialogService _contentDialogService;
 
     public InstalledPackagesPage()
     {
@@ -39,6 +43,8 @@ public partial class InstalledPackagesPage : Page
         _storeService = App.Services.GetRequiredService<StoreService>();
         _wingetExecutor = App.Services.GetRequiredService<WingetExecutor>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
+        _snackbarService = App.Services.GetRequiredService<ISnackbarService>();
+        _contentDialogService = App.Services.GetRequiredService<IContentDialogService>();
 
         DataContext = _viewModel;
 
@@ -48,15 +54,25 @@ public partial class InstalledPackagesPage : Page
             {
                 await _viewModel.LoadAsync();
             }
+            RefreshSearchSuggestions();
             ApplyPackageFilters();
         };
     }
 
     // ─── Pesquisa e Filtros ──────────────────────────────────────────────────
 
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e) => ApplyPackageFilters();
+
+    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e) => ApplyPackageFilters();
+
+    private void RefreshSearchSuggestions()
     {
-        ApplyPackageFilters();
+        InstalledSearchBox.OriginalItemsSource = _viewModel.Packages
+            .SelectMany(package => new[] { package.Name, package.Id })
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(300)
+            .ToList();
     }
 
     private void FilterOption_Changed(object sender, RoutedEventArgs e) => ApplyPackageFilters();
@@ -99,7 +115,7 @@ public partial class InstalledPackagesPage : Page
     private void ToggleFiltersButton_Click(object sender, RoutedEventArgs e)
     {
         bool isOpen = ToggleFiltersButton.IsChecked == true;
-        FilterSidebarColumn.Width = isOpen ? new GridLength(230) : new GridLength(0);
+        FilterSidebarColumn.Width = isOpen ? new GridLength(260) : new GridLength(0);
         FilterSplitterColumn.Width = isOpen ? new GridLength(8) : new GridLength(0);
         FilterSidebarPanel.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
         FilterSplitter.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
@@ -164,18 +180,25 @@ public partial class InstalledPackagesPage : Page
             return;
         }
 
-        var dialog = new Wpf.Ui.Controls.MessageBox
+        var result = await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
         {
-            Title = "Desinstalar aplicativos",
-            Content = $"Tem certeza que deseja desinstalar {selected.Count} aplicativo(s) selecionado(s)?",
+            Title = "Desinstalar aplicativos?",
+            Content = $"Os {selected.Count} aplicativos selecionados serão removidos do computador.",
             PrimaryButtonText = "Desinstalar",
             CloseButtonText = "Cancelar"
-        };
+        });
 
-        if (await dialog.ShowDialogAsync() == Wpf.Ui.Controls.MessageBoxResult.Primary)
+        if (result == ContentDialogResult.Primary)
         {
             await _viewModel.RemoveSelectedAsync();
+            RefreshSearchSuggestions();
             ApplyPackageFilters();
+            bool completed = _viewModel.Status.StartsWith("Desinstalação concluída", StringComparison.OrdinalIgnoreCase);
+            _snackbarService.Show(completed ? "Desinstalação concluída" : "Desinstalação parcial",
+                _viewModel.Status,
+                completed ? ControlAppearance.Success : ControlAppearance.Caution,
+                new SymbolIcon(completed ? SymbolRegular.CheckmarkCircle24 : SymbolRegular.Warning24),
+                TimeSpan.FromSeconds(4));
         }
     }
 
@@ -348,6 +371,8 @@ public partial class InstalledPackagesPage : Page
 
             File.WriteAllText(saveDialog.FileName, sb.ToString(), Encoding.UTF8);
             _viewModel.Status = $"Exportado para '{Path.GetFileName(saveDialog.FileName)}' com sucesso.";
+            _snackbarService.Show("Exportação concluída", _viewModel.Status, ControlAppearance.Success,
+                new SymbolIcon(SymbolRegular.CheckmarkCircle24), TimeSpan.FromSeconds(3));
         }
         catch (Exception ex)
         {
@@ -398,6 +423,12 @@ public partial class InstalledPackagesPage : Page
         _viewModel.Status = failures.Count == 0
             ? $"{downloaded} instalador(es) baixado(s) em {targetFolder}."
             : $"{downloaded} baixado(s); falha em {failures.Count}: {string.Join(", ", failures)}.";
+        _snackbarService.Show(
+            failures.Count == 0 ? "Downloads concluídos" : "Downloads parcialmente concluídos",
+            _viewModel.Status,
+            failures.Count == 0 ? ControlAppearance.Success : ControlAppearance.Caution,
+            new SymbolIcon(failures.Count == 0 ? SymbolRegular.CheckmarkCircle24 : SymbolRegular.Warning24),
+            TimeSpan.FromSeconds(4));
     }
 
     // ─── Atualizações Ignoradas ──────────────────────────────────────────────
@@ -786,6 +817,8 @@ public partial class InstalledPackagesPage : Page
             {
                 activeTab.Items.Add(ToAppEntry(row));
                 _viewModel.Status = $"'{row.Name}' adicionado à coleção '{activeTab.Title}'.";
+                _snackbarService.Show("Adicionado à coleção", _viewModel.Status, ControlAppearance.Success,
+                    new SymbolIcon(SymbolRegular.CheckmarkCircle24), TimeSpan.FromSeconds(3));
             }
             else
             {

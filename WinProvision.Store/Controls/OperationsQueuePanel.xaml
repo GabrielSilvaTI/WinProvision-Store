@@ -1,4 +1,4 @@
-<UserControl x:Class="WinProvision.Store.Controls.OperationsQueuePanel"
+﻿<UserControl x:Class="WinProvision.Store.Controls.OperationsQueuePanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -16,7 +16,7 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <!-- Main Container -->
+    <!--  Main Container  -->
     <Border Background="{DynamicResource AppSurfaceBrush}"
             BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
             BorderThickness="0,1,0,0">
@@ -26,7 +26,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <!-- ── BARRA SUPERIOR: EXPANDIR/RECOLHER + TÍTULO DINÂMICO + MENU DE AÇÕES EM MASSA ── -->
+            <!--  ── BARRA SUPERIOR: EXPANDIR/RECOLHER + TÍTULO DINÂMICO + MENU DE AÇÕES EM MASSA ──  -->
             <Grid Grid.Row="0"
                   Height="30"
                   Margin="8,2,8,2">
@@ -36,7 +36,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Chevron de alternância (▼ / ▲) -->
+                <!--  Chevron de alternância (▼ / ▲)  -->
                 <ToggleButton x:Name="ExpanderToggle"
                               Grid.Column="0"
                               Width="28"
@@ -57,7 +57,7 @@
                                                    Symbol="ChevronDown24"
                                                    FontSize="12"
                                                    Opacity="0.75" />
-                                    <!-- Badge vermelho se recolhido e houver falha -->
+                                    <!--  Badge vermelho se recolhido e houver falha  -->
                                     <Ellipse x:Name="FailedBadge"
                                              Width="6"
                                              Height="6"
@@ -87,7 +87,7 @@
                     </ToggleButton.Template>
                 </ToggleButton>
 
-                <!-- Subtítulo / contador exato: "0 de 1 operações concluídas" -->
+                <!--  Subtítulo / contador exato: "0 de 1 operações concluídas"  -->
                 <TextBlock Grid.Column="1"
                            Text="{Binding Queue.HeaderText, ElementName=Root}"
                            FontSize="12"
@@ -95,7 +95,7 @@
                            VerticalAlignment="Center"
                            Margin="4,0,0,0" />
 
-                <!-- Menu de operações em massa (...) -->
+                <!--  Menu de operações em massa (...)  -->
                 <ui:Button x:Name="BulkMenuButton"
                            Grid.Column="2"
                            Width="28"
@@ -115,14 +115,13 @@
                 </ui:Button>
             </Grid>
 
-            <!-- ── LISTA DE OPERAÇÕES ── -->
+            <!--  ── LISTA DE OPERAÇÕES ──  -->
             <ScrollViewer Grid.Row="1"
                           MaxHeight="300"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Visibility="{Binding IsChecked, ElementName=ExpanderToggle, Converter={StaticResource BoolToVis}}">
-                <ItemsControl ItemsSource="{Binding Queue.Operations, ElementName=Root}"
-                              Margin="8,2,8,6">
+                <ItemsControl ItemsSource="{Binding Queue.Operations, ElementName=Root}" Margin="8,2,8,6">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel />
@@ -131,7 +130,7 @@
 
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <!-- Card da operação -->
+                            <!--  Card da operação  -->
                             <Border Margin="0,3,0,3"
                                     Padding="12,8"
                                     CornerRadius="6"
@@ -145,7 +144,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Coluna 0: ícone do pacote ou do aplicativo -->
+                                    <!--  Coluna 0: ícone do pacote ou do aplicativo  -->
                                     <Border Grid.Column="0"
                                             Width="32"
                                             Height="28"
@@ -155,14 +154,14 @@
                                             Background="Transparent"
                                             ClipToBounds="True">
                                         <Grid>
-                                            <!-- A cor do ícone acompanha o método atual. -->
+                                            <!--  A cor do ícone acompanha o método atual.  -->
                                             <ui:SymbolIcon Symbol="Box24"
                                                            FontSize="22"
                                                            Foreground="{Binding Method, Converter={StaticResource WingetMethodBrushConverter}}"
                                                            HorizontalAlignment="Center"
                                                            VerticalAlignment="Center"
                                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=OperationImage, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}" />
-                                            <!-- Imagem personalizada se houver -->
+                                            <!--  Imagem personalizada se houver  -->
                                             <Image x:Name="OperationImage"
                                                    Stretch="Uniform"
                                                    conv:AsyncImage.SourceUrl="{Binding IconUrl}"
@@ -170,19 +169,19 @@
                                         </Grid>
                                     </Border>
 
-                                    <!-- Coluna 1: Título, LiveLine e Barra de Progresso Fina -->
+                                    <!--  Coluna 1: Título, LiveLine e Barra de Progresso Fina  -->
                                     <StackPanel Grid.Column="1"
                                                 VerticalAlignment="Center"
                                                 Margin="0,0,12,0">
 
-                                        <!-- Título da Operação: ex. "Atualizando Boto3..." -->
+                                        <!--  Título da Operação: ex. "Atualizando Boto3..."  -->
                                         <TextBlock Text="{Binding DisplayTitle}"
                                                    FontWeight="SemiBold"
                                                    FontSize="13.5"
                                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                    TextTrimming="CharacterEllipsis" />
 
-                                        <!-- LiveLine (Log ou mensagem ao vivo): clicável para ver terminal -->
+                                        <!--  LiveLine (Log ou mensagem ao vivo): clicável para ver terminal  -->
                                         <Button Margin="0,2,0,0"
                                                 Padding="0"
                                                 HorizontalAlignment="Left"
@@ -199,7 +198,7 @@
                                                        TextTrimming="CharacterEllipsis" />
                                         </Button>
 
-                                        <!-- Barra de progresso fina, colorida pelo método atual. -->
+                                        <!--  Barra de progresso fina, colorida pelo método atual.  -->
                                         <ProgressBar x:Name="OperationProgress"
                                                      Style="{StaticResource GradientProgressBarStyle}"
                                                      IsIndeterminate="{Binding IsIndeterminate}"
@@ -211,7 +210,7 @@
                                                      conv:AnimatedProgress.Percent="{Binding Progress, Mode=OneWay}"
                                                      Visibility="{Binding IsFinished, Converter={StaticResource NotFinishedToVisibilityConverter}}" />
 
-                                        <!-- Badge de Status após Finalizar -->
+                                        <!--  Badge de Status após Finalizar  -->
                                         <Border x:Name="StatusBadge"
                                                 Margin="0,4,0,0"
                                                 Padding="8,2"
@@ -229,7 +228,7 @@
                                         </Border>
                                     </StackPanel>
 
-                                    <!-- Coluna 2: Fused Split Button [ Cancelar / Fechar | ⋯ ] -->
+                                    <!--  Coluna 2: Fused Split Button [ Cancelar / Fechar | ⋯ ]  -->
                                     <Border Grid.Column="2"
                                             VerticalAlignment="Center"
                                             Height="28"
@@ -239,7 +238,7 @@
                                             Background="{DynamicResource ControlFillColorDefaultBrush}"
                                             ClipToBounds="True">
                                         <StackPanel Orientation="Horizontal">
-                                            <!-- Ação Principal: Cancelar (enquanto roda) ou Fechar (concluído) -->
+                                            <!--  Ação Principal: Cancelar (enquanto roda) ou Fechar (concluído)  -->
                                             <ui:Button Content="{Binding ButtonText}"
                                                        Command="{Binding ActionCommand}"
                                                        Height="28"
@@ -251,12 +250,12 @@
                                                        VerticalContentAlignment="Center"
                                                        ToolTip="Ação da operação" />
 
-                                            <!-- Divisor vertical sutil -->
+                                            <!--  Divisor vertical sutil  -->
                                             <Rectangle Width="1"
                                                        VerticalAlignment="Stretch"
                                                        Fill="{DynamicResource AppBorderSubtleBrush}" />
 
-                                            <!-- Botão de Opções (...) para este item -->
+                                            <!--  Botão de Opções (...) para este item  -->
                                             <ui:Button Width="28"
                                                        Height="28"
                                                        Padding="0"
@@ -295,7 +294,7 @@
                 </ItemsControl>
             </ScrollViewer>
 
-            <!-- ── OVERLAY MODAL: SAÍDA / LOG DO TERMINAL ── -->
+            <!--  ── OVERLAY MODAL: SAÍDA / LOG DO TERMINAL ──  -->
             <Grid x:Name="OutputModalHost"
                   Grid.Row="0"
                   Grid.RowSpan="2"
@@ -311,17 +310,22 @@
                         BorderBrush="{DynamicResource AppBorderBrush}"
                         Background="{DynamicResource AppSurfaceBrush}">
                     <Border.Effect>
-                        <DropShadowEffect Color="#000000" Opacity="0.35" BlurRadius="20" ShadowDepth="4" />
+                        <DropShadowEffect Color="#000000"
+                                          Opacity="0.35"
+                                          BlurRadius="20"
+                                          ShadowDepth="4" />
                     </Border.Effect>
                     <Grid RowDefinitions="Auto,*,Auto" Margin="16">
-                        <!-- Topo: Título + Botão de Fechar -->
+                        <!--  Topo: Título + Botão de Fechar  -->
                         <Grid Grid.Row="0" Margin="0,0,0,12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <ui:SymbolIcon Symbol="WindowConsole20" FontSize="18" Margin="0,0,8,0" />
+                                <ui:SymbolIcon Symbol="WindowConsole20"
+                                               FontSize="18"
+                                               Margin="0,0,8,0" />
                                 <TextBlock x:Name="OutputModalTitle"
                                            Text="Saída da Operação"
                                            FontWeight="SemiBold"
@@ -336,7 +340,7 @@
                             </ui:Button>
                         </Grid>
 
-                        <!-- Centro: Console / Log text com fonte monoespaçada -->
+                        <!--  Centro: Console / Log text com fonte monoespaçada  -->
                         <Border Grid.Row="1"
                                 CornerRadius="6"
                                 Background="#121212"
@@ -356,7 +360,7 @@
                                      Padding="12" />
                         </Border>
 
-                        <!-- Rodapé: Ações Copiar e Fechar -->
+                        <!--  Rodapé: Ações Copiar e Fechar  -->
                         <Grid Grid.Row="2" Margin="0,12,0,0">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                 <ui:Button Content="Copiar log"

@@ -8,11 +8,12 @@ index is the commit point and is published only after every referenced object
 
 import hashlib
 import json
+import math
 import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import quote
 
 import boto3
@@ -45,6 +46,9 @@ def validate_api(local_dir: str):
     packages = index.get("packages")
     if not isinstance(packages, list) or index.get("count") != len(packages):
         raise ValueError("count do index.json não corresponde à lista packages.")
+    minimum = int(os.environ.get("WINPROVISION_MIN_API_PACKAGES", "5000"))
+    if len(packages) < minimum:
+        raise ValueError(f"índice tem {len(packages)} pacote(s); mínimo configurado: {minimum}.")
     generated_at = index.get("generatedAt")
     if not isinstance(generated_at, str):
         raise ValueError("generatedAt ausente no index.json.")
@@ -142,10 +146,7 @@ def upload_batch(client, bucket: str, files: list[tuple[str, str]], label: str) 
     failures = []
     print(f"Enviando {len(files)} arquivo(s) ({label}) com {MAX_WORKERS} workers...")
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {
-            executor.submit(upload_single_file, client, path, bucket, key): key
-            for path, key in files
-        }
+        futures = {executor.submit(upload_single_file, client, path, bucket, key): key for path, key in files}
         for future in as_completed(futures):
             if not future.result():
                 failures.append(futures[future])
@@ -192,6 +193,19 @@ def main() -> int:
         return 1
 
     previous_hashes, has_immutable_state = load_previous_state(previous_state_path)
+    minimum_retention = float(os.environ.get("WINPROVISION_MIN_API_RETENTION", "0.70"))
+    if not 0.0 <= minimum_retention <= 1.0:
+        print("WINPROVISION_MIN_API_RETENTION precisa ficar entre 0 e 1.", file=sys.stderr)
+        return 2
+    previous_count = len(previous_hashes)
+    current_count = len(index["packages"])
+    if previous_count and current_count < math.ceil(previous_count * minimum_retention):
+        print(
+            f"Validação da API falhou; nada foi publicado: índice caiu de {previous_count} para "
+            f"{current_count} pacote(s), abaixo da retenção mínima ({minimum_retention:.0%}).",
+            file=sys.stderr,
+        )
+        return 1
     account_id = os.environ["R2_ACCOUNT_ID"]
     access_key = os.environ["R2_ACCESS_KEY_ID"]
     secret_key = os.environ["R2_SECRET_ACCESS_KEY"]
@@ -219,10 +233,12 @@ def main() -> int:
         entry["manifestSha256"] = digest
 
         if not has_immutable_state or previous_hashes.get(package_id) != digest:
-            immutable_uploads.append((
-                manifest_path,
-                f"{r2_prefix}/packages/{package_id}/{digest}.json",
-            ))
+            immutable_uploads.append(
+                (
+                    manifest_path,
+                    f"{r2_prefix}/packages/{package_id}/{digest}.json",
+                )
+            )
         if previous_hashes.get(package_id) != digest:
             legacy_uploads.append((manifest_path, f"{r2_prefix}/packages/{filename}"))
 
@@ -262,7 +278,10 @@ def main() -> int:
             ExtraArgs={"ContentType": "application/json", "CacheControl": "no-cache"},
         )
     except Exception as exc:  # noqa: BLE001 - o índice está íntegro; repetir publicação é seguro.
-        print(f"Aviso: índice publicado; estado não atualizado e será reconstruído na próxima execução: {exc}", file=sys.stderr)
+        print(
+            f"Aviso: índice publicado; estado não atualizado e será reconstruído na próxima execução: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
     print(

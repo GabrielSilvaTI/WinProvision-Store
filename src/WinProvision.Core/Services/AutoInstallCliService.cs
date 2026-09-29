@@ -526,6 +526,13 @@ public class AutoInstallCliService
             return false;
         }
 
+        var additionalProducts = (options.AdditionalProductIds ?? []).Select(OfficePlanCatalog.ByProductId).ToArray();
+        if (additionalProducts.Any(product => product is null))
+        {
+            _log($"[WinProvision] \"{label}\": um ou mais produtos adicionais não existem no catálogo desta versão do app.");
+            return false;
+        }
+
         var request = new OfficeInstallRequest(
             plan,
             options.Architecture,
@@ -535,7 +542,14 @@ public class AutoInstallCliService
             AdditionalLanguageIds: options.AdditionalLanguageIds,
             DisplayLevel: options.Silent ? OfficeDisplayLevel.Silent : OfficeDisplayLevel.Visible,
             ChannelOverride: options.ChannelOverride,
-            AutoUpdatesEnabled: options.AutoUpdatesEnabled);
+            AutoUpdatesEnabled: options.AutoUpdatesEnabled,
+            AdditionalProducts: additionalProducts.Cast<OfficePlan>().ToArray());
+
+        if (OfficeConfigXmlBuilder.ValidateRequest(request) is { } validationError)
+        {
+            _log($"[WinProvision] \"{label}\": configuração Office inválida: {validationError}");
+            return false;
+        }
 
         _log($"[WinProvision] Instalando \"{label}\" (Office/ODT)…");
 

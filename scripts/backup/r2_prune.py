@@ -61,7 +61,7 @@ def main() -> int:
         endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
         aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-        config=Config(signature_version="s3v4"),
+        config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"}),
         region_name="auto",
     )
 

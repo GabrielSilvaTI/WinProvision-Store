@@ -23,11 +23,27 @@ public record OfficePlan(
     string? Channel,
     bool IsVolumeLicensed)
 {
+    /// <summary>
+    /// Produtos Retail/assinatura aceitam canais de manutenção Microsoft 365;
+    /// Office LTSC mantém o canal PerpetualVL obrigatório.
+    /// </summary>
+    public bool SupportsSelectableChannel => Category != OfficeEditionCategory.Ltsc &&
+        (!IsVolumeLicensed || (Category == OfficeEditionCategory.VisioProject && ProductId.Contains("2024", StringComparison.OrdinalIgnoreCase)));
+
+    public string? Description { get; init; }
+    public string? IconUrl { get; init; }
+    public string? BannerUrl { get; init; }
+    public IReadOnlyList<string> Screenshots { get; init; } = Array.Empty<string>();
+
     public static readonly OfficePlan Microsoft365Enterprise =
         new("Microsoft 365 Apps for enterprise", OfficeEditionCategory.Corporate365, "O365ProPlusRetail", "Current", false);
 
     public static readonly OfficePlan Microsoft365Business =
-        new("Microsoft 365 Apps for business", OfficeEditionCategory.Corporate365, "O365BusinessRetail", "Current", false);
+        new("Microsoft 365 Apps for business", OfficeEditionCategory.Corporate365, "O365BusinessRetail", "Current", false)
+        {
+            Description = "Microsoft 365 Apps para empresas. A oferta da Store não substitui o Product ID exigido pelo ODT.",
+            IconUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png",
+        };
 
     public static readonly OfficePlan LtscProPlus2024 =
         new("Office LTSC Professional Plus 2024", OfficeEditionCategory.Ltsc, "ProPlus2024Volume", "PerpetualVL2024", true);
@@ -48,24 +64,54 @@ public record OfficePlan(
         new("Office LTSC Standard 2019", OfficeEditionCategory.Ltsc, "Standard2019Volume", "PerpetualVL2019", true);
 
     public static readonly OfficePlan Family =
-        new("Microsoft 365 (Family & Pessoal)", OfficeEditionCategory.Personal, "O365HomePremRetail", "Current", false);
+        new("Microsoft 365 Family", OfficeEditionCategory.Personal, "O365HomePremRetail", "Current", false)
+        {
+            Description = "Configuração Microsoft 365 para uso pessoal e familiar. Personal, Family e Premium usam este Product ID do ODT; a assinatura e seus benefícios são vinculados à conta Microsoft.",
+            IconUrl = "pack://application:,,,/Assets/Office/Microsoft365FamilyIcon.jpg",
+            BannerUrl = "pack://application:,,,/Assets/Office/Microsoft365FamilyBanner.jpg",
+        };
 
     public static readonly OfficePlan HomeStudent2024 =
-        new("Office Home & Student 2024", OfficeEditionCategory.Personal, "HomeStudent2024Retail", "PerpetualVL2024", false);
+        new("Office Home & Student 2024", OfficeEditionCategory.Personal, "HomeStudent2024Retail", "Current", false);
 
     public static readonly OfficePlan HomeStudent2021 =
-        new("Office Home & Student 2021", OfficeEditionCategory.Personal, "HomeStudent2021Retail", "PerpetualVL2021", false);
+        new("Office Home & Student 2021", OfficeEditionCategory.Personal, "HomeStudent2021Retail", "Current", false);
 
     public static readonly OfficePlan HomeBusiness2024 =
-        new("Office Home & Business 2024", OfficeEditionCategory.Personal, "HomeBusiness2024Retail", "PerpetualVL2024", false);
+        new("Office Home & Business 2024", OfficeEditionCategory.Personal, "HomeBusiness2024Retail", "Current", false);
 
     public static readonly OfficePlan HomeBusiness2021 =
-        new("Office Home & Business 2021", OfficeEditionCategory.Personal, "HomeBusiness2021Retail", "PerpetualVL2021", false);
+        new("Office Home & Business 2021", OfficeEditionCategory.Personal, "HomeBusiness2021Retail", "Current", false);
 
     public static readonly OfficePlan Home2024 =
-        new("Office Home 2024", OfficeEditionCategory.Personal, "Home2024Retail", "PerpetualVL2024", false);
+        new("Office Home 2024", OfficeEditionCategory.Personal, "Home2024Retail", "Current", false);
 
     // --- Visio ---
+    // IDs Retail para assinaturas Microsoft 365 e licenças de varejo, conforme a lista oficial do ODT.
+    public static readonly OfficePlan VisioProSubscription =
+        new("Visio Professional (Microsoft 365)", OfficeEditionCategory.VisioProject, "VisioProRetail", "Current", false);
+
+    public static readonly OfficePlan VisioStandardRetail =
+        new("Visio Standard", OfficeEditionCategory.VisioProject, "VisioStdRetail", "Current", false);
+
+    public static readonly OfficePlan VisioPro2024Retail =
+        new("Visio Professional 2024 (Retail)", OfficeEditionCategory.VisioProject, "VisioPro2024Retail", "Current", false);
+
+    public static readonly OfficePlan VisioStandard2024Retail =
+        new("Visio Standard 2024 (Retail)", OfficeEditionCategory.VisioProject, "VisioStd2024Retail", "Current", false);
+
+    public static readonly OfficePlan VisioPro2021Retail =
+        new("Visio Professional 2021 (Retail)", OfficeEditionCategory.VisioProject, "VisioPro2021Retail", "Current", false);
+
+    public static readonly OfficePlan VisioStandard2021Retail =
+        new("Visio Standard 2021 (Retail)", OfficeEditionCategory.VisioProject, "VisioStd2021Retail", "Current", false);
+
+    public static readonly OfficePlan VisioPro2019Retail =
+        new("Visio Professional 2019 (Retail)", OfficeEditionCategory.VisioProject, "VisioPro2019Retail", "Current", false);
+
+    public static readonly OfficePlan VisioStandard2019Retail =
+        new("Visio Standard 2019 (Retail)", OfficeEditionCategory.VisioProject, "VisioStd2019Retail", "Current", false);
+
     public static readonly OfficePlan VisioPro2024 =
         new("Visio LTSC Professional 2024", OfficeEditionCategory.VisioProject, "VisioPro2024Volume", "PerpetualVL2024", true);
 
@@ -79,6 +125,30 @@ public record OfficePlan(
         new("Visio LTSC Standard 2021", OfficeEditionCategory.VisioProject, "VisioStd2021Volume", "PerpetualVL2021", true);
 
     // --- Project ---
+    public static readonly OfficePlan ProjectProSubscription =
+        new("Project Professional (Microsoft 365)", OfficeEditionCategory.VisioProject, "ProjectProRetail", "Current", false);
+
+    public static readonly OfficePlan ProjectStandardRetail =
+        new("Project Standard", OfficeEditionCategory.VisioProject, "ProjectStdRetail", "Current", false);
+
+    public static readonly OfficePlan ProjectPro2024Retail =
+        new("Project Professional 2024 (Retail)", OfficeEditionCategory.VisioProject, "ProjectPro2024Retail", "Current", false);
+
+    public static readonly OfficePlan ProjectStandard2024Retail =
+        new("Project Standard 2024 (Retail)", OfficeEditionCategory.VisioProject, "ProjectStd2024Retail", "Current", false);
+
+    public static readonly OfficePlan ProjectPro2021Retail =
+        new("Project Professional 2021 (Retail)", OfficeEditionCategory.VisioProject, "ProjectPro2021Retail", "Current", false);
+
+    public static readonly OfficePlan ProjectStandard2021Retail =
+        new("Project Standard 2021 (Retail)", OfficeEditionCategory.VisioProject, "ProjectStd2021Retail", "Current", false);
+
+    public static readonly OfficePlan ProjectPro2019Retail =
+        new("Project Professional 2019 (Retail)", OfficeEditionCategory.VisioProject, "ProjectPro2019Retail", "Current", false);
+
+    public static readonly OfficePlan ProjectStandard2019Retail =
+        new("Project Standard 2019 (Retail)", OfficeEditionCategory.VisioProject, "ProjectStd2019Retail", "Current", false);
+
     public static readonly OfficePlan ProjectPro2024 =
         new("Project LTSC Professional 2024", OfficeEditionCategory.VisioProject, "ProjectPro2024Volume", "PerpetualVL2024", true);
 
@@ -92,9 +162,73 @@ public record OfficePlan(
         new("Project LTSC Standard 2021", OfficeEditionCategory.VisioProject, "ProjectStd2021Volume", "PerpetualVL2021", true);
 }
 
+/// <summary>Oferta comercial da Store ligada a um plano de implantação ODT por uma relação explícita.</summary>
+public sealed record OfficeStoreOffer(string StoreProductId, string DisplayName, string OdtProductId,
+    string? Description = null, string? IconUrl = null, string? BannerUrl = null,
+    IReadOnlyList<string>? Screenshots = null);
+
+public static class OfficeStoreOfferCatalog
+{
+    private static readonly HashSet<string> OffersExpectedToHaveScreenshots = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CFQ7TTC0K5DM", "CFQ7TTC0K5BF",
+    };
+    private static IReadOnlyList<OfficeStoreOffer> _all = Array.AsReadOnly(new[]
+    {
+        new OfficeStoreOffer("CFQ7TTC0K5DM", "Microsoft 365 Family", "O365HomePremRetail", "Assinatura Microsoft 365 Family.", "pack://application:,,,/Assets/Office/Microsoft365FamilyIcon.jpg", "pack://application:,,,/Assets/Office/Microsoft365FamilyBanner.jpg"),
+        new OfficeStoreOffer("CFQ7TTC0K5BF", "Microsoft 365 Personal", "O365HomePremRetail", "Assinatura Microsoft 365 Personal.", "pack://application:,,,/Assets/Office/Microsoft365PersonalIcon.jpg", "pack://application:,,,/Assets/Office/Microsoft365PersonalBanner.jpg"),
+        new OfficeStoreOffer("CFQ7TTC0K5CH", "Microsoft 365 Business Standard", "O365BusinessRetail", "Assinatura Microsoft 365 para empresas.", "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png", "pack://application:,,,/Assets/Office/Microsoft365FamilyBanner.jpg"),
+    });
+    private static readonly object Sync = new();
+    public static IReadOnlyList<OfficeStoreOffer> All { get { lock (Sync) return _all; } }
+    public static bool HasFeaturedScreenshots
+    {
+        get
+        {
+            lock (Sync)
+                return OffersExpectedToHaveScreenshots.All(id => _all.Any(offer =>
+                    offer.StoreProductId.Equals(id, StringComparison.OrdinalIgnoreCase) && offer.Screenshots is { Count: > 0 }));
+        }
+    }
+    public static void ApplyRemote(IEnumerable<OfficeStoreOffer> offers)
+    {
+        ArgumentNullException.ThrowIfNull(offers);
+        lock (Sync)
+        {
+            var merged = _all.ToDictionary(x => x.StoreProductId, StringComparer.OrdinalIgnoreCase);
+            foreach (var offer in offers)
+            {
+                if (merged.TryGetValue(offer.StoreProductId, out var fallback))
+                {
+                    merged[offer.StoreProductId] = offer with
+                    {
+                        Description = offer.Description ?? fallback.Description,
+                        IconUrl = IsPackAsset(fallback.IconUrl) ? fallback.IconUrl : offer.IconUrl ?? fallback.IconUrl,
+                        BannerUrl = IsPackAsset(fallback.BannerUrl) ? fallback.BannerUrl : offer.BannerUrl ?? fallback.BannerUrl,
+                        Screenshots = offer.Screenshots is { Count: > 0 } ? offer.Screenshots : fallback.Screenshots,
+                    };
+                }
+                else
+                {
+                    merged[offer.StoreProductId] = offer;
+                }
+            }
+            // Algumas ofertas de subscrição têm IDs comerciais alternativos, mas
+            // representam o mesmo produto/plano. Mostrar só um cartão por oferta ODT.
+            _all = Array.AsReadOnly(merged.Values
+                .GroupBy(x => $"{x.OdtProductId}|{x.DisplayName}", StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.FirstOrDefault(x => x.StoreProductId.Equals("CFQ7TTC0K5BF", StringComparison.OrdinalIgnoreCase)) ?? group.First())
+                .OrderBy(x => x.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .ToArray());
+        }
+    }
+
+    private static bool IsPackAsset(string? url) => url?.StartsWith("pack://application:", StringComparison.OrdinalIgnoreCase) == true;
+}
+
 public static class OfficePlanCatalog
 {
-    public static readonly IReadOnlyList<OfficePlan> All =
+    private static readonly IReadOnlyList<OfficePlan> BuiltIn =
     [
         OfficePlan.Microsoft365Enterprise,
         OfficePlan.Microsoft365Business,
@@ -110,15 +244,66 @@ public static class OfficePlanCatalog
         OfficePlan.HomeBusiness2024,
         OfficePlan.HomeBusiness2021,
         OfficePlan.Home2024,
+        // ODT aceita estes Product IDs Retail para assinaturas Visio/Project e edições avulsas.
+        // Mantê-los no catálogo local permite criar a configuração sem depender da API remota.
+        OfficePlan.VisioProSubscription,
+        OfficePlan.VisioStandardRetail,
+        OfficePlan.VisioPro2024Retail,
+        OfficePlan.VisioStandard2024Retail,
+        OfficePlan.VisioPro2021Retail,
+        OfficePlan.VisioStandard2021Retail,
+        OfficePlan.VisioPro2019Retail,
+        OfficePlan.VisioStandard2019Retail,
         OfficePlan.VisioPro2024,
         OfficePlan.VisioPro2021,
         OfficePlan.VisioPro2019,
         OfficePlan.VisioStd2021,
+        OfficePlan.ProjectProSubscription,
+        OfficePlan.ProjectStandardRetail,
+        OfficePlan.ProjectPro2024Retail,
+        OfficePlan.ProjectStandard2024Retail,
+        OfficePlan.ProjectPro2021Retail,
+        OfficePlan.ProjectStandard2021Retail,
+        OfficePlan.ProjectPro2019Retail,
+        OfficePlan.ProjectStandard2019Retail,
         OfficePlan.ProjectPro2024,
         OfficePlan.ProjectPro2021,
         OfficePlan.ProjectPro2019,
         OfficePlan.ProjectStd2021,
     ];
+
+    private static IReadOnlyList<OfficePlan> _all = BuiltIn;
+    private static readonly object Sync = new();
+    public static IReadOnlyList<OfficePlan> All { get { lock (Sync) return _all; } }
+
+    /// <summary>Aplica um catálogo validado, sempre preservando os planos embutidos como fallback.</summary>
+    public static void ApplyRemote(IEnumerable<OfficePlan> plans)
+    {
+        ArgumentNullException.ThrowIfNull(plans);
+        lock (Sync)
+        {
+            var merged = BuiltIn.ToDictionary(p => p.ProductId, StringComparer.OrdinalIgnoreCase);
+            foreach (var plan in plans)
+            {
+                if (merged.TryGetValue(plan.ProductId, out var fallback))
+                {
+                    merged[plan.ProductId] = plan with
+                    {
+                        DisplayName = plan.DisplayName,
+                        Description = plan.Description ?? fallback.Description,
+                        IconUrl = IsPackAsset(fallback.IconUrl) ? fallback.IconUrl : plan.IconUrl ?? fallback.IconUrl,
+                        BannerUrl = IsPackAsset(fallback.BannerUrl) ? fallback.BannerUrl : plan.BannerUrl ?? fallback.BannerUrl,
+                        Screenshots = plan.Screenshots.Count > 0 ? plan.Screenshots : fallback.Screenshots,
+                    };
+                }
+                else
+                {
+                    merged[plan.ProductId] = plan;
+                }
+            }
+            _all = Array.AsReadOnly(merged.Values.OrderBy(p => p.Category).ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToArray());
+        }
+    }
 
     public static IEnumerable<OfficePlan> ByCategory(OfficeEditionCategory category) =>
         All.Where(p => p.Category == category);
@@ -126,6 +311,8 @@ public static class OfficePlanCatalog
     /// <summary>Resolve um plano do catálogo a partir do ProductId cru lido do registro (ProductReleaseIds).</summary>
     public static OfficePlan? ByProductId(string productId) =>
         All.FirstOrDefault(p => string.Equals(p.ProductId, productId, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsPackAsset(string? url) => url?.StartsWith("pack://application:", StringComparison.OrdinalIgnoreCase) == true;
 }
 
 /// <summary>
@@ -150,6 +337,13 @@ public static class OfficeAppCatalog
         ("Teams", "Teams", $"{IconBaseUrl}/Teams.png"),
     ];
 
+    /// <summary>Produtos opcionais Office implantados como Product ODT, e não como ExcludeApp.</summary>
+    public static readonly IReadOnlyList<(string Id, string DisplayName, string IconUrl)> AdditionalProducts =
+    [
+        ("Visio", "Visio", $"{IconBaseUrl}/Visio.png"),
+        ("Project", "Project", $"{IconBaseUrl}/Project.png"),
+    ];
+
     /// <summary>Excludes menos comuns, agrupados nas opções avançadas em vez da grade principal.</summary>
     public static readonly IReadOnlyList<(string Id, string DisplayName)> AdvancedApps =
     [
@@ -160,10 +354,8 @@ public static class OfficeAppCatalog
 }
 
 /// <summary>
-/// Nomes de canal de atualização válidos para o atributo Channel do ODT em produtos
-/// de assinatura Microsoft 365 (learn.microsoft.com/microsoft-365-apps/deploy/overview-update-channels).
-/// Produtos de licença perpétua/volume não usam esta lista — eles têm um único
-/// canal PerpetualVLxxxx fixo, definido no próprio <see cref="OfficePlan"/>.
+/// Nomes aceitos pelo ODT para canais de atualização do Microsoft 365.
+/// Office LTSC mantém o canal PerpetualVLxxxx exigido pela edição.
 /// </summary>
 public static class OfficeChannelCatalog
 {
@@ -173,7 +365,8 @@ public static class OfficeChannelCatalog
         ("MonthlyEnterprise", "Enterprise Mensal"),
         ("SemiAnnual", "Semestral (Corrente)"),
         ("SemiAnnualPreview", "Semestral (Prévia)"),
-        ("Beta", "Beta / Insiders"),
+        ("CurrentPreview", "Canal Atual (Prévia)"),
+        ("BetaChannel", "Beta / Insiders"),
     ];
 }
 
@@ -196,14 +389,13 @@ public record OfficeInstallRequest(
     IReadOnlyList<string>? AdditionalLanguageIds = null,
     OfficeDisplayLevel DisplayLevel = OfficeDisplayLevel.Silent,
     /// <summary>
-    /// Sobrescreve o Channel padrão do plano (só faz sentido para produtos de
-    /// assinatura Microsoft 365 — Current, MonthlyEnterprise, SemiAnnual,
-    /// SemiAnnualPreview, Beta; produtos de licença perpétua/volume usam sempre o
-    /// canal PerpetualVLxxxx fixo do próprio plano).
+    /// Sobrescreve o Channel padrão dos planos que aceitam seleção de canal.
+    /// Office LTSC preserva o canal PerpetualVLxxxx obrigatório.
     /// </summary>
     string? ChannelOverride = null,
     /// <summary>Gera o elemento &lt;Updates Enabled="TRUE|FALSE"/&gt; do ODT, controlando a política de atualização automática do Office nesta máquina.</summary>
-    bool AutoUpdatesEnabled = true);
+    bool AutoUpdatesEnabled = true,
+    IReadOnlyList<OfficePlan>? AdditionalProducts = null);
 
 /// <summary>
 /// Um produto Click-to-Run detectado no registro (ver Configuration\ProductReleaseIds),

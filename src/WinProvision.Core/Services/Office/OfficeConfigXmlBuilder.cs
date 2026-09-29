@@ -13,31 +13,20 @@ public static class OfficeConfigXmlBuilder
 {
     public static XDocument Build(OfficeInstallRequest request)
     {
-        var product = new XElement("Product", new XAttribute("ID", request.Plan.ProductId),
-            new XElement("Language", new XAttribute("ID", request.LanguageId)));
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Plan);
+        var products = new[] { request.Plan }.Concat(request.AdditionalProducts ?? []).ToArray();
+        var validationError = ValidateRequest(request, products);
+        if (validationError is not null)
+            throw new ArgumentException(validationError, nameof(request));
 
-        // Idiomas adicionais: cada um vira seu próprio <Language ID="..."/> dentro do
-        // mesmo <Product>, exatamente como o schema do ODT documenta para pacotes de
-        // idioma extras instalados junto com o principal.
-        if (request.AdditionalLanguageIds is { Count: > 0 })
-        {
-            foreach (var languageId in request.AdditionalLanguageIds)
-            {
-                if (string.Equals(languageId, request.LanguageId, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                product.Add(new XElement("Language", new XAttribute("ID", languageId)));
-            }
-        }
-
-        foreach (var app in request.ExcludedApps)
-        {
-            product.Add(new XElement("ExcludeApp", new XAttribute("ID", app)));
-        }
+        var product = BuildProduct(request.Plan, request);
 
         var add = new XElement("Add",
             new XAttribute("OfficeClientEdition", request.Architecture),
-            product);
+            products.Select(p => ReferenceEquals(p, request.Plan) || p == request.Plan
+                ? product
+                : BuildProduct(p, request)));
 
         if (request.ChannelOverride is { Length: > 0 } channelOverride)
         {
@@ -55,6 +44,67 @@ public static class OfficeConfigXmlBuilder
 
         return new XDocument(new XDeclaration("1.0", "utf-8", null), configuration);
     }
+
+    /// <summary>Valida os produtos antes de gerar ou executar a configuração.</summary>
+    public static string? ValidateRequest(OfficeInstallRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Plan);
+        return ValidateRequest(request, new[] { request.Plan }.Concat(request.AdditionalProducts ?? []).ToArray());
+    }
+
+    private static string? ValidateRequest(OfficeInstallRequest request, IReadOnlyList<OfficePlan> products)
+    {
+        if (request.Architecture is not (32 or 64)) return "A arquitetura deve ser 32 ou 64 bits.";
+        if (!IsSafeToken(request.LanguageId)) return "O idioma principal é inválido.";
+        if (products.Count == 0 || products.Any(p => p is null || !IsSafeToken(p.ProductId))) return "Há um Product ID inválido.";
+        if (products.Select(p => p.ProductId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != products.Count)
+            return "O mesmo produto não pode ser adicionado mais de uma vez.";
+        if (products.Skip(1).Any(p => p.Category != OfficeEditionCategory.VisioProject))
+            return "Produtos adicionais precisam ser Visio ou Project.";
+        if (products.Count > 3)
+            return "Selecione no máximo um plano principal, um Visio e um Project.";
+        if (products.Skip(1).Any(p => p.Category == request.Plan.Category && p.ProductId == request.Plan.ProductId))
+            return "Selecione produtos adicionais diferentes do plano principal.";
+
+        var effectiveChannel = request.ChannelOverride ?? request.Plan.Channel;
+        if (effectiveChannel is { Length: > 0 } && !IsSafeToken(effectiveChannel))
+            return "O canal de atualização é inválido.";
+        if (request.ChannelOverride is { Length: > 0 } && !request.Plan.SupportsSelectableChannel)
+            return "O canal deste plano é fixo e não pode ser substituído.";
+        if (request.ChannelOverride is { Length: > 0 } channelOverride &&
+            !OfficeChannelCatalog.SubscriptionChannels.Any(c => string.Equals(c.Id, channelOverride, StringComparison.OrdinalIgnoreCase)))
+            return "O canal informado não é compatível com o ODT.";
+        bool mainUsesSubscriptionChannel = OfficeChannelCatalog.SubscriptionChannels.Any(c =>
+            string.Equals(c.Id, effectiveChannel, StringComparison.OrdinalIgnoreCase));
+        if (products.Skip(1).Any(p =>
+                !string.Equals(p.Channel, effectiveChannel, StringComparison.OrdinalIgnoreCase) &&
+                !(mainUsesSubscriptionChannel && p.SupportsSelectableChannel)))
+            return "Os produtos selecionados usam canais ODT diferentes. Escolha versões compatíveis para gerar um único XML.";
+        if (request.AdditionalLanguageIds?.Any(id => !IsSafeToken(id)) == true)
+            return "Há um idioma adicional inválido.";
+        if (request.ExcludedApps is null || request.ExcludedApps.Any(id => !IsSafeToken(id)))
+            return "Há um aplicativo excluído com identificador inválido.";
+        return null;
+    }
+
+    private static XElement BuildProduct(OfficePlan plan, OfficeInstallRequest request)
+    {
+        var product = new XElement("Product", new XAttribute("ID", plan.ProductId),
+            new XElement("Language", new XAttribute("ID", request.LanguageId)));
+        if (plan == request.Plan && request.AdditionalLanguageIds is { Count: > 0 })
+        {
+            foreach (var languageId in request.AdditionalLanguageIds.Where(id => !string.Equals(id, request.LanguageId, StringComparison.OrdinalIgnoreCase)).Distinct(StringComparer.OrdinalIgnoreCase))
+                product.Add(new XElement("Language", new XAttribute("ID", languageId)));
+        }
+        if (plan == request.Plan)
+            foreach (var app in request.ExcludedApps.Distinct(StringComparer.OrdinalIgnoreCase))
+                product.Add(new XElement("ExcludeApp", new XAttribute("ID", app)));
+        return product;
+    }
+
+    private static bool IsSafeToken(string? value) => !string.IsNullOrWhiteSpace(value) &&
+        value.Length <= 100 && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '_' or '-');
 
     /// <summary>
     /// Monta um configuration.xml contendo só o elemento &lt;Updates&gt; — permite

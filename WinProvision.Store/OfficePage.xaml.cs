@@ -26,9 +26,12 @@ public partial class OfficePage : Page
     private readonly OfficeInstalledProductsDetector _installedDetector;
     private readonly OperationsQueueService _queue;
     private readonly PackageCollectionService _collectionService;
-
+    private readonly OfficeCatalogService _catalogService;
     private readonly ObservableCollection<AppToggleItem> _appToggleItems = new();
     private readonly ObservableCollection<AppStatusRow> _appStatusRows = new();
+    private readonly ObservableCollection<OfficePlan> _visioProductOptions = new();
+    private readonly ObservableCollection<OfficePlan> _projectProductOptions = new();
+    private IReadOnlyList<OfficeCatalogOfferCard> _offerCards = Array.Empty<OfficeCatalogOfferCard>();
 
     // Evita reentrância quando revertemos o ToggleButton programaticamente
     // (ex.: falha ao aplicar a política) — sem isso, o Unchecked/Checked
@@ -36,11 +39,20 @@ public partial class OfficePage : Page
     private bool _suppressAutoUpdateToggleEvent;
 
     /// <summary>Item da grade "Seleção de Aplicativos" — implementa INotifyPropertyChanged só para o botão "Selecionar todos" conseguir ligar todos os toggles de uma vez de forma visível.</summary>
-    private sealed class AppToggleItem(string id, string displayName, string iconUrl, bool isOnByDefault) : INotifyPropertyChanged
+    private sealed class AppToggleItem(string id, string displayName, string iconUrl, bool isOnByDefault, bool isAdditionalProduct = false) : INotifyPropertyChanged
     {
         public string Id { get; } = id;
         public string DisplayName { get; } = displayName;
         public string IconUrl { get; } = iconUrl;
+        public double IconScale { get; } = OfficePage.GetOfficeIconScale(id);
+        public bool IsAdditionalProduct { get; } = isAdditionalProduct;
+
+        private bool _isEnabled = true;
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set { if (_isEnabled == value) return; _isEnabled = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEnabled))); }
+        }
 
         private bool _isOn = isOnByDefault;
         public bool IsOn
@@ -60,7 +72,33 @@ public partial class OfficePage : Page
         private void _() { } // mantém CS8618 quieto sem afetar leitura acima
     }
 
-    private sealed record AppStatusRow(string DisplayName, string IconUrl, string StatusText, Brush StatusBrush, Wpf.Ui.Controls.SymbolRegular StatusSymbol);
+    private sealed record AppStatusRow(string DisplayName, string IconUrl, string StatusText, Brush StatusBrush,
+        Wpf.Ui.Controls.SymbolRegular StatusSymbol, double IconScale);
+
+    private sealed record OfficeCatalogOfferCard(
+        string Key,
+        string DisplayName,
+        OfficeEditionCategory Category,
+        string DefaultProductId,
+        string Description,
+        string Details,
+        string? IconUrl,
+        string? BannerUrl,
+        IReadOnlyList<string> Screenshots,
+        bool IsSelected = false)
+    {
+        public bool HasBanner => !string.IsNullOrWhiteSpace(BannerUrl);
+    }
+
+    // Os arquivos têm canvas igual, mas esses três desenhos ocupam menos área útil.
+    // O RenderTransform compensa a margem interna sem alterar o layout das linhas/tiles.
+    private static double GetOfficeIconScale(string id) => id switch
+    {
+        "Publisher" => 1.8,
+        "Visio" => 1.8,
+        "Project" => 1.8,
+        _ => 1.0,
+    };
 
     // Apps ligados por padrão, igual ao comportamento típico de uma instalação completa do Microsoft 365.
     private static readonly HashSet<string> DefaultOnApps = new(StringComparer.OrdinalIgnoreCase)
@@ -83,24 +121,30 @@ public partial class OfficePage : Page
         _installedDetector = App.Services.GetRequiredService<OfficeInstalledProductsDetector>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
         _collectionService = App.Services.GetRequiredService<PackageCollectionService>();
-
+        _catalogService = App.Services.GetRequiredService<OfficeCatalogService>();
         CategoryComboBox.DisplayMemberPath = nameof(CategoryOption.Label);
         CategoryComboBox.ItemsSource = new[]
         {
-            new CategoryOption(OfficeEditionCategory.Personal, "Pessoal (Family / Home)"),
-            new CategoryOption(OfficeEditionCategory.Corporate365, "Corporativo / 365"),
-            new CategoryOption(OfficeEditionCategory.Ltsc, "LTSC (licença de volume)"),
+            new CategoryOption(OfficeEditionCategory.Personal, "Microsoft 365"),
+            new CategoryOption(OfficeEditionCategory.Corporate365, "Microsoft 365 Empresarial"),
+            new CategoryOption(OfficeEditionCategory.Ltsc, "Office LTSC"),
             new CategoryOption(OfficeEditionCategory.VisioProject, "Visio / Project"),
         };
-        CategoryComboBox.SelectedIndex = 0;
-
         foreach (var (id, displayName, iconUrl) in OfficeAppCatalog.CoreApps)
         {
             _appToggleItems.Add(new AppToggleItem(id, displayName, iconUrl, DefaultOnApps.Contains(id)));
         }
+        foreach (var (id, displayName, iconUrl) in OfficeAppCatalog.AdditionalProducts)
+            _appToggleItems.Add(new AppToggleItem(id, displayName, iconUrl, isOnByDefault: false, isAdditionalProduct: true));
         AppToggleItemsControl.ItemsSource = _appToggleItems;
 
         AppStatusItemsControl.ItemsSource = _appStatusRows;
+        VisioProductComboBox.ItemsSource = _visioProductOptions;
+        ProjectProductComboBox.ItemsSource = _projectProductOptions;
+        RefreshOfferCards();
+        // Selecionar a categoria dispara SelectionChanged em cascata até o plano e o canal.
+        // Só fazemos isso depois de preparar os toggles e combos usados por esses eventos.
+        CategoryComboBox.SelectedIndex = 0;
         RefreshInstalledProducts();
 
         // A OfficePage agora é Singleton (mesma instância entre navegações — é o que faz
@@ -109,7 +153,19 @@ public partial class OfficePage : Page
         // registro a cada visita (pode ter mudado enquanto você estava em outra tela, ex.:
         // instalou algo pela tela Pacotes) — por isso esse refresh entra no Loaded, que
         // dispara de novo toda vez que a página reaparece, em vez de só no construtor.
-        Loaded += (_, _) => RefreshInstalledProducts();
+        Loaded += async (_, _) =>
+        {
+            RefreshInstalledProducts();
+            await _catalogService.RefreshAsync();
+            RefreshOfferCards();
+            var selectedId = (PlanComboBox.SelectedItem as OfficePlan)?.ProductId;
+            if (CategoryComboBox.SelectedItem is CategoryOption category)
+            {
+                var plans = GetPlansForCategory(category.Category);
+                PlanComboBox.ItemsSource = plans;
+                PlanComboBox.SelectedItem = plans.FirstOrDefault(p => p.ProductId.Equals(selectedId, StringComparison.OrdinalIgnoreCase)) ?? plans.FirstOrDefault();
+            }
+        };
     }
 
     private record CategoryOption(OfficeEditionCategory Category, string Label);
@@ -119,10 +175,55 @@ public partial class OfficePage : Page
     {
         if (CategoryComboBox.SelectedItem is not CategoryOption option) return;
 
-        var plans = OfficePlanCatalog.ByCategory(option.Category).ToList();
+        _selectedOfferKey = null;
+        RefreshOfferCards();
+
+        var plans = GetPlansForCategory(option.Category);
         PlanComboBox.ItemsSource = plans;
-        PlanComboBox.SelectedIndex = plans.Count > 0 ? 0 : -1;
+        var preferredId = option.Category switch
+        {
+            OfficeEditionCategory.Personal => "O365HomePremRetail",
+            OfficeEditionCategory.Corporate365 => "O365ProPlusRetail",
+            OfficeEditionCategory.Ltsc => "ProPlus2024Volume",
+            _ => null,
+        };
+        PlanComboBox.SelectedItem = plans.FirstOrDefault(p => p.ProductId.Equals(preferredId, StringComparison.OrdinalIgnoreCase))
+            ?? plans.FirstOrDefault();
     }
+
+    private static List<OfficePlan> GetPlansForCategory(OfficeEditionCategory category)
+    {
+        return OfficePlanCatalog.ByCategory(category).ToList();
+    }
+
+    private void RefreshOfferCards()
+    {
+        var offers = OfficeStoreOfferCatalog.All;
+        _offerCards = offers.Select(offer =>
+        {
+            var category = offer.OdtProductId.Equals("O365BusinessRetail", StringComparison.OrdinalIgnoreCase)
+                ? OfficeEditionCategory.Corporate365
+                : OfficeEditionCategory.Personal;
+            var plan = OfficePlanCatalog.ByProductId(offer.OdtProductId);
+            return new OfficeCatalogOfferCard(
+                offer.StoreProductId,
+                offer.DisplayName,
+                category,
+                offer.OdtProductId,
+                offer.Description ?? string.Empty,
+                offer.Description ?? "Detalhes do produto disponíveis na Microsoft Store.",
+                offer.IconUrl ?? plan?.IconUrl,
+                offer.BannerUrl ?? plan?.BannerUrl,
+                offer.Screenshots ?? Array.Empty<string>(),
+                offer.StoreProductId.Equals(_selectedOfferKey, StringComparison.OrdinalIgnoreCase));
+        }).ToArray();
+        StoreOffersItemsControl.ItemsSource = _offerCards;
+    }
+
+    private string? _selectedOfferKey;
+
+    private static bool IsHttpsUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
 
     private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -130,13 +231,15 @@ public partial class OfficePage : Page
         {
             ChannelComboBox.ItemsSource = null;
             ChannelComboBox.IsEnabled = false;
+            ChannelComboBox.ToolTip = null;
             return;
         }
 
         ChannelComboBox.DisplayMemberPath = nameof(ChannelOption.Label);
 
-        if (plan.Category == OfficeEditionCategory.Corporate365)
+        if (plan.SupportsSelectableChannel)
         {
+            ChannelComboBox.ToolTip = "O canal selecionado será aplicado ao produto principal e aos produtos adicionais compatíveis.";
             var options = OfficeChannelCatalog.SubscriptionChannels
                 .Select(c => new ChannelOption(c.Id, c.DisplayName))
                 .ToList();
@@ -147,11 +250,122 @@ public partial class OfficePage : Page
         }
         else
         {
-            // Licença perpétua/volume: canal fixo, só exibido informativamente.
+            ChannelComboBox.ToolTip = "O canal de atualização é determinado por esta edição do Office LTSC.";
             ChannelComboBox.ItemsSource = new[] { new ChannelOption(plan.Channel ?? "-", plan.Channel ?? "Fixo pela licença") };
             ChannelComboBox.SelectedIndex = 0;
             ChannelComboBox.IsEnabled = false;
         }
+
+        RefreshAdditionalProductOptions(plan);
+    }
+
+    private void RefreshAdditionalProductOptions(OfficePlan selectedPlan)
+    {
+        string? selectedVisioId = (VisioProductComboBox.SelectedItem as OfficePlan)?.ProductId;
+        string? selectedProjectId = (ProjectProductComboBox.SelectedItem as OfficePlan)?.ProductId;
+        _visioProductOptions.Clear();
+        _projectProductOptions.Clear();
+        var effectiveChannel = selectedPlan.SupportsSelectableChannel
+            ? (ChannelComboBox.SelectedItem as ChannelOption)?.Id ?? selectedPlan.Channel
+            : selectedPlan.Channel;
+
+        bool subscriptionChannel = OfficeChannelCatalog.SubscriptionChannels.Any(c =>
+            c.Id.Equals(effectiveChannel, StringComparison.OrdinalIgnoreCase));
+        var compatiblePlans = OfficePlanCatalog.All.Where(p =>
+                p.Category == OfficeEditionCategory.VisioProject &&
+                !p.ProductId.Equals(selectedPlan.ProductId, StringComparison.OrdinalIgnoreCase) &&
+                !HasSameAdditionalProductType(p, selectedPlan) &&
+                ((subscriptionChannel && p.SupportsSelectableChannel) ||
+                 string.Equals(p.Channel, effectiveChannel, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(p => subscriptionChannel &&
+                (p.ProductId.Equals("VisioProRetail", StringComparison.OrdinalIgnoreCase) ||
+                 p.ProductId.Equals("ProjectProRetail", StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+            .ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase);
+
+        foreach (var plan in compatiblePlans)
+        {
+            if (IsVisioPlan(plan)) _visioProductOptions.Add(plan);
+            else if (IsProjectPlan(plan)) _projectProductOptions.Add(plan);
+        }
+
+        VisioProductComboBox.SelectedItem = _visioProductOptions.FirstOrDefault(p => p.ProductId.Equals(selectedVisioId, StringComparison.OrdinalIgnoreCase))
+            ?? _visioProductOptions.FirstOrDefault();
+        ProjectProductComboBox.SelectedItem = _projectProductOptions.FirstOrDefault(p => p.ProductId.Equals(selectedProjectId, StringComparison.OrdinalIgnoreCase))
+            ?? _projectProductOptions.FirstOrDefault();
+
+        var visioToggle = _appToggleItems.FirstOrDefault(item => item.Id == "Visio");
+        var projectToggle = _appToggleItems.FirstOrDefault(item => item.Id == "Project");
+        if (visioToggle is not null)
+        {
+            visioToggle.IsEnabled = _visioProductOptions.Count > 0 && !IsVisioPlan(selectedPlan);
+            if (!visioToggle.IsEnabled) visioToggle.IsOn = false;
+        }
+        if (projectToggle is not null)
+        {
+            projectToggle.IsEnabled = _projectProductOptions.Count > 0 && !IsProjectPlan(selectedPlan);
+            if (!projectToggle.IsEnabled) projectToggle.IsOn = false;
+        }
+
+        UpdateAdditionalProductSelectors();
+    }
+
+    private static bool IsVisioPlan(OfficePlan plan) => plan.ProductId.StartsWith("Visio", StringComparison.OrdinalIgnoreCase);
+    private static bool IsProjectPlan(OfficePlan plan) => plan.ProductId.StartsWith("Project", StringComparison.OrdinalIgnoreCase);
+    private static bool HasSameAdditionalProductType(OfficePlan left, OfficePlan right) =>
+        (IsVisioPlan(left) && IsVisioPlan(right)) || (IsProjectPlan(left) && IsProjectPlan(right));
+
+    private void AppTileToggle_Click(object sender, RoutedEventArgs e) => UpdateAdditionalProductSelectors();
+
+    private void UpdateAdditionalProductSelectors()
+    {
+        bool visioSelected = _appToggleItems.FirstOrDefault(item => item.Id == "Visio")?.IsOn == true;
+        bool projectSelected = _appToggleItems.FirstOrDefault(item => item.Id == "Project")?.IsOn == true;
+        VisioProductSelector.Visibility = visioSelected ? Visibility.Visible : Visibility.Collapsed;
+        ProjectProductSelector.Visibility = projectSelected ? Visibility.Visible : Visibility.Collapsed;
+        AdditionalProductsPanel.Visibility = visioSelected || projectSelected ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void StoreOfferButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: OfficeCatalogOfferCard offer }) return;
+
+        _selectedOfferKey = offer.Key;
+        var category = CategoryComboBox.Items.OfType<CategoryOption>().FirstOrDefault(x => x.Category == offer.Category);
+        if (category is not null)
+            CategoryComboBox.SelectedItem = category;
+
+        var plans = GetPlansForCategory(offer.Category);
+        PlanComboBox.ItemsSource = plans;
+        PlanComboBox.SelectedItem = plans.FirstOrDefault(x => x.ProductId.Equals(offer.DefaultProductId, StringComparison.OrdinalIgnoreCase))
+            ?? plans.FirstOrDefault();
+        RefreshOfferCards();
+        StatusText.Text = $"Categoria selecionada: {offer.DisplayName}. Confira as opções de instalação abaixo.";
+    }
+
+    private static string GetCategoryLabel(OfficeEditionCategory category) => category switch
+    {
+        OfficeEditionCategory.Personal => "Microsoft 365",
+        OfficeEditionCategory.Corporate365 => "Microsoft 365 Empresarial",
+        OfficeEditionCategory.Ltsc => "Office LTSC",
+        _ => category.ToString(),
+    };
+
+    private OfficePlan[] GetAdditionalProducts()
+    {
+        var products = new List<OfficePlan>(2);
+        if (_appToggleItems.FirstOrDefault(item => item.Id == "Visio")?.IsOn == true &&
+            VisioProductComboBox.SelectedItem is OfficePlan visio)
+            products.Add(visio);
+        if (_appToggleItems.FirstOrDefault(item => item.Id == "Project")?.IsOn == true &&
+            ProjectProductComboBox.SelectedItem is OfficePlan project)
+            products.Add(project);
+        return products.ToArray();
+    }
+
+    private void ChannelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PlanComboBox.SelectedItem is OfficePlan plan)
+            RefreshAdditionalProductOptions(plan);
     }
 
     private void SelectAllAppsButton_Click(object sender, RoutedEventArgs e)
@@ -165,72 +379,19 @@ public partial class OfficePage : Page
     // ----------------------------------------------------------------
 
     private async void InstallRepairButton_Click(object sender, RoutedEventArgs e)
-        => await InstallOfficeAsync(silent: true);
+        => await InstallOfficeAsync();
 
-    private async void InstallInteractiveMenuItem_Click(object sender, RoutedEventArgs e)
-        => await InstallOfficeAsync(silent: false);
-
-    private void InstallVariantsButton_Click(object sender, RoutedEventArgs e)
+    private async Task InstallOfficeAsync()
     {
-        if (sender is not FrameworkElement element)
-            return;
+        var request = CreateInstallRequest();
+        if (request is null) return;
+        var plan = request.Plan;
 
-        var menu = new ContextMenu();
-        var interactiveItem = new System.Windows.Controls.MenuItem
+        if (OfficeConfigXmlBuilder.ValidateRequest(request) is { } validationError)
         {
-            Header = "UI visível"
-        };
-        interactiveItem.Click += InstallInteractiveMenuItem_Click;
-        menu.Items.Add(interactiveItem);
-        menu.PlacementTarget = element;
-        menu.IsOpen = true;
-    }
-
-    private async Task InstallOfficeAsync(bool silent)
-    {
-        if (PlanComboBox.SelectedItem is not OfficePlan plan)
-        {
-            StatusText.Text = "Selecione um plano antes de instalar.";
+            StatusText.Text = validationError;
             return;
         }
-
-        int architecture = (ArchitectureComboBox.SelectedItem as ComboBoxItem)?.Tag as string == "32" ? 32 : 64;
-        string languageId = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "pt-br";
-        string? channelOverride = plan.Category == OfficeEditionCategory.Corporate365
-            ? (ChannelComboBox.SelectedItem as ChannelOption)?.Id
-            : null;
-
-        var additionalLanguages = new[]
-        {
-            LangAdditionalPtBr, LangAdditionalEnUs, LangAdditionalEsEs, LangAdditionalFrFr, LangAdditionalDeDe,
-        }
-        .Where(cb => cb.IsChecked == true)
-        .Select(cb => (string)cb.Tag)
-        .ToArray();
-
-        var excludedApps = _appToggleItems
-            .Where(item => !item.IsOn) // toggle desligado => app excluído
-            .Select(item => item.Id)
-            .Concat(new[]
-            {
-                (ExcludeOneDriveCheckBox, "Groove"),
-                (ExcludeSkypeCheckBox, "Lync"),
-                (ExcludeBingCheckBox, "Bing"),
-            }
-            .Where(pair => pair.Item1.IsChecked == true)
-            .Select(pair => pair.Item2))
-            .ToArray();
-
-        var request = new OfficeInstallRequest(
-            plan,
-            architecture,
-            languageId,
-            excludedApps,
-            DisplayNone: silent,
-            AdditionalLanguageIds: additionalLanguages,
-            DisplayLevel: silent ? OfficeDisplayLevel.Silent : OfficeDisplayLevel.Visible,
-            ChannelOverride: channelOverride,
-            AutoUpdatesEnabled: AutoUpdatesToggleButton.IsChecked == true);
 
         StatusText.Text = $"Instalando {plan.DisplayName}...";
 
@@ -247,6 +408,125 @@ public partial class OfficePage : Page
         {
             StatusText.Text = "Não foi possível instalar o Office. Tente novamente.";
         }
+    }
+
+    private OfficeInstallRequest? CreateInstallRequest()
+    {
+        if (PlanComboBox.SelectedItem is not OfficePlan plan)
+        {
+            StatusText.Text = "Selecione um plano antes de continuar.";
+            return null;
+        }
+
+        int architecture = (ArchitectureComboBox.SelectedItem as ComboBoxItem)?.Tag as string == "32" ? 32 : 64;
+        string languageId = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "pt-br";
+        var displayLevel = (InterfaceComboBox.SelectedItem as ComboBoxItem)?.Tag as string == "Visible"
+            ? OfficeDisplayLevel.Visible
+            : OfficeDisplayLevel.Silent;
+        string? channelOverride = plan.SupportsSelectableChannel
+            ? (ChannelComboBox.SelectedItem as ChannelOption)?.Id
+            : null;
+        var additionalLanguages = new[] { LangAdditionalPtBr, LangAdditionalEnUs, LangAdditionalEsEs, LangAdditionalFrFr, LangAdditionalDeDe }
+            .Where(cb => cb.IsChecked == true).Select(cb => (string)cb.Tag).ToArray();
+        var excludedApps = _appToggleItems.Where(item => !item.IsAdditionalProduct && !item.IsOn).Select(item => item.Id)
+            .Concat(new[] { (ExcludeOneDriveCheckBox, "Groove"), (ExcludeSkypeCheckBox, "Lync"), (ExcludeBingCheckBox, "Bing") }
+                .Where(pair => pair.Item1.IsChecked == true).Select(pair => pair.Item2)).ToArray();
+
+        var request = new OfficeInstallRequest(plan, architecture, languageId, excludedApps,
+            DisplayNone: displayLevel == OfficeDisplayLevel.Silent,
+            AdditionalLanguageIds: additionalLanguages,
+            DisplayLevel: displayLevel,
+            ChannelOverride: channelOverride,
+            AutoUpdatesEnabled: AutoUpdatesToggleButton.IsChecked == true,
+            AdditionalProducts: GetAdditionalProducts());
+
+        if (OfficeConfigXmlBuilder.ValidateRequest(request) is { } validationError)
+        {
+            StatusText.Text = validationError;
+            return null;
+        }
+        return request;
+    }
+
+    private void PreviewConfigurationButton_Click(object sender, RoutedEventArgs e)
+    {
+        var request = CreateInstallRequest();
+        if (request is null) return;
+
+        string xml = OfficeConfigXmlBuilder.Build(request).ToString(System.Xml.Linq.SaveOptions.None);
+        var preview = new Window
+        {
+            Title = "Prévia da configuração do Office",
+            Width = 860,
+            Height = 620,
+            MinWidth = 600,
+            MinHeight = 400,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = Window.GetWindow(this),
+            Opacity = 0,
+        };
+        preview.SetResourceReference(Control.BackgroundProperty, "ApplicationBackgroundBrush");
+
+        var root = new DockPanel { Margin = new Thickness(20) };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 12, 0, 0) };
+        DockPanel.SetDock(actions, Dock.Bottom);
+        var xmlBox = new TextBox
+        {
+            Text = xml,
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            AcceptsTab = true,
+            TextWrapping = TextWrapping.NoWrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            FontFamily = new System.Windows.Media.FontFamily("Cascadia Code, Consolas"),
+            FontSize = 13,
+            Padding = new Thickness(12),
+        };
+        xmlBox.SetResourceReference(Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+        xmlBox.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+
+        var copyButton = new Button { Content = "Copiar", MinWidth = 90, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(12, 6, 12, 6) };
+        copyButton.Click += (_, _) =>
+        {
+            try { Clipboard.SetText(xml); StatusText.Text = "XML copiado para a área de transferência."; }
+            catch { StatusText.Text = "Não foi possível copiar o XML. Selecione o conteúdo e use Ctrl+C."; }
+        };
+        var exportButton = new Button { Content = "Exportar XML", MinWidth = 110, Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(12, 6, 12, 6) };
+        exportButton.Click += (_, _) =>
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Exportar configuração do Office",
+                FileName = "configuration.xml",
+                DefaultExt = ".xml",
+                Filter = "Arquivo XML (*.xml)|*.xml",
+                AddExtension = true,
+            };
+            if (dialog.ShowDialog(preview) == true)
+            {
+                try
+                {
+                    File.WriteAllText(dialog.FileName, xml, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                    StatusText.Text = $"Configuração exportada para {dialog.FileName}.";
+                }
+                catch (Exception ex)
+                {
+                    StatusText.Text = $"Não foi possível exportar o XML: {ex.Message}";
+                }
+            }
+        };
+        var closeButton = new Button { Content = "Fechar", MinWidth = 90, Padding = new Thickness(12, 6, 12, 6), IsDefault = true };
+        closeButton.Click += (_, _) => preview.Close();
+        actions.Children.Add(copyButton);
+        actions.Children.Add(exportButton);
+        actions.Children.Add(closeButton);
+        root.Children.Add(xmlBox);
+        root.Children.Add(actions);
+        preview.Content = root;
+        preview.Loaded += (_, _) => preview.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(140)));
+        preview.ShowDialog();
     }
 
     // ----------------------------------------------------------------
@@ -298,38 +578,9 @@ public partial class OfficePage : Page
 
     private void AddToCatalogButton_Click(object sender, RoutedEventArgs e)
     {
-        if (PlanComboBox.SelectedItem is not OfficePlan plan)
-        {
-            StatusText.Text = "Selecione um plano antes de adicionar ao catálogo.";
-            return;
-        }
-
-        int architecture = (ArchitectureComboBox.SelectedItem as ComboBoxItem)?.Tag as string == "32" ? 32 : 64;
-        string languageId = (LanguageComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "pt-br";
-        string? channelOverride = plan.Category == OfficeEditionCategory.Corporate365
-            ? (ChannelComboBox.SelectedItem as ChannelOption)?.Id
-            : null;
-
-        var additionalLanguages = new[]
-        {
-            LangAdditionalPtBr, LangAdditionalEnUs, LangAdditionalEsEs, LangAdditionalFrFr, LangAdditionalDeDe,
-        }
-        .Where(cb => cb.IsChecked == true)
-        .Select(cb => (string)cb.Tag)
-        .ToList();
-
-        var excludedApps = _appToggleItems
-            .Where(item => !item.IsOn) // toggle desligado => app excluído
-            .Select(item => item.Id)
-            .Concat(new[]
-            {
-                (ExcludeOneDriveCheckBox, "Groove"),
-                (ExcludeSkypeCheckBox, "Lync"),
-                (ExcludeBingCheckBox, "Bing"),
-            }
-            .Where(pair => pair.Item1.IsChecked == true)
-            .Select(pair => pair.Item2))
-            .ToList();
+        var request = CreateInstallRequest();
+        if (request is null) return;
+        var plan = request.Plan;
 
         var selectedAppNames = _appToggleItems.Where(item => item.IsOn).Select(item => item.DisplayName).ToList();
         string appsSummary = selectedAppNames.Count > 0 ? string.Join(", ", selectedAppNames) : "nenhum aplicativo selecionado";
@@ -342,22 +593,24 @@ public partial class OfficePage : Page
         var officeOptions = new OfficeInstallOptions
         {
             ProductId = plan.ProductId,
-            Architecture = architecture,
-            LanguageId = languageId,
-            AdditionalLanguageIds = additionalLanguages,
-            ExcludedApps = excludedApps,
-            Silent = true,
-            ChannelOverride = channelOverride,
-            AutoUpdatesEnabled = AutoUpdatesToggleButton.IsChecked == true,
+            Architecture = request.Architecture,
+            LanguageId = request.LanguageId,
+            AdditionalLanguageIds = request.AdditionalLanguageIds?.ToList() ?? [],
+            ExcludedApps = request.ExcludedApps.ToList(),
+            Silent = request.DisplayLevel == OfficeDisplayLevel.Silent,
+            ChannelOverride = request.ChannelOverride,
+            AutoUpdatesEnabled = request.AutoUpdatesEnabled,
+            AdditionalProductIds = request.AdditionalProducts?.Select(p => p.ProductId).ToList() ?? [],
         };
 
+        var bundleIds = new[] { plan.ProductId }.Concat(GetAdditionalProducts().Select(p => p.ProductId)).ToArray();
         var entry = new AppEntry
         {
-            Id = $"office.{plan.ProductId}".ToLowerInvariant(),
-            Name = $"Office — {plan.DisplayName}",
+            Id = $"office.{string.Join("+", bundleIds)}".ToLowerInvariant(),
+            Name = $"Office — {plan.DisplayName}" + (GetAdditionalProducts().Length > 0 ? $" + {string.Join(" + ", GetAdditionalProducts().Select(p => p.DisplayName))}" : string.Empty),
             Publisher = "Microsoft",
-            Version = channelOverride ?? plan.Channel ?? "-",
-            Description = $"Plano salvo pela página Office. Apps incluídos: {appsSummary}.",
+            Version = request.ChannelOverride ?? plan.Channel ?? "-",
+            Description = $"Plano salvo pela página Office. Apps incluídos: {appsSummary}. Produtos adicionais: {string.Join(", ", GetAdditionalProducts().Select(p => p.DisplayName))}.",
             IconUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png",
             Tags = { "Office", plan.Category.ToString() },
             Office = officeOptions,
@@ -448,6 +701,7 @@ public partial class OfficePage : Page
     private void RefreshInstalledProducts()
     {
         var installed = _installedDetector.GetInstalledProducts();
+        var suiteProducts = installed.Where(product => !IsAdditionalProductId(product.ProductId)).ToArray();
         UninstallButton.IsEnabled = installed.Count > 0;
         UninstallButton.ToolTip = installed.Count > 0
             ? "Remover todas as instalações do Office"
@@ -460,24 +714,43 @@ public partial class OfficePage : Page
         {
             AppStatusRow row;
 
-            if (installed.Count == 0)
+            if (suiteProducts.Length == 0)
             {
-                row = new AppStatusRow(displayName, iconUrl, "Não instalado", NotInstalledBrush, Wpf.Ui.Controls.SymbolRegular.DismissCircle24);
+                row = new AppStatusRow(displayName, iconUrl, "Não instalado", NotInstalledBrush,
+                    Wpf.Ui.Controls.SymbolRegular.DismissCircle24, GetOfficeIconScale(id));
             }
-            else if (installed.Any(p => p.ExcludedApps.Any(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase))))
+            else if (suiteProducts.Any(p => p.ExcludedApps.Any(x => string.Equals(x, id, StringComparison.OrdinalIgnoreCase))))
             {
-                row = new AppStatusRow(displayName, iconUrl, "Excluído", ExcludedBrush, Wpf.Ui.Controls.SymbolRegular.ErrorCircle24);
+                row = new AppStatusRow(displayName, iconUrl, "Excluído", ExcludedBrush,
+                    Wpf.Ui.Controls.SymbolRegular.ErrorCircle24, GetOfficeIconScale(id));
             }
             else
             {
-                row = new AppStatusRow(displayName, iconUrl, "Instalado", InstalledBrush, Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24);
+                row = new AppStatusRow(displayName, iconUrl, "Instalado", InstalledBrush,
+                    Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24, GetOfficeIconScale(id));
                 installedCount++;
             }
 
             _appStatusRows.Add(row);
         }
 
-        InstalledSummaryText.Text = $"{installedCount} de {OfficeAppCatalog.CoreApps.Count} instalados";
+        foreach (var (id, displayName, iconUrl) in OfficeAppCatalog.AdditionalProducts)
+        {
+            bool productInstalled = installed.Any(p => string.Equals(p.ProductId, id, StringComparison.OrdinalIgnoreCase) ||
+                p.ProductId.StartsWith(id, StringComparison.OrdinalIgnoreCase));
+            _appStatusRows.Add(new AppStatusRow(displayName, iconUrl,
+                productInstalled ? "Instalado" : "Não instalado",
+                productInstalled ? InstalledBrush : NotInstalledBrush,
+                productInstalled ? Wpf.Ui.Controls.SymbolRegular.CheckmarkCircle24 : Wpf.Ui.Controls.SymbolRegular.DismissCircle24,
+                GetOfficeIconScale(id)));
+            if (productInstalled) installedCount++;
+        }
+
+        InstalledSummaryText.Text = $"{installedCount} de {OfficeAppCatalog.CoreApps.Count + OfficeAppCatalog.AdditionalProducts.Count} instalados";
         NoInstalledProductsText.Visibility = installed.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    private static bool IsAdditionalProductId(string productId) =>
+        productId.StartsWith("Visio", StringComparison.OrdinalIgnoreCase) ||
+        productId.StartsWith("Project", StringComparison.OrdinalIgnoreCase);
 }

@@ -189,12 +189,19 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
                 return;
 
             var catalog = await _storeService.LoadCatalogAsync();
+            var catalogById = new Dictionary<string, AppEntry>(StringComparer.OrdinalIgnoreCase);
+            var catalogByName = new Dictionary<string, AppEntry>(StringComparer.OrdinalIgnoreCase);
+            foreach (var app in catalog)
+            {
+                catalogById.TryAdd(app.Id, app);
+                catalogByName.TryAdd(app.Name, app);
+            }
+
             raw = raw.Select(package =>
             {
-                var catalogApp = catalog.FirstOrDefault(app =>
-                    app.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase))
-                    ?? catalog.FirstOrDefault(app =>
-                        app.Name.Equals(package.Name, StringComparison.OrdinalIgnoreCase));
+                catalogById.TryGetValue(package.Id, out var catalogApp);
+                if (catalogApp is null)
+                    catalogByName.TryGetValue(package.Name, out catalogApp);
 
                 return catalogApp is not null
                     && !string.IsNullOrWhiteSpace(catalogApp.IconUrl)
@@ -211,12 +218,26 @@ public sealed class InstalledPackagesViewModel : INotifyPropertyChanged
             Packages.Clear();
             foreach (var item in raw
                 .GroupBy(item => NormalizePackageKey(item.Name), StringComparer.OrdinalIgnoreCase)
-                .Select(group => group
-                    .OrderByDescending(item => !string.IsNullOrWhiteSpace(item.UninstallString)
-                        || !string.IsNullOrWhiteSpace(item.QuietUninstallString))
-                    .ThenByDescending(item => item.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase))
-                    .ThenByDescending(item => !string.IsNullOrWhiteSpace(item.Source))
-                    .First())
+                .SelectMany(nameGroup =>
+                {
+                    // A mesma instalação pode aparecer no WinGet/Store e também no ARP.
+                    // Agrupar só pelo nome fazia o registro local esconder a origem real,
+                    // além de fundir instalações legítimas do mesmo app em fontes distintas.
+                    var sourceGroups = nameGroup
+                        .GroupBy(item => InstalledPackageRow.GetSourceCategory(item.Source), StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    bool hasManagedSource = sourceGroups.Any(group =>
+                        group.Key is "WinGet" or "Microsoft Store");
+
+                    return sourceGroups
+                        .Where(group => !hasManagedSource || !group.Key.Equals("Local", StringComparison.OrdinalIgnoreCase))
+                        .Select(group => group
+                            .OrderByDescending(item => !string.IsNullOrWhiteSpace(item.UninstallString)
+                                || !string.IsNullOrWhiteSpace(item.QuietUninstallString))
+                            .ThenByDescending(item => InstalledPackageRow.GetSourceCategory(item.Source) == "Microsoft Store")
+                            .ThenByDescending(item => !string.IsNullOrWhiteSpace(item.Source))
+                            .First());
+                })
                 .Where(item => !IsAuxiliaryPackage(item, raw)))
             {
                 var classified = item with { IsOffice = _classifier.IsMicrosoftOffice(item.Id, item.Name) };
@@ -562,35 +583,37 @@ public sealed class InstalledPackageRow : INotifyPropertyChanged
 
     public string SourceCategory
     {
-        get
-        {
-            string source = (Source ?? string.Empty).Trim();
+        get => GetSourceCategory(Source);
+    }
 
-            if (source.Equals("winget", StringComparison.OrdinalIgnoreCase)
-                || source.StartsWith("WinGet:", StringComparison.OrdinalIgnoreCase))
-                return "WinGet";
+    public static string GetSourceCategory(string? sourceValue)
+    {
+        string source = (sourceValue ?? string.Empty).Trim();
+        if (source.StartsWith("WinGet:", StringComparison.OrdinalIgnoreCase))
+            source = source[(source.IndexOf(':') + 1)..].Trim();
 
-            if (source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
-                || source.Equals("Microsoft Store", StringComparison.OrdinalIgnoreCase))
-                return "Microsoft Store";
+        if (source.Equals("winget", StringComparison.OrdinalIgnoreCase))
+            return "WinGet";
 
-            // Fontes externas ou desconhecidas são mostradas como itens detectados localmente.
-            // O WinProvision não afirma oferecer suporte a gerenciadores como Pip ou Chocolatey.
-            return "Local";
-        }
+        if (source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+            || source.Equals("Microsoft Store", StringComparison.OrdinalIgnoreCase))
+            return "Microsoft Store";
+
+        // Fontes externas, ARP e registros sem origem são itens detectados no computador.
+        return "Local";
     }
 
     public string SourceLabel => SourceCategory switch
     {
         "WinGet" => "WinGet",
         "Microsoft Store" => "Microsoft Store",
-        _ => "Windows (local)"
+        _ => "PC Local"
     };
 
     public SymbolRegular SourceIcon => SourceCategory switch
     {
-        "WinGet" => SymbolRegular.ArrowDownload24,
-        "Microsoft Store" => SymbolRegular.ShoppingBag24,
+        "WinGet" => SymbolRegular.MailInboxArrowDown16,
+        "Microsoft Store" => SymbolRegular.StoreMicrosoft24,
         _ => SymbolRegular.Desktop24
     };
 

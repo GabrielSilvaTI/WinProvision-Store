@@ -17,10 +17,10 @@ public class UpgradablePackage : INotifyPropertyChanged
     public string Source { get; init; } = string.Empty;
     public string SourceLabel => Source.Trim().ToLowerInvariant() switch
     {
-        "winget" => "WinGet: winget",
-        "msstore" => "Microsoft Store: msstore",
-        "" => "Origem local",
-        _ => $"{Source.Trim()}: {Source.Trim()}"
+        "winget" => "WinGet",
+        "msstore" => "Microsoft Store",
+        "" => "PC Local",
+        _ => Source.Trim()
     };
 
     /// <summary>
@@ -33,7 +33,7 @@ public class UpgradablePackage : INotifyPropertyChanged
 
     private bool _isSelectedForUpdate;
 
-    /// <summary>Estado do CheckBox de seleção na tela Atualizações (ver UpdatesPage).</summary>
+    /// <summary>Estado de seleção do pacote na tela Atualizações; a linha ou o cartão alterna este valor.</summary>
     public bool IsSelectedForUpdate
     {
         get => _isSelectedForUpdate;

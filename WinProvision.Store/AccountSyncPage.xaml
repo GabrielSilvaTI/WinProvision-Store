@@ -7,7 +7,7 @@
       ScrollViewer.CanContentScroll="False"
       Title="Conta &amp; Sincronização"
       Background="Transparent"
-      TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+      TextElement.FontFamily="{StaticResource StoreFontFamily}"
       TextElement.FontSize="14"
       TextOptions.TextRenderingMode="ClearType"
       TextOptions.TextFormattingMode="Ideal"
@@ -15,796 +15,505 @@
       RenderOptions.ClearTypeHint="Enabled"
       UseLayoutRounding="True">
 
-    <Page.Resources>
-        <!--  Tipografia Fluent  -->
-        <Style x:Key="PageTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentPageTitleStyle}" />
-
-        <Style x:Key="CardSubtitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-        </Style>
-
-        <Style x:Key="SettingsCardStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource FluentCardStyle}">
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-            <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#000000"
-                                      Opacity="0.2"
-                                      BlurRadius="24"
-                                      ShadowDepth="0" />
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SettingsRowTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-
-        <Style x:Key="SettingsRowSubtitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Margin" Value="0,4,0,0" />
-        </Style>
-
-        <Style x:Key="SubMenuHeaderStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
-            <Setter Property="Margin" Value="4,12,0,8" />
-        </Style>
-
-        <!--  Sidebar stat row  -->
-        <Style x:Key="SidebarStatLabelStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
-        <Style x:Key="SidebarStatValueStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="TextAlignment" Value="Right" />
-        </Style>
-
-        <!--  Standard Toggle Button Style  -->
-        <Style x:Key="StandardToggleButtonStyle" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="16,8" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Width" Value="110" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Bd"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{StaticResource ControlCornerRadius}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              TextBlock.Foreground="{TemplateBinding Foreground}"
-                                              TextBlock.FontSize="{TemplateBinding FontSize}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <!--  Estado Desmarcado Hover / Pressed  -->
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-                            </Trigger>
-
-                            <!--  Estado Marcado (Checked)  -->
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource InstallActionBrush}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource InstallActionBrush}" />
-                                <Setter Property="Foreground" Value="White" />
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="True" />
-                                    <Condition Property="IsMouseOver" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource InstallActionHoverBrush}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource InstallActionHoverBrush}" />
-                                <Setter Property="Foreground" Value="White" />
-                            </MultiTrigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="IsChecked" Value="True" />
-                                    <Condition Property="IsPressed" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource InstallActionPressedBrush}" />
-                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource InstallActionPressedBrush}" />
-                                <Setter Property="Foreground" Value="White" />
-                            </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--  Toggle Button for Logs (Desativado / Ativado)  -->
-        <Style x:Key="LogToggleButtonStyle"
-               TargetType="ToggleButton"
-               BasedOn="{StaticResource StandardToggleButtonStyle}">
-            <Setter Property="Content" Value="Desativado" />
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Content" Value="Ativado" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!--  Toggle Button for Modo de Execução (Silencioso / UI visível)  -->
-        <Style x:Key="UiModeToggleButtonStyle"
-               TargetType="ToggleButton"
-               BasedOn="{StaticResource StandardToggleButtonStyle}">
-            <Setter Property="Content" Value="Silencioso" />
-            <Style.Triggers>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Content" Value="UI visível" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Page.Resources>
-
     <Border Background="Transparent"
             Margin="{StaticResource PageContentMargin}"
             MaxWidth="{StaticResource PageContentMaxWidth}"
-            HorizontalAlignment="Center"
-            CornerRadius="{StaticResource OverlayCornerRadius}">
-        <Grid Margin="0">
+            HorizontalAlignment="Center">
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="{StaticResource PageColumnGap}" />
-                <ColumnDefinition Width="{StaticResource PageSidebarWidth}" />
-            </Grid.ColumnDefinitions>
 
-            <!--  ================= Cabeçalho Global =================  -->
+            <!--  Cabeçalho padronizado da página.  -->
             <StackPanel Grid.Row="0"
-                        Grid.ColumnSpan="3"
                         Orientation="Horizontal"
                         Margin="{StaticResource PageHeaderMargin}">
-                <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Person24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
+                <Border Style="{StaticResource PageHeaderIconTileStyle}">
+                    <ui:SymbolIcon Symbol="Person24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+                </Border>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Conta &amp; Sincronização" Style="{StaticResource PageTitleStyle}" />
-                    <TextBlock Text="Sincronize seus perfis e gerencie backups."
-                               Style="{StaticResource FluentPageSubtitleStyle}"
+                    <TextBlock Text="Conta &amp; Sincronização" Style="{StaticResource StorePageTitleStyle}" />
+                    <TextBlock Text="Gerencie sua conta GitHub, backups e opções do WinProvision CLI."
+                               Style="{StaticResource StoreSubtitleStyle}"
                                Margin="0,4,0,0" />
                 </StackPanel>
             </StackPanel>
 
-            <!--  ================= Conteúdo Principal =================  -->
             <ScrollViewer Grid.Row="1"
-                          Grid.Column="0"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
-                <StackPanel HorizontalAlignment="Stretch" Margin="0,0,0,0">
+                <StackPanel>
 
-
-
-                    <!--  ── Sub-menu: Perfil em Nuvem ──  -->
-                    <TextBlock Text="Perfil em Nuvem" Style="{StaticResource SubMenuHeaderStyle}" />
-                    <Border Style="{StaticResource SettingsCardStyle}">
+                    <!--  Conta: os estados conectado e desconectado ocupam a mesma superfície.  -->
+                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
                         <StackPanel>
-                            <!--  Log Local  -->
-                            <Grid Margin="24,16">
+                            <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="340" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:FontIcon Glyph="&#xE7C3;"
-                                                     FontSize="16"
-                                                     Margin="0,0,8,0"
-                                                     FontFamily="Segoe Fluent Icons"
-                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                     VerticalAlignment="Center" />
-                                        <TextBlock Text="Gravar Log de Execução (/log)" Style="{StaticResource SettingsRowTitleStyle}" />
-                                    </StackPanel>
-                                    <TextBlock Text="Salva as ações em um arquivo no computador." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                <Border Width="40"
+                                        Height="40"
+                                        CornerRadius="{StaticResource ControlCornerRadius}"
+                                        Background="{DynamicResource FluentPanelElevatedBrush}">
+                                    <ui:SymbolIcon Symbol="Person24"
+                                                   FontSize="20"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Conta GitHub"
+                                               FontSize="16"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Use sua conta para sincronizar o perfil e acessar o backup na nuvem."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,0" />
                                 </StackPanel>
-                                <Grid Grid.Column="1" VerticalAlignment="Center">
+                            </Grid>
+
+                            <StackPanel x:Name="SidebarDisconnectedPanel">
+                                <StackPanel x:Name="OAuthInitialPanel">
+                                    <TextBlock Text="Sua conta ainda não está conectada."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12" />
+                                    <ui:Button x:Name="ConnectButton"
+                                               HorizontalAlignment="Left"
+                                               Appearance="Primary"
+                                               Click="ConnectButton_Click"
+                                               Style="{StaticResource StoreActionButtonStyle}"
+                                               Background="{DynamicResource InstallActionBrush}"
+                                               MouseOverBackground="{DynamicResource InstallActionHoverBrush}"
+                                               PressedBackground="{DynamicResource InstallActionPressedBrush}"
+                                               Foreground="White"
+                                               PressedForeground="White">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="PersonAdd24"
+                                                           FontSize="16"
+                                                           Margin="0,0,8,0" />
+                                            <TextBlock Text="Conectar ao GitHub" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ui:Button>
+                                </StackPanel>
+
+                                <StackPanel x:Name="OAuthWaitingPanel" Visibility="Collapsed">
+                                    <TextBlock Text="Abra o endereço abaixo e informe o código para autorizar o acesso."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8" />
+                                    <TextBlock Margin="0,0,0,12">
+                                        <Hyperlink x:Name="OAuthVerificationLink"
+                                                   NavigateUri="https://github.com/login/device"
+                                                   RequestNavigate="OAuthLink_RequestNavigate">
+                                            github.com/login/device
+                                        </Hyperlink>
+                                    </TextBlock>
+                                    <Border CornerRadius="{StaticResource ControlCornerRadius}"
+                                            Background="{DynamicResource FluentPanelElevatedBrush}"
+                                            BorderBrush="{DynamicResource AppCardBorderBrush}"
+                                            BorderThickness="1"
+                                            Padding="12"
+                                            Margin="0,0,0,10"
+                                            HorizontalAlignment="Left">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock x:Name="OAuthUserCodeText"
+                                                       FontFamily="Cascadia Mono, Consolas, Courier New"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                                       Margin="0,0,12,0" />
+                                            <ui:Button Appearance="Secondary"
+                                                       Style="{StaticResource StoreActionButtonStyle}"
+                                                       MinHeight="32"
+                                                       Padding="10,0"
+                                                       ToolTip="Copiar código"
+                                                       Click="CopyOAuthCodeButton_Click">
+                                                <ui:Button.Icon>
+                                                    <ui:SymbolIcon Symbol="Copy24" />
+                                                </ui:Button.Icon>
+                                            </ui:Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <ui:ProgressRing IsIndeterminate="True"
+                                                         Width="18"
+                                                         Height="18"
+                                                         Margin="0,0,8,0"
+                                                         VerticalAlignment="Center"
+                                                         Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                        <TextBlock x:Name="OAuthStatusText"
+                                                   Text="Aguardando confirmação no navegador..."
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="CancelOAuthButton"
+                                               HorizontalAlignment="Left"
+                                               Appearance="Secondary"
+                                               Click="CancelOAuthButton_Click"
+                                               Style="{StaticResource StoreActionButtonStyle}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="Dismiss24"
+                                                           FontSize="16"
+                                                           Margin="0,0,8,0" />
+                                            <TextBlock Text="Cancelar" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ui:Button>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel x:Name="SidebarConnectedPanel" Visibility="Collapsed">
+                                <Grid>
                                     <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="12" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ui:TextBox x:Name="CliLogPathTextBox"
-                                                Grid.Column="0"
-                                                PlaceholderText="C:\WinProvision\exec.log"
-                                                IsEnabled="{Binding IsChecked, ElementName=CliLogToggle}"
-                                                TextChanged="CliField_Changed"
-                                                VerticalAlignment="Center"
-                                                Margin="0,0,12,0" />
-                                    <ToggleButton x:Name="CliLogToggle"
-                                                  Grid.Column="1"
-                                                  Style="{StaticResource LogToggleButtonStyle}"
-                                                  Checked="CliField_Changed"
-                                                  Unchecked="CliField_Changed"
-                                                  VerticalAlignment="Center"
-                                                  HorizontalAlignment="Right" />
+                                    <Border Width="56"
+                                            Height="56"
+                                            CornerRadius="28"
+                                            Background="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                            ClipToBounds="True">
+                                        <Grid>
+                                            <ui:SymbolIcon Symbol="Person24"
+                                                           FontSize="28"
+                                                           Foreground="White"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=SidebarAvatarImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                            <Image x:Name="SidebarAvatarImage"
+                                                   Stretch="UniformToFill"
+                                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=SidebarAvatarImage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                        </Grid>
+                                    </Border>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                        <TextBlock x:Name="SidebarLoginText"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="Conta GitHub conectada"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   FontSize="13"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <ui:Button x:Name="DisconnectButton"
+                                               Grid.Column="3"
+                                               VerticalAlignment="Center"
+                                               Appearance="Secondary"
+                                               Click="DisconnectButton_Click"
+                                               Style="{StaticResource StoreActionButtonStyle}"
+                                               ToolTip="Desvincular conta">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="LinkDismiss24"
+                                                           FontSize="16"
+                                                           Margin="0,0,8,0" />
+                                            <TextBlock Text="Desvincular" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </ui:Button>
                                 </Grid>
+                                <Rectangle Height="1"
+                                           Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                           Margin="0,16" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="ArrowSync24"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Sincronização" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="SidebarSyncStatusText"
+                                                   Text="Ativa ●"
+                                                   Margin="8,0,0,0"
+                                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <ui:SymbolIcon Symbol="Clock24"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0"
+                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock Text="Última sincronização:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                        <TextBlock x:Name="SidebarLastSyncText" Margin="6,0,0,0" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  Backup local e na nuvem.  -->
+                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="40"
+                                        Height="40"
+                                        CornerRadius="{StaticResource ControlCornerRadius}"
+                                        Background="{DynamicResource FluentPanelElevatedBrush}">
+                                    <ui:SymbolIcon Symbol="Archive24"
+                                                   FontSize="20"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Backup e restauração"
+                                               FontSize="16"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Salve ou restaure seus perfis em JSON. O backup na nuvem exige uma conta conectada."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock x:Name="LocalBackupStatusText"
+                                       Text="Último backup: nunca"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Margin="52,4,0,16"
+                                       TextWrapping="Wrap" />
+                            <WrapPanel Margin="52,0,0,0">
+                                <ui:Button x:Name="BackupButton"
+                                           Appearance="Secondary"
+                                           Click="BackupButton_Click"
+                                           Style="{StaticResource StoreActionButtonStyle}"
+                                           Margin="0,0,8,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Archive24"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0" />
+                                        <TextBlock Text="Fazer backup" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ui:Button>
+                                <ui:Button x:Name="ImportCloudBackupButton"
+                                           Appearance="Secondary"
+                                           Click="ImportCloudBackupButton_Click"
+                                           IsEnabled="False"
+                                           Style="{StaticResource StoreActionButtonStyle}"
+                                           Margin="0,0,8,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="ArrowDownload24"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0" />
+                                        <TextBlock Text="Restaurar da nuvem" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ui:Button>
+                                <ui:Button x:Name="ImportAllButton"
+                                           Appearance="Secondary"
+                                           Click="ImportAllButton_Click"
+                                           Style="{StaticResource StoreActionButtonStyle}"
+                                           Margin="0,0,8,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="ArrowImport24"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0" />
+                                        <TextBlock Text="Importar JSON" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ui:Button>
+                                <ui:Button x:Name="ExportAllButton"
+                                           Appearance="Primary"
+                                           Click="ExportAllButton_Click"
+                                           Style="{StaticResource StoreActionButtonStyle}"
+                                           Background="{DynamicResource InstallActionBrush}"
+                                           MouseOverBackground="{DynamicResource InstallActionHoverBrush}"
+                                           PressedBackground="{DynamicResource InstallActionPressedBrush}"
+                                           Foreground="White"
+                                           PressedForeground="White"
+                                           Margin="0,0,0,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="DocumentArrowRight24"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0" />
+                                        <TextBlock Text="Exportar JSON" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </ui:Button>
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!--  Opções do CLI com labels flexíveis e controles nativos WPF-UI.  -->
+                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="12" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="40"
+                                        Height="40"
+                                        CornerRadius="{StaticResource ControlCornerRadius}"
+                                        Background="{DynamicResource FluentPanelElevatedBrush}">
+                                    <ui:SymbolIcon Symbol="Desktop24"
+                                                   FontSize="20"
+                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Opções do WinProvision CLI"
+                                               FontSize="16"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="Configure o registro da execução e o modo padrão dos comandos."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
                             </Grid>
 
-                            <Rectangle Height="1" Fill="#0DFFFFFF" />
-
-                            <!--  Logs na Nuvem (/cloudlog)  -->
-                            <Grid Margin="24,16">
+                            <Grid Margin="0,12,0,12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="340" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:FontIcon Glyph="&#xEDE4;"
-                                                     FontSize="16"
-                                                     Margin="0,0,8,0"
-                                                     FontFamily="Segoe Fluent Icons"
-                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                     VerticalAlignment="Center" />
-                                        <TextBlock Text="Logs na Nuvem (/cloudlog)" Style="{StaticResource SettingsRowTitleStyle}" />
-                                    </StackPanel>
-                                    <TextBlock Text="Envia os logs para consulta remota." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Gravar log de execução (/log)" FontWeight="SemiBold" />
+                                    <TextBlock Text="Salva as ações em um arquivo no computador."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                                <ToggleButton x:Name="CliLogToggle"
+                                              Grid.Column="1"
+                                              Style="{StaticResource StoreLogToggleButtonStyle}"
+                                              Checked="CliField_Changed"
+                                              Unchecked="CliField_Changed"
+                                              VerticalAlignment="Center" />
+                            </Grid>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:TextBox x:Name="CliLogPathTextBox"
+                                            PlaceholderText="C:\WinProvision\exec.log"
+                                            IsEnabled="{Binding IsChecked, ElementName=CliLogToggle}"
+                                            TextChanged="CliField_Changed"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,12,0" />
+                                <TextBlock Grid.Column="1"
+                                           Text="Caminho do arquivo"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                            <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                            <Grid Margin="0,12,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Logs na nuvem (/cloudlog)" FontWeight="SemiBold" />
+                                    <TextBlock Text="Envia os logs para consulta remota."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,0" />
                                 </StackPanel>
                                 <ToggleButton x:Name="CliCloudLogToggle"
                                               Grid.Column="1"
-                                              Style="{StaticResource LogToggleButtonStyle}"
+                                              Style="{StaticResource StoreLogToggleButtonStyle}"
                                               Checked="CliField_Changed"
                                               Unchecked="CliField_Changed"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Right" />
+                                              VerticalAlignment="Center" />
                             </Grid>
-
-                            <Rectangle Height="1" Fill="#0DFFFFFF" />
-
-                            <!--  Modo de Execução  -->
-                            <Grid Margin="24,16">
+                            <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
+                            <Grid Margin="0,12,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="340" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:FontIcon Glyph="&#xE768;"
-                                                     FontSize="16"
-                                                     Margin="0,0,8,0"
-                                                     FontFamily="Segoe Fluent Icons"
-                                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                     VerticalAlignment="Center" />
-                                        <TextBlock Text="Modo de Execução" Style="{StaticResource SettingsRowTitleStyle}" />
-                                    </StackPanel>
-                                    <TextBlock Text="Escolha se a janela de progresso será exibida." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Modo de execução" FontWeight="SemiBold" />
+                                    <TextBlock Text="Escolha se a janela de progresso será exibida."
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"
+                                               Margin="0,3,0,0" />
                                 </StackPanel>
                                 <ToggleButton x:Name="CliUiModeToggle"
                                               Grid.Column="1"
-                                              Style="{StaticResource UiModeToggleButtonStyle}"
+                                              Style="{StaticResource StoreUiModeToggleButtonStyle}"
                                               IsChecked="True"
                                               Checked="CliField_Changed"
                                               Unchecked="CliField_Changed"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Right" />
+                                              VerticalAlignment="Center" />
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <!--  ── Sub-menu: Gerador de Comandos ──  -->
-                    <TextBlock Text="Gerador de Comandos" Style="{StaticResource SubMenuHeaderStyle}" />
-                    <Border Style="{StaticResource SettingsCardStyle}">
-                        <StackPanel>
-                            <Grid Margin="24,16">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:FontIcon Glyph="&#xE943;"
-                                                 FontSize="16"
-                                                 Margin="0,0,10,0"
-                                                 FontFamily="Segoe Fluent Icons"
-                                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                 VerticalAlignment="Center" />
-                                    <StackPanel>
-                                        <TextBlock Text="Comando Gerado" Style="{StaticResource SettingsRowTitleStyle}" />
-                                        <TextBlock Text="Execute como administrador para configurar o computador." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
-
-                            <Border CornerRadius="{StaticResource ControlCornerRadius}"
-                                    Background="#1A000000"
-                                    Padding="12"
-                                    Margin="24,0,24,16"
-                                    BorderBrush="{DynamicResource AppBorderSubtleBrush}"
-                                    BorderThickness="1">
-                                <TextBox x:Name="CliCommandPreviewTextBox"
-                                         IsReadOnly="True"
-                                         BorderThickness="0"
-                                         Background="Transparent"
-                                         FontFamily="Cascadia Mono, Consolas, Courier New"
-                                         FontSize="12"
-                                         TextWrapping="Wrap"
-                                         AcceptsReturn="True"
-                                         Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                            </Border>
-
-                            <StackPanel Orientation="Horizontal" Margin="24,0,24,16">
-                                <ui:Button Appearance="Primary"
-                                           Click="CopyCliCommandButton_Click"
-                                           CornerRadius="{StaticResource ControlCornerRadius}"
-                                           Background="{StaticResource InstallActionBrush}"
-                                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
-                                           PressedBackground="{StaticResource InstallActionPressedBrush}"
-                                           Foreground="White"
-                                           PressedForeground="White">
-                                    <Grid HorizontalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="20" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <ui:SymbolIcon Symbol="Copy24"
-                                                       Grid.Column="0"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="2"
-                                                   Text="Copiar comando"
-                                                   VerticalAlignment="Center" />
-                                    </Grid>
-                                </ui:Button>
+                    <!--  Prévia atualizada pelos mesmos eventos existentes.  -->
+                    <ui:CardExpander Style="{StaticResource StoreCardExpanderStyle}" IsExpanded="False">
+                        <ui:CardExpander.Icon>
+                            <ui:SymbolIcon Symbol="Code24" />
+                        </ui:CardExpander.Icon>
+                        <ui:CardExpander.Header>
+                            <StackPanel>
+                                <TextBlock Text="Gerador de comandos"
+                                           FontSize="16"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="Prévia do comando com as opções selecionadas. Execute como administrador para configurar o computador."
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,0" />
                             </StackPanel>
+                        </ui:CardExpander.Header>
+                        <StackPanel>
+                            <TextBox x:Name="CliCommandPreviewTextBox"
+                                     IsReadOnly="True"
+                                     BorderThickness="1"
+                                     BorderBrush="{DynamicResource AppCardBorderBrush}"
+                                     Background="{DynamicResource FluentPanelElevatedBrush}"
+                                     Padding="12"
+                                     FontFamily="Cascadia Mono, Consolas, Courier New"
+                                     FontSize="12"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     MinHeight="64"
+                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                     Margin="0,0,0,12" />
+                            <ui:Button HorizontalAlignment="Left"
+                                       Appearance="Secondary"
+                                       Click="CopyCliCommandButton_Click"
+                                       Style="{StaticResource StoreActionButtonStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Copy24"
+                                                   FontSize="16"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="Copiar comando" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ui:Button>
                         </StackPanel>
-                    </Border>
-
+                    </ui:CardExpander>
                 </StackPanel>
             </ScrollViewer>
 
-            <!--  ================= Painel Lateral =================  -->
-            <StackPanel Grid.Row="1"
-                        Grid.Column="2"
-                        VerticalAlignment="Top">
-
-                <!--  ── Resumo da Conta ──  -->
-                <Border CornerRadius="{StaticResource OverlayCornerRadius}"
-                        BorderThickness="1"
-                        Background="{DynamicResource AppCardBackgroundBrush}"
-                        BorderBrush="{DynamicResource AppCardBorderBrush}"
-                        Padding="20">
-                    <StackPanel>
-
-                        <!--  Título do painel  -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
-                            <ui:FontIcon Glyph="&#xE77B;"
-                                         FontSize="18"
-                                         Margin="0,0,8,0"
-                                         FontFamily="Segoe Fluent Icons"
-                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                         VerticalAlignment="Center" />
-                            <TextBlock Text="Resumo da Conta"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       FontFamily="Segoe UI Variable Display, Aptos, Segoe UI"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-                        <TextBlock Text="Quem tiver o link do backup poderá acessá-lo."
-                                   FontSize="11"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,14" />
-
-                        <!--  ── Estado: Desconectado ──  -->
-                        <StackPanel x:Name="SidebarDisconnectedPanel">
-
-                            <!--  Painel inicial: só o botão OAuth  -->
-                            <StackPanel x:Name="OAuthInitialPanel">
-                                <TextBlock Text="Entre no GitHub para sincronizar seu perfil."
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,12" />
-
-                                <ui:Button x:Name="ConnectButton"
-                                           HorizontalAlignment="Stretch"
-                                           Appearance="Primary"
-                                           Click="ConnectButton_Click"
-                                           CornerRadius="{StaticResource ControlCornerRadius}"
-                                           Background="{StaticResource InstallActionBrush}"
-                                           MouseOverBackground="{StaticResource InstallActionHoverBrush}"
-                                           PressedBackground="{StaticResource InstallActionPressedBrush}"
-                                           Foreground="White"
-                                           PressedForeground="White">
-                                    <Grid HorizontalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="20" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <ui:ImageIcon Grid.Column="0"
-                                                      Source="https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Icon_Database/github.cli.png"
-                                                      Width="16"
-                                                      Height="16" />
-                                        <TextBlock Grid.Column="2"
-                                                   Text="Entrar com GitHub"
-                                                   VerticalAlignment="Center" />
-                                    </Grid>
-                                </ui:Button>
-                            </StackPanel>
-
-                            <!--  Painel de espera: mostra user_code enquanto aguarda autenticação  -->
-                            <StackPanel x:Name="OAuthWaitingPanel" Visibility="Collapsed">
-                                <TextBlock Text="Acesse o endereço abaixo e insira o código:"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,6" />
-
-                                <!--  Link clicável  -->
-                                <TextBlock FontSize="12" Margin="0,0,0,10">
-                                    <Hyperlink x:Name="OAuthVerificationLink"
-                                               NavigateUri="https://github.com/login/device"
-                                               RequestNavigate="OAuthLink_RequestNavigate">
-                                        github.com/login/device
-                                    </Hyperlink>
-                                </TextBlock>
-
-                                <!--  Código de usuário em destaque  -->
-                                <Border CornerRadius="{StaticResource OverlayCornerRadius}"
-                                        Background="#1AFFFFFF"
-                                        BorderBrush="{DynamicResource AppBorderSubtleBrush}"
-                                        BorderThickness="1"
-                                        Padding="12,10"
-                                        Margin="0,0,0,10"
-                                        HorizontalAlignment="Stretch">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock x:Name="OAuthUserCodeText"
-                                                   FontFamily="Cascadia Mono, Consolas, Courier New"
-                                                   FontSize="18"
-                                                   FontWeight="SemiBold"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
-                                        <ui:Button Grid.Column="1"
-                                                   Appearance="Secondary"
-                                                   CornerRadius="{StaticResource CompactCornerRadius}"
-                                                   Padding="6,4"
-                                                   ToolTip="Copiar código"
-                                                   Click="CopyOAuthCodeButton_Click">
-                                            <ui:Button.Icon>
-                                                <ui:SymbolIcon Symbol="Copy24" />
-                                            </ui:Button.Icon>
-                                        </ui:Button>
-                                    </Grid>
-                                </Border>
-
-                                <!--  Status e cancelar  -->
-                                <TextBlock x:Name="OAuthStatusText"
-                                           Text="Aguardando confirmação no navegador..."
-                                           FontSize="11"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,0,0,8" />
-
-                                <ui:Button x:Name="CancelOAuthButton"
-                                           HorizontalAlignment="Stretch"
-                                           Appearance="Secondary"
-                                           Click="CancelOAuthButton_Click"
-                                           CornerRadius="{StaticResource ControlCornerRadius}">
-                                    <Grid HorizontalAlignment="Center">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="20" />
-                                            <ColumnDefinition Width="8" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <ui:SymbolIcon Symbol="Dismiss24"
-                                                       Grid.Column="0"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center" />
-                                        <TextBlock Grid.Column="2"
-                                                   Text="Cancelar"
-                                                   VerticalAlignment="Center" />
-                                    </Grid>
-                                </ui:Button>
-                            </StackPanel>
-
-                        </StackPanel>
-
-                        <!--  ── Estado: Conectado ──  -->
-                        <StackPanel x:Name="SidebarConnectedPanel" Visibility="Collapsed">
-
-                            <!--  Avatar (Foto de perfil do GitHub com fallback)  -->
-                            <Border Width="56"
-                                    Height="56"
-                                    CornerRadius="{StaticResource OverlayCornerRadius}"
-                                    Background="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                    ClipToBounds="True"
-                                    HorizontalAlignment="Center"
-                                    Margin="0,0,0,8">
-                                <Grid>
-                                    <ui:SymbolIcon Symbol="Person24"
-                                                   FontSize="28"
-                                                   Foreground="White"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center"
-                                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=SidebarAvatarImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="SidebarAvatarImage"
-                                           Stretch="UniformToFill"
-                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=SidebarAvatarImage, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                </Grid>
-                            </Border>
-
-                            <!--  Login  -->
-                            <TextBlock x:Name="SidebarLoginText"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center"
-                                       Margin="0,0,0,2" />
-                            <TextBlock Text="GitHub"
-                                       FontSize="11"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,0,0,12" />
-
-                            <!--  Separador  -->
-                            <Rectangle Height="1"
-                                       Fill="#0DFFFFFF"
-                                       Margin="0,0,0,12" />
-
-                            <!--  Linha: Sincronização  -->
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="ArrowSync24"
-                                                   FontSize="12"
-                                                   Margin="0,0,6,0"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="Sincronização" Style="{StaticResource SidebarStatLabelStyle}" />
-                                </StackPanel>
-                                <TextBlock x:Name="SidebarSyncStatusText"
-                                           Grid.Column="1"
-                                           Text="Ativa"
-                                           Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                           Style="{StaticResource SidebarStatValueStyle}" />
-                            </Grid>
-
-                            <!--  Linha: Última sync  -->
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ui:SymbolIcon Symbol="Clock24"
-                                                   FontSize="12"
-                                                   Margin="0,0,6,0"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock Text="Última sync" Style="{StaticResource SidebarStatLabelStyle}" />
-                                </StackPanel>
-                                <TextBlock x:Name="SidebarLastSyncText"
-                                           Grid.Column="1"
-                                           Style="{StaticResource SidebarStatValueStyle}" />
-                            </Grid>
-
-                            <!--  Separador  -->
-                            <Rectangle Height="1"
-                                       Fill="#0DFFFFFF"
-                                       Margin="0,8,0,12" />
-
-                            <!--  Botão Desvincular  -->
-                            <ui:Button x:Name="DisconnectButton"
-                                       HorizontalAlignment="Stretch"
-                                       Appearance="Secondary"
-                                       Click="DisconnectButton_Click"
-                                       CornerRadius="{StaticResource ControlCornerRadius}">
-                                <Grid HorizontalAlignment="Center">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="20" />
-                                        <ColumnDefinition Width="8" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Symbol="LinkDismiss24"
-                                                   Grid.Column="0"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="2"
-                                               Text="Desvincular"
-                                               VerticalAlignment="Center" />
-                                </Grid>
-                            </ui:Button>
-                        </StackPanel>
-
-                    </StackPanel>
-                </Border>
-
-                <!--  ── Card: Backup ──  -->
-                <Border CornerRadius="{StaticResource OverlayCornerRadius}"
-                        BorderThickness="1"
-                        Background="{DynamicResource AppCardBackgroundBrush}"
-                        BorderBrush="{DynamicResource AppCardBorderBrush}"
-                        Padding="20"
-                        Margin="0,16,0,0">
-                    <StackPanel>
-
-                        <!--  Título  -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <ui:FontIcon Glyph="&#xEBD3;"
-                                         FontSize="18"
-                                         Margin="0,0,8,0"
-                                         FontFamily="Segoe Fluent Icons"
-                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                         VerticalAlignment="Center" />
-                            <TextBlock Text="Backup"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       FontFamily="Segoe UI Variable Display, Aptos, Segoe UI"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>
-
-                        <!--  Status  -->
-                        <TextBlock x:Name="LocalBackupStatusText"
-                                   Text="Último backup: nunca"
-                                   FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Margin="0,0,0,14" />
-
-                        <!--  Ação: Backup  -->
-                        <ui:Button x:Name="BackupButton"
-                                   HorizontalAlignment="Stretch"
-                                   Appearance="Secondary"
-                                   Click="BackupButton_Click"
-                                   CornerRadius="{StaticResource ControlCornerRadius}"
-                                   Margin="0,0,0,8">
-                            <Grid HorizontalAlignment="Stretch">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ui:FontIcon Grid.Column="0"
-                                             Glyph="&#xEBD3;"
-                                             FontFamily="Segoe Fluent Icons"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2"
-                                           Text="Backup"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </ui:Button>
-
-                        <ui:Button x:Name="ImportCloudBackupButton"
-                                   HorizontalAlignment="Stretch"
-                                   Appearance="Secondary"
-                                   Click="ImportCloudBackupButton_Click"
-                                   CornerRadius="{StaticResource ControlCornerRadius}"
-                                   IsEnabled="False"
-                                   Margin="0,0,0,8">
-                            <Grid HorizontalAlignment="Stretch">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0"
-                                               Symbol="ArrowDownload24"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2"
-                                           Text="Importar da nuvem"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </ui:Button>
-
-                        <!--  Ação: Importar  -->
-                        <ui:Button x:Name="ImportAllButton"
-                                   HorizontalAlignment="Stretch"
-                                   Appearance="Secondary"
-                                   Click="ImportAllButton_Click"
-                                   CornerRadius="{StaticResource ControlCornerRadius}"
-                                   Margin="0,0,0,8">
-                            <Grid HorizontalAlignment="Stretch">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0"
-                                               Symbol="ArrowImport24"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2"
-                                           Text="Importar"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </ui:Button>
-
-                        <!--  Ação: Exportar  -->
-                        <ui:Button x:Name="ExportAllButton"
-                                   HorizontalAlignment="Stretch"
-                                   Appearance="Primary"
-                                   Click="ExportAllButton_Click"
-                                   CornerRadius="{StaticResource ControlCornerRadius}"
-                                   Background="{StaticResource InstallActionBrush}"
-                                   MouseOverBackground="{StaticResource InstallActionHoverBrush}"
-                                   PressedBackground="{StaticResource InstallActionPressedBrush}"
-                                   Foreground="White"
-                                   PressedForeground="White">
-                            <Grid HorizontalAlignment="Stretch">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="8" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <ui:SymbolIcon Grid.Column="0"
-                                               Symbol="DocumentArrowRight24"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2"
-                                           Text="Exportar"
-                                           TextAlignment="Center"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                        </ui:Button>
-
-                    </StackPanel>
-                </Border>
-
-            </StackPanel>
-
-            <!--  ================= Rodapé com Status =================  -->
-            <Border Grid.Row="2" Grid.ColumnSpan="3" Style="{StaticResource PageStatusBarStyle}">
+            <!--  Rodapé compartilhado, sem superfície adicional.  -->
+            <Border Grid.Row="2" Style="{StaticResource PageStatusBarStyle}">
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
-                    <TextBlock x:Name="StatusText"
-                               Style="{StaticResource PageStatusTextStyle}" />
+                    <TextBlock x:Name="StatusText" Style="{StaticResource PageStatusTextStyle}" />
                 </StackPanel>
             </Border>
         </Grid>

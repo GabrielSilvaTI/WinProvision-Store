@@ -1,8 +1,19 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
-    <!-- Tokens globais do Store. -->
+    <!--  A sombra sobre a imagem mantém os títulos legíveis em banners claros e escuros.  -->
+    <LinearGradientBrush x:Key="StorefrontImageScrimBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#00000000" Offset="0" />
+        <GradientStop Color="#18000000" Offset="0.35" />
+        <GradientStop Color="#D9000000" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="StorefrontHeroScrimBrush" StartPoint="0,0.5" EndPoint="1,0.5">
+        <GradientStop Color="#E6091A2C" Offset="0" />
+        <GradientStop Color="#A6091A2C" Offset="0.4" />
+        <GradientStop Color="#18091A2C" Offset="1" />
+    </LinearGradientBrush>
+    <!--  Tokens globais do Store.  -->
     <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
     <CornerRadius x:Key="OverlayCornerRadius">14</CornerRadius>
     <CornerRadius x:Key="StoreCardCornerRadius">14</CornerRadius>
@@ -20,7 +31,11 @@
     <sys:Double x:Key="StorePageTitleSize">30</sys:Double>
     <sys:Double x:Key="StoreSubtitleSize">14</sys:Double>
     <sys:Double x:Key="StoreBodySize">14</sys:Double>
-    <DropShadowEffect x:Key="StoreCardShadowEffect" Color="#000000" Opacity="0.14" BlurRadius="18" ShadowDepth="0" />
+    <DropShadowEffect x:Key="StoreCardShadowEffect"
+                      Color="#000000"
+                      Opacity="0.14"
+                      BlurRadius="18"
+                      ShadowDepth="0" />
 
     <SolidColorBrush x:Key="InstallActionBrush" Color="#0078D4" />
     <SolidColorBrush x:Key="InstallActionHoverBrush" Color="#1688E8" />
@@ -61,30 +76,378 @@
     <SolidColorBrush x:Key="AccentFillColorDisabledBrush" Color="#660078D4" />
     <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="SystemAccentColorPrimaryBrush" Color="#FF0078D4" />
+    <!--  O WPF-UI usa a cor (e não apenas o brush) para checks, radios e estados selecionados.  -->
+    <Color x:Key="SystemAccentColorPrimary">#FF0078D4</Color>
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="#FF0078D4" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPointerOver" Color="#FF1688E8" />
+    <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillCheckedPressed" Color="#FF0067B8" />
+    <SolidColorBrush x:Key="SelectionSuccessBrush" Color="#FF4CAF72" />
+    <SolidColorBrush x:Key="SelectionSuccessSubtleBrush" Color="#244CAF72" />
 
-    <Style x:Key="StoreCardSurfaceStyle" TargetType="Border" BasedOn="{StaticResource FluentCardStyle}">
+    <Style x:Key="StoreCardSurfaceStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource FluentCardStyle}">
         <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
         <Setter Property="Padding" Value="24" />
         <Setter Property="Margin" Value="0,0,0,16" />
     </Style>
 
-    <Style x:Key="StorePillButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+    <Style x:Key="SettingsCategoryCardStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource StoreCardSurfaceStyle}">
+        <Setter Property="Padding" Value="18,16" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="SettingsSearchResultButtonStyle"
+           TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
+        <Setter Property="MinHeight" Value="68" />
+        <Setter Property="Padding" Value="16,12" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
+    </Style>
+
+    <Style x:Key="SettingsOptionCardStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource StoreCardSurfaceStyle}">
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                <Setter Property="BorderThickness" Value="2" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StoreSectionTitleStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource FluentSectionTitleStyle}">
+        <Setter Property="Margin" Value="0,16,0,8" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="StorePillButtonStyle"
+           TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="CornerRadius" Value="{StaticResource StorePillCornerRadius}" />
         <Setter Property="MinHeight" Value="36" />
         <Setter Property="Padding" Value="16,0" />
         <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
     </Style>
 
-    <Style x:Key="StorePageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentPageTitleStyle}">
+    <!--  Ações compactas e alternâncias usam cantos de controle, não formato oval.  -->
+    <Style x:Key="StoreActionButtonStyle"
+           TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
+        <Setter Property="Appearance" Value="Secondary" />
+    </Style>
+
+    <Style x:Key="StoreCategoryFilterStyle" TargetType="RadioButton">
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderSubtleBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{DynamicResource DefaultControlFocusVisualStyle}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="FilterSurface"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
+                            Padding="12,8"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:FontIcon Glyph="{Binding Icon}"
+                                         FontFamily="Segoe Fluent Icons"
+                                         FontSize="16"
+                                         Margin="0,0,8,0"
+                                         Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}" />
+                            <TextBlock Text="{Binding Label}"
+                                       FontSize="13"
+                                       FontWeight="Medium"
+                                       VerticalAlignment="Center"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="FilterSurface" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="FilterSurface" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            <Setter TargetName="FilterSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FilterSurface" Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="FilterSurface" Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="StoreCardSubtitleStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="StoreFieldLabelStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+
+    <Style x:Key="StoreOfficeAppTileStyle" TargetType="ToggleButton">
+        <Setter Property="Width" Value="116" />
+        <Setter Property="Height" Value="116" />
+        <Setter Property="Margin" Value="0,0,12,12" />
+        <Setter Property="Padding" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="TileBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource StoreCardCornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <Grid>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <ui:SymbolIcon x:Name="SelectedIcon"
+                                           Symbol="CheckmarkCircle24"
+                                           FontSize="18"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Top"
+                                           Foreground="Transparent" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="TileBorder" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="TileBorder" Property="BorderBrush" Value="{DynamicResource SelectionSuccessBrush}" />
+                            <Setter TargetName="TileBorder" Property="Background" Value="{DynamicResource SelectionSuccessSubtleBrush}" />
+                            <Setter TargetName="SelectedIcon" Property="Foreground" Value="{DynamicResource SelectionSuccessBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="TileBorder" Property="Opacity" Value="0.55" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="StoreCardExpanderStyle"
+           TargetType="ui:CardExpander"
+           BasedOn="{StaticResource DefaultUiCardExpanderStyle}">
+        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
+        <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
+        <Setter Property="Padding" Value="20" />
+        <Setter Property="ContentPadding" Value="20" />
+        <Setter Property="Margin" Value="0,0,0,16" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
+    <Style x:Key="StoreToggleButtonStyle" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="MinWidth" Value="112" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="ToggleBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ToggleBorder" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="{DynamicResource ControlStrokeColorSecondaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ToggleBorder" Property="Background" Value="{DynamicResource ControlFillColorTertiaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="ToggleBorder" Property="Background" Value="{DynamicResource InstallActionBrush}" />
+                            <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="{DynamicResource InstallActionBrush}" />
+                            <Setter Property="Foreground" Value="White" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True" />
+                                <Condition Property="IsMouseOver" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="ToggleBorder" Property="Background" Value="{DynamicResource InstallActionHoverBrush}" />
+                            <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="{DynamicResource InstallActionHoverBrush}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="ToggleBorder" Property="Opacity" Value="0.55" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="ToggleBorder" Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="StoreLogToggleButtonStyle"
+           TargetType="ToggleButton"
+           BasedOn="{StaticResource StoreToggleButtonStyle}">
+        <Setter Property="Content" Value="Desativado" />
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Content" Value="Ativado" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StoreUiModeToggleButtonStyle"
+           TargetType="ToggleButton"
+           BasedOn="{StaticResource StoreToggleButtonStyle}">
+        <Setter Property="Content" Value="Silencioso" />
+        <Style.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Content" Value="UI visível" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StorePageTitleStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource FluentPageTitleStyle}">
         <Setter Property="FontSize" Value="{StaticResource StorePageTitleSize}" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
     </Style>
 
-    <Style x:Key="StoreSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentPageSubtitleStyle}">
+    <Style x:Key="StoreSubtitleStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource FluentPageSubtitleStyle}">
         <Setter Property="FontSize" Value="{StaticResource StoreSubtitleSize}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+
+    <!--  Altura constante para os itens da NavigationView, inclusive no modo compacto.  -->
+    <ControlTemplate x:Key="StoreNavigationViewItemTemplate" TargetType="ui:NavigationViewItem">
+        <Border x:Name="NavigationItemBorder"
+                Height="40"
+                Margin="4,2"
+                Background="{DynamicResource NavigationViewItemBackground}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{DynamicResource NavigationViewItemThickness}"
+                CornerRadius="{DynamicResource ControlCornerRadius}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <ContentPresenter x:Name="NavigationItemIcon"
+                                  Width="40"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"
+                                  Content="{TemplateBinding Icon}"
+                                  Focusable="False"
+                                  TextElement.FontSize="18"
+                                  TextElement.Foreground="{DynamicResource NavigationViewItemForeground}" />
+                <ContentPresenter x:Name="NavigationItemLabel"
+                                  Grid.Column="1"
+                                  Margin="4,0,8,0"
+                                  HorizontalAlignment="Left"
+                                  VerticalAlignment="Center"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  RecognizesAccessKey="True"
+                                  TextElement.FontSize="14"
+                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                <Rectangle x:Name="NavigationItemIndicator"
+                           Width="3"
+                           Height="16"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Center"
+                           Fill="{DynamicResource NavigationViewSelectionIndicatorForeground}"
+                           Opacity="0"
+                           RadiusX="2"
+                           RadiusY="2" />
+            </Grid>
+        </Border>
+
+        <ControlTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsPaneOpen, RelativeSource={RelativeSource AncestorType={x:Type ui:NavigationView}}}" Value="False">
+                <Setter TargetName="NavigationItemBorder" Property="Width" Value="40" />
+                <Setter TargetName="NavigationItemBorder" Property="HorizontalAlignment" Value="Center" />
+                <Setter TargetName="NavigationItemLabel" Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+            <Trigger Property="IsActive" Value="True">
+                <Setter TargetName="NavigationItemBorder" Property="Background" Value="{DynamicResource NavigationViewItemBackgroundSelected}" />
+                <Setter TargetName="NavigationItemIndicator" Property="Opacity" Value="1" />
+                <Setter TargetName="NavigationItemLabel" Property="TextElement.Foreground" Value="{DynamicResource NavigationViewItemForeground}" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="NavigationItemBorder" Property="Background" Value="{DynamicResource NavigationViewItemBackgroundPointerOver}" />
+                <Setter TargetName="NavigationItemIcon" Property="TextElement.Foreground" Value="{DynamicResource NavigationViewItemForegroundPointerOver}" />
+                <Setter TargetName="NavigationItemLabel" Property="TextElement.Foreground" Value="{DynamicResource NavigationViewItemForegroundPointerOver}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="NavigationItemBorder" Property="Background" Value="{DynamicResource NavigationViewItemBackgroundPressed}" />
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
     <SolidColorBrush x:Key="StoreBrush_01000000" Color="#01000000" />
     <SolidColorBrush x:Key="StoreBrush_0A000000" Color="#0A000000" />
     <SolidColorBrush x:Key="StoreBrush_0AFFFFFF" Color="#0AFFFFFF" />

@@ -178,6 +178,8 @@ public sealed class InstalledPackagesService
 {
     private static readonly TimeSpan ComTimeout = TimeSpan.FromSeconds(30);
     private readonly WingetBootstrapper _bootstrapper;
+    private readonly object _comListSync = new();
+    private Task<IReadOnlyList<InstalledPackage>>? _comListTask;
 
     public InstalledPackagesService(WingetBootstrapper bootstrapper)
     {
@@ -209,7 +211,7 @@ public sealed class InstalledPackagesService
         {
             try
             {
-                var comTask = Task.Run(ListCom, cancellationToken);
+                var comTask = GetOrStartComListTask();
                 var completed = await Task.WhenAny(comTask, Task.Delay(ComTimeout, cancellationToken));
                 if (completed == comTask)
                 {
@@ -245,6 +247,7 @@ public sealed class InstalledPackagesService
                 }
                 else
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     // Timeout de listagem não invalida a ativação da COM.
                     WinProvisionLog.Write("INSTALLED LIST FALLBACK motivo=COM timeout (COM segue ativa)");
                 }
@@ -267,6 +270,27 @@ public sealed class InstalledPackagesService
         }
 
         return MergeWithArpEntries(await ListCliIncludingMsStoreAsync(cancellationToken));
+    }
+
+    private Task<IReadOnlyList<InstalledPackage>> GetOrStartComListTask()
+    {
+        lock (_comListSync)
+        {
+            // A chamada WinRT não aceita cancelamento. Se ela exceder o timeout,
+            // reutilize a mesma operação em recargas concorrentes em vez de deixar
+            // vários scans COM presos em segundo plano.
+            if (_comListTask is null || _comListTask.IsCompleted)
+            {
+                _comListTask = Task.Run(ListCom);
+                _ = _comListTask.ContinueWith(
+                    task => _ = task.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
+
+            return _comListTask;
+        }
     }
 
     private static IReadOnlyList<InstalledPackage> MergeWithArpEntries(IEnumerable<InstalledPackage> packages)

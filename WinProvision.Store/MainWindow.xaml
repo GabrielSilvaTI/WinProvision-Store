@@ -1,4 +1,4 @@
-<ui:FluentWindow x:Class="WinProvision.Store.MainWindow"
+﻿<ui:FluentWindow x:Class="WinProvision.Store.MainWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -13,6 +13,7 @@
                  WindowStartupLocation="CenterScreen"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
+                 WindowCornerPreference="Default"
                  Background="{DynamicResource AppWindowBackgroundBrush}"
                  FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
                  TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
@@ -24,200 +25,158 @@
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
 
-    <ui:FluentWindow.Resources>
-        <!--
-            Camadas da janela: Mica no backdrop nativo, Mica Alt na moldura/rail
-            e Acrylic opaco nas superfícies elevadas, como na referência visual.
-        -->
-        <SolidColorBrush x:Key="MicaWindowBrush" Color="#FF202020" />
-        <SolidColorBrush x:Key="MicaAltSurfaceBrush" Color="#FF252525" />
-        <SolidColorBrush x:Key="AcrylicSurfaceBrush" Color="#FF303030" />
-        <SolidColorBrush x:Key="AcrylicSurfaceHoverBrush" Color="#FF3B3B3B" />
-        <SolidColorBrush x:Key="WindowDividerBrush" Color="#FF454545" />
-
-        <Style TargetType="ui:NavigationViewItem">
-            <Setter Property="MinHeight" Value="42" />
-            <Setter Property="Margin" Value="4,2" />
-            <Setter Property="Padding" Value="12,0" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-    </ui:FluentWindow.Resources>
-
     <Grid Background="{DynamicResource AppWindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0"
-              Panel.ZIndex="2"
-              Background="{DynamicResource AppWindowBackgroundBrush}">
-            <ui:TitleBar Title=" "
-                         Height="48"
-                         Background="{DynamicResource AppWindowBackgroundBrush}"
-                         BorderBrush="{DynamicResource AppBorderBrush}"
-                         BorderThickness="0,0,0,1"
-                         Icon="pack://application:,,,/Assets/app.ico">
-                <ui:TitleBar.TrailingContent>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
-                        <ui:Button x:Name="QueueToggleButton"
-                                   Style="{StaticResource SmoothControlTransitionStyle}"
-                                   Appearance="Transparent"
-                                   Padding="8"
-                                   VerticalAlignment="Center"
-                                   ToolTip="Fila de operações"
-                                   Click="QueueToggleButton_Click">
-                            <Grid>
-                                <ui:SymbolIcon Symbol="ArrowDownload24" />
-                                <Border x:Name="QueueBadge"
-                                        Width="16"
-                                        Height="16"
-                                        CornerRadius="{StaticResource OverlayCornerRadius}"
-                                        Background="{DynamicResource AccentFillColorDefaultBrush}"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Top"
-                                        Margin="0,-6,-8,0"
-                                        Visibility="Collapsed">
-                                    <TextBlock x:Name="QueueBadgeText"
-                                               Text="0"
-                                               FontSize="9"
-                                               FontWeight="Bold"
-                                               Foreground="White"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center" />
-                                </Border>
-                            </Grid>
-                        </ui:Button>
+        <ui:TitleBar x:Name="AppTitleBar"
+                     Grid.Row="0"
+                     Title="WinProvision Store"
+                     Height="48"
+                     Background="{DynamicResource AppWindowBackgroundBrush}"
+                     BorderBrush="{DynamicResource AppBorderBrush}"
+                     BorderThickness="0,0,0,1"
+                     CloseWindowByDoubleClickOnIcon="True">
+            <ui:TitleBar.Icon>
+                <ui:ImageIcon Source="pack://application:,,,/Assets/app_icon_256.png" />
+            </ui:TitleBar.Icon>
+            <ui:TitleBar.TrailingContent>
+                <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                    <ui:Button x:Name="QueueToggleButton"
+                               Appearance="Transparent"
+                               MinWidth="40"
+                               MinHeight="40"
+                               Padding="8"
+                               VerticalAlignment="Center"
+                               ToolTip="Fila de operações"
+                               AutomationProperties.Name="Abrir fila de operações"
+                               Click="QueueToggleButton_Click">
+                        <Grid>
+                            <ui:SymbolIcon Symbol="ArrowDownload24" />
+                            <Border x:Name="QueueBadge"
+                                    Width="16"
+                                    Height="16"
+                                    CornerRadius="{StaticResource ControlCornerRadius}"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Margin="0,-6,-8,0"
+                                    Visibility="Collapsed">
+                                <TextBlock x:Name="QueueBadgeText"
+                                           Text="0"
+                                           FontSize="9"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                        </Grid>
+                    </ui:Button>
+                </StackPanel>
+            </ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
 
-                    </StackPanel>
-                </ui:TitleBar.TrailingContent>
-            </ui:TitleBar>
+        <ui:NavigationView x:Name="RootNavigation"
+                           Grid.Row="1"
+                           Transition="FadeInWithSlide"
+                           TransitionDuration="220"
+                           PaneDisplayMode="Left"
+                           IsPaneOpen="True"
+                           ItemTemplate="{StaticResource StoreNavigationViewItemTemplate}"
+                           OpenPaneLength="240"
+                           CompactPaneLength="64"
+                           IsPaneToggleVisible="True"
+                           IsBackButtonVisible="Collapsed"
+                           Background="Transparent"
+                           BorderThickness="0"
+                           BorderBrush="Transparent"
+                           IsTopSeparatorVisible="False"
+                           IsFooterSeparatorVisible="False">
 
-            <StackPanel x:Name="CustomAppTitle"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Left"
-                        Margin="16,0,0,0"
-                        IsHitTestVisible="False">
-                <Image Source="pack://application:,,,/Assets/app_icon_256.png"
-                       Width="24"
-                       Height="24"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0"
-                       RenderOptions.BitmapScalingMode="Fant"
-                       SnapsToDevicePixels="True"
-                       UseLayoutRounding="True" />
-                <TextBlock Text="WinProvision Store"
-                           VerticalAlignment="Center"
-                           FontSize="14"
-                           FontWeight="SemiBold"
-                           FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
-                           TextOptions.TextFormattingMode="Ideal"
-                           TextOptions.TextRenderingMode="ClearType"
-                           RenderOptions.ClearTypeHint="Enabled"
-                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-            </StackPanel>
-        </Grid>
+            <!--  Itens principais de navegação.  -->
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Descobrir"
+                                       TargetPageType="{x:Type local:HomePage}"
+                                       ToolTip="Descobrir aplicativos">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Home24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-        <Border Grid.Row="1"
-                Margin="0"
-                Background="{DynamicResource AppWindowBackgroundBrush}"
-                BorderBrush="{DynamicResource AppBorderBrush}"
-                BorderThickness="0">
-            <ui:NavigationView x:Name="RootNavigation"
-                               Transition="FadeInWithSlide"
-                               TransitionDuration="220"
-                               PaneDisplayMode="Left"
-                               IsPaneOpen="True"
-                               OpenPaneLength="240"
-                               CompactPaneLength="64"
-                               IsPaneToggleVisible="True"
-                               IsBackButtonVisible="Collapsed"
-                               Background="Transparent"
-                               BorderThickness="0"
-                               BorderBrush="Transparent"
-                               IsTopSeparatorVisible="False"
-                               IsFooterSeparatorVisible="False">
-                <ui:NavigationView.Resources>
-                    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush" Color="Transparent" />
-                    <SolidColorBrush x:Key="ControlStrokeColorSecondaryBrush" Color="Transparent" />
-                    <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="Transparent" />
-                    <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
-                    <SolidColorBrush x:Key="NavigationViewItemBackground" Color="Transparent" />
-                    <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#FF353535" />
-                    <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#3A0078D4" />
-                    <SolidColorBrush x:Key="NavigationViewItemForeground" Color="#F5F7FA" />
-                    <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#FF0078D4" />
-                </ui:NavigationView.Resources>
+                <ui:NavigationViewItem Content="Atualizações"
+                                       TargetPageType="{x:Type local:UpdatesPage}"
+                                       ToolTip="Verificar e instalar atualizações">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="ArrowSync24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                <!--  Itens Principais do Menu  -->
-                <ui:NavigationView.MenuItems>
-                    <ui:NavigationViewItem Content="Descobrir" TargetPageType="{x:Type local:HomePage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Grid24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Instalados"
+                                       TargetPageType="{x:Type local:InstalledPackagesPage}"
+                                       ToolTip="Gerenciar aplicativos instalados">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Box24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                    <ui:NavigationViewItem Content="Atualizações" TargetPageType="{x:Type local:UpdatesPage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="ArrowSync24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Coleções"
+                                       TargetPageType="{x:Type local:PackagesPage}"
+                                       ToolTip="Gerenciar coleções de pacotes">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Apps24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                    <ui:NavigationViewItem Content="Instalados" TargetPageType="{x:Type local:InstalledPackagesPage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Box24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Office"
+                                       TargetPageType="{x:Type local:OfficePage}"
+                                       ToolTip="Gerenciar Microsoft Office">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="DocumentText24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                    <ui:NavigationViewItem Content="Coleções" TargetPageType="{x:Type local:PackagesPage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Apps24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Provisionamento"
+                                       TargetPageType="{x:Type local:ProvisioningPage}"
+                                       ToolTip="Configurar o provisionamento do Windows">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Desktop24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                    <ui:NavigationViewItem Content="Office" TargetPageType="{x:Type local:OfficePage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="DocumentText24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
 
-                    <ui:NavigationViewItem Content="Provisionamento" TargetPageType="{x:Type local:ProvisioningPage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Desktop24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
-                </ui:NavigationView.MenuItems>
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Conta &amp; Sincronização"
+                                       TargetPageType="{x:Type local:AccountSyncPage}"
+                                       ToolTip="Conta e sincronização">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Person24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                <!--  Itens do Rodapé  -->
-                <ui:NavigationView.FooterMenuItems>
-                    <ui:NavigationViewItem Content="Conta &amp; Sincronização" TargetPageType="{x:Type local:AccountSyncPage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Person24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Configurações"
+                                       TargetPageType="{x:Type local:SettingsPage}"
+                                       ToolTip="Configurações do aplicativo">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="Settings24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                    <ui:NavigationViewItem Content="Configurações" TargetPageType="{x:Type local:SettingsPage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="Settings24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Mais"
+                                       TargetPageType="{x:Type local:MorePage}"
+                                       ToolTip="Mais ferramentas e informações">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:SymbolIcon Symbol="MoreHorizontal24" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
 
-                    <ui:NavigationViewItem Content="Mais" TargetPageType="{x:Type local:MorePage}">
-                        <ui:NavigationViewItem.Icon>
-                            <ui:SymbolIcon Symbol="MoreHorizontal24" />
-                        </ui:NavigationViewItem.Icon>
-                    </ui:NavigationViewItem>
+            </ui:NavigationView.FooterMenuItems>
 
-                </ui:NavigationView.FooterMenuItems>
+        </ui:NavigationView>
 
-            </ui:NavigationView>
-        </Border>
-
+        <!--  Overlays irmãos preservam o painel de navegação sem cobrir a lista de destinos.  -->
         <controls:OperationsQueuePanel x:Name="QueuePanel"
                                        Grid.Row="1"
                                        MaxHeight="290"
@@ -235,17 +194,23 @@
             </controls:OperationsQueuePanel.Style>
         </controls:OperationsQueuePanel>
 
-        <!--
-            Overlay de Detalhes do pacote: fica por cima de TUDO (TitleBar +
-            NavigationView, daí o RowSpan="2") porque é declarado por último no Grid -
-            no WPF, entre irmãos do mesmo painel, quem vem depois no XAML desenha por
-            cima. Content é atribuído em code-behind (ver MainWindow.xaml.cs) porque o
-            AppDetailsOverlay é resolvido via injeção de dependência, não instanciado
-            direto aqui, integrado ao fluxo visual da janela principal.
-        -->
+        <ui:SnackbarPresenter x:Name="MainSnackbarPresenter"
+                              Grid.Row="1"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Top"
+                              Margin="0,16,20,0"
+                              MaxWidth="420"
+                              Panel.ZIndex="20" />
+
+        <ui:ContentDialogHost x:Name="RootContentDialog"
+                              Grid.RowSpan="2"
+                              Panel.ZIndex="30" />
+
+        <!--  O overlay de detalhes ocupa a janela inteira para manter foco na ação atual.  -->
         <ContentControl x:Name="DetailsOverlayHost"
                         Grid.Row="0"
                         Grid.RowSpan="2"
-                        Focusable="False" />
+                        Focusable="False"
+                        Panel.ZIndex="40" />
     </Grid>
 </ui:FluentWindow>

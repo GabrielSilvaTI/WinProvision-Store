@@ -4,11 +4,11 @@
   "products": [
     {
       "productId": "O365HomePremRetail",
-      "displayName": "Microsoft 365 Family / Personal",
+      "displayName": "Microsoft 365 Family",
       "category": "Personal",
       "channel": "Current",
       "isVolumeLicensed": false,
-      "description": "Plano de assinatura pessoal. A oferta comercial da Microsoft Store permanece registrada separadamente em storeOffers.",
+      "description": "Configuração Microsoft 365 para uso pessoal e familiar; a assinatura e os recursos dependem da conta Microsoft.",
       "iconUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/icon-a367a013f8.jpg",
       "bannerUrl": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/MsStore_Assets/CFQ7TTC0K5DM/banner-621d10f640.jpg",
       "screenshots": [

@@ -118,7 +118,9 @@ public partial class AppDetailsOverlay : UserControl
             ? "Nenhuma descrição disponível."
             : app.Description;
 
-        _screenshots = app.StoreScreenshotUrls?
+        _screenshots = (app.StoreScreenshotUrls is { Count: > 0 }
+                ? app.StoreScreenshotUrls
+                : app.ScreenshotUrls)?
             .Where(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(12)
