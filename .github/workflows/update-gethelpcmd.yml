@@ -1,4 +1,4 @@
-name: Atualizar GetHelpCmd no R2
+name: "Manutenção | Atualizar GetHelpCmd no R2"
 
 on:
   schedule:

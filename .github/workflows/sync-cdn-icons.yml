@@ -1,4 +1,4 @@
-name: Sync icons (CDN winget -> R2)
+name: "Mídia | Sincronizar ícones (reserva GitHub)"
 
 # Baixa da CDN oficial do winget os ícones que faltam no R2 (Store/Icon_Database/)
 # e sobe os arquivos originais como <PackageIdentifier em minúsculas>.<ext>.

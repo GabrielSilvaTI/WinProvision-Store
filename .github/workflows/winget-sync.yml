@@ -1,4 +1,4 @@
-name: winget-sync
+name: "Catálogo | WinGet (reserva GitHub)"
 
 on:
   schedule:

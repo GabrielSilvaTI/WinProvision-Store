@@ -1,4 +1,4 @@
-name: Build e publicação do EXE (WinProvision.Store)
+name: "Aplicativo | Build e publicação do EXE"
 
 on:
   push:

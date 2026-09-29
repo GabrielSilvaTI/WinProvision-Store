@@ -1,4 +1,4 @@
-name: Sincronizar Microsoft Store e Office no R2
+name: "Catálogo | Microsoft Store e Office (reserva GitHub)"
 
 on:
   schedule:

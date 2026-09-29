@@ -1,4 +1,4 @@
-name: Sync icon manifest (R2 -> icon-manifest.json)
+name: "Mídia | Publicar manifesto de ícones (reserva GitHub)"
 
 # Gera o icon-manifest.json a partir dos objetos em Store/Icon_Database/ e
 # devolve o arquivo pro R2. Disparado pelo sync-cdn-icons.yml quando sobem

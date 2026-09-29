@@ -33,9 +33,6 @@ jobs:
             /tmp/ci-venv/bin/python scripts/database/r2_download.py \
               Store/Database/msstore-catalog.json \
               "$PWD/msstore-output/msstore-catalog.previous.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Office/Database/office-assets-map.json \
-              "$PWD/office-output/office-assets-map.json"
       - restore_cache:
           keys:
             - nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
@@ -65,18 +62,6 @@ jobs:
               --map "$PWD/msstore-output/msstore-assets-map.json" \
               --previous "$PWD/msstore-output/msstore-catalog.previous.json"
       - run:
-          name: Armazenar imagens das ofertas Office no R2
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/sync_office_assets.py \
-              data/office/catalog.json \
-              --map "$PWD/office-output/office-assets-map.json" \
-              --public-base "$R2_PUBLIC_BASE" \
-              --market BR \
-              --language pt-BR
-      - run:
-          name: Validar catálogo Office
-          command: /tmp/ci-venv/bin/python scripts/database/validate_office_catalog.py data/office/catalog.json
-      - run:
           name: Publicar catálogo e assets da Microsoft Store no R2
           command: |
             /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
@@ -85,18 +70,9 @@ jobs:
             /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
               "$PWD/msstore-output/msstore-catalog.json" \
               Store/Database/msstore-catalog.json
-      - run:
-          name: Publicar catálogo e assets Office no R2
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/office-output/office-assets-map.json" \
-              Office/Database/office-assets-map.json
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              data/office/catalog.json \
-              Office/Database/catalog.json
 
 workflows:
-  microsoft_store_catalog_manual:
+  microsoft_store_catalog:
     when: << pipeline.parameters.run_msstore_catalog >>
     jobs:
       - sync_msstore_catalog:

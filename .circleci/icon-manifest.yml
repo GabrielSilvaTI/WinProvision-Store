@@ -1,0 +1,38 @@
+version: 2.1
+
+parameters:
+  run_icon_manifest:
+    type: boolean
+    default: false
+
+jobs:
+  publish_icon_manifest:
+    docker:
+      - image: cimg/python:3.12
+    working_directory: ~/project
+    resource_class: medium
+    environment:
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+    steps:
+      - checkout
+      - run:
+          name: Instalar dependências do manifesto
+          command: python3 -m pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - run:
+          name: Gerar e publicar manifesto dos ícones
+          command: |
+            python3 scripts/icons/build_manifest_from_r2.py
+            python3 scripts/icons/upload_manifest_ci.py
+      - store_artifacts:
+          path: icon-manifest.json
+          destination: icon-manifest.json
+
+workflows:
+  icon_manifest:
+    when: << pipeline.parameters.run_icon_manifest >>
+    jobs:
+      - publish_icon_manifest:
+          context: r2-publishing
+          filters:
+            branches:
+              only: main

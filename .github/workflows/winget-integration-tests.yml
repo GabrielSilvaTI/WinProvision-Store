@@ -1,4 +1,4 @@
-name: Testes de integração com o WinGet CLI
+name: "Qualidade | Integração com o WinGet CLI"
 
 on:
   # Roda toda semana, não a cada commit: o catálogo do winget muda com o tempo (o

@@ -1,4 +1,4 @@
-name: Formatar XAML (abre PR)
+name: "Qualidade | Formatar XAML (abre PR)"
 
 # Manual. Roda o XAML Styler, confere o resultado e abre um pull request com as
 # mudanças. Nunca commita na main: o diff é revisado antes de ser aceito.

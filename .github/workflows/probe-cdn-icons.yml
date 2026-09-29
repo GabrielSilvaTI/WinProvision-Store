@@ -1,4 +1,4 @@
-name: Probe CDN icons
+name: "Mídia | Diagnóstico da CDN de ícones"
 
 # Teste de cobertura: mede quantos apps do catálogo têm ícone na CDN oficial do
 # winget. Somente leitura: não usa secrets e não escreve no R2.

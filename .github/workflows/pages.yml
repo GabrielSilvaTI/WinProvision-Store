@@ -1,4 +1,4 @@
-name: Deploy GitHub Pages
+name: "Aplicativo | Publicar GitHub Pages"
 
 # Só roda quando disparado manualmente. Sem "on: push": trocar a origem do
 # Pages em Settings > Pages para "GitHub Actions" (em vez de "Deploy from a

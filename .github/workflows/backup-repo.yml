@@ -1,4 +1,4 @@
-name: Backup do repositório (git bundle -> R2 privado)
+name: "Manutenção | Backup do repositório"
 
 on:
   push:

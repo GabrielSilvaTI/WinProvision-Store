@@ -1,4 +1,4 @@
-name: Lint
+name: "Qualidade | Lint"
 
 # Confere o estilo do C# (dotnet format), do XAML (XAML Styler), do Python
 # (ruff) e dos workflows (actionlint). Só lê o repositório, não publica nada.

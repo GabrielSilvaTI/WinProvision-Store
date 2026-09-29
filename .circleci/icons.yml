@@ -1,0 +1,44 @@
+version: 2.1
+
+parameters:
+  run_icon_sync:
+    type: boolean
+    default: false
+  publish_icons:
+    type: boolean
+    default: false
+
+jobs:
+  sync_icons:
+    docker:
+      - image: cimg/python:3.12
+    working_directory: ~/project
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Instalar dependências dos ícones
+          command: python3 -m pip install --disable-pip-version-check -r scripts/requirements/icons.txt
+      - run:
+          name: Sincronizar ícones CDN do WinGet com o R2
+          command: |
+            args=(--out sync-out --max-probes 0 --recheck-days 30)
+            if [ "<< pipeline.parameters.publish_icons >>" != "true" ]; then
+              args+=(--dry-run)
+            fi
+            python3 scripts/icons/sync_cdn_icons.py "${args[@]}"
+          no_output_timeout: 30m
+      - store_artifacts:
+          path: sync-out
+          destination: icon-sync
+
+
+workflows:
+  icon_sync:
+    when: << pipeline.parameters.run_icon_sync >>
+    jobs:
+      - sync_icons:
+          context: r2-publishing
+          filters:
+            branches:
+              only: main
