@@ -1,0 +1,104 @@
+version: 2.1
+
+parameters:
+  run_msstore_catalog:
+    type: boolean
+    default: false
+
+jobs:
+  sync_msstore_catalog:
+    docker:
+      - image: mcr.microsoft.com/dotnet/sdk:10.0-noble
+    working_directory: ~/project
+    resource_class: medium
+    environment:
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+    steps:
+      - checkout
+      - run:
+          name: Preparar Python
+          command: |
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-pip python3-venv
+            python3 -m venv /tmp/ci-venv
+            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/msstore.txt
+      - run:
+          name: Restaurar caches e catálogo anterior do R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
+              Store/Database/msstore-assets-map.json \
+              "$PWD/msstore-output/msstore-assets-map.json"
+            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
+              Store/Database/msstore-catalog.json \
+              "$PWD/msstore-output/msstore-catalog.previous.json"
+            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
+              Office/Database/office-assets-map.json \
+              "$PWD/office-output/office-assets-map.json"
+      - restore_cache:
+          keys:
+            - nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
+            - nuget-v1-
+      - run:
+          name: Gerar catálogo da Microsoft Store
+          command: dotnet run --project src/WinProvision.Indexer -c Release -- --msstore "$PWD/msstore-output"
+          no_output_timeout: 45m
+      - save_cache:
+          key: nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
+          paths:
+            - /root/.nuget/packages
+      - run:
+          name: Validar catálogo da Microsoft Store
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
+              "$PWD/msstore-output/msstore-catalog.json" \
+              --previous "$PWD/msstore-output/msstore-catalog.previous.json" \
+              --min-count 20 \
+              --min-retention 0.50 \
+              --expected-source msstore
+      - run:
+          name: Armazenar imagens da Microsoft Store no R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/sync_msstore_assets.py \
+              "$PWD/msstore-output/msstore-catalog.json" \
+              --map "$PWD/msstore-output/msstore-assets-map.json" \
+              --previous "$PWD/msstore-output/msstore-catalog.previous.json"
+      - run:
+          name: Armazenar imagens das ofertas Office no R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/sync_office_assets.py \
+              data/office/catalog.json \
+              --map "$PWD/office-output/office-assets-map.json" \
+              --public-base "$R2_PUBLIC_BASE" \
+              --market BR \
+              --language pt-BR
+      - run:
+          name: Validar catálogo Office
+          command: /tmp/ci-venv/bin/python scripts/database/validate_office_catalog.py data/office/catalog.json
+      - run:
+          name: Publicar catálogo e assets da Microsoft Store no R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              "$PWD/msstore-output/msstore-assets-map.json" \
+              Store/Database/msstore-assets-map.json
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              "$PWD/msstore-output/msstore-catalog.json" \
+              Store/Database/msstore-catalog.json
+      - run:
+          name: Publicar catálogo e assets Office no R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              "$PWD/office-output/office-assets-map.json" \
+              Office/Database/office-assets-map.json
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              data/office/catalog.json \
+              Office/Database/catalog.json
+
+workflows:
+  microsoft_store_catalog_manual:
+    when: << pipeline.parameters.run_msstore_catalog >>
+    jobs:
+      - sync_msstore_catalog:
+          context: r2-publishing
+          filters:
+            branches:
+              only: main
