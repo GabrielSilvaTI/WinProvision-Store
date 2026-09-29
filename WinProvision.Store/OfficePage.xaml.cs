@@ -647,6 +647,7 @@ public partial class OfficePage : Page
             CloseButtonText = "Cancelar"
         };
 
+        StoreDialogStyles.Apply(confirmDialog);
         var confirm = await confirmDialog.ShowDialogAsync();
 
         if (confirm != Wpf.Ui.Controls.MessageBoxResult.Primary)

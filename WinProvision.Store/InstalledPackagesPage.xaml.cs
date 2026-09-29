@@ -249,6 +249,7 @@ public partial class InstalledPackagesPage : Page
             Content = "WinProvision Store utiliza mecanismos nativos de desinstalação:\n\n• Desinstalação silenciosa de pacotes WinGet e MSIX\n• Fallback automático para comandos locais do Registro do Windows (ARP)\n• Remoção completa de pacotes Office C2R via ODT",
             CloseButtonText = "OK"
         };
+        StoreDialogStyles.Apply(dialog);
         await dialog.ShowDialogAsync();
     }
 
@@ -281,6 +282,7 @@ public partial class InstalledPackagesPage : Page
             CloseButtonText = "Cancelar"
         };
 
+        StoreDialogStyles.Apply(dialog);
         _ = dialog.ShowDialogAsync().ContinueWith(t =>
         {
             Dispatcher.Invoke(() =>

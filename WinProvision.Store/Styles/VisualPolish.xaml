@@ -97,7 +97,8 @@
         branca sempre) que sofreria exatamente do mesmo problema já corrigido pro texto
         (sumiria no tema Claro, ver comentário no Style de TextBlock).
     -->
-    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+    <Style TargetType="ui:Button"
+           BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="CornerRadius" Value="{DynamicResource StorePillCornerRadius}" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="Padding" Value="12,6" />

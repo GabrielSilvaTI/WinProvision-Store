@@ -246,6 +246,26 @@ public sealed class WinGetService
                 return await _wingetExecutor.InstallAppAsync(packageId, onLogReceived, cancellationToken,
                     installLocation, source).ConfigureAwait(false);
             case PackageInstallMethod.WinProvisionApi:
+                // A API própria só instala pacotes publicados no catálogo WinProvision.
+                // IDs da Microsoft Store (9.../Store Product ID) podem não existir nele;
+                // para essa origem, encaminhe diretamente ao cliente oficial da Store via
+                // WinGet. Isso também mantém a escolha do método previsível sem transformar
+                // PackageNotFound em uma falha terminal.
+                if (string.Equals(source, "msstore", StringComparison.OrdinalIgnoreCase))
+                {
+                    onLogReceived?.Invoke(
+                        "Este pacote pertence à Microsoft Store; usando o WinGet com a origem msstore.");
+                    onProgress?.Invoke(new InstallProgressUpdate(
+                        InstallProgressPhase.Preparing,
+                        Method: WingetMethod.WingetExe));
+                    return await _wingetExecutor.InstallAppAsync(
+                        packageId,
+                        onLogReceived,
+                        cancellationToken,
+                        installLocation,
+                        source: "msstore").ConfigureAwait(false);
+                }
+
                 onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.OwnApi));
                 try
                 {
@@ -1088,7 +1108,11 @@ public sealed class WinGetService
         }
 
         var installOptions = WinGetFactoryHelper.CreateInstallOptions();
-        installOptions.PackageInstallMode = PackageInstallMode.Silent;
+        // Microsoft Store packages may require Store UI/consent and don't behave like
+        // conventional silent installers. Preserve silent mode for WinGet manifests.
+        installOptions.PackageInstallMode = string.Equals(source, "msstore", StringComparison.OrdinalIgnoreCase)
+            ? PackageInstallMode.Interactive
+            : PackageInstallMode.Silent;
         installOptions.AcceptPackageAgreements = true;
         installOptions.PreferredInstallLocation = installLocation;
 

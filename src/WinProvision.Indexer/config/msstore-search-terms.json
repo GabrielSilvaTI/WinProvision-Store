@@ -7,5 +7,16 @@
   "Paint", "PDF", "Photos", "PowerToys", "Prime Video", "Reddit", "Remote Desktop",
   "Spotify", "Steam", "Telegram", "Terminal", "TikTok", "Translator", "Twitch",
   "Twitter", "VLC", "VPN", "Visual Studio Code", "Weather", "WhatsApp", "Xbox",
-  "YouTube", "Zoom"
+  "YouTube", "Zoom",
+
+  "aplicativo", "apps", "software", "produtividade", "desenvolvimento", "utilitários",
+  "multimídia", "segurança", "educação", "finanças", "comunicação", "personalização",
+  "foto", "vídeo", "música", "jogos", "navegador", "mensagens", "streaming",
+  "productivity", "development", "utilities", "multimedia", "security", "education",
+  "finance", "communication", "personalization", "photo", "video", "music", "games",
+  "browser", "messaging", "streaming", "free", "gratuito",
+
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+  "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+  "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"
 ]

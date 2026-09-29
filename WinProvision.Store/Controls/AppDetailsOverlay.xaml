@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="WinProvision.Store.Controls.AppDetailsOverlay"
+<UserControl x:Class="WinProvision.Store.Controls.AppDetailsOverlay"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -61,13 +61,13 @@
         </Style>
     </UserControl.Resources>
 
-    <!--  Scrim cobrindo a janela inteira  -->
+    <!-- Scrim cobrindo a janela inteira -->
     <Grid x:Name="Scrim"
           Background="#99000000"
           Opacity="0"
           MouseLeftButtonUp="Scrim_MouseLeftButtonUp">
 
-        <!--  Painel de detalhes do WinProvision Store  -->
+        <!-- Painel de detalhes do WinProvision Store -->
         <Border x:Name="Card"
                 Background="{DynamicResource ApplicationBackgroundBrush}"
                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
@@ -86,10 +86,7 @@
                 <TranslateTransform x:Name="CardTransform" Y="12" />
             </Border.RenderTransform>
             <Border.Effect>
-                <DropShadowEffect Color="#000000"
-                                  Opacity="0.5"
-                                  BlurRadius="40"
-                                  ShadowDepth="0" />
+                <DropShadowEffect Color="#000000" Opacity="0.5" BlurRadius="40" ShadowDepth="0" />
             </Border.Effect>
 
             <Grid>
@@ -99,7 +96,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!--  ── Top bar: título do diálogo + botão fechar ──  -->
+                <!-- ── Top bar: título do diálogo + botão fechar ── -->
                 <Grid Grid.Row="0" Margin="22,14,16,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -116,25 +113,22 @@
                     <ui:Button Grid.Column="1"
                                x:Name="CloseButton"
                                Appearance="Transparent"
-                               Width="32"
-                               Height="32"
+                               Width="32" Height="32"
                                Padding="0"
                                ToolTip="Fechar (Esc)"
                                Click="CloseButton_Click">
-                        <ui:SymbolIcon Symbol="Dismiss16"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <ui:SymbolIcon Symbol="Dismiss16" FontSize="14" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </ui:Button>
                 </Grid>
 
-                <!--  Barra de carregamento superior enquanto busca os dados estendidos  -->
+                <!-- Barra de carregamento superior enquanto busca os dados estendidos -->
                 <ProgressBar Grid.Row="1"
                              x:Name="LoadingProgressBar"
                              IsIndeterminate="True"
                              Height="2"
                              Visibility="Collapsed" />
 
-                <!--  ── Conteúdo rolável em duas colunas ──  -->
+                <!-- ── Conteúdo rolável em duas colunas ── -->
                 <ScrollViewer Grid.Row="2"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
@@ -146,20 +140,19 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
 
-                        <!--  ═══════════════════ COLUNA ESQUERDA ═══════════════════  -->
+                        <!-- ═══════════════════ COLUNA ESQUERDA ═══════════════════ -->
                         <StackPanel Grid.Column="0">
 
-                            <!--  Cabeçalho: Ícone + Título + Gerenciador de Pacotes  -->
+                            <!-- Cabeçalho: Ícone + Título + Gerenciador de Pacotes -->
                             <Grid Margin="0,0,0,16">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <!--  Ícone do pacote  -->
+                                <!-- Ícone do pacote -->
                                 <Border Grid.Column="0"
-                                        Width="68"
-                                        Height="68"
+                                        Width="68" Height="68"
                                         CornerRadius="16"
                                         Background="{DynamicResource AppSurfaceBrush}"
                                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
@@ -167,15 +160,12 @@
                                         Margin="0,0,16,0"
                                         ClipToBounds="True">
                                     <Grid>
-                                        <ui:SymbolIcon Symbol="Box24"
-                                                       FontSize="36"
+                                        <ui:SymbolIcon Symbol="Box24" FontSize="36"
                                                        Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                       HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                        Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=AppIcon, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                                         <Image x:Name="AppIcon"
-                                               Width="56"
-                                               Height="56"
+                                               Width="56" Height="56"
                                                Stretch="Uniform"
                                                Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=AppIcon, Converter={StaticResource BoolToVisibilityConverter}}" />
                                     </Grid>
@@ -195,7 +185,7 @@
                                 </StackPanel>
                             </Grid>
 
-                            <!--  Tags do pacote  -->
+                            <!-- Tags do pacote -->
                             <ItemsControl x:Name="TagsList" Margin="0,0,0,14">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -217,7 +207,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <!--  Descrição direta sem bordas de cartão pesadas  -->
+                            <!-- Descrição direta sem bordas de cartão pesadas -->
                             <TextBlock x:Name="DescriptionText"
                                        TextWrapping="Wrap"
                                        FontSize="13"
@@ -225,7 +215,7 @@
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        Margin="0,0,0,18" />
 
-                            <!--  Comparação de versão (quando atualização disponível)  -->
+                            <!-- Comparação de versão (quando atualização disponível) -->
                             <Border x:Name="UpdateVersionPanel"
                                     Visibility="Collapsed"
                                     Background="{DynamicResource AppSurfaceBrush}"
@@ -241,37 +231,24 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Versão instalada"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        <TextBlock x:Name="CurrentUpdateVersionText"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Margin="0,2,0,0" />
+                                        <TextBlock Text="Versão instalada" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <TextBlock x:Name="CurrentUpdateVersionText" FontSize="14" FontWeight="SemiBold" Margin="0,2,0,0" />
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="1"
-                                                   Symbol="ArrowRight24"
-                                                   FontSize="16"
-                                                   VerticalAlignment="Center"
-                                                   Margin="10,0"
+                                    <ui:SymbolIcon Grid.Column="1" Symbol="ArrowRight24" FontSize="16"
+                                                   VerticalAlignment="Center" Margin="10,0"
                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                     <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Nova versão"
-                                                   FontSize="11"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                        <TextBlock x:Name="AvailableUpdateVersionText"
-                                                   FontSize="14"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                                   Margin="0,2,0,0" />
+                                        <TextBlock Text="Nova versão" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <TextBlock x:Name="AvailableUpdateVersionText" FontSize="14" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}" Margin="0,2,0,0" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
 
-                            <!--  Metadados principais do pacote  -->
+                            <!-- Metadados principais do pacote -->
                             <StackPanel Margin="0,0,0,20">
 
-                                <!--  Página Inicial  -->
+                                <!-- Página Inicial -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Página Inicial:" Style="{StaticResource RowLabelStyle}" />
                                     <ui:HyperlinkButton x:Name="HomepageLink"
@@ -290,24 +267,22 @@
                                                Visibility="Collapsed" />
                                 </WrapPanel>
 
-                                <!--  Desenvolvedor  -->
+                                <!-- Desenvolvedor -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Desenvolvedor:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="DeveloperText" Style="{StaticResource RowValueStyle}" />
                                 </WrapPanel>
 
-                                <!--  Autor  -->
+                                <!-- Autor -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Autor:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="AuthorText" Style="{StaticResource RowValueStyle}" />
                                 </WrapPanel>
 
-                                <!--  Licença  -->
+                                <!-- Licença -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Licença:" Style="{StaticResource RowLabelStyle}" />
-                                    <TextBlock x:Name="LicenseText"
-                                               Style="{StaticResource RowValueStyle}"
-                                               Margin="0,0,6,0" />
+                                    <TextBlock x:Name="LicenseText" Style="{StaticResource RowValueStyle}" Margin="0,0,6,0" />
                                     <ui:HyperlinkButton x:Name="LicenseLink"
                                                         Style="{StaticResource InlineLinkStyle}"
                                                         Click="OpenLink_Click">
@@ -318,13 +293,13 @@
                                     </ui:HyperlinkButton>
                                 </WrapPanel>
 
-                                <!--  Última atualização  -->
+                                <!-- Última atualização -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Última atualização:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="LastUpdatedText" Style="{StaticResource RowValueStyle}" />
                                 </WrapPanel>
 
-                                <!--  Gerenciador de pacotes  -->
+                                <!-- Gerenciador de pacotes -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Gerenciador de pacotes:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="PackageManagerText" Style="{StaticResource RowValueStyle}" />
@@ -332,12 +307,12 @@
 
                             </StackPanel>
 
-                            <!--  Ações do pacote  -->
+                            <!-- Ações do pacote -->
                             <StackPanel Margin="0,0,0,14">
 
                                 <Grid HorizontalAlignment="Left">
 
-                                    <!--  Ação padrão: Instalar (Split Button)  -->
+                                    <!-- Ação padrão: Instalar (Split Button) -->
                                     <Grid x:Name="InstallSplitGroup" Visibility="Visible">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -371,7 +346,7 @@
                                             <ui:SymbolIcon Symbol="ChevronDown16" FontSize="11" />
                                         </ui:Button>
                                     </Grid>
-                                    <!--  Atualizar  -->
+                                    <!-- Atualizar -->
                                     <ui:Button x:Name="UpdateButton"
                                                Content="Atualizar"
                                                Appearance="Primary"
@@ -383,7 +358,7 @@
                                                Visibility="Collapsed"
                                                Click="UpdateButton_Click" />
 
-                                    <!--  Desinstalar e opções para apps já instalados  -->
+                                    <!-- Desinstalar e opções para apps já instalados -->
                                     <Grid x:Name="UninstallSplitGroup" Visibility="Collapsed">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
@@ -414,7 +389,7 @@
                                     </Grid>
                                 </Grid>
 
-                                <!--  Status / feedback inline  -->
+                                <!-- Status / feedback inline -->
                                 <TextBlock x:Name="StatusText"
                                            FontSize="12"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
@@ -422,14 +397,14 @@
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <!--  ── Barra retrátil "Opções de instalação" com botão [ Salvar ] ──  -->
+                            <!-- ── Barra retrátil "Opções de instalação" com botão [ Salvar ] ── -->
                             <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Margin="0,0,0,10">
                                 <StackPanel>
-                                    <!--  Header da barra  -->
+                                    <!-- Header da barra -->
                                     <Grid Margin="12,8"
                                           Cursor="Hand"
                                           MouseLeftButtonUp="OptionsHeader_Click">
@@ -475,13 +450,11 @@
                                                        VerticalAlignment="Center" />
                                     </Grid>
 
-                                    <!--  Corpo expansível  -->
+                                    <!-- Corpo expansível -->
                                     <StackPanel x:Name="OptionsBodyPanel"
                                                 Visibility="Collapsed"
                                                 Margin="14,0,14,14">
-                                        <Rectangle Height="1"
-                                                   Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                                   Margin="0,0,0,10" />
+                                        <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,10" />
 
                                         <CheckBox x:Name="InstallAllUsersCheckBox"
                                                   Content="Instalar para todos os usuários"
@@ -515,9 +488,9 @@
 
                         </StackPanel>
 
-                        <!--  ═══════════════════ COLUNA DIREITA ═══════════════════  -->
+                        <!-- ═══════════════════ COLUNA DIREITA ═══════════════════ -->
                         <StackPanel Grid.Column="2">
-                            <!--  A galeria ocupa o mesmo espaço de mídia dos detalhes do UniGetUI.  -->
+                            <!-- A galeria ocupa o mesmo espaço de mídia dos detalhes do UniGetUI. -->
                             <Border x:Name="ScreenshotsPanel"
                                     Height="220"
                                     Margin="0,0,0,14"
@@ -536,8 +509,7 @@
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                Visibility="Collapsed" />
                                     <ProgressBar x:Name="ScreenshotLoadingBar"
-                                                 Width="54"
-                                                 Height="3"
+                                                 Width="54" Height="3"
                                                  IsIndeterminate="True"
                                                  HorizontalAlignment="Center"
                                                  VerticalAlignment="Center"
@@ -548,8 +520,7 @@
                                            Cursor="Hand"
                                            MouseLeftButtonUp="ScreenshotImage_MouseLeftButtonUp" />
                                     <ui:Button x:Name="PreviousScreenshotButton"
-                                               Width="36"
-                                               Height="36"
+                                               Width="36" Height="36"
                                                Padding="0"
                                                Appearance="Secondary"
                                                HorizontalAlignment="Left"
@@ -560,8 +531,7 @@
                                         <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="18" />
                                     </ui:Button>
                                     <ui:Button x:Name="NextScreenshotButton"
-                                               Width="36"
-                                               Height="36"
+                                               Width="36" Height="36"
                                                Padding="0"
                                                Appearance="Secondary"
                                                HorizontalAlignment="Right"
@@ -571,28 +541,24 @@
                                                Click="NextScreenshotButton_Click">
                                         <ui:SymbolIcon Symbol="ChevronRight24" FontSize="18" />
                                     </ui:Button>
-                                    <Border HorizontalAlignment="Center"
-                                            VerticalAlignment="Bottom"
-                                            Margin="0,0,0,8"
-                                            Padding="8,3"
-                                            CornerRadius="6"
+                                    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                            Margin="0,0,0,8" Padding="8,3" CornerRadius="6"
                                             Background="#CC111820">
                                         <TextBlock x:Name="ScreenshotCounterText"
-                                                   Foreground="White"
-                                                   FontSize="11" />
+                                                   Foreground="White" FontSize="11" />
                                     </Border>
                                 </Grid>
                             </Border>
-                            <!--  Metadados detalhados do pacote  -->
+<!-- Metadados detalhados do pacote -->
                             <StackPanel>
 
-                                <!--  ID do Pacote  -->
+                                <!-- ID do Pacote -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="ID do Pacote:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="PackageIdText" Style="{StaticResource RowValueStyle}" />
                                 </WrapPanel>
 
-                                <!--  Manifesto  -->
+                                <!-- Manifesto -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Manifesto:" Style="{StaticResource RowLabelStyle}" />
                                     <ui:HyperlinkButton x:Name="ManifestLink"
@@ -605,19 +571,19 @@
                                     </ui:HyperlinkButton>
                                 </WrapPanel>
 
-                                <!--  Versão  -->
+                                <!-- Versão -->
                                 <WrapPanel Margin="0,0,0,14">
                                     <TextBlock Text="Versão:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="PackageVersionText" Style="{StaticResource RowValueStyle}" />
                                 </WrapPanel>
 
-                                <!--  Tipo de Instalador  -->
+                                <!-- Tipo de Instalador -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="Tipo de Instalador:" Style="{StaticResource RowLabelStyle}" />
                                     <TextBlock x:Name="InstallerTypeText" Style="{StaticResource RowValueStyle}" />
                                 </WrapPanel>
 
-                                <!--  URL do Instalador  -->
+                                <!-- URL do Instalador -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="URL do Instalador :" Style="{StaticResource RowLabelStyle}" />
                                     <ui:HyperlinkButton x:Name="InstallerUrlLink"
@@ -630,10 +596,8 @@
                                     </ui:HyperlinkButton>
                                 </WrapPanel>
 
-                                <!--  SHA256 do Instalador  -->
-                                <TextBlock Text="SHA256 do Instalador:"
-                                           Style="{StaticResource RowLabelStyle}"
-                                           Margin="0,0,0,2" />
+                                <!-- SHA256 do Instalador -->
+                                <TextBlock Text="SHA256 do Instalador:" Style="{StaticResource RowLabelStyle}" Margin="0,0,0,2" />
                                 <TextBlock x:Name="Sha256Text"
                                            FontFamily="Cascadia Code, Consolas, Courier New"
                                            FontSize="11.5"
@@ -641,7 +605,7 @@
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,4" />
 
-                                <!--  Baixar instalador + tamanho  -->
+                                <!-- Baixar instalador + tamanho -->
                                 <WrapPanel Margin="0,0,0,14">
                                     <ui:HyperlinkButton x:Name="DownloadInstallerLink"
                                                         Style="{StaticResource InlineLinkStyle}"
@@ -658,10 +622,8 @@
                                                VerticalAlignment="Center" />
                                 </WrapPanel>
 
-                                <!--  Dependências  -->
-                                <TextBlock Text="Dependências:"
-                                           Style="{StaticResource RowLabelStyle}"
-                                           Margin="0,0,0,2" />
+                                <!-- Dependências -->
+                                <TextBlock Text="Dependências:" Style="{StaticResource RowLabelStyle}" Margin="0,0,0,2" />
                                 <TextBlock x:Name="DependenciesText"
                                            Text="Nenhuma dependência especificada"
                                            FontSize="13"
@@ -669,10 +631,8 @@
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,14" />
 
-                                <!--  Notas de lançamento  -->
-                                <TextBlock Text="Notas de lançamento:"
-                                           Style="{StaticResource RowLabelStyle}"
-                                           Margin="0,0,0,2" />
+                                <!-- Notas de lançamento -->
+                                <TextBlock Text="Notas de lançamento:" Style="{StaticResource RowLabelStyle}" Margin="0,0,0,2" />
                                 <TextBlock x:Name="ReleaseNotesText"
                                            Text="Não disponível"
                                            FontSize="13"
@@ -680,7 +640,7 @@
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,4" />
 
-                                <!--  URL das notas de lançamento  -->
+                                <!-- URL das notas de lançamento -->
                                 <WrapPanel Margin="0,0,0,4">
                                     <TextBlock Text="URL das notas de lançamento:" Style="{StaticResource RowLabelStyle}" />
                                     <ui:HyperlinkButton x:Name="ReleaseNotesUrlLink"
@@ -709,61 +669,42 @@
             </Grid>
         </Border>
 
-        <!--  Visualização ampliada da captura selecionada.  -->
+        <!-- Visualização ampliada da captura selecionada. -->
         <Grid x:Name="ScreenshotLightbox"
               Panel.ZIndex="10"
               Background="#E6000000"
               Visibility="Collapsed"
               MouseLeftButtonUp="ScreenshotLightbox_MouseLeftButtonUp">
-            <Border Margin="56"
-                    MaxWidth="1500"
-                    MaxHeight="1000"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
+            <Border Margin="56" MaxWidth="1500" MaxHeight="1000"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
                     Background="{DynamicResource ApplicationBackgroundBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    Padding="12"
+                    BorderThickness="1" CornerRadius="10" Padding="12"
                     MouseLeftButtonUp="Card_MouseLeftButtonUp">
                 <Image x:Name="ScreenshotLightboxImage"
                        Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="HighQuality" />
             </Border>
             <ui:Button x:Name="CloseScreenshotLightboxButton"
-                       Width="60"
-                       Height="60"
-                       MinWidth="60"
-                       MinHeight="60"
-                       Padding="12"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Top"
-                       Margin="20"
-                       Appearance="Secondary"
+                       Width="60" Height="60" MinWidth="60" MinHeight="60" Padding="12"
+                       HorizontalAlignment="Right" VerticalAlignment="Top"
+                       Margin="20" Appearance="Secondary"
                        Cursor="Hand"
                        AutomationProperties.Name="Fechar captura ampliada"
                        ToolTip="Fechar imagem"
                        Click="CloseScreenshotLightboxButton_Click">
                 <ui:SymbolIcon Symbol="Dismiss24" FontSize="20" />
             </ui:Button>
-            <ui:Button Width="42"
-                       Height="42"
-                       Padding="0"
-                       HorizontalAlignment="Left"
-                       VerticalAlignment="Center"
-                       Margin="12,0"
-                       Appearance="Secondary"
+            <ui:Button Width="42" Height="42" Padding="0"
+                       HorizontalAlignment="Left" VerticalAlignment="Center"
+                       Margin="12,0" Appearance="Secondary"
                        ToolTip="Captura anterior"
                        Click="PreviousScreenshotButton_Click">
                 <ui:SymbolIcon Symbol="ChevronLeft24" FontSize="20" />
             </ui:Button>
-            <ui:Button Width="42"
-                       Height="42"
-                       Padding="0"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Center"
-                       Margin="12,0"
-                       Appearance="Secondary"
+            <ui:Button Width="42" Height="42" Padding="0"
+                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                       Margin="12,0" Appearance="Secondary"
                        ToolTip="Próxima captura"
                        Click="NextScreenshotButton_Click">
                 <ui:SymbolIcon Symbol="ChevronRight24" FontSize="20" />

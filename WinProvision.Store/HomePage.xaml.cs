@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,6 +29,7 @@ public partial class HomePage : Page
     private readonly InstalledAppsService _installedAppsService;
     private readonly AppDetailsOverlayService _detailsOverlayService;
     private readonly DispatcherTimer _debounceTimer;
+    private readonly DispatcherTimer _heroBannerTimer;
     private CancellationTokenSource? _searchCancellation;
     private string? _searchQueryInFlight;
     private string? _liveSearchQuery;
@@ -37,12 +40,16 @@ public partial class HomePage : Page
     private bool _isRefreshing;
     private bool _storeBannersLoading;
     private bool _storeBannersLoaded;
+    private DateOnly? _storeBannerWeek;
+    private DateOnly? _storeBannerSearchWeek;
+    private List<AppEntry> _searchedStoreBannerApps = [];
     private int _heroBannerIndex;
     private string _selectedCategoryTag = "all";
-    private bool _catalogSortByName;
+    private CatalogSortMode _catalogSortMode;
     private ShelfView _shelfView;
 
     private enum ShelfView { Overview, Popular, Store }
+    private enum CatalogSortMode { Popularity, Name, Id, MicrosoftStore, WinGet }
 
     private static readonly Dictionary<string, string[]> CategoryTagMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -52,6 +59,27 @@ public partial class HomePage : Page
         ["multimedia"] = ["multimedia", "photo", "video", "music", "multimídia", "foto", "vídeo", "música"],
         ["security"] = ["security", "antivirus", "privacy", "segurança", "antivírus", "privacidade"],
     };
+
+    // Apenas marcas conhecidas entram nos banners; a lista não limita o catálogo.
+    private static readonly string[] FamiliarStoreAppNames =
+    [
+        "WhatsApp", "Spotify", "Disney+", "Netflix", "TikTok", "CapCut", "Instagram",
+        "Facebook", "Messenger", "Telegram", "Prime Video", "Amazon Prime Video", "Canva",
+        "Zoom", "VLC", "Microsoft 365", "OneDrive", "Xbox", "PowerToys", "Lively Wallpaper",
+        "TranslucentTB", "Dolby Access", "Microsoft To Do", "Phone Link", "Clipchamp",
+        "Microsoft Photos", "Windows Terminal", "Paint", "Word", "Excel", "PowerPoint", "Outlook",
+        "Adobe", "Pinterest", "Discord", "Brave", "ChatGPT"
+    ];
+
+    private static readonly string[] FeaturedStoreSearchTerms =
+    [
+        "Disney+", "Spotify", "WhatsApp", "Adobe", "TikTok", "Netflix", "Instagram",
+        "Canva", "Pinterest", "Discord", "Brave", "ChatGPT", "Telegram"
+    ];
+
+    private const double StoreFeaturedMinimumRating = 4.0;
+    private const int StoreFeaturedMinimumRatingCount = 3000;
+    private const int StoreFeaturedCandidatePoolSize = 30;
 
     public ObservableCollection<AppEntry> Apps { get; } = [];
 
@@ -99,12 +127,22 @@ public partial class HomePage : Page
             ApplyFilter();
         };
 
+        _heroBannerTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(8) };
+        _heroBannerTimer.Tick += (_, _) =>
+        {
+            if (StoreBannerApps.Count > 1)
+                SetHeroBanner(_heroBannerIndex + 1);
+            else
+                _heroBannerTimer.Stop();
+        };
+
         BuildCategoryChips();
 
         _storeService.CatalogUpdated += OnCatalogUpdated;
         _storeService.CacheCleared += OnCacheCleared;
         _installedAppsService.Changed += OnInstalledAppsChanged;
         Loaded += HomePage_Loaded;
+        Unloaded += (_, _) => _heroBannerTimer.Stop();
         SizeChanged += HomePage_SizeChanged;
     }
 
@@ -147,6 +185,7 @@ public partial class HomePage : Page
 
         _allApps = catalog.ToList();
         SyncInstalledFlags(_allApps);
+        _ = LoadStoreBannersAsync(force: true);
         UpdatePopularApps();
         ApplyFilter();
     }
@@ -161,6 +200,15 @@ public partial class HomePage : Page
 
         _catalogLoaded = false;
         _allApps = [];
+        _storeBannersLoaded = false;
+        _storeBannerWeek = null;
+        _storeBannerSearchWeek = null;
+        _searchedStoreBannerApps = [];
+        StoreBannerApps.Clear();
+        SideStoreBannerApps.Clear();
+        RightStorePromo.DataContext = null;
+        HeroBanner.Visibility = Visibility.Collapsed;
+        HeroPromotions.Visibility = Visibility.Collapsed;
         Apps.Clear();
         PopularApps.Clear();
         StoreHighlights.Clear();
@@ -190,13 +238,10 @@ public partial class HomePage : Page
 
     private async void HomePage_Loaded(object sender, RoutedEventArgs e)
     {
-        if (!_storeBannersLoaded && !_storeBannersLoading)
-        {
-            _ = LoadStoreBannersAsync();
-        }
-
         if (_catalogLoaded)
         {
+            await LoadStoreBannersAsync();
+            UpdateBannerAutoAdvance();
             ApplyFilter();
             return;
         }
@@ -214,10 +259,11 @@ public partial class HomePage : Page
             _allApps = await _storeService.LoadCatalogAsync();
             await _installedAppsService.EnsureLoadedAsync();
             SyncInstalledFlags(_allApps);
+            await LoadStoreBannersAsync();
             UpdatePopularApps();
 
             _catalogLoaded = true;
-            ApplyFilter();
+                ApplyFilter();
         }
         catch
         {
@@ -265,46 +311,105 @@ public partial class HomePage : Page
 
     private void CatalogSortComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _catalogSortByName = CatalogSortComboBox.SelectedIndex == 1;
+        _catalogSortMode = CatalogSortComboBox.SelectedIndex switch
+        {
+            1 => CatalogSortMode.Name,
+            2 => CatalogSortMode.Id,
+            3 => CatalogSortMode.MicrosoftStore,
+            4 => CatalogSortMode.WinGet,
+            _ => CatalogSortMode.Popularity,
+        };
         ApplyFilter();
     }
 
-    private async Task LoadStoreBannersAsync()
+    private static DateOnly GetCurrentBannerWeek()
     {
+        DateOnly today = DateOnly.FromDateTime(DateTime.Now);
+        int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        return today.AddDays(-daysSinceMonday);
+    }
+
+    private static string GetWeeklyBannerOrderKey(AppEntry app, DateOnly week)
+    {
+        string key = $"{week:yyyy-MM-dd}:{app.Source}:{app.Id}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
+    }
+
+    private async Task LoadStoreBannersAsync(bool force = false)
+    {
+        DateOnly week = GetCurrentBannerWeek();
+        if (_storeBannersLoading || (!force && _storeBannersLoaded && _storeBannerWeek == week))
+        {
+            return;
+        }
+
         _storeBannersLoading = true;
         try
         {
-            string[] productIds = ["9MV0B5HZVK9Z", "9WZDNCRD29V9", "9N9LKV8R9VGM"];
-            // Prefer the catalog already loaded by the app; fetch only when it lacks editorial art.
-            List<AppEntry> products = _allApps.Where(app => !string.IsNullOrWhiteSpace(app.StoreBannerUrl)).ToList();
-            if (products.Count < 4)
-            {
-                try
-                {
-                    products.AddRange(await _msStoreCatalogService.FetchAsync(productIds));
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[HomePage] Mantendo banners do catálogo local: {ex.Message}");
-                }
-            }
-            var ordered = products.Where(app => !string.IsNullOrWhiteSpace(app.StoreBannerUrl))
-                .DistinctBy(app => $"{app.Source}:{app.Id}", StringComparer.OrdinalIgnoreCase)
-                .OrderByDescending(app => app.Score).Take(6).ToList();
-            SyncInstalledFlags(ordered);
+            List<AppEntry> availableStoreApps = _allApps
+                .Where(IsEligibleFeaturedStoreApp)
+                .ToList();
 
+            // A busca ampla do catálogo pode não conter todos os produtos editoriais.
+            // Se ainda faltarem banners, consulta diretamente os títulos conhecidos.
+            if (availableStoreApps.Select(GetProductIdentityKey).Distinct(StringComparer.OrdinalIgnoreCase).Count() < 6)
+            {
+                if (_storeBannerSearchWeek != week)
+                {
+                    var discovered = new System.Collections.Concurrent.ConcurrentBag<AppEntry>();
+                    await Parallel.ForEachAsync(
+                        FeaturedStoreSearchTerms,
+                        new ParallelOptions { MaxDegreeOfParallelism = 3 },
+                        async (term, cancellationToken) =>
+                        {
+                            foreach (AppEntry app in await _msStoreCatalogService.SearchAsync(term, cancellationToken))
+                            {
+                                if (IsEligibleFeaturedStoreApp(app))
+                                {
+                                    app.IconUrl = _iconService.ResolveIconUrl(app);
+                                    app.IsInstalled = _installedAppsService.IsInstalled(app.Name, app.Id);
+                                    discovered.Add(app);
+                                }
+                            }
+                        });
+                    _searchedStoreBannerApps = discovered.ToList();
+                    _storeBannerSearchWeek = week;
+                }
+
+                availableStoreApps.AddRange(_searchedStoreBannerApps);
+            }
+
+            // A Store não fornece downloads no catálogo; o volume de avaliações serve
+            // como sinal de popularidade. Primeiro limitamos aos produtos com nota alta,
+            // volume mínimo de avaliações e banner. A rotação semanal escolhe entre os
+            // 30 mais populares, sem completar a vitrine com apps fora dos critérios.
+            List<AppEntry> candidatePool = availableStoreApps
+                .DistinctBy(GetProductIdentityKey, StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(app => app.StoreRatingCount ?? 0)
+                .ThenByDescending(app => app.StoreRating ?? 0)
+                .ThenByDescending(app => app.Score)
+                .Take(StoreFeaturedCandidatePoolSize)
+                .ToList();
+
+            List<AppEntry> featured = candidatePool
+                .OrderBy(app => GetWeeklyBannerOrderKey(app, week), StringComparer.Ordinal)
+                .Take(6)
+                .ToList();
+
+            SyncInstalledFlags(featured);
             StoreBannerApps.Clear();
             SideStoreBannerApps.Clear();
-            foreach (AppEntry app in ordered.Take(3))
+            foreach (AppEntry app in featured.Take(3))
             {
                 StoreBannerApps.Add(app);
             }
 
-            RightStorePromo.DataContext = ordered.Skip(1).FirstOrDefault();
+            // Distribui os destaques sem repetir o mesmo produto em mais de um espaço.
+            RightStorePromo.DataContext = featured.Skip(3).FirstOrDefault();
             RightStorePromo.Visibility = RightStorePromo.DataContext is AppEntry ? Visibility.Visible : Visibility.Collapsed;
             HeroPromotions.Visibility = ActualWidth >= 1050 && RightStorePromo.DataContext is AppEntry ? Visibility.Visible : Visibility.Collapsed;
 
-            foreach (AppEntry app in ordered.Skip(2).Take(2))
+            foreach (AppEntry app in featured.Skip(4).Take(2))
             {
                 SideStoreBannerApps.Add(app);
             }
@@ -313,19 +418,40 @@ public partial class HomePage : Page
             {
                 SetHeroBanner(0);
             }
+            else
+            {
+                HeroBanner.Visibility = Visibility.Collapsed;
+            }
 
+            UpdateBannerAutoAdvance();
             UpdateStorefrontLayout(ActualWidth);
-            _storeBannersLoaded = StoreBannerApps.Count > 0;
+            _storeBannerWeek = week;
+            _storeBannersLoaded = true;
             UpdatePopularApps();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"[HomePage] Falha ao carregar banners da Microsoft Store: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[HomePage] Falha ao carregar banners do catálogo: {ex.Message}");
         }
         finally
         {
             _storeBannersLoading = false;
         }
+    }
+
+    private static bool IsEligibleFeaturedStoreApp(AppEntry app) =>
+        app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(app.StoreBannerUrl)
+        && IsFamiliarStoreApp(app)
+        && app.StoreRating is > StoreFeaturedMinimumRating and <= 5
+        && app.StoreRatingCount >= StoreFeaturedMinimumRatingCount;
+
+    private void UpdateBannerAutoAdvance()
+    {
+        if (StoreBannerApps.Count > 1 && IsLoaded)
+            _heroBannerTimer.Start();
+        else
+            _heroBannerTimer.Stop();
     }
 
     private void SetHeroBanner(int index)
@@ -398,6 +524,77 @@ public partial class HomePage : Page
     private static bool HasKnownPtBrSupport(AppEntry app) =>
         string.Equals(app.PackageLocale, "pt-BR", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsFamiliarStoreApp(AppEntry app) =>
+        FamiliarStoreAppNames.Any(knownName =>
+            app.Name.Equals(knownName, StringComparison.OrdinalIgnoreCase)
+            || app.Name.StartsWith(knownName + " - ", StringComparison.OrdinalIgnoreCase)
+            || app.Name.StartsWith(knownName + " ", StringComparison.OrdinalIgnoreCase));
+
+    private static string GetProductIdentityKey(AppEntry app)
+    {
+        static string Normalize(string? value) => new((value ?? string.Empty)
+            .Where(char.IsLetterOrDigit)
+            .Select(char.ToLowerInvariant)
+            .ToArray());
+
+        string name = Normalize(app.Name);
+        string publisher = Normalize(app.Publisher);
+        return name.Length == 0 || publisher.Length == 0
+            ? $"{app.Source}\0{app.Id}"
+            : $"{name}\0{publisher}";
+    }
+
+    private static AppEntry MergeProductSources(IEnumerable<AppEntry> entries)
+    {
+        List<AppEntry> group = entries.ToList();
+        AppEntry primary = group.FirstOrDefault(app => app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase))
+                           ?? group[0];
+        AppEntry? store = group.FirstOrDefault(app => app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase));
+        if (store is null || ReferenceEquals(primary, store))
+            return primary;
+
+        // Mantém o ID e a origem de instalação WinGet, mas usa as mídias oficiais da Store.
+        if (!string.IsNullOrWhiteSpace(store.StoreBannerUrl))
+            primary.StoreBannerUrl = store.StoreBannerUrl;
+        if (store.StoreScreenshotUrls is { Count: > 0 })
+            primary.StoreScreenshotUrls = store.StoreScreenshotUrls;
+        if (!string.IsNullOrWhiteSpace(store.StoreIconUrl))
+            primary.StoreIconUrl = store.StoreIconUrl;
+        primary.StoreRating ??= store.StoreRating;
+        primary.StoreRatingCount ??= store.StoreRatingCount;
+        primary.StoreCategory ??= store.StoreCategory;
+        primary.StoreSubCategory ??= store.StoreSubCategory;
+        primary.Description = string.IsNullOrWhiteSpace(store.Description) ? primary.Description : store.Description;
+        primary.PackageLocale ??= store.PackageLocale;
+        return primary;
+    }
+
+    private static IEnumerable<AppEntry> MergeProductEntries(IEnumerable<AppEntry> entries) =>
+        entries.GroupBy(GetProductIdentityKey, StringComparer.OrdinalIgnoreCase)
+            .Select(MergeProductSources);
+
+    private static IEnumerable<AppEntry> InterleaveCatalogSources(IEnumerable<AppEntry> entries)
+    {
+        List<AppEntry> wingetApps = entries
+            .Where(app => app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(app => app.Score)
+            .ThenByDescending(app => app.GitHubStars ?? 0)
+            .ToList();
+        List<AppEntry> storeApps = entries
+            .Where(app => app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(GetStoreRatingScore)
+            .ThenByDescending(app => app.StoreRatingCount ?? 0)
+            .ToList();
+
+        for (int index = 0; index < Math.Max(wingetApps.Count, storeApps.Count); index++)
+        {
+            if (index < wingetApps.Count)
+                yield return wingetApps[index];
+            if (index < storeApps.Count)
+                yield return storeApps[index];
+        }
+    }
+
     private static bool MatchesCategory(AppEntry app, string[] keywords)
     {
         IEnumerable<string> metadata = app.Tags
@@ -409,14 +606,25 @@ public partial class HomePage : Page
             value.Contains(keyword, StringComparison.OrdinalIgnoreCase)));
     }
 
+    private const int StorePopularMinimumRatingCount = 50;
+    private const int StorePopularFallbackRatingCount = 5;
+    private const double StorePopularMinimumRating = 4.0;
+
     private void UpdatePopularApps()
     {
         int limit = _shelfView == ShelfView.Popular ? 48 : 6;
+        List<AppEntry> selectedStoreApps = SelectPopularStoreApps(_allApps.Concat(StoreBannerApps),
+            _shelfView == ShelfView.Store ? 48 : 6);
+        HashSet<string> storeProductKeys = selectedStoreApps
+            .Select(GetProductIdentityKey)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         PopularApps.Clear();
         foreach (AppEntry app in _allApps
                      .Where(app => app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase)
                                    && HasRealIcon(app) && HasKnownPtBrSupport(app)
-                                   && app.Score >= 25 && MatchesLocalRegion(app))
+                                   && app.Score >= 25 && MatchesLocalRegion(app)
+                                   && !storeProductKeys.Contains(GetProductIdentityKey(app)))
                      .OrderByDescending(app => app.Score)
                      .ThenByDescending(app => app.GitHubStars ?? 0)
                      .Take(limit))
@@ -424,23 +632,53 @@ public partial class HomePage : Page
 
         limit = _shelfView == ShelfView.Store ? 48 : 6;
         StoreHighlights.Clear();
-        foreach (AppEntry app in _allApps.Concat(StoreBannerApps)
-                     .Where(app => app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
-                                   && HasRealIcon(app) && HasKnownPtBrSupport(app) && MatchesLocalRegion(app))
-                     .DistinctBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
-                     .OrderByDescending(GetStoreRatingScore)
-                     .ThenByDescending(app => app.StoreRatingCount ?? 0)
-                     .ThenByDescending(app => app.Score)
-                     .Take(limit))
+        foreach (AppEntry app in selectedStoreApps.Take(limit))
             StoreHighlights.Add(app);
     }
 
+    private static List<AppEntry> SelectPopularStoreApps(IEnumerable<AppEntry> apps, int limit)
+    {
+        if (limit <= 0)
+            return [];
+
+        List<AppEntry> ratedApps = apps
+            .Where(app => app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+                          && HasRealIcon(app) && HasKnownPtBrSupport(app) && MatchesLocalRegion(app)
+                          && app.StoreRating is >= StorePopularMinimumRating and <= 5
+                          && app.StoreRatingCount is > 0)
+            .DistinctBy(GetProductIdentityKey, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(IsFamiliarStoreApp)
+            .ThenByDescending(GetStoreRatingScore)
+            .ThenByDescending(app => app.StoreRatingCount ?? 0)
+            .ThenByDescending(app => app.Score)
+            .ThenBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        // Prioriza produtos bem avaliados com volume consistente de opiniões. Se
+        // necessário, completa com os que têm menos avaliações, sem dados ausentes.
+        List<AppEntry> popularApps = ratedApps
+            .Where(app => app.StoreRatingCount >= StorePopularMinimumRatingCount)
+            .Take(limit)
+            .ToList();
+
+        if (popularApps.Count < limit)
+        {
+            var selectedIds = popularApps.Select(app => app.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            popularApps.AddRange(ratedApps
+                .Where(app => app.StoreRatingCount >= StorePopularFallbackRatingCount
+                              && !selectedIds.Contains(app.Id))
+                .Take(limit - popularApps.Count));
+        }
+
+        return popularApps;
+    }
+
     private static double GetStoreRatingScore(AppEntry app) =>
-        app.StoreRating is > 0 && app.StoreRatingCount is > 0
+        app.StoreRating is > 0 and <= 5 && app.StoreRatingCount is > 0
             ? ((app.StoreRating.Value * app.StoreRatingCount.Value) + 4000.0)
                 / (app.StoreRatingCount.Value + 1000.0)
             : 0;
-
     private void PopularMoreButton_Click(object sender, RoutedEventArgs e) =>
         SetShelfView(_shelfView == ShelfView.Popular ? ShelfView.Overview : ShelfView.Popular);
 
@@ -457,7 +695,7 @@ public partial class HomePage : Page
         string popularAction = view == ShelfView.Popular
             ? "Voltar à página inicial" : "Ver mais aplicativos populares";
         string storeAction = view == ShelfView.Store
-            ? "Voltar à página inicial" : "Ver mais aplicativos da Microsoft Store";
+            ? "Voltar à página inicial" : "Ver mais aplicativos populares da Microsoft Store";
         PopularMoreButton.ToolTip = popularAction;
         StoreMoreButton.ToolTip = storeAction;
         System.Windows.Automation.AutomationProperties.SetName(PopularMoreButton, popularAction);
@@ -494,14 +732,22 @@ public partial class HomePage : Page
             return;
         }
 
-        IEnumerable<AppEntry> source = string.IsNullOrWhiteSpace(query)
+        bool categoryBrowsing = string.IsNullOrWhiteSpace(query) && _selectedCategoryTag != "all";
+        IEnumerable<AppEntry> source = categoryBrowsing
+            ? InterleaveCatalogSources(MergeProductEntries(_allApps.Concat(StoreBannerApps)
+                .Where(app =>
+                    MatchesSelectedCatalogSource(app)
+                    && ((app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase)
+                         && HasRealIcon(app) && HasKnownPtBrSupport(app)
+                         && app.Score >= 25 && MatchesLocalRegion(app))
+                        || (app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
+                            && HasRealIcon(app) && HasKnownPtBrSupport(app)
+                            && MatchesLocalRegion(app))))
+                .Where(app => CategoryTagMap.TryGetValue(_selectedCategoryTag, out string[]? keywords)
+                              && MatchesCategory(app, keywords))))
+            : string.IsNullOrWhiteSpace(query)
             ? _shelfView == ShelfView.Store
-                ? _allApps.Concat(StoreBannerApps)
-                    .Where(app => app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase)
-                                  && HasRealIcon(app) && HasKnownPtBrSupport(app) && MatchesLocalRegion(app))
-                    .DistinctBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
-                    .OrderByDescending(GetStoreRatingScore)
-                    .ThenByDescending(app => app.StoreRatingCount ?? 0)
+                ? SelectPopularStoreApps(_allApps.Concat(StoreBannerApps), 48)
                 : _allApps.Where(app => app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase)
                                              && HasRealIcon(app) && HasKnownPtBrSupport(app)
                                              && app.Score >= 25 && MatchesLocalRegion(app))
@@ -512,8 +758,12 @@ public partial class HomePage : Page
         if (_selectedCategoryTag != "all" && CategoryTagMap.TryGetValue(_selectedCategoryTag, out string[]? keywords))
             source = source.Where(app => MatchesCategory(app, keywords));
 
-        if (_catalogSortByName)
-            source = source.OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase);
+        source = _catalogSortMode switch
+        {
+            CatalogSortMode.Name => source.OrderBy(app => app.Name, StringComparer.CurrentCultureIgnoreCase),
+            CatalogSortMode.Id => source.OrderBy(app => app.Id, StringComparer.OrdinalIgnoreCase),
+            _ => source,
+        };
 
         List<AppEntry> results = source.Take(48).ToList();
         Apps.Clear();
@@ -534,19 +784,75 @@ public partial class HomePage : Page
 
     private IEnumerable<AppEntry> GetSearchResults(string query)
     {
-        // Search retorna a lista já ranqueada e é lazy; materializar uma vez evita
-        // recalcular o score e ordenar o catálogo de novo no Take(30)/Skip(30).
+        // Une o catálogo local e as duas fontes consultadas ao vivo antes de limitar a
+        // quantidade. A API da Store pode retornar correspondências aproximadas; sem
+        // um ranking comum, elas podiam ocupar as primeiras posições e esconder um
+        // resultado exato como WhatsApp quando pesquisado pelo nome.
         List<AppEntry> localResults = _storeService.Search(query).ToList();
         IEnumerable<AppEntry> liveResults = string.Equals(_liveSearchQuery, query, StringComparison.OrdinalIgnoreCase)
             ? _liveSearchResults
             : [];
 
-        return localResults.Take(30).Concat(liveResults).Concat(localResults.Skip(30))
-            .GroupBy(app => $"{app.Source}\0{app.Id}", StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(app => !string.IsNullOrWhiteSpace(app.StoreIconUrl))
-                .ThenByDescending(HasRealIcon)
-                .First());
+        return localResults.Concat(liveResults)
+            .Where(MatchesSelectedCatalogSource)
+            .GroupBy(GetProductIdentityKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group =>
+            {
+                List<AppEntry> sourceEntries = group.ToList();
+                return (App: MergeProductSources(sourceEntries),
+                    Relevance: sourceEntries.Min(app => GetSearchRelevance(app, query)));
+            })
+            .Where(result => result.Relevance < int.MaxValue)
+            .OrderBy(result => result.Relevance)
+            .ThenBy(result => result.App.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(result => result.App);
+    }
+
+    private bool MatchesSelectedCatalogSource(AppEntry app) => _catalogSortMode switch
+    {
+        CatalogSortMode.MicrosoftStore => app.Source.Equals("msstore", StringComparison.OrdinalIgnoreCase),
+        CatalogSortMode.WinGet => app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase),
+        _ => true,
+    };
+
+    private static int GetSearchRelevance(AppEntry app, string query)
+    {
+        string name = app.Name ?? string.Empty;
+        string id = app.Id ?? string.Empty;
+        string term = query.Trim();
+        if (term.Length == 0)
+            return int.MaxValue;
+
+        if (name.Equals(term, StringComparison.OrdinalIgnoreCase)) return 0;
+        if (id.Equals(term, StringComparison.OrdinalIgnoreCase)) return 1;
+        if (name.StartsWith(term, StringComparison.OrdinalIgnoreCase)) return 2;
+        if (name.Split([' ', '.', '-', '_'], StringSplitOptions.RemoveEmptyEntries)
+            .Any(token => token.StartsWith(term, StringComparison.OrdinalIgnoreCase))) return 3;
+        if (name.Contains(term, StringComparison.OrdinalIgnoreCase)) return 4;
+        if (id.StartsWith(term, StringComparison.OrdinalIgnoreCase)) return 5;
+        if (id.Contains(term, StringComparison.OrdinalIgnoreCase)) return 6;
+
+        string compactTerm = term.Replace(" ", "", StringComparison.Ordinal)
+            .Replace("-", "", StringComparison.Ordinal)
+            .Replace(".", "", StringComparison.Ordinal)
+            .Replace("_", "", StringComparison.Ordinal);
+        string compactName = name.Replace(" ", "", StringComparison.Ordinal)
+            .Replace("-", "", StringComparison.Ordinal)
+            .Replace(".", "", StringComparison.Ordinal)
+            .Replace("_", "", StringComparison.Ordinal);
+        string compactId = id.Replace(" ", "", StringComparison.Ordinal)
+            .Replace("-", "", StringComparison.Ordinal)
+            .Replace(".", "", StringComparison.Ordinal)
+            .Replace("_", "", StringComparison.Ordinal);
+
+        if (compactName.Equals(compactTerm, StringComparison.OrdinalIgnoreCase)) return 7;
+        if (compactName.Contains(compactTerm, StringComparison.OrdinalIgnoreCase)) return 8;
+        if (compactId.Contains(compactTerm, StringComparison.OrdinalIgnoreCase)) return 9;
+        if ((app.Tags ?? []).Any(tag => tag.Contains(term, StringComparison.OrdinalIgnoreCase))) return 10;
+        if ((app.Publisher ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)) return 11;
+        if ((app.Description ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)) return 12;
+
+        return int.MaxValue;
     }
 
     private async Task SearchLiveCatalogsAsync(string query)
@@ -669,18 +975,28 @@ public partial class HomePage : Page
             return;
         }
 
+        _debounceTimer.Stop();
         _isRefreshing = true;
         RefreshCatalogButton.IsEnabled = false;
-        StatusText.Text = "Atualizando catálogo...";
 
         try
         {
+            string query = SearchBox.Text?.Trim() ?? string.Empty;
+            if (query.Length > 0 && _catalogLoaded)
+            {
+                StatusText.Text = "Atualizando resultados da pesquisa...";
+                await SearchLiveCatalogsAsync(query);
+                return;
+            }
+
+            StatusText.Text = "Atualizando catálogo...";
             _allApps = await _storeService.LoadCatalogAsync(forceRefresh: true);
             await _installedAppsService.RefreshAsync();
             SyncInstalledFlags(_allApps);
+            await LoadStoreBannersAsync(force: true);
             UpdatePopularApps();
             _catalogLoaded = true;
-            ApplyFilter();
+                ApplyFilter();
         }
         catch
         {
@@ -757,8 +1073,8 @@ public partial class HomePage : Page
     {
         if (sender is FrameworkElement { DataContext: AppEntry app })
         {
-            // Alterado de "ShowDetails" para "Show"
-            // Caso o erro continue, verifique no seu arquivo AppDetailsOverlayService.cs
+            // Alterado de "ShowDetails" para "Show" 
+            // Caso o erro continue, verifique no seu arquivo AppDetailsOverlayService.cs 
             // qual o nome correto do método (pode ser Open, ShowAsync, etc).
             _detailsOverlayService.Show(app);
         }

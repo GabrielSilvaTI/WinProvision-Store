@@ -76,6 +76,7 @@ public static partial class OperationRunner
         {
             var onLogReceived = new Action<string>(line => ReportProgress(item, line));
             var onProgress = new Action<InstallProgressUpdate>(update => ReportInstallProgress(item, update));
+            onLogReceived($"Instalando {appName} ({appId}) pela fonte {source}.");
 
             // Se não há handler configurado, usa winget.exe diretamente
             if (_installHandler is null || interactive)
@@ -101,6 +102,8 @@ public static partial class OperationRunner
                     onProgress,
                     source);
 
+            AppendResultLog(item, source, result);
+
             if (result.Success)
             {
                 item.IsIndeterminate = false;
@@ -124,8 +127,9 @@ public static partial class OperationRunner
 
             return result;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            item.AppendLog($"Exceção durante a instalação: {ex.GetType().Name}: {ex.Message}");
             item.State = item.CancellationTokenSource.IsCancellationRequested
                 ? OperationState.Canceled
                 : OperationState.Failed;
@@ -159,6 +163,7 @@ public static partial class OperationRunner
             var updateHandler = _updateHandler;
             var onLogReceived = new Action<string>(line => ReportProgress(item, line));
             var onProgress = new Action<InstallProgressUpdate>(update => ReportInstallProgress(item, update));
+            onLogReceived($"Atualizando {appName} ({appId}) pela fonte {source}.");
 
             // Se não há handler configurado, usa winget.exe diretamente
             // Os handlers de catálogo/API representam a atualização padrão. As variantes
@@ -187,6 +192,8 @@ public static partial class OperationRunner
                     source,
                     onProgress);
 
+            AppendResultLog(item, source, result);
+
             if (result.Success)
             {
                 item.IsIndeterminate = false;
@@ -209,8 +216,9 @@ public static partial class OperationRunner
 
             return result;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            item.AppendLog($"Exceção durante a atualização: {ex.GetType().Name}: {ex.Message}");
             item.State = item.CancellationTokenSource.IsCancellationRequested
                 ? OperationState.Canceled
                 : OperationState.Failed;
@@ -249,6 +257,8 @@ public static partial class OperationRunner
                 installedVersion: installedVersion,
                 interactive: interactive);
 
+            AppendResultLog(item, source ?? "automática", result);
+
             if (result.Success)
             {
                 item.IsIndeterminate = false;
@@ -272,8 +282,9 @@ public static partial class OperationRunner
 
             return result;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            item.AppendLog($"Exceção durante a remoção: {ex.GetType().Name}: {ex.Message}");
             item.State = item.CancellationTokenSource.IsCancellationRequested
                 ? OperationState.Canceled
                 : OperationState.Failed;
@@ -733,6 +744,19 @@ public static partial class OperationRunner
             item.IsIndeterminate = false;
             item.Progress = Math.Clamp(percent, 0, 100);
         }
+    }
+
+    private static void AppendResultLog(OperationItem item, string source, WingetExecutionResult result)
+    {
+        uint exitCode = unchecked((uint)result.ExitCode);
+        string exitText = result.ExitCode < 0
+            ? $"{result.ExitCode} (0x{exitCode:X8})"
+            : result.ExitCode.ToString();
+        item.AppendLog($"Resultado final: {(result.Success ? "sucesso" : "falha")}; fonte={source}; método={item.Method}; código={exitText}; motivo={result.FailureReason}.");
+
+        string output = result.Output?.Trim() ?? string.Empty;
+        if (output.Length > 0 && !item.GetFullLog().Contains(output, StringComparison.Ordinal))
+            item.AppendLog($"Detalhes retornados pelo instalador: {output}");
     }
 
     private static bool IsCanceledResult(OperationItem item, WingetExecutionResult result) =>

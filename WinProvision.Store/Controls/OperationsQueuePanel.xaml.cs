@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using Wpf.Ui.Controls;
@@ -21,6 +22,25 @@ public partial class OperationsQueuePanel : UserControl
     public OperationsQueuePanel()
     {
         InitializeComponent();
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is false)
+                OutputModalHost.Visibility = Visibility.Collapsed;
+        };
+    }
+
+    private void ClosePanelButton_Click(object sender, RoutedEventArgs e) => Visibility = Visibility.Collapsed;
+
+    private void Root_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape)
+            return;
+
+        if (OutputModalHost.Visibility == Visibility.Visible)
+            OutputModalHost.Visibility = Visibility.Collapsed;
+        else
+            Visibility = Visibility.Collapsed;
+        e.Handled = true;
     }
 
     private void ClearFinished_Click(object sender, RoutedEventArgs e) => Queue?.ClearFinished();
@@ -130,6 +150,7 @@ public partial class OperationsQueuePanel : UserControl
         OutputModalTitle.Text = $"Saída da Operação: {item.AppName}";
         OutputModalTextBox.Text = item.GetFullLog();
         OutputModalHost.Visibility = Visibility.Visible;
+        OutputModalTextBox.Focus();
     }
 
     private void CloseOutputModal_Click(object sender, RoutedEventArgs e)

@@ -160,7 +160,7 @@ public sealed class WinProvisionApiService
     private readonly string _installRecordsPath;
 
     private PackageIndex? _indexCache;
-    private IReadOnlyDictionary<string, PackageIndexEntry> _wingetEntriesById =
+    private IReadOnlyDictionary<string, PackageIndexEntry> _apiEntriesById =
         new Dictionary<string, PackageIndexEntry>(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset _indexCachedAt;
     private static readonly TimeSpan IndexTtl = TimeSpan.FromMinutes(15);
@@ -223,8 +223,7 @@ public sealed class WinProvisionApiService
                     ?? throw new InvalidDataException("index.json vazio ou inválido.");
                 ValidateIndex(index);
                 _indexCache = index;
-                _wingetEntriesById = index.Packages
-                    .Where(entry => string.Equals(entry.Source, "winget", StringComparison.OrdinalIgnoreCase))
+                _apiEntriesById = index.Packages
                     .ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
                 _indexCachedAt = DateTimeOffset.UtcNow;
                 await WriteCacheFileAsync(IndexCachePath, JsonSerializer.Serialize(index), ct);
@@ -237,8 +236,7 @@ public sealed class WinProvisionApiService
                 {
                     ValidateIndex(cached);
                     _indexCache = cached;
-                    _wingetEntriesById = cached.Packages
-                        .Where(entry => string.Equals(entry.Source, "winget", StringComparison.OrdinalIgnoreCase))
+                    _apiEntriesById = cached.Packages
                         .ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
                     _indexCachedAt = DateTimeOffset.UtcNow;
                     return cached;
@@ -265,7 +263,7 @@ public sealed class WinProvisionApiService
             throw new HttpRequestException("Não foi possível validar o pacote contra o índice da API.", ex);
         }
 
-        if (!_wingetEntriesById.TryGetValue(id, out var entry)) return null;
+        if (!_apiEntriesById.TryGetValue(id, out var entry)) return null;
         if (!IsValidManifestReference(entry))
             throw new InvalidDataException($"Referência do manifesto de '{id}' inválida no índice.");
 

@@ -18,8 +18,7 @@ public sealed class OfficeCatalogService : IDisposable
     {
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
         PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-    })
-    { Timeout = TimeSpan.FromSeconds(5) };
+    }) { Timeout = TimeSpan.FromSeconds(5) };
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, MaxDepth = 16 };
     private static readonly Regex SafeId = new("^[A-Za-z0-9._-]{2,100}$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly string _cachePath;

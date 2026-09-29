@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.PackagesPage"
+<Page x:Class="WinProvision.Store.PackagesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -26,9 +26,7 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Source}" Value="winget">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="winget"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="CollectionStoreSourceIconStyle" TargetType="ui:SymbolIcon">
@@ -37,33 +35,23 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Source}" Value="msstore">
-                    <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="msstore"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!--  Estilos de Cabeçalho / Cartões  -->
-        <Style x:Key="PageTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentPageTitleStyle}" />
-        <Style x:Key="CardTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentCardTitleStyle}" />
+        <!-- Estilos de Cabeçalho / Cartões -->
+        <Style x:Key="PageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentPageTitleStyle}" />
+        <Style x:Key="CardTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentCardTitleStyle}" />
 
-        <Style x:Key="CardSubtitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Style x:Key="CardSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
             <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
-        <!--  Ações da coleção no padrão visual das páginas principais  -->
-        <Style x:Key="ToolbarButtonStyle"
-               TargetType="ui:Button"
-               BasedOn="{StaticResource {x:Type ui:Button}}">
+        <!-- Ações da coleção no padrão visual das páginas principais -->
+        <Style x:Key="ToolbarButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,0,4,0" />
@@ -73,9 +61,7 @@
             <Setter Property="FontSize" Value="12" />
         </Style>
 
-        <Style x:Key="ToolbarToggleButtonStyle"
-               TargetType="ToggleButton"
-               BasedOn="{StaticResource {x:Type ToggleButton}}">
+        <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,0,6,0" />
@@ -87,12 +73,9 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="ToggleSurface"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{StaticResource ControlCornerRadius}"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="ToggleSurface" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource ControlCornerRadius}" Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -124,9 +107,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SourceSelectionButtonStyle"
-               TargetType="ui:Button"
-               BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Style x:Key="SourceSelectionButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="Padding" Value="6,0" />
@@ -136,7 +117,7 @@
             <Setter Property="HorizontalContentAlignment" Value="Center" />
         </Style>
 
-        <!--  Estilo de linha da coleção  -->
+        <!-- Estilo de linha da coleção -->
         <Style x:Key="PackageTableRowStyle" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -164,7 +145,7 @@
             </Style.Triggers>
         </Style>
 
-        <!--  Template da linha da tabela de coleção  -->
+        <!-- Template da linha da tabela de coleção -->
         <DataTemplate x:Key="CollectionTableRowTemplate">
             <Border Style="{StaticResource PackageTableRowStyle}"
                     MouseLeftButtonUp="TableRow_Click"
@@ -219,38 +200,29 @@
                         <ColumnDefinition Width="40" />
                     </Grid.ColumnDefinitions>
 
-                    <!--  Indicador de seleção, sem checkbox no item.  -->
-                    <ui:SymbolIcon Grid.Column="0"
-                                   Symbol="Checkmark24"
-                                   FontSize="18"
+                    <!-- Indicador de seleção, sem checkbox no item. -->
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Checkmark24" FontSize="18"
                                    Foreground="{DynamicResource SelectionSuccessBrush}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Visibility="{Binding IsSelectedForInstall, Converter={StaticResource BoolToVisibilityConverter}}" />
 
-                    <!--  Ícone  -->
-                    <Grid Grid.Column="1"
-                          Width="26"
-                          Height="26"
-                          VerticalAlignment="Center"
-                          HorizontalAlignment="Left"
-                          ClipToBounds="True">
-                        <ui:SymbolIcon Symbol="Box24"
-                                       FontSize="15"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Center"
-                                       Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=TableAppImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                        <Image x:Name="TableAppImage"
-                               conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                               Stretch="Uniform"
-                               Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=TableAppImage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <!-- Ícone -->
+                    <Grid Grid.Column="1" Width="26" Height="26"
+                          VerticalAlignment="Center" HorizontalAlignment="Left" ClipToBounds="True">
+                            <ui:SymbolIcon Symbol="Box24"
+                                           FontSize="15"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           VerticalAlignment="Center"
+                                           HorizontalAlignment="Center"
+                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=TableAppImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                            <Image x:Name="TableAppImage"
+                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                   Stretch="Uniform"
+                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=TableAppImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                     </Grid>
 
-                    <!--  Nome + Fornecedor  -->
-                    <StackPanel Grid.Column="2"
-                                VerticalAlignment="Center"
-                                Margin="6,0,12,0">
+                    <!-- Nome + Fornecedor -->
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="6,0,12,0">
                         <TextBlock Text="{Binding Name}"
                                    FontWeight="SemiBold"
                                    FontSize="13"
@@ -262,7 +234,7 @@
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
 
-                    <!--  ID do Pacote  -->
+                    <!-- ID do Pacote -->
                     <TextBlock Grid.Column="3"
                                Text="{Binding Id}"
                                FontSize="11.5"
@@ -272,7 +244,7 @@
                                Margin="0,0,8,0"
                                TextTrimming="CharacterEllipsis" />
 
-                    <!--  Versão  -->
+                    <!-- Versão -->
                     <TextBlock Grid.Column="4"
                                Text="{Binding Version}"
                                FontSize="12"
@@ -281,7 +253,7 @@
                                Margin="0,0,8,0"
                                TextTrimming="CharacterEllipsis" />
 
-                    <!--  Fonte / Gerenciador com Badge  -->
+                    <!-- Fonte / Gerenciador com Badge -->
                     <Border Grid.Column="5"
                             Background="{DynamicResource ControlFillColorSecondaryBrush}"
                             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
@@ -291,46 +263,40 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Left">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Grid Width="16"
-                                  Height="16"
-                                  Margin="0,0,6,0">
+                            <Grid Width="16" Height="16" Margin="0,0,6,0">
                                 <ui:SymbolIcon Style="{StaticResource CollectionWingetSourceIconStyle}" />
                                 <ui:SymbolIcon Style="{StaticResource CollectionStoreSourceIconStyle}" />
                             </Grid>
                             <TextBlock Text="{Binding Source, Converter={StaticResource PackageSourceLabelConverter}}"
-                                       FontSize="11"
-                                       FontWeight="Medium"
+                                       FontSize="11" FontWeight="Medium"
                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </Border>
 
-                    <!--  Tamanho Estimado  -->
+                    <!-- Tamanho Estimado -->
                     <TextBlock Grid.Column="6"
                                Text="{Binding InstallerSizeDisplay, Mode=OneWay}"
                                FontSize="11.5"
                                Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                VerticalAlignment="Center" />
 
-                    <!--  Ação Rápida: Remover  -->
+                    <!-- Ação Rápida: Remover -->
                     <ui:Button Grid.Column="7"
                                Appearance="Transparent"
-                               Width="28"
-                               Height="28"
+                               Width="28" Height="28"
                                Padding="0"
                                CornerRadius="{StaticResource StoreRadius_4}"
                                Click="RemoveButton_Click"
                                Tag="{Binding}"
                                ToolTip="Remover da coleção">
-                        <ui:SymbolIcon Symbol="Dismiss24"
-                                       FontSize="14"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                        <ui:SymbolIcon Symbol="Dismiss24" FontSize="14" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                     </ui:Button>
                 </Grid>
             </Border>
         </DataTemplate>
 
-        <!--  Template do Cartão Grid (Modo Grade)  -->
+        <!-- Template do Cartão Grid (Modo Grade) -->
         <DataTemplate x:Key="AppGridCardTemplate">
             <Border Width="220"
                     Height="240"
@@ -365,52 +331,38 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!--  Topo: Checkbox e Fonte  -->
+                    <!-- Topo: Checkbox e Fonte -->
                     <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <ui:SymbolIcon Symbol="Checkmark24"
-                                       FontSize="18"
+                        <ui:SymbolIcon Symbol="Checkmark24" FontSize="18"
                                        Foreground="{DynamicResource SelectionSuccessBrush}"
-                                       HorizontalAlignment="Left"
-                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center"
                                        Visibility="{Binding IsSelectedForInstall, Converter={StaticResource BoolToVisibilityConverter}}" />
                         <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                CornerRadius="{StaticResource StoreRadius_4}"
-                                Padding="6,2"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center">
+                                CornerRadius="{StaticResource StoreRadius_4}" Padding="6,2"
+                                HorizontalAlignment="Right" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <Grid Width="14"
-                                      Height="14"
-                                      Margin="0,0,4,0">
+                                <Grid Width="14" Height="14" Margin="0,0,4,0">
                                     <ui:SymbolIcon Style="{StaticResource CollectionWingetSourceIconStyle}" FontSize="14" />
                                     <ui:SymbolIcon Style="{StaticResource CollectionStoreSourceIconStyle}" FontSize="14" />
                                 </Grid>
                                 <TextBlock Text="{Binding Source, Converter={StaticResource PackageSourceLabelConverter}}"
-                                           FontSize="10"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                           FontSize="10" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                             </StackPanel>
                         </Border>
                     </Grid>
 
-                    <!--  Centro: Ícone e Títulos  -->
-                    <StackPanel Grid.Row="1"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Center">
-                        <Grid Width="52"
-                              Height="52"
-                              Margin="0,0,0,10"
-                              ClipToBounds="True"
-                              HorizontalAlignment="Center">
-                            <ui:SymbolIcon Symbol="Box24"
-                                           FontSize="26"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridCardAppImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                            <Image x:Name="GridCardAppImage"
-                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                   Stretch="Uniform"
-                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridCardAppImage, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <!-- Centro: Ícone e Títulos -->
+                    <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Grid Width="52" Height="52" Margin="0,0,0,10"
+                              ClipToBounds="True" HorizontalAlignment="Center">
+                                <ui:SymbolIcon Symbol="Box24" FontSize="26"
+                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridCardAppImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                                <Image x:Name="GridCardAppImage"
+                                       conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                       Stretch="Uniform"
+                                       Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridCardAppImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
 
                         <TextBlock Text="{Binding Name}"
@@ -436,7 +388,7 @@
                                    Margin="0,2,0,0" />
                     </StackPanel>
 
-                    <!--  Base: Botão Remover  -->
+                    <!-- Base: Botão Remover -->
                     <ui:Button Grid.Row="2"
                                HorizontalAlignment="Center"
                                Appearance="Secondary"
@@ -447,9 +399,7 @@
                                FontSize="11"
                                ToolTip="Remover da coleção">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Dismiss24"
-                                           FontSize="13"
-                                           Margin="0,0,4,0" />
+                            <ui:SymbolIcon Symbol="Dismiss24" FontSize="13" Margin="0,0,4,0" />
                             <TextBlock Text="Remover" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
@@ -458,14 +408,10 @@
         </DataTemplate>
 
         <DataTemplate x:Key="AppIconTileTemplate">
-            <Border Width="112"
-                    Height="116"
-                    Margin="0,0,8,8"
-                    Padding="8"
+            <Border Width="112" Height="116" Margin="0,0,8,8" Padding="8"
                     BorderThickness="1"
                     CornerRadius="{StaticResource ControlCornerRadius}"
-                    MouseLeftButtonUp="Card_Click"
-                    Tag="{Binding}">
+                    MouseLeftButtonUp="Card_Click" Tag="{Binding}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="Transparent" />
@@ -482,42 +428,28 @@
                     </Style>
                 </Border.Style>
                 <Grid>
-                    <ui:SymbolIcon Symbol="Checkmark24"
-                                   FontSize="17"
+                    <ui:SymbolIcon Symbol="Checkmark24" FontSize="17"
                                    Foreground="{DynamicResource SelectionSuccessBrush}"
-                                   HorizontalAlignment="Left"
-                                   VerticalAlignment="Top"
+                                   HorizontalAlignment="Left" VerticalAlignment="Top"
                                    Visibility="{Binding IsSelectedForInstall, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                         <Grid Width="40" Height="40">
-                            <ui:SymbolIcon Symbol="Box24"
-                                           FontSize="28"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
+                            <ui:SymbolIcon Symbol="Box24" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconTileImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                            <Image x:Name="IconTileImage"
-                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                   Stretch="Uniform"
+                            <Image x:Name="IconTileImage" conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform"
                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconTileImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
-                        <TextBlock Text="{Binding Name}"
-                                   FontSize="11"
-                                   TextAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="Wrap"
-                                   MaxHeight="30"
-                                   Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Name}" FontSize="11" TextAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxHeight="30" Margin="0,6,0,0" />
                     </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
     </Page.Resources>
 
-    <!--  Estrutura principal da coleção  -->
-    <Grid Margin="{StaticResource PageContentMargin}"
-          MaxWidth="{StaticResource PageContentMaxWidth}"
-          HorizontalAlignment="Stretch">
+    <!-- Estrutura principal da coleção -->
+    <Grid Margin="{StaticResource PageContentMargin}" MaxWidth="{StaticResource PageContentMaxWidth}" HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -525,22 +457,17 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!--  ==================== HEADER (TOPO) ====================  -->
-        <StackPanel Grid.Row="0"
-                    Orientation="Horizontal"
-                    Margin="{StaticResource PageHeaderMargin}">
-            <Border Style="{StaticResource PageHeaderIconTileStyle}">
-                <ui:SymbolIcon Symbol="Layer24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
-            </Border>
+        <!-- ==================== HEADER (TOPO) ==================== -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="{StaticResource PageHeaderMargin}">
+            <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Layer24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Coleção de Pacotes" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="Crie, gerencie e instale coleções de pacotes personalizadas."
-                           Style="{StaticResource FluentPageSubtitleStyle}"
-                           Margin="0,4,0,0" />
+                           Style="{StaticResource FluentPageSubtitleStyle}" Margin="0,4,0,0" />
             </StackPanel>
         </StackPanel>
 
-        <!--  ==================== AÇÕES DA COLEÇÃO ====================  -->
+        <!-- ==================== AÇÕES DA COLEÇÃO ==================== -->
         <Border Grid.Row="1" Style="{StaticResource PageToolbarContainerStyle}">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -550,9 +477,7 @@
                                   Click="ToggleSidebarButton_Click"
                                   ToolTip="Exibir ou ocultar o painel de filtros">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Filter24"
-                                           FontSize="16"
-                                           Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="Filter24" FontSize="16" Margin="0,0,6,0" />
                             <TextBlock Text="Filtros" VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
@@ -568,81 +493,48 @@
                                     ToolTip="Instalar os aplicativos selecionados; use a seta para opções avançadas"
                                     Click="InstallSelectedButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowDownload24"
-                                           FontSize="16"
-                                           Margin="0,0,6,0" />
-                            <TextBlock Text="Instalar seleção"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="16" Margin="0,0,6,0" />
+                            <TextBlock Text="Instalar seleção" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
                         </StackPanel>
                         <ui:SplitButton.Flyout>
                             <ContextMenu>
-                                <MenuItem Header="Instalar como administrador"
-                                          Tag="Admin"
-                                          Click="InstallOption_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="Shield24" />
-                                    </MenuItem.Icon>
+                                <MenuItem Header="Instalar como administrador" Tag="Admin" Click="InstallOption_Click">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Shield24" /></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="Instalação interativa"
-                                          Tag="Interactive"
-                                          Click="InstallOption_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="Window24" />
-                                    </MenuItem.Icon>
+                                <MenuItem Header="Instalação interativa" Tag="Interactive" Click="InstallOption_Click">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Window24" /></MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="Pular verificação de integridade"
-                                          Tag="SkipHash"
-                                          Click="InstallOption_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="ShieldDismiss24" />
-                                    </MenuItem.Icon>
+                                <MenuItem Header="Pular verificação de integridade" Tag="SkipHash" Click="InstallOption_Click">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="ShieldDismiss24" /></MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
-                                <MenuItem Header="Baixar instaladores dos selecionados"
-                                          Tag="Download"
-                                          Click="InstallOption_Click">
-                                    <MenuItem.Icon>
-                                        <ui:SymbolIcon Symbol="ArrowDownload24" />
-                                    </MenuItem.Icon>
+                                <MenuItem Header="Baixar instaladores dos selecionados" Tag="Download" Click="InstallOption_Click">
+                                    <MenuItem.Icon><ui:SymbolIcon Symbol="ArrowDownload24" /></MenuItem.Icon>
                                 </MenuItem>
                             </ContextMenu>
                         </ui:SplitButton.Flyout>
                     </ui:SplitButton>
 
-                    <ui:Button x:Name="PackageDetailsToolbarButton"
-                               Style="{StaticResource ToolbarButtonStyle}"
-                               ToolTip="Ver detalhes do pacote selecionado"
-                               Click="PackageDetailsToolbarButton_Click">
+                        <ui:Button x:Name="PackageDetailsToolbarButton" Style="{StaticResource ToolbarButtonStyle}"
+                               ToolTip="Ver detalhes do pacote selecionado" Click="PackageDetailsToolbarButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Info24"
-                                           FontSize="16"
-                                           Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="Info24" FontSize="16" Margin="0,0,6,0" />
                             <TextBlock Text="Detalhes" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <ui:Button x:Name="ReloadCollectionButton"
-                               Style="{StaticResource ToolbarButtonStyle}"
-                               ToolTip="Recalcular dados e atualizar a coleção"
-                               Click="ReloadCollectionButton_Click">
+                        <ui:Button x:Name="ReloadCollectionButton" Style="{StaticResource ToolbarButtonStyle}"
+                               ToolTip="Recalcular dados e atualizar a coleção" Click="ReloadCollectionButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24"
-                                           FontSize="16"
-                                           Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" Margin="0,0,6,0" />
                             <TextBlock Text="Recarregar" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <ui:Button x:Name="MoreActionsButton"
-                               Style="{StaticResource ToolbarButtonStyle}"
-                               ToolTip="Mais ações da coleção"
-                               Click="MoreActionsButton_Click">
+                    <ui:Button x:Name="MoreActionsButton" Style="{StaticResource ToolbarButtonStyle}"
+                               ToolTip="Mais ações da coleção" Click="MoreActionsButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="MoreHorizontal24"
-                                           FontSize="16"
-                                           Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="16" Margin="0,0,6,0" />
                             <TextBlock Text="Mais" VerticalAlignment="Center" />
                         </StackPanel>
                         <ui:Button.ContextMenu>
@@ -663,7 +555,7 @@
                         </ui:Button.ContextMenu>
                     </ui:Button>
 
-                    <!--  Controles auxiliares mantidos para sincronizar o estado e os comandos da página.  -->
+                    <!-- Controles auxiliares mantidos para sincronizar o estado e os comandos da página. -->
                     <StackPanel Visibility="Collapsed">
                         <ui:Button x:Name="ToggleSelectAllButton" Click="ToggleSelectAllButton_Click">
                             <StackPanel Orientation="Horizontal">
@@ -680,7 +572,7 @@
             </ScrollViewer>
         </Border>
 
-        <!--  ==================== ÁREA PRINCIPAL ====================  -->
+        <!-- ==================== ÁREA PRINCIPAL ==================== -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="FilterSidebarColumn" Width="260" />
@@ -688,7 +580,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--  ========== PAINEL LATERAL DE FILTROS ==========  -->
+            <!-- ========== PAINEL LATERAL DE FILTROS ========== -->
             <Border x:Name="FilterSidebarPanel"
                     Grid.Column="0"
                     Background="{DynamicResource AppCardBackgroundBrush}"
@@ -698,14 +590,11 @@
                     Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
-                        <!--  Título do Painel  -->
-                        <TextBlock Text="Filtros"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Margin="4,0,0,10"
+                        <!-- Título do Painel -->
+                        <TextBlock Text="Filtros" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,10"
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-                        <!--  Expander: Fontes  -->
+                        <!-- Expander: Fontes -->
                         <Expander IsExpanded="True"
                                   Background="Transparent"
                                   BorderThickness="0"
@@ -713,89 +602,47 @@
                                   Margin="0,0,0,8">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Apps24"
-                                                   FontSize="16"
-                                                   Margin="0,0,6,0"
-                                                   VerticalAlignment="Center" />
-                                    <TextBlock Text="Fontes"
-                                               FontWeight="SemiBold"
-                                               FontSize="13"
-                                               VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="Apps24" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Fontes" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Expander.Header>
                             <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                    CornerRadius="{StaticResource StoreRadius_6}"
-                                    Padding="6"
-                                    Margin="0,6,0,0">
+                                    CornerRadius="{StaticResource StoreRadius_6}" Padding="6" Margin="0,6,0,0">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="3*" />
-                                            <ColumnDefinition Width="2*" />
-                                        </Grid.ColumnDefinitions>
-                                        <ui:Button Grid.Column="0"
-                                                   Style="{StaticResource SourceSelectionButtonStyle}"
-                                                   Margin="0,0,4,0"
-                                                   Padding="6,0"
-                                                   Click="SelectAllCollectionSources_Click">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>
+                                        <ui:Button Grid.Column="0" Style="{StaticResource SourceSelectionButtonStyle}"
+                                                   Margin="0,0,4,0" Padding="6,0" Click="SelectAllCollectionSources_Click">
                                             <StackPanel Orientation="Horizontal">
-                                                <ui:SymbolIcon Symbol="CheckmarkCircle24"
-                                                               FontSize="14"
-                                                               Margin="0,0,4,0" />
+                                                <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="14" Margin="0,0,4,0" />
                                                 <TextBlock Text="Selecionar tudo" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </ui:Button>
-                                        <ui:Button Grid.Column="1"
-                                                   Style="{StaticResource SourceSelectionButtonStyle}"
-                                                   Margin="4,0,0,0"
-                                                   Padding="6,0"
-                                                   Click="ClearCollectionSources_Click">
+                                        <ui:Button Grid.Column="1" Style="{StaticResource SourceSelectionButtonStyle}"
+                                                   Margin="4,0,0,0" Padding="6,0" Click="ClearCollectionSources_Click">
                                             <StackPanel Orientation="Horizontal">
-                                                <ui:SymbolIcon Symbol="DismissCircle24"
-                                                               FontSize="14"
-                                                               Margin="0,0,4,0" />
+                                                <ui:SymbolIcon Symbol="DismissCircle24" FontSize="14" Margin="0,0,4,0" />
                                                 <TextBlock Text="Limpar" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </ui:Button>
                                     </Grid>
-                                    <CheckBox x:Name="FilterSourceAllCheckBox"
-                                              Content="Todas as fontes"
-                                              IsChecked="True"
-                                              Click="FilterCheckBox_Click"
-                                              Margin="2,3" />
-                                    <CheckBox x:Name="FilterSourceWingetCheckBox"
-                                              IsChecked="True"
-                                              Click="FilterCheckBox_Click"
-                                              Margin="2,3">
+                                    <CheckBox x:Name="FilterSourceAllCheckBox" Content="Todas as fontes" IsChecked="True"
+                                              Click="FilterCheckBox_Click" Margin="2,3" />
+                                    <CheckBox x:Name="FilterSourceWingetCheckBox" IsChecked="True" Click="FilterCheckBox_Click" Margin="2,3">
                                         <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="MailInboxArrowDown16"
-                                                           FontSize="16"
-                                                           Margin="0,0,8,0"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <ui:SymbolIcon Symbol="MailInboxArrowDown16" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="WinGet" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </CheckBox>
-                                    <CheckBox x:Name="FilterSourceMsStoreCheckBox"
-                                              IsChecked="True"
-                                              Click="FilterCheckBox_Click"
-                                              Margin="2,3">
+                                    <CheckBox x:Name="FilterSourceMsStoreCheckBox" IsChecked="True" Click="FilterCheckBox_Click" Margin="2,3">
                                         <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="StoreMicrosoft24"
-                                                           FontSize="16"
-                                                           Margin="0,0,8,0"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <ui:SymbolIcon Symbol="StoreMicrosoft24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="Microsoft Store" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </CheckBox>
-                                    <CheckBox x:Name="FilterSourceOfficeCheckBox"
-                                              IsChecked="True"
-                                              Click="FilterCheckBox_Click"
-                                              Margin="2,3">
+                                    <CheckBox x:Name="FilterSourceOfficeCheckBox" IsChecked="True" Click="FilterCheckBox_Click" Margin="2,3">
                                         <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="Apps24"
-                                                           FontSize="16"
-                                                           Margin="0,0,8,0"
-                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <ui:SymbolIcon Symbol="Apps24" FontSize="16" Margin="0,0,8,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                                             <TextBlock Text="Office (ODT)" VerticalAlignment="Center" />
                                         </StackPanel>
                                     </CheckBox>
@@ -803,11 +650,9 @@
                             </Border>
                         </Expander>
 
-                        <Rectangle Height="1"
-                                   Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                   Margin="0,0,0,8" />
+                        <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8" />
 
-                        <!--  Expander: Filtros adicionais  -->
+                        <!-- Expander: Filtros adicionais -->
                         <Expander IsExpanded="False"
                                   Background="Transparent"
                                   BorderThickness="0"
@@ -815,111 +660,54 @@
                                   Margin="0,0,0,8">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Filter24"
-                                                   FontSize="16"
-                                                   Margin="0,0,6,0"
-                                                   VerticalAlignment="Center" />
-                                    <TextBlock Text="Filtros"
-                                               FontWeight="SemiBold"
-                                               FontSize="13"
-                                               VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="Filter24" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Filtros" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Expander.Header>
                             <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                    CornerRadius="{StaticResource StoreRadius_6}"
-                                    Padding="6"
-                                    Margin="0,6,0,0">
+                                    CornerRadius="{StaticResource StoreRadius_6}" Padding="6" Margin="0,6,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="Perfil"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Margin="2,0,0,4" />
-                                    <StackPanel x:Name="ViewProfilePanel"
-                                                Orientation="Horizontal"
-                                                VerticalAlignment="Center">
-                                        <ComboBox x:Name="ProfileTabControl"
-                                                  Height="32"
-                                                  HorizontalAlignment="Stretch"
-                                                  Width="205"
-                                                  DisplayMemberPath="Title"
-                                                  SelectedIndex="0"
+                                    <TextBlock Text="Perfil" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="2,0,0,4" />
+                                    <StackPanel x:Name="ViewProfilePanel" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <ComboBox x:Name="ProfileTabControl" Height="32" HorizontalAlignment="Stretch" Width="205"
+                                                  DisplayMemberPath="Title" SelectedIndex="0"
                                                   SelectionChanged="ProfileTabControl_SelectionChanged" />
                                     </StackPanel>
-                                    <StackPanel x:Name="EditProfilePanel"
-                                                Orientation="Horizontal"
-                                                Visibility="Collapsed"
-                                                VerticalAlignment="Center">
-                                        <ui:TextBox x:Name="RenameProfileTextBox"
-                                                    Width="140"
-                                                    Height="32"
-                                                    Margin="0,0,6,0"
+                                    <StackPanel x:Name="EditProfilePanel" Orientation="Horizontal" Visibility="Collapsed" VerticalAlignment="Center">
+                                        <ui:TextBox x:Name="RenameProfileTextBox" Width="140" Height="32" Margin="0,0,6,0"
                                                     KeyDown="RenameProfileTextBox_KeyDown" />
-                                        <ui:Button Appearance="Primary"
-                                                   Height="32"
-                                                   Padding="8,0"
-                                                   Margin="0,0,4,0"
-                                                   ToolTip="Salvar nome"
-                                                   Click="SaveProfileNameButton_Click">
+                                        <ui:Button Appearance="Primary" Height="32" Padding="8,0" Margin="0,0,4,0"
+                                                   ToolTip="Salvar nome" Click="SaveProfileNameButton_Click">
                                             <ui:SymbolIcon Symbol="Checkmark24" FontSize="15" />
                                         </ui:Button>
-                                        <ui:Button Appearance="Secondary"
-                                                   Height="32"
-                                                   Padding="8,0"
-                                                   ToolTip="Cancelar"
-                                                   Click="CancelProfileNameButton_Click">
+                                        <ui:Button Appearance="Secondary" Height="32" Padding="8,0"
+                                                   ToolTip="Cancelar" Click="CancelProfileNameButton_Click">
                                             <ui:SymbolIcon Symbol="Dismiss24" FontSize="15" />
                                         </ui:Button>
                                     </StackPanel>
-                                    <CheckBox x:Name="FilterOnlySelectedCheckBox"
-                                              Content="Apenas selecionados"
-                                              Click="FilterCheckBox_Click"
-                                              Margin="2,8,2,3" />
-                                    <Rectangle Height="1"
-                                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                               Margin="0,6" />
-                                    <TextBlock Text="Estimativas"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Margin="2,0,0,4" />
-                                    <TextBlock Text="Tamanho total"
-                                               FontSize="11"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    <TextBlock x:Name="EstimatedSizeText"
-                                               Text="Calculando…"
-                                               FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Margin="2,1,0,6" />
-                                    <TextBlock Text="Tempo de download aprox."
-                                               FontSize="11"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    <TextBlock x:Name="EstimatedTimeText"
-                                               Text="Calculando…"
-                                               FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Margin="2,1,0,0" />
+                                    <CheckBox x:Name="FilterOnlySelectedCheckBox" Content="Apenas selecionados"
+                                              Click="FilterCheckBox_Click" Margin="2,8,2,3" />
+                                    <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,6" />
+                                    <TextBlock Text="Estimativas" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="2,0,0,4" />
+                                    <TextBlock Text="Tamanho total" FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <TextBlock x:Name="EstimatedSizeText" Text="Calculando…" FontSize="13" FontWeight="SemiBold" Margin="2,1,0,6" />
+                                    <TextBlock Text="Tempo de download aprox." FontSize="11" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                    <TextBlock x:Name="EstimatedTimeText" Text="Calculando…" FontSize="13" FontWeight="SemiBold" Margin="2,1,0,0" />
                                 </StackPanel>
                             </Border>
                         </Expander>
 
-                        <Rectangle Height="1"
-                                   Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
-                                   Margin="0,0,0,8" />
+                        <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8" />
 
-                        <!--  Modo de pesquisa  -->
+                        <!-- Modo de pesquisa -->
                         <Expander IsExpanded="True"
                                   Background="Transparent"
                                   BorderThickness="0"
                                   Padding="4,2">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Search24"
-                                                   FontSize="16"
-                                                   Margin="0,0,6,0"
-                                                   VerticalAlignment="Center" />
-                                    <TextBlock Text="Modo de pesquisa"
-                                               FontWeight="SemiBold"
-                                               FontSize="13"
-                                               VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="Search24" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Modo de pesquisa" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Expander.Header>
                             <ui:AutoSuggestBox x:Name="PackageSearchTextBox"
@@ -939,13 +727,11 @@
                 </ScrollViewer>
             </Border>
 
-            <!--  GridSplitter Vertical  -->
-            <Rectangle Grid.Column="1"
-                       Width="1"
-                       Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+            <!-- GridSplitter Vertical -->
+            <Rectangle Grid.Column="1" Width="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
                        HorizontalAlignment="Center" />
 
-            <!--  ========== CONTEÚDO PRINCIPAL (TABELA / GRADE) ==========  -->
+            <!-- ========== CONTEÚDO PRINCIPAL (TABELA / GRADE) ========== -->
             <Border Grid.Column="2"
                     Background="{DynamicResource AppCardBackgroundBrush}"
                     BorderBrush="{DynamicResource AppCardBorderBrush}"
@@ -958,7 +744,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!--  CABEÇALHO DA TABELA com cantos arredondados  -->
+                    <!-- CABEÇALHO DA TABELA com cantos arredondados -->
                     <Border x:Name="TableHeaderBar"
                             Grid.Row="0"
                             Background="{DynamicResource ControlFillColorSecondaryBrush}"
@@ -988,48 +774,16 @@
                                       Click="SelectAllHeaderCheckBox_Click"
                                       ToolTip="Selecionar ou desmarcar todos" />
 
-                            <TextBlock x:Name="NameSortHeader"
-                                       Grid.Column="2"
-                                       Text="Nome do aplicativo"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       Margin="6,0,0,0"
-                                       Cursor="Hand"
-                                       MouseLeftButtonUp="SortByName_Click" />
-                            <TextBlock x:Name="IdSortHeader"
-                                       Grid.Column="3"
-                                       Text="ID do Pacote"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       Cursor="Hand"
-                                       MouseLeftButtonUp="SortById_Click" />
-                            <TextBlock x:Name="VersionSortHeader"
-                                       Grid.Column="4"
-                                       Text="Versão"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       Cursor="Hand"
-                                       MouseLeftButtonUp="SortByVersion_Click" />
-                            <TextBlock x:Name="SourceSortHeader"
-                                       Grid.Column="5"
-                                       Text="Origem"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       Cursor="Hand"
-                                       MouseLeftButtonUp="SortBySource_Click" />
-                            <TextBlock Grid.Column="6"
-                                       Text="Tamanho"
-                                       FontWeight="SemiBold"
-                                       FontSize="12" />
-                            <TextBlock Grid.Column="7"
-                                       Text="Ações"
-                                       FontWeight="SemiBold"
-                                       FontSize="12"
-                                       HorizontalAlignment="Center" />
+                            <TextBlock x:Name="NameSortHeader" Grid.Column="2" Text="Nome do aplicativo" FontWeight="SemiBold" FontSize="12" Margin="6,0,0,0" Cursor="Hand" MouseLeftButtonUp="SortByName_Click" />
+                            <TextBlock x:Name="IdSortHeader" Grid.Column="3" Text="ID do Pacote" FontWeight="SemiBold" FontSize="12" Cursor="Hand" MouseLeftButtonUp="SortById_Click" />
+                            <TextBlock x:Name="VersionSortHeader" Grid.Column="4" Text="Versão" FontWeight="SemiBold" FontSize="12" Cursor="Hand" MouseLeftButtonUp="SortByVersion_Click" />
+                            <TextBlock x:Name="SourceSortHeader" Grid.Column="5" Text="Origem" FontWeight="SemiBold" FontSize="12" Cursor="Hand" MouseLeftButtonUp="SortBySource_Click" />
+                            <TextBlock Grid.Column="6" Text="Tamanho" FontWeight="SemiBold" FontSize="12" />
+                            <TextBlock Grid.Column="7" Text="Ações" FontWeight="SemiBold" FontSize="12" HorizontalAlignment="Center" />
                         </Grid>
                     </Border>
 
-                    <!--  MODO TABELA (LISTVIEW / ITEMSCONTROL)  -->
+                    <!-- MODO TABELA (LISTVIEW / ITEMSCONTROL) -->
                     <ScrollViewer x:Name="ListViewScrollViewer"
                                   Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
@@ -1048,7 +802,7 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!--  MODO GRADE (CARDS VIEW)  -->
+                    <!-- MODO GRADE (CARDS VIEW) -->
                     <ScrollViewer x:Name="GridViewScrollViewer"
                                   Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
@@ -1069,11 +823,8 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <ScrollViewer x:Name="IconsViewScrollViewer"
-                                  Grid.Row="1"
-                                  Visibility="Collapsed"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
+                    <ScrollViewer x:Name="IconsViewScrollViewer" Grid.Row="1" Visibility="Collapsed"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                   CanContentScroll="True">
                         <ItemsControl x:Name="AppCollectionIconsItemsControl"
                                       VirtualizingPanel.IsVirtualizing="True"
@@ -1089,26 +840,21 @@
                         </ItemsControl>
                     </ScrollViewer>
 
-                    <!--  ESTADO VAZIO (EMPTY STATE)  -->
+                    <!-- ESTADO VAZIO (EMPTY STATE) -->
                     <StackPanel x:Name="EmptyCollectionPanel"
                                 Grid.Row="1"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Visibility="Collapsed"
                                 Margin="32">
-                        <Border Width="64"
-                                Height="64"
+                        <Border Width="64" Height="64"
                                 CornerRadius="{StaticResource StoreRadius_16}"
                                 Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 HorizontalAlignment="Center"
                                 Margin="0,0,0,16">
-                            <ui:SymbolIcon Symbol="Box24"
-                                           FontSize="32"
-                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="Box24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
 
                         <TextBlock Text="Sua coleção de pacotes está vazia"
@@ -1161,7 +907,7 @@
                     Title="Não foi possível concluir a ação"
                     Panel.ZIndex="10" />
 
-        <!--  ==================== STATUS BAR / RODAPÉ ====================  -->
+        <!-- ==================== STATUS BAR / RODAPÉ ==================== -->
         <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -1169,94 +915,71 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!--  Status e Seleção  -->
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
+                <!-- Status e Seleção -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
                     <TextBlock x:Name="SelectionSummaryText"
                                Text="0 selecionados · Ação: Instalar seleção"
                                Style="{StaticResource PageStatusPrimaryTextStyle}" />
-                    <TextBlock Text=" · "
-                               FontSize="12"
-                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                               VerticalAlignment="Center" />
+                    <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
                     <TextBlock x:Name="StatusText"
                                Text="Pronto."
                                Style="{StaticResource PageStatusTextStyle}" />
                 </StackPanel>
 
-                <!--  Alternador de Modo de Visualização (Tabela / Cartões)  -->
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <TextBlock Text="Classificar por:"
-                               Style="{StaticResource PageStatusTextStyle}"
-                               Margin="0,0,8,0" />
-                    <ComboBox x:Name="SortModeComboBox"
-                              Width="150"
-                              Height="32"
-                              SelectedIndex="0"
-                              SelectionChanged="SortModeComboBox_SelectionChanged"
-                              Margin="0,0,12,0">
+                <!-- Alternador de Modo de Visualização (Tabela / Cartões) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Classificar por:" Style="{StaticResource PageStatusTextStyle}" Margin="0,0,8,0" />
+                    <ComboBox x:Name="SortModeComboBox" Width="150" Height="32" SelectedIndex="0"
+                              SelectionChanged="SortModeComboBox_SelectionChanged" Margin="0,0,12,0">
                         <ComboBoxItem Content="Nome" />
                         <ComboBoxItem Content="ID" />
                         <ComboBoxItem Content="Versão" />
                         <ComboBoxItem Content="Origem" />
                     </ComboBox>
                     <StackPanel Orientation="Horizontal">
-                        <ToggleButton x:Name="ListViewToggleButton"
-                                      Style="{StaticResource PageViewModeToggleStyle}"
+                        <ToggleButton x:Name="ListViewToggleButton" Style="{StaticResource PageViewModeToggleStyle}"
                                       IsChecked="True"
                                       ToolTip="Visualização em lista"
                                       Click="ListViewToggleButton_Click">
                             <ui:SymbolIcon Symbol="List24" FontSize="16" />
                         </ToggleButton>
-                        <ToggleButton x:Name="GridViewToggleButton"
-                                      Style="{StaticResource PageViewModeToggleStyle}"
+                        <ToggleButton x:Name="GridViewToggleButton" Style="{StaticResource PageViewModeToggleStyle}"
                                       IsChecked="False"
                                       ToolTip="Visualização em grade de cartões"
                                       Click="GridViewToggleButton_Click">
                             <ui:SymbolIcon Symbol="Grid24" FontSize="16" />
                         </ToggleButton>
-                        <ToggleButton x:Name="IconsViewToggleButton"
-                                      Style="{StaticResource PageViewModeToggleStyle}"
-                                      ToolTip="Visualização em ícones"
-                                      Click="IconsViewToggleButton_Click">
+                        <ToggleButton x:Name="IconsViewToggleButton" Style="{StaticResource PageViewModeToggleStyle}"
+                                      ToolTip="Visualização em ícones" Click="IconsViewToggleButton_Click">
                             <ui:SymbolIcon Symbol="Apps24" FontSize="16" />
                         </ToggleButton>
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel x:Name="NoResultsPanel"
-                            Grid.Row="1"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Visibility="Collapsed"
-                            Margin="32">
-                    <ui:SymbolIcon Symbol="Search24"
-                                   FontSize="30"
-                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                    <StackPanel x:Name="NoResultsPanel"
+                                Grid.Row="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="Collapsed"
+                                Margin="32">
+                        <ui:SymbolIcon Symbol="Search24" FontSize="30"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       HorizontalAlignment="Center" Margin="0,0,0,12" />
+                        <TextBlock Text="Nenhum pacote encontrado"
+                                   FontSize="17" FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
-                                   Margin="0,0,0,12" />
-                    <TextBlock Text="Nenhum pacote encontrado"
-                               FontSize="17"
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                    <TextBlock Text="Tente outro termo ou ajuste os filtros da coleção."
-                               FontSize="13"
-                               TextAlignment="Center"
-                               TextWrapping="Wrap"
-                               MaxWidth="360"
-                               Margin="0,6,0,12"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                    <ui:Button Content="Limpar pesquisa e filtros"
-                               Appearance="Secondary"
-                               HorizontalAlignment="Center"
-                               Click="ResetCollectionFilters_Click" />
-                </StackPanel>
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Tente outro termo ou ajuste os filtros da coleção."
+                                   FontSize="13" TextAlignment="Center" TextWrapping="Wrap"
+                                   MaxWidth="360" Margin="0,6,0,12"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <ui:Button Content="Limpar pesquisa e filtros"
+                                   Appearance="Secondary"
+                                   HorizontalAlignment="Center"
+                                   Click="ResetCollectionFilters_Click" />
+                    </StackPanel>
             </Grid>
         </Border>
 

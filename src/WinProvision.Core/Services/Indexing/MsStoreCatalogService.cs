@@ -49,7 +49,7 @@ public class MsStoreCatalogService
 
         try
         {
-            using var response = await _httpClient.GetAsync(url, cancellationToken);
+            using var response = await SendWithRetryAsync(url, cancellationToken);
             if (!response.IsSuccessStatusCode)
                 return [];
 
@@ -103,7 +103,7 @@ public class MsStoreCatalogService
 
                 try
                 {
-                    using var response = await _httpClient.GetAsync(url, cancellationToken);
+                    using var response = await SendWithRetryAsync(url, cancellationToken);
                     if (!response.IsSuccessStatusCode)
                     {
                         Console.WriteLine($"      [AVISO] Display Catalog respondeu {(int)response.StatusCode} para o lote atual, pulando.");
@@ -147,9 +147,45 @@ public class MsStoreCatalogService
         return results;
     }
 
+    private async Task<HttpResponseMessage> SendWithRetryAsync(string url, CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 3;
+        for (int attempt = 1; ; attempt++)
+        {
+            HttpResponseMessage response;
+            try
+            {
+                response = await _httpClient.GetAsync(url, cancellationToken);
+            }
+            catch (HttpRequestException) when (attempt < maxAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), cancellationToken);
+                continue;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested && attempt < maxAttempts)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(350 * attempt), cancellationToken);
+                continue;
+            }
+
+            if ((int)response.StatusCode < 500 && response.StatusCode != System.Net.HttpStatusCode.TooManyRequests)
+                return response;
+
+            if (attempt == maxAttempts)
+                return response;
+
+            TimeSpan delay = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMilliseconds(350 * attempt);
+            response.Dispose();
+            await Task.Delay(delay > TimeSpan.FromSeconds(10) ? TimeSpan.FromSeconds(10) : delay, cancellationToken);
+        }
+    }
+
     private static AppEntry? MapToAppEntry(DisplayCatalogProduct product, string requestedLanguage)
     {
-        var localized = product.LocalizedProperties?.FirstOrDefault();
+        var localizedProperties = product.LocalizedProperties ?? [];
+        var localized = localizedProperties.FirstOrDefault(property =>
+                            string.Equals(property.Language, requestedLanguage, StringComparison.OrdinalIgnoreCase))
+                        ?? localizedProperties.FirstOrDefault();
         if (localized is null || string.IsNullOrWhiteSpace(product.ProductId))
         {
             return null;
@@ -191,8 +227,9 @@ public class MsStoreCatalogService
             Version = "-",
             Name = localized.ProductTitle ?? product.ProductId,
             Publisher = localized.PublisherName ?? "Microsoft Store",
-            // A API devolveu a localização solicitada (pt-BR nos fluxos do app).
-            PackageLocale = requestedLanguage,
+            // A consulta pode devolver a localização padrão quando não há tradução
+            // para o idioma solicitado. Usa o idioma informado pela própria Store.
+            PackageLocale = localized.Language,
             Homepage = $"https://apps.microsoft.com/detail/{product.ProductId}",
             Description = localized.ShortDescription ?? localized.Description,
             StoreIconUrl = iconUrl,
@@ -325,6 +362,9 @@ public class MsStoreCatalogService
 
     private class LocalizedProperty
     {
+        [JsonPropertyName("Language")]
+        public string? Language { get; set; }
+
         [JsonPropertyName("ProductTitle")]
         public string? ProductTitle { get; set; }
 

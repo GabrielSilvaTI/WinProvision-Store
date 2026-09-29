@@ -843,22 +843,7 @@ public partial class AppDetailsOverlay : UserControl
             CloseButtonText = "Cancelar"
         };
 
-        var basePrimaryButtonStyle = (Style)Application.Current.Resources[typeof(Wpf.Ui.Controls.Button)];
-        var primaryButtonStyle = new Style(typeof(Wpf.Ui.Controls.Button), basePrimaryButtonStyle);
-        primaryButtonStyle.Triggers.Add(new Trigger
-        {
-            Property = Wpf.Ui.Controls.Button.AppearanceProperty,
-            Value = Wpf.Ui.Controls.ControlAppearance.Primary,
-            Setters =
-            {
-                new Setter(Wpf.Ui.Controls.Button.BackgroundProperty, Application.Current.Resources["InstallActionBrush"]),
-                new Setter(Wpf.Ui.Controls.Button.MouseOverBackgroundProperty, Application.Current.Resources["InstallActionHoverBrush"]),
-                new Setter(Wpf.Ui.Controls.Button.PressedBackgroundProperty, Application.Current.Resources["InstallActionPressedBrush"]),
-                new Setter(Wpf.Ui.Controls.Button.ForegroundProperty, Brushes.White),
-                new Setter(Wpf.Ui.Controls.Button.PressedForegroundProperty, Brushes.White)
-            }
-        });
-        confirmDialog.Resources[typeof(Wpf.Ui.Controls.Button)] = primaryButtonStyle;
+        confirmDialog.Resources[typeof(Wpf.Ui.Controls.Button)] = StoreDialogStyles.CreatePrimaryActionButtonStyle();
 
         var confirmResult = await confirmDialog.ShowDialogAsync();
         if (confirmResult != Wpf.Ui.Controls.MessageBoxResult.Primary)

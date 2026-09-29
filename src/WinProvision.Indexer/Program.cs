@@ -52,10 +52,9 @@ static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync(string localCatalo
 }
 
 /// <summary>
-/// Modo "--msstore": roda só a consulta à Display Catalog contra os IDs curados em
-/// config/msstore-curated.json e exporta o resultado em msstore-catalog.json — sem
-/// tocar no winget-pkgs. Chamado pelo workflow "Update msstore-catalog.json", separado
-/// do scan diário pesado (ver comentário no passo [+] acima).
+/// Modo "--msstore": atualiza IDs já descobertos, resolve IDs curados e busca novos
+/// produtos por termos/prefixos na Display Catalog; exporta msstore-catalog.json sem
+/// tocar no winget-pkgs. Chamado pelo workflow semanal da Microsoft Store.
 /// </summary>
 static async Task<int> RunMsStoreOnlyAsync(string outputDir)
 {
@@ -64,20 +63,43 @@ static async Task<int> RunMsStoreOnlyAsync(string outputDir)
     Console.WriteLine("==================================================");
 
     var service = new MsStoreCatalogService();
+    var previousIds = LoadPreviousMsStoreIds(outputDir);
+    Console.WriteLine($"\n[1/4] Atualizando {previousIds.Count:N0} ID(s) já descobertos...");
+    var apps = await service.FetchAsync(previousIds);
+    Console.WriteLine($"      {apps.Count:N0} produtos anteriores ainda disponíveis no catálogo BR");
+
     var curatedIds = LoadMsStoreCuratedIds();
-    Console.WriteLine($"\n[1/3] Resolvendo {curatedIds.Count:N0} ID(s) MS Store curados...");
-    var apps = await service.FetchAsync(curatedIds);
-    Console.WriteLine($"      {apps.Count:N0} de {curatedIds.Count:N0} IDs curados resolvidos");
+    Console.WriteLine($"\n[2/4] Resolvendo {curatedIds.Count:N0} ID(s) MS Store curados...");
+    var curatedApps = await service.FetchAsync(curatedIds);
+    apps.AddRange(curatedApps);
+    Console.WriteLine($"      {curatedApps.Count:N0} de {curatedIds.Count:N0} IDs curados resolvidos");
 
     var searchTerms = LoadConfig("msstore-search-terms.json", new List<string>());
-    Console.WriteLine($"\n[2/3] Descobrindo apps da Store com {searchTerms.Count:N0} consultas...");
+    // O endpoint de busca não oferece paginação pública confiável. Buscar prefixos
+    // curtos de duas letras revela resultados de cauda longa que não aparecem nas
+    // consultas genéricas; a concorrência limitada mantém a carga moderada.
+    const string prefixCharacters = "abcdefghijklmnopqrstuvwxyz";
+    var discoveryQueries = searchTerms
+        .Concat(from first in prefixCharacters
+                from second in prefixCharacters
+                select $"{first}{second}")
+        .Where(term => !string.IsNullOrWhiteSpace(term))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+    Console.WriteLine($"\n[3/4] Descobrindo apps da Store com {discoveryQueries.Count:N0} consultas (termos + prefixos de duas letras)...");
     int discovered = 0;
-    foreach (string term in searchTerms.Where(term => !string.IsNullOrWhiteSpace(term)).Distinct(StringComparer.OrdinalIgnoreCase))
-    {
-        var matches = await service.SearchAsync(term);
-        discovered += matches.Count;
-        apps.AddRange(matches);
-    }
+    var searchResults = new System.Collections.Concurrent.ConcurrentBag<AppEntry>();
+    await Parallel.ForEachAsync(
+        discoveryQueries,
+        new ParallelOptions { MaxDegreeOfParallelism = 3 },
+        async (term, cancellationToken) =>
+        {
+            var matches = await service.SearchAsync(term, cancellationToken);
+            Interlocked.Add(ref discovered, matches.Count);
+            foreach (var match in matches)
+                searchResults.Add(match);
+        });
+    apps.AddRange(searchResults);
     apps = apps
         .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
         .Select(group => group.First())
@@ -85,7 +107,7 @@ static async Task<int> RunMsStoreOnlyAsync(string outputDir)
         .ToList();
     Console.WriteLine($"      {apps.Count:N0} produtos únicos no catálogo após {discovered:N0} resultados de busca");
 
-    Console.WriteLine("\n[3/3] Exportando msstore-catalog.json...");
+    Console.WriteLine("\n[4/4] Exportando msstore-catalog.json...");
     Directory.CreateDirectory(outputDir);
     string outputPath = Path.Combine(outputDir, "msstore-catalog.json");
     await using (var stream = File.Create(outputPath))
@@ -128,6 +150,30 @@ static NoiseRules LoadNoiseRules() => LoadConfig("noise-rules.json", NoiseRules.
 static ScoringWeights LoadScoringWeights() => LoadConfig("scoring-weights.json", new ScoringWeights());
 
 static List<string> LoadMsStoreCuratedIds() => LoadConfig("msstore-curated.json", new List<string>());
+
+static List<string> LoadPreviousMsStoreIds(string outputDir)
+{
+    string path = Path.Combine(outputDir, "msstore-catalog.previous.json");
+    if (!File.Exists(path))
+        return [];
+
+    try
+    {
+        var previous = JsonSerializer.Deserialize<List<AppEntry>>(
+            File.ReadAllText(path), WinProvisionJsonOptions.Compact) ?? [];
+        return previous
+            .Where(app => string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase))
+            .Select(app => app.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"      [AVISO] Catálogo MS Store anterior inválido; seguindo com curadoria e buscas: {ex.Message}");
+        return [];
+    }
+}
 
 if (args.Length >= 1 && args[0] == "--msstore")
 {
@@ -349,8 +395,19 @@ Lap("exportação");
 // <pasta-de-saida>/api, que é o diretório que o upload_api_json.py publica no R2.
 Console.WriteLine("\n[8/8] Exportando API de instaladores...");
 var apiExporter = new InstallerApiExporter();
-var apiStats = await apiExporter.ExportAsync(published, bundlesByAppId, Path.Combine(outputDir, "api"));
+// A vitrine pública continua usando o corte de score acima, mas a API de instalação
+// também precisa conhecer todos os produtos que o catálogo MS Store conseguiu descobrir.
+// Para esses IDs, o manifesto da API funciona como roteador para a origem oficial msstore;
+// eles não têm URL de instalador própria. Antes, usar somente `published` removia ofertas
+// da Store com score baixo e fazia a API própria responder PackageNotFound.
+var apiPackages = published
+    .Concat(msstoreApps)
+    .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
+    .Select(group => group.First())
+    .ToList();
+var apiStats = await apiExporter.ExportAsync(apiPackages, bundlesByAppId, Path.Combine(outputDir, "api"));
 Console.WriteLine($"      {apiStats.Packages:N0} pacotes e {apiStats.Installers:N0} instaladores exportados");
+Console.WriteLine($"      {msstoreApps.Count:N0} produtos da Store incluídos como encaminhamentos para a origem oficial msstore");
 Console.WriteLine($"      {apiStats.InstallersWithoutSilent:N0} instaladores sem instalação silenciosa suportada (silentSupported=false)");
 Console.WriteLine($"      {apiStats.SkippedInsecureInstallerUrls:N0} instalador(es) HTTP/URL inválida descartado(s) por exigir HTTPS");
 Console.WriteLine($"      {apiStats.SkippedNoInstaller:N0} pacotes ignorados por não terem instalador HTTPS, {apiStats.SkippedInvalidId:N0} por ID inválido como nome de arquivo");

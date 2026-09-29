@@ -45,7 +45,7 @@ public static class ElevatedProcessRunner
             using var process = Process.Start(startInfo);
             if (process is null)
             {
-                WingetCliAudit.Result($"{fileName} (elevado)", -1, success: false, auditTimer);
+                WingetCliAudit.Result($"{fileName} (elevado)", -1, success: false, auditTimer, arguments);
                 return new WingetExecutionResult
                 {
                     Success = false,
@@ -57,7 +57,7 @@ public static class ElevatedProcessRunner
             await process.WaitForExitAsync(cancellationToken);
             string output = File.Exists(tempFile) ? await File.ReadAllTextAsync(tempFile, cancellationToken) : string.Empty;
 
-            WingetCliAudit.Result($"{fileName} (elevado)", process.ExitCode, process.ExitCode == 0, auditTimer);
+            WingetCliAudit.Result($"{fileName} (elevado)", process.ExitCode, process.ExitCode == 0, auditTimer, arguments);
             return new WingetExecutionResult
             {
                 Success = process.ExitCode == 0,
@@ -72,7 +72,7 @@ public static class ElevatedProcessRunner
             // API COM e não tentam pedir UAC de novo — vão direto pra API própria da
             // WinProvision Store, já que o usuário demonstrou que não vai aprovar o prompt.
             WinProvisionElevationState.MarkFailed();
-            WingetCliAudit.Result($"{fileName} (elevado)", -1, success: false, auditTimer);
+            WingetCliAudit.Result($"{fileName} (elevado)", -1, success: false, auditTimer, arguments);
             return new WingetExecutionResult
             {
                 Success = false,

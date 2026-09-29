@@ -54,7 +54,7 @@ public static class WingetCliAudit
     /// resultado correspondente no log não deixa saber se aquele processo terminou bem ou
     /// mal — quem lê o log precisava ficar de olho na UI pra descobrir.
     /// </summary>
-    public static void Result(string fileName, int exitCode, bool success, Stopwatch stopwatch)
+    public static void Result(string fileName, int exitCode, bool success, Stopwatch stopwatch, string? arguments = null)
     {
         var sink = Sink;
         if (sink is null)
@@ -64,7 +64,7 @@ public static class WingetCliAudit
 
         try
         {
-            sink($"WINGET.EXE RESULT file={fileName} exitCode={exitCode} success={success} elapsed={stopwatch.Elapsed}");
+            sink($"WINGET.EXE RESULT file={fileName} args={arguments ?? "(indisponível)"} exitCode={exitCode} success={success} elapsed={stopwatch.Elapsed}");
         }
         catch
         {

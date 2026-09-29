@@ -29,8 +29,10 @@ public record ApiExportStats(
 /// packages/*.json é DETERMINÍSTICO: sem data/hora de geração e com instaladores em
 /// ordem fixa. O generatedAt fica só no index.json, que é sempre reenviado.
 ///
-/// Cobre apenas os pacotes do catálogo publicado (mesmo corte do apps.json) com
-/// source "winget". Usa a mesma <see cref="WinProvisionJsonOptions"/> do
+/// Cobre os pacotes WinGet aprovados para publicação e todos os produtos incluídos no
+/// catálogo sincronizado da Microsoft Store. As entradas Store são marcadores de origem
+/// sem instalador, usados pela API cliente para encaminhar a instalação ao WinGet/msstore.
+/// Usa a mesma <see cref="WinProvisionJsonOptions"/> do
 /// <see cref="CatalogExporter"/>; campos nulos são omitidos do JSON.
 /// </summary>
 public class InstallerApiExporter

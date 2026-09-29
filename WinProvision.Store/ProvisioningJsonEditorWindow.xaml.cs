@@ -105,6 +105,7 @@ public partial class ProvisioningJsonEditorWindow : FluentWindow
                 Content = "Não foi possível salvar o arquivo. Tente novamente.",
                 CloseButtonText = "OK"
             };
+            StoreDialogStyles.Apply(errorDialog);
             await errorDialog.ShowDialogAsync();
         }
     }

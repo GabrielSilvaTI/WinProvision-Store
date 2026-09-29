@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.ProvisioningPage"
+<Page x:Class="WinProvision.Store.ProvisioningPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -17,14 +17,6 @@
 
     <Page.Resources>
         <!--  Tipografia Fluent (Segoe UI Variable)  -->
-        <Style x:Key="PageTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentPageTitleStyle}" />
-
-        <Style x:Key="CardTitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource FluentCardTitleStyle}" />
-
         <Style x:Key="CardSubtitleStyle"
                TargetType="TextBlock"
                BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -44,28 +36,10 @@
             <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
 
-        <!--  Cartão Clássico (Para a Sidebar de Resumo)  -->
-        <Style x:Key="CardStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource FluentCardStyle}">
-            <Setter Property="Padding" Value="{StaticResource Spacing24}" />
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <!-- Cartões de configuração consomem a superfície compartilhada do app. -->
+        <Style x:Key="SettingsCardStyle" TargetType="Border" BasedOn="{StaticResource StoreCardSurfaceStyle}">
             <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
-            <Setter Property="Effect" Value="{DynamicResource StoreCardShadowEffect}" />
-        </Style>
-
-        <!--  NOVO: Cartão de Configurações (Estilo Lista do Win11, sem Padding interno para as linhas tocarem a borda)  -->
-        <Style x:Key="SettingsCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-            <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
             <Setter Property="Padding" Value="0" />
-            <Setter Property="Effect" Value="{DynamicResource StoreCardShadowEffect}" />
         </Style>
 
         <Style x:Key="SettingsSectionHeaderStyle"
@@ -112,14 +86,14 @@
         <!--  Menu Principal (Cards Largos)  -->
         <Style x:Key="MenuCardButtonStyle"
                TargetType="ui:Button"
-               BasedOn="{StaticResource {x:Type ui:Button}}">
+               BasedOn="{StaticResource SettingsSearchResultButtonStyle}">
             <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-            <Setter Property="Padding" Value="{StaticResource Spacing16}" />
-            <Setter Property="MinHeight" Value="76" />
+            <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="Padding" Value="18,16" />
+            <Setter Property="MinHeight" Value="72" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Cursor" Value="Hand" />
@@ -127,46 +101,16 @@
             <Setter Property="PressedBackground" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
         </Style>
 
-        <!--  Estilos para os Textos de Estatística (Resumo)  -->
-        <Style x:Key="StatValueStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="28" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0,0,0,4" />
-        </Style>
-
-        <Style x:Key="StatLabelStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="TextAlignment" Value="Center" />
-            <Setter Property="HorizontalAlignment" Value="Center" />
-        </Style>
-
-        <!--  Item da lista de alterações  -->
-        <Style x:Key="ChangeItemStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        </Style>
     </Page.Resources>
 
     <Border Background="Transparent"
             Margin="{StaticResource PageContentMargin}"
-            MaxWidth="{StaticResource PageContentMaxWidth}"
-            HorizontalAlignment="Stretch"
+            MaxWidth="600"
+            HorizontalAlignment="Center"
             CornerRadius="{StaticResource OverlayCornerRadius}">
         <Grid Margin="0">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
@@ -180,13 +124,11 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Border Style="{StaticResource PageHeaderIconTileStyle}">
-                        <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
-                    </Border>
+                    <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Provisionamento" Style="{StaticResource PageTitleStyle}" />
-                        <TextBlock Text="Ajuste o Windows ou exporte um perfil."
-                                   Style="{StaticResource FluentPageSubtitleStyle}"
+                        <TextBlock Text="Provisionamento" Style="{StaticResource StorePageTitleStyle}" />
+                        <TextBlock Text="Configure o Windows e exporte um perfil reutilizável."
+                                   Style="{StaticResource StoreSubtitleStyle}"
                                    Margin="0,4,0,0" />
                     </StackPanel>
                 </StackPanel>
@@ -197,10 +139,10 @@
                     <ui:Button x:Name="ApplyButton"
                                Content="Aplicar agora"
                                Appearance="Primary"
+                               Style="{StaticResource StoreActionButtonStyle}"
                                Click="ApplyButton_Click"
-                               CornerRadius="{StaticResource ControlCornerRadius}"
                                Height="36"
-                               Background="{DynamicResource SystemAccentColorPrimaryBrush}">
+                               ToolTip="Aplicar as configurações selecionadas">
                         <ui:Button.Icon>
                             <ui:SymbolIcon Symbol="PlayCircle24" FontSize="16" />
                         </ui:Button.Icon>
@@ -208,19 +150,39 @@
                 </StackPanel>
             </Grid>
 
-            <!--  ================= Corpo (Drill-down + Sidebar) =================  -->
-            <Grid Grid.Row="1">
+            <!-- Pesquisa alinhada à página Configurações. -->
+            <Grid Grid.Row="1" Margin="0,0,0,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="7*" MinWidth="420" />
-                    <ColumnDefinition Width="32" />
-                    <!--  Espaço  -->
-                    <ColumnDefinition Width="3*"
-                                      MinWidth="300"
-                                      MaxWidth="360" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
+                <ui:TextBox x:Name="ProvisioningSearchBox"
+                            Grid.Column="1"
+                            Width="320"
+                            MinHeight="36"
+                            PlaceholderText="Pesquisar opções de provisionamento"
+                            Icon="Search24"
+                            ClearButtonEnabled="True"
+                            AutomationProperties.Name="Pesquisar opções de provisionamento"
+                            TextChanged="ProvisioningSearchBox_TextChanged"
+                            KeyDown="ProvisioningSearchBox_KeyDown" />
+                <TextBlock x:Name="ProvisioningSearchResultText"
+                           Grid.Row="1"
+                           Grid.ColumnSpan="2"
+                           Visibility="Collapsed"
+                           Margin="0,8,0,0"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                           TextWrapping="Wrap" />
+            </Grid>
 
-                <!--  ESQUERDA: Menu Principal OU Formulários de Seção  -->
-                <Grid Grid.Column="0">
+            <!--  ================= Corpo =================  -->
+            <Grid Grid.Row="2">
+                <Grid>
 
                     <!--  Visão 1: Menu de Seções  -->
                     <ScrollViewer x:Name="ProfileOverviewPanel"
@@ -228,6 +190,18 @@
                                   HorizontalScrollBarVisibility="Disabled"
                                   behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
                         <StackPanel Margin="0,0,8,0">
+                            <StackPanel x:Name="ProvisioningSearchResultsPanel" Visibility="Collapsed">
+                                <TextBlock Text="Resultados da pesquisa" Style="{StaticResource StoreSectionTitleStyle}" Margin="0,0,0,12" />
+                                <StackPanel x:Name="ProvisioningSearchResultsList" />
+                                <TextBlock x:Name="ProvisioningSearchEmptyText"
+                                           Text="Nenhuma opção corresponde à pesquisa. Tente outro termo."
+                                           Visibility="Collapsed"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                            <StackPanel x:Name="ProvisioningCategoriesPanel">
+                            <TextBlock Text="Categorias" Style="{StaticResource StoreSectionTitleStyle}" Margin="0,0,0,12" />
                             <ui:Button x:Name="PersonalizationNavCard"
                                        Style="{StaticResource MenuCardButtonStyle}"
                                        Click="PersonalizationNavCard_Click">
@@ -237,14 +211,15 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Grid.Column="0"
-                                                   Symbol="PaintBrush24"
-                                                   FontSize="24"
-                                                   Margin="0,0,16,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
+                                            CornerRadius="{StaticResource ControlCornerRadius}"
+                                            Background="{DynamicResource FluentPanelElevatedBrush}">
+                                        <ui:SymbolIcon Symbol="PaintBrush24" FontSize="20"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Personalização" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Personalização" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Tema, barra de tarefas e plano de fundo."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
@@ -265,14 +240,15 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Grid.Column="0"
-                                                   Symbol="Settings24"
-                                                   FontSize="24"
-                                                   Margin="0,0,16,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
+                                            CornerRadius="{StaticResource ControlCornerRadius}"
+                                            Background="{DynamicResource FluentPanelElevatedBrush}">
+                                        <ui:SymbolIcon Symbol="Settings24" FontSize="20"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Configurações Avançadas" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Configurações Avançadas" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Nome, região, energia e restauração."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
@@ -293,14 +269,15 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Grid.Column="0"
-                                                   Symbol="Code24"
-                                                   FontSize="24"
-                                                   Margin="0,0,16,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
+                                            CornerRadius="{StaticResource ControlCornerRadius}"
+                                            Background="{DynamicResource FluentPanelElevatedBrush}">
+                                        <ui:SymbolIcon Symbol="Code24" FontSize="20"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Visualização do JSON" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Visualização do JSON" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Identificação e perfil JSON."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
@@ -321,14 +298,15 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <ui:SymbolIcon Grid.Column="0"
-                                                   Symbol="DocumentArrowRight24"
-                                                   FontSize="24"
-                                                   Margin="0,0,16,0"
-                                                   VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
+                                            CornerRadius="{StaticResource ControlCornerRadius}"
+                                            Background="{DynamicResource FluentPanelElevatedBrush}">
+                                        <ui:SymbolIcon Symbol="DocumentArrowRight24" FontSize="20"
+                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Gerador de arquivo de resposta" Style="{StaticResource CardTitleStyle}" />
+                                        <TextBlock Text="Gerador de arquivo de resposta" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Configure o Windows no Canvas Schneegans, em português."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
@@ -340,8 +318,7 @@
                                 </Grid>
                             </ui:Button>
 
-
-
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -363,7 +340,7 @@
                                 <ui:SymbolIcon Symbol="ArrowLeft24" FontSize="18" />
                             </ui:Button>
                             <TextBlock x:Name="SectionTitleText"
-                                       Style="{StaticResource PageTitleStyle}"
+                                       Style="{StaticResource FluentPageTitleStyle}"
                                        FontSize="20"
                                        VerticalAlignment="Center"
                                        Margin="12,0,0,0" />
@@ -379,7 +356,7 @@
                                 <StackPanel x:Name="PersonalizationSectionPanel" Visibility="Collapsed">
 
                                     <!--  Bloco 1: Tema e Barra de Tarefas  -->
-                                    <Border Style="{StaticResource SettingsCardStyle}" Visibility="Collapsed">
+                                    <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
 
                                             <!--  Tema  -->
@@ -1865,114 +1842,14 @@
 
                 </Grid>
 
-                <!--  DIREITA: Barra Lateral de Resumo (Sempre Visível)  -->
-                <Grid Grid.Column="2">
-                    <StackPanel x:Name="ProfileSummarySidebar">
-
-                        <!--  Resumo  -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Resumo do Perfil"
-                                           Style="{StaticResource CardTitleStyle}"
-                                           Margin="0,0,0,24" />
-
-                                <Grid Margin="0,0,0,24">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock x:Name="SectionsConfiguredCountText"
-                                                   Text="0"
-                                                   Style="{StaticResource StatValueStyle}" />
-                                        <TextBlock Text="Seções configuradas" Style="{StaticResource StatLabelStyle}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock x:Name="KeysModifiedCountText"
-                                                   Text="0"
-                                                   Style="{StaticResource StatValueStyle}" />
-                                        <TextBlock Text="Chaves modificadas" Style="{StaticResource StatLabelStyle}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock x:Name="WarningsCountText"
-                                                   Text="0"
-                                                   Style="{StaticResource StatValueStyle}" />
-                                        <TextBlock Text="Advertências" Style="{StaticResource StatLabelStyle}" />
-                                    </StackPanel>
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <ui:FontIcon x:Name="ProfileValidIcon"
-                                                 Glyph="&#xE930;"
-                                                 FontFamily="Segoe Fluent Icons"
-                                                 Foreground="{DynamicResource SystemFillColorSuccessBrush}"
-                                                 FontSize="18"
-                                                 Margin="0,0,8,0" />
-                                    <TextBlock x:Name="ProfileValidText"
-                                               Text="Perfil válido"
-                                               FontFamily="Segoe UI Variable Text"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <!--  Alterações Pendentes  -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Alterações Pendentes"
-                                           Style="{StaticResource CardTitleStyle}"
-                                           Margin="0,0,0,8" />
-
-                                <ScrollViewer MaxHeight="320"
-                                              VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled"
-                                              Margin="0,0,0,4">
-                                    <ItemsControl x:Name="ChangesListItemsControl">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Grid Margin="0,0,0,8">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0"
-                                                               Text="•"
-                                                               Margin="0,0,8,0"
-                                                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                               FontWeight="Bold"
-                                                               VerticalAlignment="Top" />
-                                                    <TextBlock Grid.Column="1"
-                                                               Text="{Binding}"
-                                                               Style="{StaticResource ChangeItemStyle}"
-                                                               VerticalAlignment="Top" />
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
-
-                                <TextBlock x:Name="NoChangesText"
-                                           Text="Nenhuma alteração registrada neste perfil ainda."
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           FontFamily="Segoe UI Variable Text"
-                                           TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-
-
-                </Grid>
             </Grid>
 
             <!--  ================= Rodapé =================  -->
-            <Border Grid.Row="2" Style="{StaticResource PageStatusBarStyle}">
+            <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
-                    <TextBlock x:Name="StatusText" Style="{StaticResource PageStatusTextStyle}" />
+                    <TextBlock x:Name="StatusText"
+                               Style="{StaticResource PageStatusTextStyle}" />
                 </StackPanel>
             </Border>
         </Grid>

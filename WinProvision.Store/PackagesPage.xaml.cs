@@ -673,6 +673,7 @@ public partial class PackagesPage : Page
             CloseButtonText = "Cancelar"
         };
 
+        StoreDialogStyles.Apply(confirmDialog);
         var result = await confirmDialog.ShowDialogAsync();
         if (result != Wpf.Ui.Controls.MessageBoxResult.Primary) return;
 

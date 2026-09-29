@@ -115,7 +115,7 @@ public class OperationItem : INotifyPropertyChanged, IDisposable
         _ => "processar"
     };
 
-    public string ButtonText => IsFinished ? "Fechar" : "Cancelar";
+    public string ButtonText => IsFinished ? "Limpar concluídas" : "Cancelar";
 
     /// <summary>Linha ao vivo exibida logo abaixo do título (ex.: 'Downloading boto3-1.43.102-py3-none-any.whl.metadata (6.6 kB)').</summary>
     public string LiveLine

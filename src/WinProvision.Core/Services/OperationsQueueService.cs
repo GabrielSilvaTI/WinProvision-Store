@@ -54,15 +54,17 @@ public class OperationsQueueService : INotifyPropertyChanged
     {
         var item = new OperationItem(appName, kind, iconUrl);
         item.PropertyChanged += Item_PropertyChanged;
-        item.DismissRequested += Remove;
+        item.DismissRequested += Item_DismissRequested;
         Operations.Add(item);
         return item;
     }
 
+    private void Item_DismissRequested(OperationItem _) => ClearFinished();
+
     public void Remove(OperationItem item)
     {
         item.PropertyChanged -= Item_PropertyChanged;
-        item.DismissRequested -= Remove;
+        item.DismissRequested -= Item_DismissRequested;
         Operations.Remove(item);
         item.Dispose();
         OnPropertyChanged(nameof(TotalCount));

@@ -14,9 +14,7 @@
                 CornerRadius="{StaticResource OverlayCornerRadius}"
                 Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
                 Height="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Canvas}}">
-            <Grid Margin="{StaticResource PageContentMargin}"
-                  MaxWidth="{StaticResource PageContentMaxWidth}"
-                  HorizontalAlignment="Stretch">
+            <Grid Margin="{StaticResource PageContentMargin}" MaxWidth="{StaticResource PageContentMaxWidth}" HorizontalAlignment="Stretch">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -25,14 +23,10 @@
                 <StackPanel Grid.Row="0"
                             Orientation="Horizontal"
                             Margin="{StaticResource PageHeaderMargin}">
-                    <Border Style="{StaticResource PageHeaderIconTileStyle}">
-                        <ui:SymbolIcon Symbol="Info24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
-                    </Border>
+                    <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Info24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Sobre o WinProvision Store" Style="{StaticResource FluentPageTitleStyle}" />
-                        <TextBlock Text="Acompanhe o projeto e suas novidades."
-                                   Style="{StaticResource FluentPageSubtitleStyle}"
-                                   Margin="0,4,0,0" />
+                        <TextBlock Text="Acompanhe o projeto e suas novidades." Style="{StaticResource FluentPageSubtitleStyle}" Margin="0,4,0,0" />
                     </StackPanel>
                 </StackPanel>
 

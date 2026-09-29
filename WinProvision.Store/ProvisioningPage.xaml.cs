@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -57,9 +59,24 @@ public partial class ProvisioningPage : Page
     // ComboBoxes que devem ter rolagem de rodinha nativa no dropdown (Popup/HWND separada)
     private readonly List<ComboBox> _wheelAwareComboBoxes = new();
 
+    private sealed record ProvisioningSearchEntry(
+        string Title,
+        string Description,
+        string Category,
+        ProvisioningCategory Section,
+        string SearchTerms,
+        string Symbol,
+        FrameworkElement Target);
+
+    private enum ProvisioningCategory { Personalization, System, Json }
+
+    private readonly List<ProvisioningSearchEntry> _provisioningSearchEntries = [];
+    private readonly List<ProvisioningSearchEntry> _provisioningSearchResults = [];
+
     public ProvisioningPage()
     {
         InitializeComponent();
+        InitializeProvisioningSearchEntries();
 
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
         _scheduledTempCleanerService = App.Services.GetRequiredService<ScheduledTempCleanerService>();
@@ -144,9 +161,178 @@ public partial class ProvisioningPage : Page
     {
         SectionPanel.Visibility = Visibility.Collapsed;
         ProfileOverviewPanel.Visibility = Visibility.Visible;
-        ProfileSummarySidebar.Visibility = Visibility.Visible;
         ApplyButton.Visibility = Visibility.Visible;
         RefreshProfileSummary();
+    }
+
+    private void InitializeProvisioningSearchEntries()
+    {
+        _provisioningSearchEntries.AddRange(
+        [
+            new("Tema do sistema", "Escolha o tema claro ou escuro do Windows.", "Personalização", ProvisioningCategory.Personalization, "aparência claro escuro", "Color24", ThemeComboBox),
+            new("Alinhamento da barra de tarefas", "Posicione os ícones à esquerda ou no centro.", "Personalização", ProvisioningCategory.Personalization, "barra tarefas centralizar esquerda", "Settings24", TaskbarAlignmentComboBox),
+            new("Caixa de pesquisa", "Defina como a pesquisa aparece na barra de tarefas.", "Personalização", ProvisioningCategory.Personalization, "barra tarefas pesquisa ícone ocultar", "Search24", TaskbarSearchBoxComboBox),
+            new("Ocultar a barra de tarefas automaticamente", "Recolha a barra quando ela não estiver em uso.", "Personalização", ProvisioningCategory.Personalization, "auto ocultar recolher", "Desktop24", TaskbarAutoHideCheckBox),
+            new("Papel de parede", "Escolha uma imagem para o plano de fundo da área de trabalho.", "Personalização", ProvisioningCategory.Personalization, "imagem fundo plano desktop área trabalho", "Desktop24", SelectWallpaperButton),
+            new("Nome da máquina", "Defina o nome que será atribuído ao computador.", "Configurações avançadas", ProvisioningCategory.System, "computador pc hostname dispositivo", "Desktop24", MachineNameTextBox),
+            new("Região", "Escolha a região do Windows.", "Configurações avançadas", ProvisioningCategory.System, "país localização brasil idioma", "Globe24", RegionComboBox),
+            new("Plano de energia", "Selecione o perfil de energia do computador.", "Configurações avançadas", ProvisioningCategory.System, "bateria desempenho economia equilibrado", "Power24", PowerPlanComboBox),
+            new("Desligar a tela", "Escolha após quanto tempo a tela será desligada.", "Configurações avançadas", ProvisioningCategory.System, "monitor vídeo tempo limite energia", "Desktop24", DisplayTimeoutAcComboBox),
+            new("Suspender o computador", "Escolha após quanto tempo o PC entrará em suspensão.", "Configurações avançadas", ProvisioningCategory.System, "repouso dormir standby suspensão energia", "Power24", StandbyTimeoutAcComboBox),
+            new("Ponto de restauração", "Crie um ponto de restauração antes de aplicar o perfil.", "Configurações avançadas", ProvisioningCategory.System, "sistema backup recuperação proteger", "Settings24", AutoCreateRestorePointCheckBox),
+            new("Limpeza automática de temporários", "Agende a limpeza ao entrar no Windows.", "Configurações avançadas", ProvisioningCategory.System, "arquivos temporários logon inicialização agendar", "Broom24", AutoCleanTempOnLogonCheckBox),
+            new("Informação OEM", "Edite o texto de identificação OEM do perfil.", "Perfil e JSON", ProvisioningCategory.Json, "fabricante identificação nome", "Person24", ProfileNameTextBox),
+            new("Nome do perfil", "Edite o nome associado ao perfil.", "Perfil e JSON", ProvisioningCategory.Json, "criador autor perfil", "Person24", ProfileCreatorTextBox),
+            new("Código JSON", "Consulte o JSON gerado ou abra o editor completo.", "Perfil e JSON", ProvisioningCategory.Json, "arquivo código visualizar copiar exportar", "Code24", JsonPreviewTextBox)
+        ]);
+    }
+
+    private void ProvisioningSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        string query = NormalizeProvisioningSearchText(ProvisioningSearchBox.Text ?? string.Empty);
+        bool isSearching = query.Length > 0;
+        if (isSearching && SectionPanel.Visibility == Visibility.Visible)
+        {
+            ShowProfileOverview();
+        }
+
+        ProvisioningSearchResultsPanel.Visibility = isSearching ? Visibility.Visible : Visibility.Collapsed;
+        ProvisioningCategoriesPanel.Visibility = isSearching ? Visibility.Collapsed : Visibility.Visible;
+        ProvisioningSearchResultsList.Children.Clear();
+        _provisioningSearchResults.Clear();
+        ProvisioningSearchEmptyText.Visibility = Visibility.Collapsed;
+
+        if (!isSearching)
+        {
+            ProvisioningSearchResultText.Visibility = Visibility.Collapsed;
+            ProvisioningSearchResultText.Text = string.Empty;
+            return;
+        }
+
+        string[] terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        _provisioningSearchResults.AddRange(_provisioningSearchEntries.Where(entry =>
+        {
+            string searchableText = NormalizeProvisioningSearchText($"{entry.Title} {entry.Description} {entry.Category} {entry.SearchTerms}");
+            return terms.All(term => searchableText.Contains(term, StringComparison.Ordinal));
+        }));
+
+        foreach (ProvisioningSearchEntry entry in _provisioningSearchResults)
+            ProvisioningSearchResultsList.Children.Add(CreateProvisioningSearchResultButton(entry));
+
+        ProvisioningSearchEmptyText.Visibility = _provisioningSearchResults.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ProvisioningSearchResultText.Text = _provisioningSearchResults.Count switch
+        {
+            0 => "Nenhuma opção encontrada.",
+            1 => "1 opção encontrada. Selecione para abrir essa configuração.",
+            _ => $"{_provisioningSearchResults.Count} opções encontradas. Selecione uma para abrir a configuração correspondente."
+        };
+        ProvisioningSearchResultText.Visibility = Visibility.Visible;
+    }
+
+    private void ProvisioningSearchBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || _provisioningSearchResults.Count == 0)
+        {
+            return;
+        }
+
+        NavigateToProvisioningSearchResult(_provisioningSearchResults[0]);
+        e.Handled = true;
+    }
+
+    private Wpf.Ui.Controls.Button CreateProvisioningSearchResultButton(ProvisioningSearchEntry entry)
+    {
+        var button = new Wpf.Ui.Controls.Button
+        {
+            Appearance = Wpf.Ui.Controls.ControlAppearance.Secondary,
+            Style = (Style)FindResource("SettingsSearchResultButtonStyle"),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Tag = entry,
+            ToolTip = entry.Description
+        };
+        button.Click += ProvisioningSearchResultButton_Click;
+        System.Windows.Automation.AutomationProperties.SetName(button, $"{entry.Title}, {entry.Category}");
+        System.Windows.Automation.AutomationProperties.SetHelpText(button, entry.Description);
+
+        var content = new Grid();
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(16) });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new Wpf.Ui.Controls.SymbolIcon
+        {
+            Symbol = Enum.Parse<Wpf.Ui.Controls.SymbolRegular>(entry.Symbol),
+            FontSize = 20,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        icon.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
+        content.Children.Add(icon);
+
+        var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        textStack.Children.Add(new TextBlock { Text = entry.Title, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        var description = new TextBlock { Text = entry.Description, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) };
+        description.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        textStack.Children.Add(description);
+        Grid.SetColumn(textStack, 2);
+        content.Children.Add(textStack);
+
+        var category = new TextBlock
+        {
+            Text = entry.Category,
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            MaxWidth = 180
+        };
+        category.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        Grid.SetColumn(category, 4);
+        content.Children.Add(category);
+        button.Content = content;
+        return button;
+    }
+
+    private void ProvisioningSearchResultButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Wpf.Ui.Controls.Button { Tag: ProvisioningSearchEntry entry })
+            NavigateToProvisioningSearchResult(entry);
+    }
+
+    private void NavigateToProvisioningSearchResult(ProvisioningSearchEntry entry)
+    {
+        switch (entry.Section)
+        {
+            case ProvisioningCategory.Personalization:
+                PersonalizationNavCard_Click(this, new RoutedEventArgs());
+                break;
+            case ProvisioningCategory.System:
+                AdvancedNavCard_Click(this, new RoutedEventArgs());
+                break;
+            case ProvisioningCategory.Json:
+                JsonNavCard_Click(this, new RoutedEventArgs());
+                break;
+        }
+
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            entry.Target.BringIntoView();
+            entry.Target.Focus();
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private static string NormalizeProvisioningSearchText(string value)
+    {
+        string decomposed = value.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(decomposed.Length);
+        foreach (char character in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                builder.Append(character);
+        }
+
+        return builder.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
     }
 
     private void PersonalizationNavCard_Click(object sender, RoutedEventArgs e)
@@ -184,9 +370,7 @@ public partial class ProvisioningPage : Page
     private void BackToProfileButton_Click(object sender, RoutedEventArgs e) => ShowProfileOverview();
 
     /// <summary>
-    /// Recalcula os cartões "Informações do Perfil"/"Resumo do Perfil" e a Visualização do
-    /// JSON a partir do estado atual da UI — chamado sempre que algo muda (ver
-    /// <see cref="PushCurrentToService"/>) e ao voltar da tela de uma seção pra visão do Perfil.
+    /// Atualiza os metadados e a visualização JSON do perfil a partir do estado atual da UI.
     /// </summary>
     private void RefreshProfileSummary(ProvisioningManifest? manifest = null)
     {
@@ -197,85 +381,12 @@ public partial class ProvisioningPage : Page
         // sobrescrever o texto a cada refresh atrapalharia o usuário digitando.
         ProfileCreatedAtText.Text = manifest.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss");
 
-        bool personalizationSet = (manifest.Theme is { } theme && theme != SystemThemeMode.NaoDefinido)
-            || (manifest.TaskbarAlignment is { } align && align != TaskbarAlignmentMode.NaoDefinido)
-            || (manifest.TaskbarSearchBox is { } search && search != TaskbarSearchBoxMode.NaoDefinido)
-            || manifest.TaskbarAutoHide is true
-            || !string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64);
-        bool advancedSet = !string.IsNullOrWhiteSpace(manifest.MachineName)
-            || !string.IsNullOrWhiteSpace(manifest.Region)
-            || (manifest.PowerPlan is { } power && power != PowerPlanMode.NaoDefinido)
-            || manifest.DisplayTimeoutOnAc is not null
-            || manifest.DisplayTimeoutOnDc is not null
-            || manifest.StandbyTimeoutOnAc is not null
-            || manifest.StandbyTimeoutOnDc is not null
-            || manifest.AutoCreateRestorePoint is true
-            || manifest.AutoCleanTempOnLogon is true;
-
-        int sectionsConfigured = (personalizationSet ? 1 : 0) + (advancedSet ? 1 : 0);
-
-        int keysModified = 0;
-        if (!string.IsNullOrWhiteSpace(manifest.Name)) keysModified++;
-        if (!string.IsNullOrWhiteSpace(manifest.Creator)) keysModified++;
-        if (manifest.DisplayTimeoutOnAc is not null) keysModified++;
-        if (manifest.DisplayTimeoutOnDc is not null) keysModified++;
-        if (manifest.StandbyTimeoutOnAc is not null) keysModified++;
-        if (manifest.StandbyTimeoutOnDc is not null) keysModified++;
-        if (manifest.Theme is { } t && t != SystemThemeMode.NaoDefinido) keysModified++;
-        if (manifest.TaskbarAlignment is { } ta && ta != TaskbarAlignmentMode.NaoDefinido) keysModified++;
-        if (manifest.TaskbarSearchBox is { } ts && ts != TaskbarSearchBoxMode.NaoDefinido) keysModified++;
-        if (manifest.TaskbarAutoHide is true) keysModified++;
-        if (manifest.PowerPlan is { } pp && pp != PowerPlanMode.NaoDefinido) keysModified++;
-        if (!string.IsNullOrWhiteSpace(manifest.MachineName)) keysModified++;
-        if (!string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64)) keysModified++;
-        if (!string.IsNullOrWhiteSpace(manifest.Region)) keysModified++;
-        if (manifest.AutoCreateRestorePoint is true) keysModified++;
-        if (manifest.AutoCleanTempOnLogon is true) keysModified++;
-
-        var warnings = new List<string>();
-        if (!string.IsNullOrWhiteSpace(manifest.MachineName) && manifest.MachineName.Length > 15)
-        {
-            warnings.Add("Nome da máquina excede 15 caracteres (limite NetBIOS) — pode ser truncado ao aplicar.");
-        }
-
-        SectionsConfiguredCountText.Text = sectionsConfigured.ToString();
-        KeysModifiedCountText.Text = keysModified.ToString();
-        WarningsCountText.Text = warnings.Count.ToString();
-        ChangesDetectedText.Text = keysModified == 1
-            ? "1 alteração detectada"
-            : $"Alterações detectadas: {keysModified}";
-
         var friendlyChanges = BuildFriendlyChangesList();
-        ChangesListItemsControl.ItemsSource = friendlyChanges;
-        ChangesListItemsControl.Visibility = friendlyChanges.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        NoChangesText.Visibility = friendlyChanges.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        ChangesDetectedText.Text = friendlyChanges.Count == 1
+            ? "1 alteração detectada"
+            : $"Alterações detectadas: {friendlyChanges.Count}";
 
         string profileJson = BuildProfileJson(manifest);
-        var jsonValidation = ProfileJsonValidator.Validate(profileJson);
-        if (_profileService.LastImportValidation is { IsValid: false } importValidation)
-            jsonValidation = importValidation;
-
-        if (!jsonValidation.IsValid)
-        {
-            ProfileValidIcon.Glyph = "\uEA39";
-            ProfileValidIcon.Foreground = (System.Windows.Media.Brush)FindResource("SystemFillColorCriticalBrush");
-            ProfileValidText.Text = jsonValidation.Path is { Length: > 0 }
-                ? $"JSON inválido em {jsonValidation.Path}: {jsonValidation.Message}"
-                : jsonValidation.Message;
-        }
-        else if (warnings.Count == 0)
-        {
-            ProfileValidIcon.Glyph = "\uE930";
-            ProfileValidIcon.Foreground = (System.Windows.Media.Brush)FindResource("SystemFillColorSuccessBrush");
-            ProfileValidText.Text = "Perfil válido";
-        }
-        else
-        {
-            ProfileValidIcon.Glyph = "\uEA39";
-            ProfileValidIcon.Foreground = (System.Windows.Media.Brush)FindResource("SystemFillColorCautionBrush");
-            ProfileValidText.Text = string.Join(" ", warnings);
-        }
-
         JsonPreviewTextBox.Text = profileJson;
     }
 

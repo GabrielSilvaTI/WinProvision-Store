@@ -2,7 +2,7 @@
 ; Instalador do WinProvision Store — Inno Setup 6.3+
 ;
 ; Gerado no CI pelo build-release.yml. Uso manual (a partir da raiz do repo):
-;   ISCC.exe /DAppVersion=1.0.2 /DFileVersion=1.0.2.0 ^
+;   ISCC.exe /DAppVersion=1.0.3 /DFileVersion=1.0.3.0 ^
 ;            /DSourceDir=C:\caminho\publish ^
 ;            /DOutputDir=C:\caminho\dist installer\WinProvision.Store.iss
 ;

@@ -42,8 +42,7 @@ def main() -> int:
             if not offer.get("displayName") or not SAFE_ID.fullmatch(linked):
                 raise ValueError(f"Oferta incompleta: {sid}")
             if linked.casefold() not in product_ids and linked.casefold() not in {
-                "o365homepremretail",
-                "o365businessretail",
+                "o365homepremretail", "o365businessretail"
             }:
                 raise ValueError(f"Oferta {sid} aponta para Product ID ausente: {linked}")
             for field in ("iconUrl", "bannerUrl"):

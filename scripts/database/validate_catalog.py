@@ -67,7 +67,9 @@ def validate_catalog(
                 "count": len(current),
                 "previousCount": previous_count,
                 "changePercent": (
-                    round((len(current) - previous_count) * 100 / previous_count, 2) if previous_count else None
+                    round((len(current) - previous_count) * 100 / previous_count, 2)
+                    if previous_count
+                    else None
                 ),
                 "expectedSource": expected_source,
             },

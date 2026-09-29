@@ -7,14 +7,14 @@
     <!--
         Barra de progresso da fila com modos determinado e indeterminado,
         colorida conforme o método de instalação.
-        
+
         - IsIndeterminate = True  -> uma faixa colorida desliza continuamente da
         esquerda para a direita sobre o trilho inteiro. Use enquanto a etapa não
         tem percentual conhecido (ex.: "Na fila...", "Preparando...").
         - IsIndeterminate = False -> a barra preenche até Value/Maximum normalmente
         (aproveitando o comportamento nativo do ProgressBar via PART_Track/PART_Indicator),
         com uma leve pulsação enquanto há progresso real.
-        
+
         A cor acompanha OperationItem.Method: roxo para API COM, laranja para WinProvision API,
         azul para WinGet CLI e azul inicial enquanto o método não é identificado.
     -->

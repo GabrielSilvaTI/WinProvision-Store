@@ -115,10 +115,8 @@ internal static class WinProvisionLog
         // Chamadas diretas ao winget.exe (fallback CLI ou verificações pontuais).
         (new Regex(@"^WINGET\.EXE LAUNCH file=(?<file>\S+) args=""(?<args>[^""]*)"".*$"),
             m => $"Executando: {m.Groups["file"].Value} {m.Groups["args"].Value}".TrimEnd()),
-        (new Regex(@"^WINGET\.EXE RESULT file=(?<file>\S+) exitCode=(?<code>-?\d+) success=(?<success>True|False)$"),
-            m => m.Groups["success"].Value == "True"
-                ? $"{m.Groups["file"].Value} concluído"
-                : $"{m.Groups["file"].Value} falhou (código {m.Groups["code"].Value})"),
+        (new Regex(@"^WINGET\.EXE RESULT file=(?<file>\S+) args=(?<args>.*?) exitCode=(?<code>-?\d+) success=(?<success>True|False) elapsed=\S+$"),
+            m => DescribeWingetResult(m.Groups["args"].Value, m.Groups["code"].Value, m.Groups["success"].Value == "True")),
 
         // Ativação dos componentes COM do WinGet (CLSID/IID/HRESULT). Só interessa
         // quando algo dá errado — quando funciona, é ruído de instrumentação.
@@ -206,6 +204,26 @@ internal static class WinProvisionLog
         "relaunch-unelevated" when result == "failed" => "Falha ao reiniciar sem elevação — continuando elevado",
         _ => $"Decisão de inicialização: {decision}"
     };
+
+    private static string DescribeWingetResult(string arguments, string code, bool success)
+    {
+        string command = arguments.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "comando";
+        string label = command.ToLowerInvariant() switch
+        {
+            "export" => "Consulta do inventário instalado",
+            "--version" => "Verificação da versão do WinGet",
+            "install" => "Instalação via WinGet",
+            "update" or "upgrade" => "Atualização via WinGet",
+            "uninstall" => "Remoção via WinGet",
+            "list" => "Consulta de pacotes via WinGet",
+            "show" or "search" => "Consulta do catálogo WinGet",
+            _ => $"Comando WinGet ({command})"
+        };
+
+        return success
+            ? $"{label} concluída (código {code})"
+            : $"{label} falhou (código {code})";
+    }
 
     private static string FormatProgress(string state, string download, string install)
     {

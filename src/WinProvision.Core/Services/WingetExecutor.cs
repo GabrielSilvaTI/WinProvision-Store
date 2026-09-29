@@ -99,7 +99,11 @@ public class WingetExecutor
             };
 
         string args = $"install --id \"{appId}\" --exact --source {source}";
-        args += interactive ? " --interactive" : " --silent --disable-interactivity";
+        // Store packages are licensed and installed through the Store service. Forcing
+        // silent mode can suppress the Store hand-off/consent UI and leave the request
+        // looking successful or stalled; let WinGet use its interactive Store flow.
+        bool useInteractive = interactive || source.Equals("msstore", StringComparison.OrdinalIgnoreCase);
+        args += useInteractive ? " --interactive" : " --silent --disable-interactivity";
         string? normalizedScope = NormalizeScope(scope);
         string? normalizedArchitecture = NormalizeArchitecture(architecture);
         if (normalizedScope is not null) args += $" --scope {normalizedScope}";
@@ -115,7 +119,7 @@ public class WingetExecutor
             args, onLogReceived, cancellationToken, normalizedScope, normalizedArchitecture,
             requiresElevation && !elevationProhibited);
 
-        return NormalizeInstallOutcome(result);
+        return NormalizeInstallOutcome(result, isUpgrade: false);
     }
 
     /// <summary>
@@ -431,7 +435,8 @@ public class WingetExecutor
             };
 
         string args = $"update --id \"{appId}\" --exact --source {source} --accept-source-agreements";
-        args += interactive ? " --interactive" : " --disable-interactivity --silent";
+        bool useInteractive = interactive || source.Equals("msstore", StringComparison.OrdinalIgnoreCase);
+        args += useInteractive ? " --interactive" : " --disable-interactivity --silent";
         args += " --include-unknown --accept-package-agreements --force";
         if (ignoreSecurityHash)
             args += " --ignore-security-hash";
@@ -443,7 +448,7 @@ public class WingetExecutor
             args, onLogReceived, cancellationToken, normalizedScope, normalizedArchitecture,
             requiresElevation && !elevationProhibited);
 
-        return NormalizeInstallOutcome(result);
+        return NormalizeInstallOutcome(result, isUpgrade: true);
     }
 
     /// <summary>
@@ -530,13 +535,13 @@ public class WingetExecutor
         return result;
     }
 
-    private static WingetExecutionResult NormalizeInstallOutcome(WingetExecutionResult result)
+    private static WingetExecutionResult NormalizeInstallOutcome(WingetExecutionResult result, bool isUpgrade)
     {
         if (result.Success)
             return result;
 
         uint code = unchecked((uint)result.ExitCode);
-        if (code is 0x8A150109 or 0x8A15010B or 0x8A15010D or 0x8A15010E or 0x8A15004F)
+        if (code is 0x8A150109 or 0x8A15010B || (isUpgrade && code == 0x8A15004F))
         {
             result.Success = true;
             result.FailureReason = WingetFailureReason.Unknown;
@@ -544,7 +549,6 @@ public class WingetExecutor
             {
                 0x8A150109 => "Instalação concluída; é necessário reiniciar o computador.",
                 0x8A15010B => "A instalação foi concluída e o computador está reiniciando.",
-                0x8A15010D => "O aplicativo já está instalado.",
                 _ => "A versão instalada já é igual ou mais recente."
             };
             return result;
@@ -830,7 +834,7 @@ public class WingetExecutor
 
             await process.WaitForExitAsync(cancellationToken);
 
-            WingetCliAudit.Result(wingetExecutable, process.ExitCode, process.ExitCode == 0, auditTimer);
+            WingetCliAudit.Result(wingetExecutable, process.ExitCode, process.ExitCode == 0, auditTimer, arguments);
             return new WingetExecutionResult
             {
                 Success = process.ExitCode == 0,
@@ -843,7 +847,7 @@ public class WingetExecutor
             // Cancelamento vindo do orquestrador (WPF/PowerShell): mata o processo
             // em vez de deixar o winget.exe orfão rodando em segundo plano.
             TryKill(process);
-            WingetCliAudit.Result(wingetExecutable, -1, success: false, auditTimer);
+            WingetCliAudit.Result(wingetExecutable, -1, success: false, auditTimer, arguments);
             return new WingetExecutionResult
             {
                 Success = false,
@@ -854,7 +858,7 @@ public class WingetExecutor
         catch (Exception ex)
         {
             TryKill(process);
-            WingetCliAudit.Result(wingetExecutable, -1, success: false, auditTimer);
+            WingetCliAudit.Result(wingetExecutable, -1, success: false, auditTimer, arguments);
             return new WingetExecutionResult
             {
                 Success = false,
