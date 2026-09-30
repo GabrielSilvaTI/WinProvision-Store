@@ -3,33 +3,33 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              xmlns:conv="clr-namespace:WinProvision.Store.Converters"
-             FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
+             FontFamily="{DynamicResource StoreFontFamily}"
              UseLayoutRounding="True"
              SnapsToDevicePixels="True">
-    <Border CornerRadius="{StaticResource OverlayCornerRadius}"
-            Padding="28,17,25,17"
-            MinHeight="106"
+    <Border CornerRadius="{StaticResource StoreCardCornerRadius}"
+            Padding="20,16"
+            MinHeight="88"
             BorderThickness="1">
         <Border.Style>
             <Style TargetType="Border">
-                <Setter Property="Background" Value="#2C10203A" />
-                <Setter Property="BorderBrush" Value="#223A59" />
+                    <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding Status}" Value="InProgress">
-                        <Setter Property="Background" Value="#38112845" />
-                        <Setter Property="BorderBrush" Value="#268DFF" />
+                        <Setter Property="Background" Value="{DynamicResource FluentAccentSoftBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource InstallActionBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Status}" Value="Completed">
-                        <Setter Property="Background" Value="#24111F35" />
-                        <Setter Property="BorderBrush" Value="#203A58" />
+                        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Status}" Value="CompletedWithWarnings">
-                        <Setter Property="Background" Value="#33241A10" />
-                        <Setter Property="BorderBrush" Value="#7A6A3D" />
+                        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCautionBrush}" />
                     </DataTrigger>
                     <DataTrigger Binding="{Binding Status}" Value="Failed">
-                        <Setter Property="Background" Value="#321B1728" />
-                        <Setter Property="BorderBrush" Value="#87515C" />
+                        <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource SystemFillColorCriticalBrush}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -48,16 +48,16 @@
                        Text="{Binding Number}"
                        FontSize="16"
                        FontWeight="SemiBold"
-                       Foreground="#F0F4FB"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                        VerticalAlignment="Center" />
 
             <Border Grid.Column="1"
                     Width="44"
                     Height="44"
-                    CornerRadius="{StaticResource OverlayCornerRadius}"
+                    CornerRadius="{StaticResource ControlCornerRadius}"
                     VerticalAlignment="Center"
-                    Background="#3A2C3B52"
-                    BorderBrush="#3D4C68"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    BorderBrush="{DynamicResource AppCardBorderBrush}"
                     BorderThickness="1">
                 <!--
                     Fundo do badge é neutro e igual para as 4 fases (padronização pedida) —
@@ -85,17 +85,17 @@
                            Text="{Binding Title}"
                            FontSize="15.5"
                            FontWeight="SemiBold"
-                           Foreground="#F1F5FB" />
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                 <TextBlock Grid.Row="1"
                            Text="{Binding Description}"
                            FontSize="11.5"
-                           Foreground="#AAB8CA"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            Margin="0,5,0,0"
                            TextWrapping="Wrap" />
                 <TextBlock Grid.Row="2"
                            Text="{Binding CurrentDetail}"
                            FontSize="11"
-                           Foreground="#56B7FF"
+                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                            Margin="0,6,0,0"
                            TextWrapping="Wrap">
                     <TextBlock.Style>
@@ -142,11 +142,11 @@
                         Margin="0,0,17,0">
                 <TextBlock Text="{Binding ExecutionTime}"
                            FontSize="11"
-                           Foreground="#B2BDCD"
+                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                            HorizontalAlignment="Right" />
                 <TextBlock Text="{Binding ProgressText}"
                            FontSize="10.5"
-                           Foreground="#8495AB"
+                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                            HorizontalAlignment="Right"
                            Margin="0,4,0,0" />
             </StackPanel>
@@ -162,7 +162,7 @@
                 -->
                 <Ellipse Width="29"
                          Height="29"
-                         Stroke="#53657E"
+                         Stroke="{DynamicResource ControlStrokeColorDefaultBrush}"
                          StrokeThickness="1.5" />
                 <ContentControl Width="29" Height="29">
                     <ContentControl.Style>
@@ -173,7 +173,7 @@
                                         <Setter.Value>
                                             <ui:SymbolIcon Symbol="CheckmarkCircle24"
                                                            FontSize="28"
-                                                           Foreground="#37C85A" />
+                                                           Foreground="{DynamicResource SystemFillColorSuccessBrush}" />
                                         </Setter.Value>
                                     </Setter>
                                 </DataTrigger>
@@ -182,7 +182,7 @@
                                         <Setter.Value>
                                             <ui:SymbolIcon Symbol="ErrorCircle24"
                                                            FontSize="28"
-                                                           Foreground="#F2C14E" />
+                                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
                                         </Setter.Value>
                                     </Setter>
                                 </DataTrigger>
@@ -191,7 +191,7 @@
                                         <Setter.Value>
                                             <ui:SymbolIcon Symbol="DismissCircle24"
                                                            FontSize="28"
-                                                           Foreground="#FF7884" />
+                                                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
                                         </Setter.Value>
                                     </Setter>
                                 </DataTrigger>

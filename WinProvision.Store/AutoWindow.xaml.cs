@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using Wpf.Ui.Controls;
@@ -26,7 +25,7 @@ public partial class AutoWindow : FluentWindow
     public void ShowCloudTracking(string viewUrl)
     {
         CloudTrackingUrlTextBox.Text = viewUrl;
-        CloudTrackingQrImage.Source = CreateQrBitmap(viewUrl);
+        CloudTrackingQrImage.Source = CreateQrImage(viewUrl);
         PurposePanel.Visibility = Visibility.Collapsed;
         CloudTrackingPanel.Visibility = Visibility.Visible;
     }
@@ -168,49 +167,46 @@ public partial class AutoWindow : FluentWindow
             Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
     }
 
-    private static BitmapSource CreateQrBitmap(string url)
+    private static ImageSource CreateQrImage(string url)
     {
         const int quietZone = 4;
-        const int moduleScale = 6;
         bool[,] modules = CloudLogSessionId.EncodeQr(url);
         int moduleCount = modules.GetLength(0);
-        int pixelSize = (moduleCount + quietZone * 2) * moduleScale;
-        int stride = pixelSize * 4;
-        byte[] pixels = new byte[stride * pixelSize];
-
-        for (int i = 0; i < pixels.Length; i += 4)
+        double imageSize = moduleCount + quietZone * 2;
+        var qrGeometry = new StreamGeometry();
+        using (StreamGeometryContext geometryContext = qrGeometry.Open())
         {
-            pixels[i] = 255;
-            pixels[i + 1] = 255;
-            pixels[i + 2] = 255;
-            pixels[i + 3] = 255;
-        }
-
-        for (int row = 0; row < moduleCount; row++)
-        {
-            for (int column = 0; column < moduleCount; column++)
+            for (int row = 0; row < moduleCount; row++)
             {
-                if (!modules[row, column]) continue;
-
-                int startX = (column + quietZone) * moduleScale;
-                int startY = (row + quietZone) * moduleScale;
-                for (int y = startY; y < startY + moduleScale; y++)
+                for (int column = 0; column < moduleCount; column++)
                 {
-                    for (int x = startX; x < startX + moduleScale; x++)
-                    {
-                        int offset = y * stride + x * 4;
-                        pixels[offset] = 0;
-                        pixels[offset + 1] = 0;
-                        pixels[offset + 2] = 0;
-                    }
+                    if (!modules[row, column]) continue;
+
+                    double left = column + quietZone;
+                    double top = row + quietZone;
+                    geometryContext.BeginFigure(new Point(left, top), isFilled: true, isClosed: true);
+                    geometryContext.LineTo(new Point(left + 1, top), isStroked: false, isSmoothJoin: false);
+                    geometryContext.LineTo(new Point(left + 1, top + 1), isStroked: false, isSmoothJoin: false);
+                    geometryContext.LineTo(new Point(left, top + 1), isStroked: false, isSmoothJoin: false);
                 }
             }
         }
 
-        var bitmap = new WriteableBitmap(pixelSize, pixelSize, 96, 96, PixelFormats.Bgra32, null);
-        bitmap.WritePixels(new Int32Rect(0, 0, pixelSize, pixelSize), pixels, stride, 0);
-        bitmap.Freeze();
-        return bitmap;
+        qrGeometry.Freeze();
+
+        var drawing = new DrawingGroup();
+        using (DrawingContext drawingContext = drawing.Open())
+        {
+            // A margem de quatro módulos é necessária para leitores de QR; o desenho vetorial
+            // mantém os módulos nítidos mesmo quando o painel muda de escala.
+            drawingContext.DrawRectangle(Brushes.White, null, new Rect(0, 0, imageSize, imageSize));
+            drawingContext.DrawGeometry(new SolidColorBrush(Color.FromRgb(24, 24, 24)), null, qrGeometry);
+        }
+
+        drawing.Freeze();
+        var image = new DrawingImage(drawing);
+        image.Freeze();
+        return image;
     }
 
     protected override void OnClosed(EventArgs e)

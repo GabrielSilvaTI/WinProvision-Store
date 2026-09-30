@@ -189,6 +189,7 @@ public sealed class AutoSystemInfo
         System.Runtime.InteropServices.Architecture.X64 => "x64",
         System.Runtime.InteropServices.Architecture.Arm64 => "ARM64",
         System.Runtime.InteropServices.Architecture.X86 => "x86",
+        System.Runtime.InteropServices.Architecture.Arm => "ARM",
         _ => RuntimeInformation.OSArchitecture.ToString()
     };
     public string ProcessorName { get; init; } = "Processador desconhecido";
@@ -198,8 +199,14 @@ public sealed class AutoSystemInfo
     public static AutoSystemInfo Create()
     {
         int buildNumber = GetWindowsBuildNumber();
-        string productName = ReadRegistry64("ProductName") ?? ReadRegistry("ProductName") ?? "Windows";
-        string displayVersion = ReadRegistry64("DisplayVersion") ?? ReadRegistry("DisplayVersion") ?? string.Empty;
+        string productName = ReadRegistry64("ProductName")
+                             ?? ReadRegistry32("ProductName")
+                             ?? ReadRegistry("ProductName")
+                             ?? "Windows";
+        string displayVersion = ReadRegistry64("DisplayVersion")
+                                ?? ReadRegistry32("DisplayVersion")
+                                ?? ReadRegistry("DisplayVersion")
+                                ?? string.Empty;
 
         // A Microsoft mantém "Windows 10" em ProductName em algumas instalações de
         // Windows 11. O build é a fonte confiável para distinguir as duas famílias.
@@ -210,6 +217,8 @@ public sealed class AutoSystemInfo
         string windows = string.IsNullOrWhiteSpace(displayVersion)
             ? normalizedProduct
             : $"{normalizedProduct} {displayVersion}";
+        if (buildNumber > 0)
+            windows = $"{windows} · build {buildNumber}";
 
         return new AutoSystemInfo
         {
@@ -246,11 +255,11 @@ public sealed class AutoSystemInfo
 
     private static string InferDisplayVersion(int buildNumber) => buildNumber switch
     {
-        >= 26200 => "25H2",
-        >= 26100 => "24H2",
-        >= 22631 => "23H2",
-        >= 22621 => "22H2",
-        >= 22000 => "21H2",
+        >= 26200 and < 27000 => "25H2",
+        >= 26100 and < 26200 => "24H2",
+        >= 22631 and < 26100 => "23H2",
+        >= 22621 and < 22631 => "22H2",
+        >= 22000 and < 22621 => "21H2",
         _ => string.Empty
     };
 
@@ -270,22 +279,29 @@ public sealed class AutoSystemInfo
 
     private static string ReadProcessorName()
     {
+        string? value = ReadProcessorName(RegistryView.Registry64)
+                        ?? ReadProcessorName(RegistryView.Registry32);
+        if (!string.IsNullOrWhiteSpace(value))
+            return NormalizeWhitespace(value);
+
+        var fallback = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER");
+        return string.IsNullOrWhiteSpace(fallback)
+            ? "Modelo do processador indisponível"
+            : NormalizeWhitespace(fallback);
+    }
+
+    private static string? ReadProcessorName(RegistryView view)
+    {
         try
         {
-            using var cpu = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64)
+            using var cpu = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view)
                 .OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0", writable: false);
-
-            var value = cpu?.GetValue("ProcessorNameString")?.ToString();
-            if (!string.IsNullOrWhiteSpace(value))
-                return NormalizeWhitespace(value);
+            return cpu?.GetValue("ProcessorNameString")?.ToString();
         }
         catch
         {
-            // Fall through to the environment fallback.
+            return null;
         }
-
-        var fallback = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER");
-        return string.IsNullOrWhiteSpace(fallback) ? "Processador desconhecido" : NormalizeWhitespace(fallback);
     }
 
     private static string GetInstalledRam()
@@ -294,6 +310,17 @@ public sealed class AutoSystemInfo
         {
             if (GetPhysicallyInstalledSystemMemory(out ulong totalKb) && totalKb > 0)
                 return FormatBytes(totalKb * 1024UL);
+        }
+        catch
+        {
+            // Algumas VMs não expõem a memória instalada pelo firmware.
+        }
+
+        try
+        {
+            var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+            if (GlobalMemoryStatusEx(ref status) && status.TotalPhysicalMemory > 0)
+                return FormatBytes(status.TotalPhysicalMemory);
         }
         catch
         {
@@ -340,9 +367,41 @@ public sealed class AutoSystemInfo
         }
     }
 
+    private static string? ReadRegistry32(string name)
+    {
+        try
+        {
+            using var key = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry32)
+                .OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion", writable: false);
+            return key?.GetValue(name)?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetPhysicallyInstalledSystemMemory(out ulong totalMemoryInKilobytes);
+
+    [DllImport("kernel32.dll", EntryPoint = "GlobalMemoryStatusEx", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MemoryStatusEx
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhysicalMemory;
+        public ulong AvailablePhysicalMemory;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
+    }
 
     private static string FormatBytes(ulong bytes)
     {
@@ -353,7 +412,7 @@ public sealed class AutoSystemInfo
 
         return bytes >= tib
             ? $"{bytes / tib:0.0} TB"
-            : $"{bytes / gib:0} GB";
+            : $"{bytes / gib:0.0} GB";
     }
 
     private static string NormalizeWhitespace(string value)
