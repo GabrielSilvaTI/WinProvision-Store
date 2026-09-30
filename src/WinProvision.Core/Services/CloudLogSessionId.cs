@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using System.Text;
 
 namespace WinProvision.Core.Services;
@@ -62,18 +61,17 @@ public static class CloudLogSessionId
         var sb = new StringBuilder();
         const string dark = "██";
         const string light = "  ";
-        const string border = "  ";
-
-        // Borda quiet-zone superior
-        string topBottom = border + string.Concat(Enumerable.Repeat(dark, size + 2)) + border;
+        const int quietZoneModules = 4;
+        string quietZone = new string(' ', quietZoneModules * 2);
+        string topBottom = new string(' ', (size + quietZoneModules * 2) * 2);
         sb.AppendLine(topBottom);
 
         for (int row = 0; row < size; row++)
         {
-            sb.Append(border).Append(dark);
+            sb.Append(quietZone);
             for (int col = 0; col < size; col++)
                 sb.Append(matrix[row, col] ? dark : light);
-            sb.Append(dark).AppendLine(border);
+            sb.AppendLine(quietZone);
         }
 
         sb.AppendLine(topBottom);

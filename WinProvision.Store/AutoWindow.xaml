@@ -51,7 +51,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style TargetType="ui:Button">
+        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
             <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
         </Style>
@@ -486,15 +486,12 @@
                                                FontSize="11.5"
                                                Foreground="#C2CCDB"
                                                TextWrapping="Wrap" />
-                                    <TextBox x:Name="CloudTrackingUrlTextBox"
+                                    <ui:TextBox x:Name="CloudTrackingUrlTextBox"
                                              Margin="0,10,0,10"
                                              IsReadOnly="True"
                                              TextWrapping="Wrap"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             Foreground="#8FCBFF"
-                                             FontSize="10.5"
-                                             Padding="0"
+                                             MaxLines="3"
+                                             ToolTip="Link dos logs desta execução"
                                              Cursor="IBeam" />
                                     <WrapPanel>
                                         <ui:Button Content="Copiar link"
