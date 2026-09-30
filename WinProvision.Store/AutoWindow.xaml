@@ -413,7 +413,8 @@
                     </Border>
 
                     <!--  Philosophy  -->
-                    <Border Grid.Row="5"
+                    <Border x:Name="PurposePanel"
+                            Grid.Row="5"
                             Style="{StaticResource AutoCardStyle}"
                             Background="#57101A2D"
                             Padding="20,18">
@@ -445,6 +446,68 @@
                                        FontSize="10.5"
                                        Foreground="#8293AA" />
                         </StackPanel>
+                    </Border>
+                    <Border x:Name="CloudTrackingPanel"
+                            Grid.Row="5"
+                            Style="{StaticResource AutoCardStyle}"
+                            Background="#5A0C182D"
+                            Padding="16"
+                            Visibility="Collapsed">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <ui:SymbolIcon Symbol="Cloud24" FontSize="17" Foreground="#53B9FF" />
+                                <TextBlock Text="Acompanhe esta execução"
+                                           Margin="9,0,0,0"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F1F5FB"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="164" Height="164" Padding="7"
+                                        Background="White"
+                                        CornerRadius="{StaticResource CompactCornerRadius}"
+                                        VerticalAlignment="Center">
+                                    <Image x:Name="CloudTrackingQrImage"
+                                           Stretch="Uniform"
+                                           SnapsToDevicePixels="True"
+                                           RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="Leia o QR Code para abrir os logs no navegador."
+                                               FontSize="11.5"
+                                               Foreground="#C2CCDB"
+                                               TextWrapping="Wrap" />
+                                    <TextBox x:Name="CloudTrackingUrlTextBox"
+                                             Margin="0,10,0,10"
+                                             IsReadOnly="True"
+                                             TextWrapping="Wrap"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             Foreground="#8FCBFF"
+                                             FontSize="10.5"
+                                             Padding="0"
+                                             Cursor="IBeam" />
+                                    <WrapPanel>
+                                        <ui:Button Content="Copiar link"
+                                                   Appearance="Secondary"
+                                                   Click="CopyCloudTrackingUrl_Click"
+                                                   Margin="0,0,7,0" />
+                                        <ui:Button Content="Abrir"
+                                                   Appearance="Secondary"
+                                                   Click="OpenCloudTrackingUrl_Click" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
                     </Border>
                 </Grid>
             </Grid>

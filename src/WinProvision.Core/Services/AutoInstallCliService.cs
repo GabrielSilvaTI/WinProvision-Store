@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -35,19 +36,13 @@ namespace WinProvision.Core.Services;
 /// o próprio sink — ex.: um CliFileLogger.Log, ou até um callback que empurra as linhas pra
 /// UI do WinProvision principal).
 ///
-/// Antes de instalar qualquer app/Office, garante que o winget está disponível via
-/// <see cref="WingetBootstrapper"/> — no cenário-alvo (First Logon Commands, sessão
-/// interativa) ele costuma ainda estar carregando as dependências APPX de provisionamento,
-/// então essa checagem baixa/instala o que faltar (VCLibs, UI.Xaml e o próprio App
-/// Installer) em vez de deixar cada item falhar um por um por winget.exe não existir ainda.
+/// O WinGet é preparado somente se o método de instalação escolhido precisar dele.
 /// </summary>
 [SupportedOSPlatform("windows")]
 public class AutoInstallCliService
 {
     private readonly ProfileService _profileService;
-    private readonly StoreService _storeService;
     private readonly WingetExecutor _wingetExecutor;
-    private readonly WingetBootstrapper _wingetBootstrapper;
     private readonly OfficeDeploymentToolService _officeService;
     private readonly ProvisioningService _provisioningService;
     private readonly BackupAutoSyncService _backupSyncService;
@@ -138,17 +133,13 @@ public class AutoInstallCliService
 
     public AutoInstallCliService(
         ProfileService profileService,
-        StoreService storeService,
         WingetExecutor wingetExecutor,
-        WingetBootstrapper wingetBootstrapper,
         OfficeDeploymentToolService officeService,
         ProvisioningService provisioningService,
         BackupAutoSyncService backupSyncService)
     {
         _profileService = profileService;
-        _storeService = storeService;
         _wingetExecutor = wingetExecutor;
-        _wingetBootstrapper = wingetBootstrapper;
         _officeService = officeService;
         _provisioningService = provisioningService;
         _backupSyncService = backupSyncService;
@@ -186,61 +177,19 @@ public class AutoInstallCliService
             return AutoInstallExitCode.ProfileNotFound;
         }
 
-        _log(isUrl
-            ? $"[WinProvision] Baixando perfil: {profileSource}"
-            : $"[WinProvision] Lendo perfil: {profileSource}");
-
         ProfileManifest manifest;
-        if (isUrl)
+        try
         {
-            // Para URLs, tentamos até ProfileDownloadRetryCount vezes antes de desistir —
-            // no primeiro logon a rede pode ainda estar estabilizando (DHCP, DNS, VPN).
-            ProfileManifest? downloaded = null;
-            Exception? lastEx = null;
-            for (int attempt = 1; attempt <= ProfileDownloadRetryCount; attempt++)
-            {
-                ct.ThrowIfCancellationRequested();
-                if (attempt > 1)
-                {
-                    _log($"[WinProvision] Tentando baixar o perfil novamente (tentativa {attempt}/{ProfileDownloadRetryCount}, aguardando {ProfileDownloadRetryDelay.TotalSeconds:0}s)…");
-                    await Task.Delay(ProfileDownloadRetryDelay, ct);
-                }
-                try
-                {
-                    downloaded = await ImportManifestAsync(profileSource, ct);
-                    break;
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    lastEx = ex;
-                    if (attempt < ProfileDownloadRetryCount)
-                        _log($"[WinProvision] Falha ao baixar o perfil (tentativa {attempt}/{ProfileDownloadRetryCount}): {ex.Message}");
-                }
-            }
-
-            if (downloaded is null)
-            {
-                _log($"[WinProvision] ERRO ao baixar o perfil após {ProfileDownloadRetryCount} tentativa(s): {lastEx?.Message}");
-                return AutoInstallExitCode.ProfileReadError;
-            }
-
-            manifest = downloaded;
+            manifest = await ImportManifestWithRetryAsync(profileSource, _log, ct);
         }
-        else
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            try
-            {
-                manifest = await ImportManifestAsync(profileSource, ct);
-            }
-            catch (Exception ex)
-            {
-                _log($"[WinProvision] ERRO ao ler o perfil: {ex.Message}");
-                return AutoInstallExitCode.ProfileReadError;
-            }
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _log($"[WinProvision] ERRO ao ler o perfil: {ex.Message}");
+            return AutoInstallExitCode.ProfileReadError;
         }
 
         try
@@ -270,6 +219,60 @@ public class AutoInstallCliService
         return await _profileService.ImportAsync(profileSource, ct);
     }
 
+    /// <summary>Importa o perfil com retry de rede e registra o tempo gasto antes de iniciar as instalações.</summary>
+    public async Task<ProfileManifest> ImportManifestWithRetryAsync(
+        string profileSource,
+        Action<string>? log = null,
+        CancellationToken ct = default)
+    {
+        Action<string> sink = log ?? _log;
+        bool isUrl = ProfileSourceReader.IsHttpUrl(profileSource);
+        sink(isUrl
+            ? $"[WinProvision] Baixando perfil: {profileSource}"
+            : $"[WinProvision] Lendo perfil: {profileSource}");
+
+        var timer = Stopwatch.StartNew();
+        Exception? lastException = null;
+        int attempts = isUrl ? ProfileDownloadRetryCount : 1;
+        int attemptsMade = 0;
+        for (int attempt = 1; attempt <= attempts; attempt++)
+        {
+            attemptsMade = attempt;
+            ct.ThrowIfCancellationRequested();
+            if (attempt > 1)
+            {
+                sink($"[WinProvision] Tentando baixar o perfil novamente (tentativa {attempt}/{attempts}, aguardando {ProfileDownloadRetryDelay.TotalSeconds:0}s)…");
+                await Task.Delay(ProfileDownloadRetryDelay, ct);
+            }
+
+            try
+            {
+                ProfileManifest manifest = await ImportManifestAsync(profileSource, ct);
+                timer.Stop();
+                sink($"[WinProvision] Perfil carregado em {FormatElapsed(timer.Elapsed)}.");
+                return manifest;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex) when (attempt < attempts && IsTransientProfileException(ex))
+            {
+                lastException = ex;
+                sink($"[WinProvision] Falha transitória ao carregar o perfil (tentativa {attempt}/{attempts}): {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                break;
+            }
+        }
+
+        timer.Stop();
+        sink($"[WinProvision] Falha ao carregar o perfil após {attemptsMade} tentativa(s), em {FormatElapsed(timer.Elapsed)}.");
+        throw new InvalidDataException($"Não foi possível carregar o perfil: {lastException?.Message}", lastException);
+    }
+
     /// <summary>Executa um manifesto já importado, permitindo que a UI acompanhe cada etapa.</summary>
     public Task<AutoInstallExitCode> RunManifestAsync(
         ProfileManifest manifest,
@@ -288,6 +291,7 @@ public class AutoInstallCliService
         IProgress<AutoInstallStageEvent>? stageProgress,
         CancellationToken ct)
     {
+        var totalTimer = Stopwatch.StartNew();
         string profileLabel = manifest.Name ?? Path.GetFileNameWithoutExtension(profileSource);
         bool hasProvisioning = manifest.Provisioning is not null;
 
@@ -313,37 +317,13 @@ public class AutoInstallCliService
         void StageProgress(AutoInstallStage stage, double progress, string? detail = null)
             => Stage(stage, AutoInstallStageState.InProgress, progress, detail);
 
-        // PRIMEIRO PASSO de qualquer instalação: provisionar o winget e suas dependências,
-        // mesmo que COM ou a API própria venham a instalar os apps (COM e winget.exe dependem
-        // dele; o ODT também tem o winget como fallback). A mesma porta única é usada pelo
-        // WinGetService, então isto não repete o trabalho.
-        //
-        // Falhar aqui NÃO aborta o perfil: a API própria da WinProvision Store instala sem o
-        // winget. Só o que realmente exigir o winget vai falhar, item a item, com o motivo no log.
-        if (manifest.Apps.Count > 0)
-        {
-            var bootstrapResult = await _wingetBootstrapper.EnsureOnceAsync(_log, ct);
-            if (!bootstrapResult.IsUsable)
-            {
-                _log($"[WinProvision] AVISO: winget não está disponível e o provisionamento automático não conseguiu " +
-                     $"deixá-lo funcional ({bootstrapResult.ErrorMessage}). Seguindo com a API própria da " +
-                     "WinProvision Store; itens que exigirem o winget podem falhar.");
-                wingetUnavailable = true;
-            }
-        }
-
-        List<AppEntry> catalog = new();
-        if (manifest.Apps.Count > 0)
-        {
-            try { catalog = await _storeService.LoadCatalogAsync(false, ct); }
-            catch { /* segue pelo Id */ }
-        }
-
         var packageApps = manifest.Apps.Where(a => a.OfficeOptions is null).ToList();
         var officeApps = manifest.Apps.Where(a => a.OfficeOptions is not null).ToList();
+        var itemResults = new List<AutoItemResult>(manifest.Apps.Count);
 
         if (packageApps.Count > 0)
         {
+            var packageStageTimer = Stopwatch.StartNew();
             // Progresso em degraus: cada app concluído preenche 1/N da barra (25% pra
             // 4 apps, e assim por diante). Não tentamos mais acompanhar o percentual
             // interno do winget (baseProgress + p/N) — a saída dele quando redirecionada
@@ -359,16 +339,23 @@ public class AutoInstallCliService
                 var appRef = packageApps[i];
                 string label = appRef.Name ?? appRef.Id;
                 if (i > 0) StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Instalando {label}…");
-                bool ok = await InstallWingetAsync(appRef, catalog, ct);
+                var installResult = await InstallWingetAsync(appRef, ct);
+                bool ok = installResult.Success;
+                itemResults.Add(new AutoItemResult(label, appRef.Id, installResult.Source, installResult.Method,
+                    ok, installResult.Elapsed, installResult.Error));
                 allSucceeded &= ok;
                 if (ok) succeeded++; else failed++;
+                if (!ok && installResult.WingetUnavailable)
+                    wingetUnavailable = true;
                 StageProgress(AutoInstallStage.PackagesAndApps, (i + 1) * 100d / packageApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
             }
             Stage(AutoInstallStage.PackagesAndApps, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
+            _log($"[WinProvision] Etapa de pacotes concluída em {FormatElapsed(packageStageTimer.Elapsed)}.");
         }
 
         if (officeApps.Count > 0)
         {
+            var officeStageTimer = Stopwatch.StartNew();
             // O Click-to-Run não dá um percentual confiável durante a instalação (às
             // vezes fica mudo por minutos, às vezes pula direto pro fim), então não
             // tentamos degrau nenhum aqui — a etapa fica indeterminada (spinner/shimmer)
@@ -383,16 +370,21 @@ public class AutoInstallCliService
                 var appRef = officeApps[i];
                 string label = appRef.Name ?? appRef.OfficeOptions!.ProductId;
                 if (i > 0) StageProgress(AutoInstallStage.MicrosoftOffice, i * 100d / officeApps.Count, $"Instalando {label}…");
-                bool ok = await InstallOfficeAsync(appRef, appRef.OfficeOptions!, ct);
+                var officeResult = await InstallOfficeAsync(appRef, appRef.OfficeOptions!, ct);
+                bool ok = officeResult.Success;
+                itemResults.Add(new AutoItemResult(label, appRef.OfficeOptions!.ProductId, "Office", "ODT",
+                    ok, officeResult.Elapsed, officeResult.Error));
                 allSucceeded &= ok;
                 if (ok) succeeded++; else failed++;
                 StageProgress(AutoInstallStage.MicrosoftOffice, (i + 1) * 100d / officeApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
             }
             Stage(AutoInstallStage.MicrosoftOffice, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
+            _log($"[WinProvision] Etapa Office concluída em {FormatElapsed(officeStageTimer.Elapsed)}.");
         }
 
         if (manifest.Provisioning is { } provisioning)
         {
+            var provisioningTimer = Stopwatch.StartNew();
             _log("[WinProvision] Aplicando ajustes de provisionamento do sistema...");
             bool hasPersonalization = stages.Contains(AutoInstallStage.SystemPersonalization);
             bool hasConfigurations = stages.Contains(AutoInstallStage.PredefinedConfigurations);
@@ -450,14 +442,44 @@ public class AutoInstallCliService
                       (!PersonalizationSettings.Contains(s.Setting) && stage == AutoInstallStage.PredefinedConfigurations)) && !s.Success));
                 Stage(stage, stageFailed ? AutoInstallStageState.Failed : AutoInstallStageState.Completed, stageFailed ? Math.Max(0, stage == AutoInstallStage.SystemPersonalization ? personalizationDone * 100d / Math.Max(1, personalizationTotal) : configurationDone * 100d / Math.Max(1, configurationTotal)) : 100);
             }
+            _log($"[WinProvision] Etapa de provisionamento concluída em {FormatElapsed(provisioningTimer.Elapsed)}.");
         }
 
-        try { await _backupSyncService.RunSyncAsync(ct); }
-        catch { }
+        var backupTimer = Stopwatch.StartNew();
+        try
+        {
+            var backupResult = await _backupSyncService.RunSyncAsync(ct);
+            if (backupResult.AlreadyRunning)
+                _log("[WinProvision] Backup automático ignorado: já havia uma sincronização em andamento.");
+            else if (!backupResult.LocalSucceeded || (backupResult.CloudAttempted && !backupResult.CloudSucceeded))
+                _log($"[WinProvision] AVISO: backup automático incompleto em {FormatElapsed(backupTimer.Elapsed)}. " +
+                     $"Local={(backupResult.LocalSucceeded ? "OK" : "falhou")}; nuvem={(backupResult.CloudAttempted ? (backupResult.CloudSucceeded ? "OK" : "falhou") : "não configurada")}. " +
+                     $"Motivo: {backupResult.ErrorMessage ?? "sem detalhes"}");
+            else
+                _log($"[WinProvision] Backup automático concluído em {FormatElapsed(backupTimer.Elapsed)}.");
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _log($"[WinProvision] AVISO: backup automático falhou em {FormatElapsed(backupTimer.Elapsed)}: {ex.Message}");
+        }
+
+        _log($"[WinProvision] Execução completa em {FormatElapsed(totalTimer.Elapsed)}.");
 
         _log(failed == 0
             ? $"[WinProvision] Concluído: {succeeded} item(ns) instalado(s)/aplicado(s) com sucesso."
             : $"[WinProvision] Concluído com falhas: {succeeded} sucesso(s), {failed} falha(s).");
+
+        if (itemResults.Count > 0)
+        {
+            _log("[WinProvision] Resumo dos itens:");
+            foreach (var item in itemResults)
+                _log($"[WinProvision]   {(item.Success ? "OK" : "FALHOU")} | {item.Name} | ID={item.Id} | origem={item.Source} | método={item.Method} | tempo={FormatElapsed(item.Elapsed)}" +
+                     (string.IsNullOrWhiteSpace(item.Error) ? string.Empty : $" | motivo={item.Error}"));
+        }
 
         if (restartRequired)
             _log("[WinProvision] AVISO: reinicie o Windows para que todos os ajustes de provisionamento tenham efeito.");
@@ -469,15 +491,19 @@ public class AutoInstallCliService
             : wingetUnavailable ? AutoInstallExitCode.WingetUnavailable : AutoInstallExitCode.CompletedWithFailures;
     }
 
-    private async Task<bool> InstallWingetAsync(ProfileAppRef appRef, List<AppEntry> catalog, CancellationToken ct, Action<double>? progress = null)
+    private async Task<PackageInstallResult> InstallWingetAsync(ProfileAppRef appRef, CancellationToken ct, Action<double>? progress = null)
     {
-        var catalogEntry = catalog.FirstOrDefault(a => string.Equals(a.Id, appRef.Id, StringComparison.OrdinalIgnoreCase));
-        string displayName = catalogEntry?.Name ?? appRef.Id;
-        // Perfis exportados antes do suporte a msstore não guardam Source — cai no
-        // default "winget" da própria assinatura de InstallAppAsync nesse caso.
-        string source = catalogEntry?.Source ?? "winget";
+        string displayName = appRef.Name ?? appRef.Id;
+        // Perfis antigos não carregavam Source. IDs de produto da Store têm nove
+        // caracteres alfanuméricos; os demais seguem pela origem winget.
+        string source = appRef.Source ?? (IsStoreProductId(appRef.Id) ? "msstore" : "winget");
 
         _log($"[WinProvision] Instalando \"{displayName}\" ({appRef.Id})…");
+        var installTimer = Stopwatch.StartNew();
+        bool wingetWasUnavailable = false;
+        bool retryableFailure = true;
+        string method = "desconhecido";
+        string? error = null;
 
         bool success = await RetryAsync(displayName, WingetRetryCount, WingetRetryDelay, async () =>
         {
@@ -488,9 +514,17 @@ public class AutoInstallCliService
                     appRef.Id,
                     onLogReceived: line => { LogLine(displayName, line); if (TryParsePercent(line, out var pct)) progress?.Invoke(pct); },
                     cancellationToken: ct,
-                    onProgress: update => { if (update.Percent is double percent) progress?.Invoke((int)Math.Floor(percent)); },
+                    onProgress: update =>
+                    {
+                        if (update.Method is { } installMethod) method = installMethod.ToString();
+                        if (update.Percent is double percent) progress?.Invoke((int)Math.Floor(percent));
+                    },
                     source: source);
 
+                wingetWasUnavailable |= result.WingetUnavailable;
+                retryableFailure = IsTransientWingetFailure(result);
+                if (result.WingetUnavailable) method = "WinGet indisponível";
+                error = result.Success ? null : result.Output;
                 if (!result.Success)
                     _log($"[WinProvision] \"{displayName}\": código de saída {result.ExitCode}.");
 
@@ -502,35 +536,39 @@ public class AutoInstallCliService
             }
             catch (Exception ex)
             {
+                retryableFailure = IsTransientException(ex);
                 _log($"[WinProvision] \"{displayName}\": exceção ({ex.Message}).");
                 return false;
             }
-        }, ct);
+        }, ct, shouldRetry: () => retryableFailure);
 
         _log(success
             ? $"[WinProvision] \"{displayName}\": OK."
-            : $"[WinProvision] \"{displayName}\": FALHOU após {WingetRetryCount} tentativa(s).");
+            : $"[WinProvision] \"{displayName}\": FALHOU em {FormatElapsed(installTimer.Elapsed)}.");
+        _log($"[WinProvision] Tempo de \"{displayName}\": {FormatElapsed(installTimer.Elapsed)}.");
 
         progress?.Invoke(100);
-        return success;
+        return new PackageInstallResult(success, wingetWasUnavailable, source, method, installTimer.Elapsed, Truncate(error, 240));
     }
 
-    private async Task<bool> InstallOfficeAsync(ProfileAppRef appRef, OfficeInstallOptions options, CancellationToken ct, Action<double>? progress = null)
+    private async Task<OfficeInstallResult> InstallOfficeAsync(ProfileAppRef appRef, OfficeInstallOptions options, CancellationToken ct, Action<double>? progress = null)
     {
+        var installTimer = Stopwatch.StartNew();
+        string? error = null;
         var plan = OfficePlanCatalog.All.FirstOrDefault(p => string.Equals(p.ProductId, options.ProductId, StringComparison.OrdinalIgnoreCase));
         string label = appRef.Name ?? plan?.DisplayName ?? options.ProductId;
 
         if (plan is null)
         {
             _log($"[WinProvision] \"{label}\": FALHOU (ProductId '{options.ProductId}' não existe no catálogo desta versão do app).");
-            return false;
+            return new OfficeInstallResult(false, installTimer.Elapsed, $"ProductId inválido: {options.ProductId}");
         }
 
         var additionalProducts = (options.AdditionalProductIds ?? []).Select(OfficePlanCatalog.ByProductId).ToArray();
         if (additionalProducts.Any(product => product is null))
         {
             _log($"[WinProvision] \"{label}\": um ou mais produtos adicionais não existem no catálogo desta versão do app.");
-            return false;
+            return new OfficeInstallResult(false, installTimer.Elapsed, "Produtos Office adicionais inválidos");
         }
 
         var request = new OfficeInstallRequest(
@@ -548,11 +586,12 @@ public class AutoInstallCliService
         if (OfficeConfigXmlBuilder.ValidateRequest(request) is { } validationError)
         {
             _log($"[WinProvision] \"{label}\": configuração Office inválida: {validationError}");
-            return false;
+            return new OfficeInstallResult(false, installTimer.Elapsed, validationError);
         }
 
         _log($"[WinProvision] Instalando \"{label}\" (Office/ODT)…");
 
+        bool officeRetryable = false;
         bool success = await RetryAsync(label, OfficeRetryCount, OfficeRetryDelay, async () =>
         {
             try
@@ -562,8 +601,12 @@ public class AutoInstallCliService
                     onStatus: line => { LogLine(label, line); if (TryParsePercent(line, out var pct)) progress?.Invoke(pct); },
                     cancellationToken: ct);
 
+                officeRetryable = false;
                 if (!result)
+                {
+                    error = "O instalador Office retornou falha";
                     _log($"[WinProvision] \"{label}\": instalação do Office retornou falha.");
+                }
 
                 return result;
             }
@@ -574,16 +617,18 @@ public class AutoInstallCliService
             catch (Exception ex)
             {
                 _log($"[WinProvision] \"{label}\": exceção durante Office ({ex.Message}).");
+                error = ex.Message;
+                officeRetryable = IsTransientException(ex);
                 return false;
             }
-        }, ct);
+        }, ct, shouldRetry: () => officeRetryable);
 
         _log(success
             ? $"[WinProvision] \"{label}\": OK."
             : $"[WinProvision] \"{label}\": FALHOU após {OfficeRetryCount} tentativa(s).");
 
         progress?.Invoke(100);
-        return success;
+        return new OfficeInstallResult(success, installTimer.Elapsed, success ? null : Truncate(error, 240));
     }
 
     private static bool TryParsePercent(string line, out double percent)
@@ -634,7 +679,8 @@ public class AutoInstallCliService
         int maxAttempts,
         TimeSpan delay,
         Func<Task<bool>> operation,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<bool>? shouldRetry = null)
     {
         for (int attempt = 1; attempt <= maxAttempts; attempt++)
         {
@@ -651,6 +697,12 @@ public class AutoInstallCliService
                 bool result = await operation();
                 if (result) return true;
 
+                if (shouldRetry is not null && !shouldRetry())
+                {
+                    _log($"[WinProvision] \"{label}\": falha definitiva; sem nova tentativa automática.");
+                    break;
+                }
+
                 if (attempt < maxAttempts)
                     _log($"[WinProvision] \"{label}\": falhou (tentativa {attempt}/{maxAttempts}), tentando novamente…");
             }
@@ -660,6 +712,11 @@ public class AutoInstallCliService
             }
             catch (Exception ex)
             {
+                if (shouldRetry is not null && !shouldRetry())
+                {
+                    _log($"[WinProvision] \"{label}\": erro definitivo ({ex.Message}); sem nova tentativa automática.");
+                    break;
+                }
                 if (attempt < maxAttempts)
                     _log($"[WinProvision] \"{label}\": erro ({ex.Message}) na tentativa {attempt}/{maxAttempts}, tentando novamente…");
                 else
@@ -669,6 +726,55 @@ public class AutoInstallCliService
 
         return false;
     }
+
+    private static bool IsTransientWingetFailure(WingetExecutionResult result)
+    {
+        if (result.FailureReason is WingetFailureReason.DownloadError or WingetFailureReason.CatalogError)
+            return true;
+
+        string output = result.Output ?? string.Empty;
+        return output.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("tempo esgotado", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("network", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("rede", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("temporariamente indisponível", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("another installation is in progress", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("outra instalação está em andamento", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("0x800706BA", StringComparison.OrdinalIgnoreCase)
+            || output.Contains("0x8001010A", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTransientException(Exception exception) =>
+        exception is HttpRequestException or IOException or TimeoutException or TaskCanceledException;
+
+    private static bool IsTransientProfileException(Exception exception) => exception switch
+    {
+        HttpRequestException { StatusCode: null } => true,
+        HttpRequestException { StatusCode: { } status } when status == System.Net.HttpStatusCode.RequestTimeout
+            || status == System.Net.HttpStatusCode.TooManyRequests
+            || (int)status >= 500 => true,
+        _ => exception is IOException or TimeoutException or TaskCanceledException
+    };
+
+    private static bool IsStoreProductId(string id) => id.Length == 9 && id.All(char.IsLetterOrDigit);
+
+    private sealed record PackageInstallResult(bool Success, bool WingetUnavailable, string Source,
+        string Method, TimeSpan Elapsed, string? Error);
+
+    private sealed record OfficeInstallResult(bool Success, TimeSpan Elapsed, string? Error);
+
+    private sealed record AutoItemResult(string Name, string Id, string Source, string Method,
+        bool Success, TimeSpan Elapsed, string? Error);
+
+    private static string FormatElapsed(TimeSpan elapsed) => elapsed.TotalMinutes >= 1
+        ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s"
+        : $"{elapsed.TotalSeconds:0.0}s";
+
+    private static string? Truncate(string? value, int maxLength) => string.IsNullOrWhiteSpace(value)
+        ? null
+        : value.Length <= maxLength ? value : value[..maxLength] + "…";
 
     private sealed class AutoExecutionGuard : IDisposable
     {

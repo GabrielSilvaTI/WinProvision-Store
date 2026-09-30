@@ -59,15 +59,14 @@ public class ProfileService
                 .Select(app => new ProfileAppRef
                 {
                     Id = app.Id,
-                    // Planos de Office não existem no catálogo remoto de apps, então
-                    // levam os campos de exibição + OfficeOptions junto no próprio
-                    // .json — apps winget comuns (Office == null) continuam só com o
-                    // Id, resolvidos de volta contra o catálogo na importação.
+                    // Guardar origem e nome permite que /auto instale sem baixar o
+                    // catálogo inteiro entre o provisionamento do WinGet e o primeiro pacote.
+                    Source = app.Source,
                     OfficeOptions = app.Office,
-                    Name = app.Office is not null ? app.Name : null,
-                    Publisher = app.Office is not null ? app.Publisher : null,
-                    IconUrl = app.Office is not null ? app.IconUrl : null,
-                    Description = app.Office is not null ? app.Description : null,
+                    Name = app.Name,
+                    Publisher = app.Publisher,
+                    IconUrl = app.IconUrl,
+                    Description = app.Description,
                 })
                 .ToList()
         };

@@ -12,15 +12,17 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
 using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
 using WinProvision.Core.Models.Provisioning;
 using WinProvision.Core.Services;
+using WinProvision.Core.Services.Backup;
 using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
 using WinProvision.Store.Converters;
+using Wpf.Ui.Appearance;
 
 namespace WinProvision.Store;
 
@@ -29,32 +31,21 @@ public partial class ProvisioningPage : Page
     private readonly ProvisioningService _provisioningService;
     private readonly ScheduledTempCleanerService _scheduledTempCleanerService;
     private readonly PackageCollectionService _packageCollectionService;
-    private readonly IconService _iconService;
     private readonly ProfileService _profileService;
+    private readonly GitHubBackupService _githubBackupService;
     // Guardados à parte (em vez de num controle de UI) porque o wallpaper é um arquivo, não um
     // valor editável — ficam aqui até o usuário exportar ou aplicar, e são preenchidos de volta
     // ao importar um perfil que já tenha wallpaper embutido.
     private string? _wallpaperFileName;
     private string? _wallpaperImageBase64;
+    private string? _publishedBootstrapCommand;
+    private string? _orchestratorLogFilePath;
+    private bool _isPublishingBootstrap;
 
     // Evita empurrar estado pro serviço enquanto LoadManifestIntoUi está preenchendo os
     // controles programaticamente (cada SelectionChanged/TextChanged disparado durante a
     // carga geraria um push com o manifesto ainda pela metade) — só falso durante a carga.
     private bool _uiLoaded;
-
-    // Manipulação de ícones e menu de contexto da simulação do Desktop
-    private bool _showDesktopIcons = true;
-    private bool _autoArrange = false;
-    private bool _alignToGrid = true;
-    private Border? _draggedElement;
-    private Point _dragStartMouse;
-    private double _dragStartLeft;
-    private double _dragStartTop;
-    private bool _isDragging;
-    private Border? _selectedIcon;
-
-    // Gerenciamento de ícones adicionados pelo usuário (app shortcuts)
-    private readonly List<Border> _userAddedDesktopIcons = new();
 
     // ComboBoxes que devem ter rolagem de rodinha nativa no dropdown (Popup/HWND separada)
     private readonly List<ComboBox> _wheelAwareComboBoxes = new();
@@ -77,12 +68,13 @@ public partial class ProvisioningPage : Page
     {
         InitializeComponent();
         InitializeProvisioningSearchEntries();
+        Loaded += ProvisioningPage_Loaded;
 
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
         _scheduledTempCleanerService = App.Services.GetRequiredService<ScheduledTempCleanerService>();
         _packageCollectionService = App.Services.GetRequiredService<PackageCollectionService>();
-        _iconService = App.Services.GetRequiredService<IconService>();
         _profileService = App.Services.GetRequiredService<ProfileService>();
+        _githubBackupService = App.Services.GetRequiredService<GitHubBackupService>();
         _packageCollectionService.Changed += PackageCollectionChanged;
         _profileService.ImportValidationChanged += ProfileImportValidationChanged;
 
@@ -105,6 +97,28 @@ public partial class ProvisioningPage : Page
         _wheelAwareComboBoxes.Add(DisplayTimeoutAcComboBox);
         _wheelAwareComboBoxes.Add(StandbyTimeoutAcComboBox);
         InputManager.Current.PostProcessInput += GlobalPostProcessInput;
+    }
+
+    private void ProvisioningPage_Loaded(object sender, RoutedEventArgs e)
+    {
+        UpdateOrchestratorIcon();
+        UpdateOrchestratorLogPathVisibility();
+        if (_publishedBootstrapCommand is null)
+        {
+            BootstrapCommandTextBox.Text = _githubBackupService.IsConnected
+                ? "Publique o perfil para gerar o comando do PowerShell."
+                : "Conecte o GitHub em Conta e Sincronização para publicar o Bootstrap.";
+            PublishBootstrapButton.IsEnabled = _githubBackupService.IsConnected && !_isPublishingBootstrap;
+        }
+    }
+
+    private void UpdateOrchestratorIcon()
+    {
+        string iconFile = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Light
+            ? "WinProvisionStore_Black.png"
+            : "WinProvisionStore_White.png";
+        OrchestratorIcon.Source = new BitmapImage(
+            new Uri($"pack://application:,,,/Assets/{iconFile}", UriKind.Absolute));
     }
 
     /// <summary>Captura TODOS os eventos de entrada do thread WPF, inclusive os do Popup do
@@ -145,16 +159,18 @@ public partial class ProvisioningPage : Page
     }
 
     /// <summary>Alterna o menu lateral de "Provisionamento" entre a visão do Perfil (padrão) e uma seção específica.</summary>
-    private void ShowSection(StackPanel sectionPanel, string title)
+    private void ShowSection(StackPanel sectionPanel, string title, bool showApplyButton = true)
     {
         PersonalizationSectionPanel.Visibility = Visibility.Collapsed;
         AdvancedSectionPanel.Visibility = Visibility.Collapsed;
         JsonSectionPanel.Visibility = Visibility.Collapsed;
+        OrchestratorSectionPanel.Visibility = Visibility.Collapsed;
         sectionPanel.Visibility = Visibility.Visible;
 
         SectionTitleText.Text = title;
         ProfileOverviewPanel.Visibility = Visibility.Collapsed;
         SectionPanel.Visibility = Visibility.Visible;
+        ApplyButton.Visibility = showApplyButton ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ShowProfileOverview()
@@ -349,10 +365,58 @@ public partial class ProvisioningPage : Page
 
     private void JsonNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(JsonSectionPanel, "Visualização do JSON");
 
-    private void UnattendCanvasNavCard_Click(object sender, RoutedEventArgs e)
+    private void OrchestratorNavCard_Click(object sender, RoutedEventArgs e)
     {
-        App.Services.GetRequiredService<Wpf.Ui.INavigationService>()
-            .Navigate(typeof(UnattendCanvasPage));
+        ShowSection(OrchestratorSectionPanel, "WinProvision Orchestrator", showApplyButton: false);
+    }
+
+    private void OrchestratorOptions_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!_uiLoaded) return;
+
+        UpdateOrchestratorLogPathVisibility();
+        _publishedBootstrapCommand = null;
+        BootstrapCommandTextBox.Text = "As opções mudaram. Publique novamente para atualizar o script.";
+        CopyBootstrapCommandButton.IsEnabled = false;
+        PublishBootstrapButton.IsEnabled = _githubBackupService.IsConnected && !_isPublishingBootstrap;
+    }
+
+    private void UpdateOrchestratorLogPathVisibility()
+    {
+        if (OrchestratorLocalLogPathPanel is not null)
+            OrchestratorLocalLogPathPanel.Visibility = OrchestratorLogsLocalRadio.IsChecked == true
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        if (OrchestratorLogPathTextBox is not null)
+            OrchestratorLogPathTextBox.Text = _orchestratorLogFilePath ?? "Selecione o destino do arquivo TXT";
+    }
+
+    private void ChooseOrchestratorLogPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Escolher destino do log do Orchestrator",
+            FileName = "WinProvision-Orchestrator.txt",
+            DefaultExt = ".txt",
+            AddExtension = true,
+            Filter = "Arquivo de texto (*.txt)|*.txt|Todos os arquivos (*.*)|*.*",
+            OverwritePrompt = false,
+            CheckPathExists = true
+        };
+
+        if (!string.IsNullOrWhiteSpace(_orchestratorLogFilePath))
+        {
+            dialog.InitialDirectory = Path.GetDirectoryName(_orchestratorLogFilePath);
+            dialog.FileName = Path.GetFileName(_orchestratorLogFilePath);
+        }
+
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+            return;
+
+        _orchestratorLogFilePath = dialog.FileName;
+        UpdateOrchestratorLogPathVisibility();
+        OrchestratorOptions_Changed(sender, e);
     }
 
     private void PackageCollectionChanged()
@@ -388,6 +452,12 @@ public partial class ProvisioningPage : Page
 
         string profileJson = BuildProfileJson(manifest);
         JsonPreviewTextBox.Text = profileJson;
+        _publishedBootstrapCommand = null;
+        BootstrapCommandTextBox.Text = _githubBackupService.IsConnected
+            ? "Publique o perfil para gerar o comando do PowerShell."
+            : "Conecte o GitHub em Conta e Sincronização para publicar o Bootstrap.";
+        CopyBootstrapCommandButton.IsEnabled = false;
+        PublishBootstrapButton.IsEnabled = _githubBackupService.IsConnected && !_isPublishingBootstrap;
     }
 
     /// <summary>
@@ -407,6 +477,91 @@ public partial class ProvisioningPage : Page
             manifest.Name,
             manifest);
         return JsonSerializer.Serialize(profile, WinProvisionJsonOptions.Profile);
+    }
+
+    private async void PublishBootstrapButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_githubBackupService.IsConnected)
+        {
+            StatusText.Text = "Conecte o GitHub em Conta e Sincronização para publicar o Bootstrap.";
+            return;
+        }
+
+        string profileJson = JsonPreviewTextBox.Text;
+        BootstrapDisplayMode displayMode = OrchestratorDisplayTerminalRadio.IsChecked == true
+            ? BootstrapDisplayMode.Terminal
+            : BootstrapDisplayMode.UserInterface;
+        BootstrapLogMode logMode = OrchestratorLogsCloudRadio.IsChecked == true
+            ? BootstrapLogMode.Cloud
+            : BootstrapLogMode.Local;
+        string? logFilePath = _orchestratorLogFilePath;
+        if (logMode == BootstrapLogMode.Local && string.IsNullOrWhiteSpace(logFilePath))
+        {
+            StatusText.Text = "Escolha onde salvar o arquivo TXT antes de publicar.";
+            BootstrapCommandTextBox.Text = "Selecione o destino do log local e publique novamente.";
+            return;
+        }
+        _isPublishingBootstrap = true;
+        PublishBootstrapButton.IsEnabled = false;
+        CopyBootstrapCommandButton.IsEnabled = false;
+        StatusText.Text = "Publicando o perfil e o script no Gist...";
+
+        try
+        {
+            var result = await _githubBackupService.PublishBootstrapAsync(profileJson, displayMode, logMode, logFilePath);
+            if (!result.Success || string.IsNullOrWhiteSpace(result.RawUrl))
+            {
+                StatusText.Text = result.ErrorMessage ?? "Não foi possível publicar o Bootstrap no Gist.";
+                BootstrapCommandTextBox.Text = "A publicação falhou. Corrija o acesso ao GitHub e tente novamente.";
+                return;
+            }
+
+            if (!string.Equals(JsonPreviewTextBox.Text, profileJson, StringComparison.Ordinal))
+            {
+                StatusText.Text = "O perfil mudou durante a publicação. Publique novamente para atualizar o Gist.";
+                BootstrapCommandTextBox.Text = "Publique novamente para gerar um comando com o perfil atualizado.";
+                return;
+            }
+
+            if (displayMode != (OrchestratorDisplayTerminalRadio.IsChecked == true
+                    ? BootstrapDisplayMode.Terminal
+                    : BootstrapDisplayMode.UserInterface)
+                || logMode != (OrchestratorLogsCloudRadio.IsChecked == true
+                    ? BootstrapLogMode.Cloud
+                    : BootstrapLogMode.Local)
+                || !string.Equals(logFilePath, _orchestratorLogFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                StatusText.Text = "As opções mudaram durante a publicação. Publique novamente para aplicar as escolhas atuais.";
+                BootstrapCommandTextBox.Text = "Publique novamente para atualizar as opções do Orchestrator.";
+                return;
+            }
+
+            _publishedBootstrapCommand = $"irm '{result.RawUrl.Replace("'", "''", StringComparison.Ordinal)}' | iex";
+            BootstrapCommandTextBox.Text = _publishedBootstrapCommand;
+            CopyBootstrapCommandButton.IsEnabled = true;
+            StatusText.Text = $"Orchestrator publicado ({(displayMode == BootstrapDisplayMode.Terminal ? "Terminal" : "interface")}, logs {(logMode == BootstrapLogMode.Cloud ? "na nuvem" : "locais")}). Copie o comando para o FirstLogon do Schneegans.";
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Falha ao publicar o Bootstrap: {ex.Message}";
+        }
+        finally
+        {
+            _isPublishingBootstrap = false;
+            PublishBootstrapButton.IsEnabled = _githubBackupService.IsConnected;
+        }
+    }
+
+    private void CopyBootstrapCommandButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_publishedBootstrapCommand))
+        {
+            StatusText.Text = "Publique o perfil antes de copiar o comando.";
+            return;
+        }
+
+        Clipboard.SetText(_publishedBootstrapCommand);
+        StatusText.Text = "Comando do Bootstrap copiado para a área de transferência.";
     }
 
     private void CopyJsonButton_Click(object sender, RoutedEventArgs e)
@@ -462,8 +617,7 @@ public partial class ProvisioningPage : Page
             && string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64)
             && string.IsNullOrWhiteSpace(manifest.Region)
             && manifest.AutoCreateRestorePoint is not true
-            && manifest.AutoCleanTempOnLogon is not true
-            && manifest.DesktopIconLayout is null or { Count: 0 };
+            && manifest.AutoCleanTempOnLogon is not true;
 
         if (isEmpty) return;
 
@@ -527,9 +681,6 @@ public partial class ProvisioningPage : Page
 
         if (AutoCleanTempOnLogonCheckBox.IsChecked is true)
             changes.Add("Limpeza de arquivos temporários: agendar para cada logon");
-
-        if (_userAddedDesktopIcons.Count > 0)
-            changes.Add($"Atalhos na área de trabalho: {_userAddedDesktopIcons.Count}");
 
         return changes;
     }
@@ -636,80 +787,7 @@ public partial class ProvisioningPage : Page
         Region = GetSelectedRegion(RegionComboBox),
         AutoCreateRestorePoint = AutoCreateRestorePointCheckBox.IsChecked,
         AutoCleanTempOnLogon = AutoCleanTempOnLogonCheckBox.IsChecked,
-        DesktopIconLayout = BuildDesktopIconLayout(),
     };
-
-    /// <summary>
-    /// Converte a posição atual (em pixel, no Canvas de simulação) de cada ícone arrastado
-    /// pelo usuário pra Coluna/Linha — usando o mesmo espaçamento de grade (72×90, origem em
-    /// 16,16) já usado pelo snap em <see cref="DesktopIcon_MouseLeftButtonUp"/> e
-    /// <see cref="CreateDesktopIcon"/>, mesmo que "Alinhar à grade" esteja desligado (nesse
-    /// caso o resultado é só um arredondamento pra célula mais próxima — ainda assim melhor
-    /// que gravar pixels, que não fariam sentido nenhum na resolução da máquina-alvo).
-    /// </summary>
-    private List<DesktopIconPlacement>? BuildDesktopIconLayout()
-    {
-        if (_userAddedDesktopIcons.Count == 0) return null;
-
-        var layout = new List<DesktopIconPlacement>();
-        foreach (var icon in _userAddedDesktopIcons)
-        {
-            if (icon.Tag is not AppEntry app) continue;
-
-            double left = Canvas.GetLeft(icon);
-            double top = Canvas.GetTop(icon);
-            if (double.IsNaN(left)) left = 16;
-            if (double.IsNaN(top)) top = 16;
-
-            int column = Math.Max(0, (int)Math.Round((left - 16) / 72.0));
-            int row = Math.Max(0, (int)Math.Round((top - 16) / 90.0));
-
-            layout.Add(new DesktopIconPlacement
-            {
-                AppId = app.Id,
-                DisplayName = app.Name,
-                Column = column,
-                Row = row,
-            });
-        }
-
-        return layout;
-    }
-
-    /// <summary>
-    /// Reconstrói os ícones de usuário na simulação a partir de um perfil importado/carregado —
-    /// resolve cada <see cref="DesktopIconPlacement"/> pra um <see cref="AppEntry"/> real (pelo
-    /// Id do winget, com fallback pelo nome) em qualquer coleção/aba do usuário; caso não exista
-    /// mais na coleção, cria um AppEntry temporário para assegurar a visualização exata de todos os ícones.
-    /// </summary>
-    private void ApplyDesktopIconLayoutToUi(List<DesktopIconPlacement>? layout)
-    {
-        if (DesktopIconsGroup is null) return;
-
-        foreach (var icon in _userAddedDesktopIcons)
-        {
-            DesktopIconsGroup.Children.Remove(icon);
-        }
-        _userAddedDesktopIcons.Clear();
-
-        if (layout is null || layout.Count == 0) return;
-
-        var allApps = _packageCollectionService.Tabs.SelectMany(c => c.Items).ToList();
-
-        foreach (var placement in layout)
-        {
-            var app = allApps.FirstOrDefault(a => a.Id.Equals(placement.AppId, StringComparison.OrdinalIgnoreCase))
-                ?? allApps.FirstOrDefault(a => a.Name.Equals(placement.DisplayName, StringComparison.OrdinalIgnoreCase))
-                ?? new AppEntry { Id = placement.AppId, Name = placement.DisplayName };
-
-            double x = placement.Column * 72.0 + 16;
-            double y = placement.Row * 90.0 + 16;
-
-            var icon = CreateDesktopIcon(app, x, y);
-            DesktopIconsGroup.Children.Add(icon);
-            _userAddedDesktopIcons.Add(icon);
-        }
-    }
 
     private void LoadManifestIntoUi(ProvisioningManifest manifest)
     {
@@ -726,7 +804,6 @@ public partial class ProvisioningPage : Page
         SelectRegion(RegionComboBox, manifest.Region);
         AutoCreateRestorePointCheckBox.IsChecked = manifest.AutoCreateRestorePoint;
         AutoCleanTempOnLogonCheckBox.IsChecked = manifest.AutoCleanTempOnLogon;
-        ApplyDesktopIconLayoutToUi(manifest.DesktopIconLayout);
 
         _wallpaperFileName = manifest.WallpaperFileName;
         _wallpaperImageBase64 = manifest.WallpaperImageBase64;
@@ -864,12 +941,6 @@ public partial class ProvisioningPage : Page
         if (!_uiLoaded || DesktopPreviewWallpaper is null || ThemeComboBox is null || TaskbarAlignmentComboBox is null || TaskbarSearchBoxComboBox is null || TaskbarAutoHideCheckBox is null)
             return;
 
-        // Also refresh the package shelf when in the personalization section
-        if (ProfileOverviewPanel.Visibility == Visibility.Collapsed && PersonalizationSectionPanel.Visibility == Visibility.Visible)
-        {
-            RefreshPackagesShelfButton_Click(this, new RoutedEventArgs());
-        }
-
         EnsureDefaultWallpapersLoaded();
 
         var selectedTheme = GetSelectedEnum<SystemThemeMode>(ThemeComboBox);
@@ -881,7 +952,6 @@ public partial class ProvisioningPage : Page
         if (WallpaperPreviewImage?.Source is BitmapImage customBmp && !string.IsNullOrWhiteSpace(_wallpaperImageBase64))
         {
             DesktopPreviewWallpaper.Source = customBmp;
-            if (DesktopPreviewThemeTag is not null) DesktopPreviewThemeTag.Text = "Wallpaper Personalizado";
             if (ClearWallpaperButton is not null) ClearWallpaperButton.Visibility = Visibility.Visible;
         }
         else
@@ -890,15 +960,11 @@ public partial class ProvisioningPage : Page
             if (selectedTheme == SystemThemeMode.Claro)
             {
                 DesktopPreviewWallpaper.Source = _cachedLightWallpaper ?? _cachedDarkWallpaper;
-                DesktopPreviewThemeTag.Text = "Tema Claro (Windows 11)";
             }
             else
             {
                 // Escuro ou Não alterar (padrão escuro moderno do Windows 11)
                 DesktopPreviewWallpaper.Source = _cachedDarkWallpaper ?? _cachedLightWallpaper;
-                DesktopPreviewThemeTag.Text = selectedTheme == SystemThemeMode.Escuro
-                    ? "Tema Escuro (Windows 11)"
-                    : "Tema do Sistema (Padrão)";
             }
         }
 
@@ -906,71 +972,66 @@ public partial class ProvisioningPage : Page
         bool isLight = selectedTheme == SystemThemeMode.Claro;
         if (isLight)
         {
-            DesktopPreviewTaskbar.Background = new SolidColorBrush(Color.FromArgb(0xEA, 0xF3, 0xF4, 0xF6));
-            DesktopPreviewTaskbar.BorderBrush = new SolidColorBrush(Color.FromArgb(0x30, 0x00, 0x00, 0x00));
+            DesktopPreviewTaskbarTint.Background = new SolidColorBrush(Color.FromArgb(0xD9, 0xF3, 0xF3, 0xF3));
             var darkTextBrush = new SolidColorBrush(Color.FromRgb(0x1E, 0x29, 0x3B));
             var darkSecBrush = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
 
             DesktopPreviewClockText.Foreground = darkTextBrush;
             DesktopPreviewDateText.Foreground = darkSecBrush;
-            DesktopPreviewSearchText.Foreground = darkSecBrush;
-            DesktopPreviewSearchIcon.Foreground = darkSecBrush;
-            DesktopPreviewSearchIconOnly.Foreground = darkTextBrush;
-            DesktopPreviewTrayChevron.Foreground = darkSecBrush;
-            DesktopPreviewTrayWifi.Foreground = darkSecBrush;
-            DesktopPreviewTraySpeaker.Foreground = darkSecBrush;
-            DesktopPreviewTrayLang1.Foreground = darkTextBrush;
-            DesktopPreviewTrayLang2.Foreground = darkSecBrush;
-            DesktopPreviewSearchBoxFull.Background = new SolidColorBrush(Color.FromArgb(0xF0, 0xFF, 0xFF, 0xFF));
-            DesktopPreviewSearchBoxFull.BorderBrush = new SolidColorBrush(Color.FromArgb(0x25, 0x00, 0x00, 0x00));
+            DesktopPreviewSearchIconOnly.Stroke = darkTextBrush;
+            DesktopPreviewTrayChevron.Stroke = darkSecBrush;
+            DesktopPreviewTrayWifi.Stroke = darkSecBrush;
+            DesktopPreviewTrayWifiDot.Fill = darkSecBrush;
+            DesktopPreviewTraySpeaker.Fill = darkSecBrush;
+            DesktopPreviewTraySpeakerWaves.Stroke = darkSecBrush;
+            DesktopPreviewTrayBattery.BorderBrush = darkSecBrush;
+            DesktopPreviewTrayBatteryLevel.Background = darkSecBrush;
+            DesktopPreviewTrayBatteryTerminal.Background = darkSecBrush;
         }
         else
         {
-            DesktopPreviewTaskbar.Background = new SolidColorBrush(Color.FromArgb(0xEA, 0x1C, 0x1C, 0x1C));
-            DesktopPreviewTaskbar.BorderBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+            DesktopPreviewTaskbarTint.Background = new SolidColorBrush(Color.FromArgb(0xBF, 0x20, 0x20, 0x20));
             var lightTextBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC));
             var lightSecBrush = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
 
             DesktopPreviewClockText.Foreground = lightTextBrush;
             DesktopPreviewDateText.Foreground = lightSecBrush;
-            DesktopPreviewSearchText.Foreground = lightSecBrush;
-            DesktopPreviewSearchIcon.Foreground = lightSecBrush;
-            DesktopPreviewSearchIconOnly.Foreground = lightTextBrush;
-            DesktopPreviewTrayChevron.Foreground = lightSecBrush;
-            DesktopPreviewTrayWifi.Foreground = lightSecBrush;
-            DesktopPreviewTraySpeaker.Foreground = lightSecBrush;
-            DesktopPreviewTrayLang1.Foreground = lightTextBrush;
-            DesktopPreviewTrayLang2.Foreground = lightSecBrush;
-            DesktopPreviewSearchBoxFull.Background = new SolidColorBrush(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF));
-            DesktopPreviewSearchBoxFull.BorderBrush = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF));
+            DesktopPreviewSearchIconOnly.Stroke = lightTextBrush;
+            DesktopPreviewTrayChevron.Stroke = lightSecBrush;
+            DesktopPreviewTrayWifi.Stroke = lightSecBrush;
+            DesktopPreviewTrayWifiDot.Fill = lightSecBrush;
+            DesktopPreviewTraySpeaker.Fill = lightSecBrush;
+            DesktopPreviewTraySpeakerWaves.Stroke = lightSecBrush;
+            DesktopPreviewTrayBattery.BorderBrush = lightSecBrush;
+            DesktopPreviewTrayBatteryLevel.Background = lightSecBrush;
+            DesktopPreviewTrayBatteryTerminal.Background = lightSecBrush;
         }
 
         // 3. Alinhamento da Barra de Tarefas
         if (selectedAlign == TaskbarAlignmentMode.Esquerda)
         {
             DesktopPreviewTaskbarIcons.HorizontalAlignment = HorizontalAlignment.Left;
+            DesktopPreviewTaskbarIcons.Margin = new Thickness(46, 0, 0, 0);
         }
         else
         {
             // Centro ou Não alterar (padrão centralizado do Windows 11)
             DesktopPreviewTaskbarIcons.HorizontalAlignment = HorizontalAlignment.Center;
+            DesktopPreviewTaskbarIcons.Margin = new Thickness(0);
         }
 
         // 4. Caixa de Pesquisa
         switch (selectedSearch)
         {
             case TaskbarSearchBoxMode.Oculta:
-                DesktopPreviewSearchBoxFull.Visibility = Visibility.Collapsed;
                 DesktopPreviewSearchBoxIcon.Visibility = Visibility.Collapsed;
                 break;
             case TaskbarSearchBoxMode.ApenasIcone:
-                DesktopPreviewSearchBoxFull.Visibility = Visibility.Collapsed;
                 DesktopPreviewSearchBoxIcon.Visibility = Visibility.Visible;
                 break;
             case TaskbarSearchBoxMode.CaixaCompleta:
             default:
-                DesktopPreviewSearchBoxFull.Visibility = Visibility.Visible;
-                DesktopPreviewSearchBoxIcon.Visibility = Visibility.Collapsed;
+                DesktopPreviewSearchBoxIcon.Visibility = Visibility.Visible;
                 break;
         }
 
@@ -990,410 +1051,13 @@ public partial class ProvisioningPage : Page
         DesktopPreviewClockText.Text = DateTime.Now.ToString("HH:mm");
         DesktopPreviewDateText.Text = DateTime.Now.ToString("dd/MM/yyyy");
 
-        // 7. Menu de Contexto (Cores do Tema)
-        if (DesktopContextMenuMain != null)
-        {
-            DesktopContextMenuMain.Background = new SolidColorBrush(isLight ? Color.FromArgb(0xF4, 0xF9, 0xF9, 0xF9) : Color.FromArgb(0xF4, 0x20, 0x20, 0x20));
-            DesktopContextMenuMain.BorderBrush = new SolidColorBrush(isLight ? Color.FromArgb(0x25, 0x00, 0x00, 0x00) : Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        }
-        if (DesktopContextMenuSubExibir != null)
-        {
-            DesktopContextMenuSubExibir.Background = new SolidColorBrush(isLight ? Color.FromArgb(0xF4, 0xF9, 0xF9, 0xF9) : Color.FromArgb(0xF4, 0x20, 0x20, 0x20));
-            DesktopContextMenuSubExibir.BorderBrush = new SolidColorBrush(isLight ? Color.FromArgb(0x25, 0x00, 0x00, 0x00) : Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        }
     }
-
-    #region Desktop Icon Dragging & Context Menu Interactivity
-
-    private void SelectDesktopIcon(Border icon)
-    {
-        DeselectAllDesktopIcons();
-        _selectedIcon = icon;
-        icon.Background = new SolidColorBrush(Color.FromArgb(0x33, 0x00, 0x78, 0xD4));
-        icon.BorderBrush = new SolidColorBrush(Color.FromArgb(0x80, 0x00, 0x78, 0xD4));
-        icon.BorderThickness = new Thickness(1);
-        UpdateContextMenuForSelection();
-    }
-
-    private void DeselectAllDesktopIcons()
-    {
-        _selectedIcon = null;
-        if (DesktopIconRecycleBin != null)
-        {
-            DesktopIconRecycleBin.Background = Brushes.Transparent;
-            DesktopIconRecycleBin.BorderBrush = Brushes.Transparent;
-            DesktopIconRecycleBin.BorderThickness = new Thickness(0);
-        }
-        if (DesktopIconEdge != null)
-        {
-            DesktopIconEdge.Background = Brushes.Transparent;
-            DesktopIconEdge.BorderBrush = Brushes.Transparent;
-            DesktopIconEdge.BorderThickness = new Thickness(0);
-        }
-
-        // Deselect user-added icons
-        foreach (var icon in _userAddedDesktopIcons)
-        {
-            icon.Background = Brushes.Transparent;
-            icon.BorderBrush = Brushes.Transparent;
-            icon.BorderThickness = new Thickness(0);
-        }
-
-        UpdateContextMenuForSelection();
-    }
-
-    private void DesktopIcon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            CloseContextMenu();
-            SelectDesktopIcon(border);
-            _draggedElement = border;
-            _dragStartMouse = e.GetPosition(DesktopIconsCanvas);
-            _dragStartLeft = Canvas.GetLeft(border);
-            _dragStartTop = Canvas.GetTop(border);
-            if (double.IsNaN(_dragStartLeft)) _dragStartLeft = 16;
-            if (double.IsNaN(_dragStartTop)) _dragStartTop = 16;
-            _isDragging = false;
-            border.CaptureMouse();
-            e.Handled = true;
-        }
-    }
-
-    private void DesktopIcon_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_draggedElement != null)
-        {
-            Point curMouse = e.GetPosition(DesktopIconsCanvas);
-            Vector delta = curMouse - _dragStartMouse;
-            if (Math.Abs(delta.X) > 3 || Math.Abs(delta.Y) > 3)
-            {
-                _isDragging = true;
-            }
-
-            if (_isDragging)
-            {
-                double newLeft = _dragStartLeft + delta.X;
-                double newTop = _dragStartTop + delta.Y;
-
-                newLeft = Math.Clamp(newLeft, 8, 1280 - _draggedElement.ActualWidth - 8);
-                newTop = Math.Clamp(newTop, 8, 672 - _draggedElement.ActualHeight - 8);
-
-                Canvas.SetLeft(_draggedElement, newLeft);
-                Canvas.SetTop(_draggedElement, newTop);
-                e.Handled = true;
-            }
-        }
-    }
-
-    private void DesktopIcon_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_draggedElement != null)
-        {
-            _draggedElement.ReleaseMouseCapture();
-
-            if (_autoArrange)
-            {
-                AutoArrangeIcons();
-            }
-            else if (_alignToGrid)
-            {
-                double curLeft = Canvas.GetLeft(_draggedElement);
-                double curTop = Canvas.GetTop(_draggedElement);
-                // Espaçamento de grade: 72px horizontal, 90px vertical
-                double snappedLeft = Math.Round((curLeft - 16) / 72.0) * 72.0 + 16;
-                double snappedTop = Math.Round((curTop - 16) / 90.0) * 90.0 + 16;
-
-                snappedLeft = Math.Clamp(snappedLeft, 16, 1200);
-                snappedTop = Math.Clamp(snappedTop, 16, 560);
-
-                Canvas.SetLeft(_draggedElement, snappedLeft);
-                Canvas.SetTop(_draggedElement, snappedTop);
-            }
-
-            var element = _draggedElement;
-            _isDragging = false;
-            _draggedElement = null;
-            e.Handled = true;
-
-            // Só um app de usuário (com AppEntry no Tag) entra no layout salvo — ícones de
-            // sistema (Lixeira, Edge) são só decoração da simulação, não viajam no perfil.
-            if (element is Border { Tag: AppEntry } && !_autoArrange)
-            {
-                PushCurrentToService();
-            }
-        }
-    }
-
-    private void DesktopIcon_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is Border border)
-        {
-            SelectDesktopIcon(border);
-            Point pt = e.GetPosition(DesktopMenuOverlay);
-            ShowContextMenu(pt);
-            e.Handled = true;
-        }
-    }
-
-    private void DesktopCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        DeselectAllDesktopIcons();
-        CloseContextMenu();
-    }
-
-    private void DesktopCanvas_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (_draggedElement != null && _isDragging)
-        {
-            DesktopIcon_MouseMove(_draggedElement, e);
-        }
-    }
-
-    private void DesktopCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (_draggedElement != null)
-        {
-            DesktopIcon_MouseLeftButtonUp(_draggedElement, e);
-        }
-    }
-
-    private void DesktopCanvas_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        DeselectAllDesktopIcons();
-        Point pt = e.GetPosition(DesktopMenuOverlay);
-        ShowContextMenu(pt);
-        e.Handled = true;
-    }
-
-    private void ShowContextMenu(Point pt)
-    {
-        if (DesktopMenuOverlay == null || DesktopContextMenuMain == null) return;
-
-        double left = pt.X;
-        double top = pt.Y;
-
-        if (left + 245 > 1280) left = 1280 - 250;
-        if (top + 260 > 672) top = 672 - 265;
-        if (left < 0) left = 0;
-        if (top < 0) top = 0;
-
-        Canvas.SetLeft(DesktopContextMenuMain, left);
-        Canvas.SetTop(DesktopContextMenuMain, top);
-
-        if (DesktopContextMenuSubExibir != null)
-        {
-            DesktopContextMenuSubExibir.Visibility = Visibility.Collapsed;
-        }
-
-        DesktopMenuOverlay.Visibility = Visibility.Visible;
-    }
-
-    private void CloseContextMenu()
-    {
-        if (DesktopMenuOverlay != null)
-        {
-            DesktopMenuOverlay.Visibility = Visibility.Collapsed;
-        }
-        if (DesktopContextMenuSubExibir != null)
-        {
-            DesktopContextMenuSubExibir.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void DesktopMenuOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        CloseContextMenu();
-    }
-
-    private void DesktopMenuOverlay_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        CloseContextMenu();
-    }
-
-    private void MenuItemExibir_MouseEnter(object sender, MouseEventArgs e)
-    {
-        OpenSubmenuExibir();
-    }
-
-    private void MenuItemExibir_MouseLeave(object sender, MouseEventArgs e)
-    {
-    }
-
-    private void MenuItemExibir_Click(object sender, MouseButtonEventArgs e)
-    {
-        OpenSubmenuExibir();
-        e.Handled = true;
-    }
-
-    private void OpenSubmenuExibir()
-    {
-        if (DesktopContextMenuSubExibir == null || DesktopContextMenuMain == null) return;
-
-        double mainLeft = Canvas.GetLeft(DesktopContextMenuMain);
-        double mainTop = Canvas.GetTop(DesktopContextMenuMain);
-
-        double subLeft = mainLeft + 238;
-        double subTop = mainTop + 4;
-
-        if (subLeft + 260 > 1280)
-        {
-            subLeft = mainLeft - 260;
-        }
-        if (subTop + 240 > 672)
-        {
-            subTop = Math.Max(0, 672 - 245);
-        }
-
-        Canvas.SetLeft(DesktopContextMenuSubExibir, subLeft);
-        Canvas.SetTop(DesktopContextMenuSubExibir, subTop);
-        DesktopContextMenuSubExibir.Visibility = Visibility.Visible;
-    }
-
-    private void MenuItemToggleDesktopIcons_Click(object sender, MouseButtonEventArgs e)
-    {
-        _showDesktopIcons = !_showDesktopIcons;
-        if (MenuCheckShowDesktopIcons != null)
-        {
-            MenuCheckShowDesktopIcons.Visibility = _showDesktopIcons ? Visibility.Visible : Visibility.Collapsed;
-        }
-        if (DesktopIconsGroup != null)
-        {
-            DesktopIconsGroup.Visibility = _showDesktopIcons ? Visibility.Visible : Visibility.Collapsed;
-        }
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    private void MenuIconSize_Large_Click(object sender, MouseButtonEventArgs e)
-    {
-        SetIconSize(56, 92, 98);
-        SetSizeChecks(true, false, false);
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    private void MenuIconSize_Medium_Click(object sender, MouseButtonEventArgs e)
-    {
-        SetIconSize(44, 76, 82);
-        SetSizeChecks(false, true, false);
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    private void MenuIconSize_Small_Click(object sender, MouseButtonEventArgs e)
-    {
-        SetIconSize(32, 64, 70);
-        SetSizeChecks(false, false, true);
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    private void SetIconSize(double iconSize, double cellWidth, double cellHeight)
-    {
-        // Update default icons
-        if (ImageRecycleBin != null) { ImageRecycleBin.Width = iconSize; ImageRecycleBin.Height = iconSize; }
-        if (ImageEdge != null) { ImageEdge.Width = iconSize; ImageEdge.Height = iconSize; }
-        if (DesktopIconRecycleBin != null) { DesktopIconRecycleBin.Width = cellWidth; DesktopIconRecycleBin.Height = cellHeight; }
-        if (DesktopIconEdge != null) { DesktopIconEdge.Width = cellWidth; DesktopIconEdge.Height = cellHeight; }
-
-        // Update user-added icons
-        foreach (var icon in _userAddedDesktopIcons)
-        {
-            icon.Width = cellWidth;
-            icon.Height = cellHeight;
-
-            // Find the Image control within the icon and update its size
-            if (icon.Child is StackPanel stackPanel && stackPanel.Children.Count > 0)
-            {
-                if (stackPanel.Children[0] is Image appIcon)
-                {
-                    appIcon.Width = iconSize;
-                    appIcon.Height = iconSize;
-                }
-            }
-        }
-    }
-
-    private void SetSizeChecks(bool large, bool medium, bool small)
-    {
-        if (MenuCheckLarge != null) MenuCheckLarge.Visibility = large ? Visibility.Visible : Visibility.Collapsed;
-        if (MenuCheckMedium != null) MenuCheckMedium.Visibility = medium ? Visibility.Visible : Visibility.Collapsed;
-        if (MenuCheckSmall != null) MenuCheckSmall.Visibility = small ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void MenuAutoArrange_Click(object sender, MouseButtonEventArgs e)
-    {
-        _autoArrange = !_autoArrange;
-        if (MenuCheckAutoArrange != null)
-        {
-            MenuCheckAutoArrange.Visibility = _autoArrange ? Visibility.Visible : Visibility.Collapsed;
-        }
-        if (_autoArrange)
-        {
-            AutoArrangeIcons();
-        }
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    private void AutoArrangeIcons()
-    {
-        // Espaçamento de grade nativo: 72px horizontal, 90px vertical
-        if (DesktopIconRecycleBin != null)
-        {
-            Canvas.SetLeft(DesktopIconRecycleBin, 16);
-            Canvas.SetTop(DesktopIconRecycleBin, 16);
-        }
-        if (DesktopIconEdge != null)
-        {
-            Canvas.SetLeft(DesktopIconEdge, 16);
-            Canvas.SetTop(DesktopIconEdge, 106); // 16 + 90 = 106
-        }
-
-        // Organiza TODOS os ícones adicionados pelo usuário na grade sequencial
-        const int maxRowsPerColumn = 6; // 6 slots verticais por coluna no espaço útil acima da barra de tarefas
-        for (int i = 0; i < _userAddedDesktopIcons.Count; i++)
-        {
-            var icon = _userAddedDesktopIcons[i];
-            int slot = 2 + i; // slots 0 e 1 são ocupados pela Lixeira e pelo Edge
-            int col = slot / maxRowsPerColumn;
-            int row = slot % maxRowsPerColumn;
-
-            double x = col * 72.0 + 16;
-            double y = row * 90.0 + 16;
-
-            Canvas.SetLeft(icon, x);
-            Canvas.SetTop(icon, y);
-        }
-
-        PushCurrentToService();
-    }
-
-    private void MenuAlignToGrid_Click(object sender, MouseButtonEventArgs e)
-    {
-        _alignToGrid = !_alignToGrid;
-        if (MenuCheckAlignToGrid != null)
-        {
-            MenuCheckAlignToGrid.Visibility = _alignToGrid ? Visibility.Visible : Visibility.Collapsed;
-        }
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    private void MenuItemAtualizar_Click(object sender, MouseButtonEventArgs e)
-    {
-        UpdateDesktopPreview();
-        CloseContextMenu();
-        e.Handled = true;
-    }
-
-    #endregion
 
     private async void ApplyButton_Click(object sender, RoutedEventArgs e)
     {
         ApplyButton.IsEnabled = false;
         StatusText.Text = "Aplicando ajustes...";
+        StatusText.ToolTip = null;
 
         try
         {
@@ -1406,8 +1070,8 @@ public partial class ProvisioningPage : Page
                 return;
             }
 
-            int failedSteps = result.Steps.Count(step => !step.Success);
-            if (failedSteps == 0)
+            var failedSteps = result.Steps.Where(step => !step.Success).ToList();
+            if (failedSteps.Count == 0)
             {
                 StatusText.Text = result.RestartRequired
                     ? "Tudo certo! As configurações foram aplicadas. Reinicie o Windows para concluir."
@@ -1415,13 +1079,11 @@ public partial class ProvisioningPage : Page
             }
             else
             {
-                string failedSettings = string.Join(", ",
-                    result.Steps
-                        .Where(step => !step.Success)
-                        .Select(step => step.Setting));
-                StatusText.Text = failedSteps == 1
-                    ? $"A configuração \"{failedSettings}\" não pôde ser aplicada."
-                    : $"{failedSteps} configurações não puderam ser aplicadas.";
+                StatusText.Text = failedSteps.Count == 1
+                    ? $"A configuração \"{failedSteps[0].Setting}\" não pôde ser aplicada."
+                    : $"{failedSteps.Count} configurações não puderam ser aplicadas.";
+                StatusText.ToolTip = string.Join(Environment.NewLine,
+                    failedSteps.Select(step => $"{step.Setting}: {step.Message}"));
             }
 
             if (manifest.MachineName is not null)
@@ -1432,6 +1094,7 @@ public partial class ProvisioningPage : Page
         catch
         {
             StatusText.Text = "Não foi possível aplicar as configurações. Tente novamente.";
+            StatusText.ToolTip = "Consulte os logs do aplicativo para ver os detalhes da falha.";
         }
         finally
         {
@@ -1484,389 +1147,5 @@ public partial class ProvisioningPage : Page
         }
     }
 
-    #region Package Shelf and Desktop Icon Integration
 
-    /// <summary>
-    /// Carrega os aplicativos da coleção de pacotes na bandeja de aplicativos para arrastar para o desktop.
-    /// </summary>
-    private void RefreshPackagesShelfButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (AvailablePackagesShelf == null || AvailablePackagesCountText == null) return;
-
-        AvailablePackagesShelf.Children.Clear();
-
-        // Carrega TODOS os apps de TODAS as abas da coleção (não só a aba ativa),
-        // e deduplica por Id (um app pode estar em várias abas, só precisa de 1 chip).
-        var allApps = _packageCollectionService.Tabs
-            .SelectMany(t => t.Items ?? Enumerable.Empty<AppEntry>())
-            .GroupBy(a => a.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.First())
-            .ToList();
-
-        if (allApps.Count > 0)
-        {
-            foreach (var app in allApps)
-            {
-                var chip = CreatePackageChip(app);
-                AvailablePackagesShelf.Children.Add(chip);
-            }
-
-            AvailablePackagesCountText.Text = $"Aplicativos: {allApps.Count}";
-            StatusText.Text = $"Aplicativos carregados: {allApps.Count}.";
-        }
-        else
-        {
-            AvailablePackagesCountText.Text = "Nenhum aplicativo";
-            StatusText.Text = "Adicione aplicativos à coleção em Pacotes.";
-        }
-    }
-
-    /// <summary>
-    /// Cria um chip visual para um aplicativo que pode ser arrastado para o desktop.
-    /// </summary>
-    private Border CreatePackageChip(AppEntry app)
-    {
-        var chip = new Border
-        {
-            Width = 160,
-            Height = 80,
-            CornerRadius = new CornerRadius(8),
-            Background = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF)),
-            BorderBrush = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF)),
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 8, 0),
-            Cursor = Cursors.Hand,
-            Tag = app
-        };
-
-        var stackPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal
-        };
-
-        // Use real icon from IconService
-        var iconUrl = _iconService.ResolveIconUrl(app);
-        var iconImage = new Image
-        {
-            Width = 32,
-            Height = 32,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 12, 0),
-            Stretch = Stretch.Uniform
-        };
-
-        RenderOptions.SetBitmapScalingMode(iconImage, BitmapScalingMode.HighQuality);
-
-        // PASSO 1: SÍNCRONO — põe o ícone padrão SEMPRE (nunca mostra caixa preta)
-        var fallbackBitmap = new BitmapImage();
-        fallbackBitmap.BeginInit();
-        fallbackBitmap.CacheOption = BitmapCacheOption.OnLoad;
-        fallbackBitmap.UriSource = new Uri(IconService.DefaultIconPackUri, UriKind.Absolute);
-        fallbackBitmap.EndInit();
-        fallbackBitmap.Freeze();
-        iconImage.Source = fallbackBitmap;
-
-        // PASSO 2: ASSÍNCRONO — tenta baixar/carregar o ícone real via AsyncImage
-        // (cache em memória → disco → HTTP), e só troca se for bem-sucedido.
-        // Se falhar (404, host fora do ar, formato ruim), fica com o fallback que já está aí.
-        string localIconUrl = iconUrl;
-        Image localIcon = iconImage;
-        bool needsAsyncDownload = !localIconUrl.StartsWith("pack://", StringComparison.OrdinalIgnoreCase) &&
-                                  !localIconUrl.Equals(IconService.DefaultIconPackUri, StringComparison.OrdinalIgnoreCase);
-        if (needsAsyncDownload)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    BitmapImage? real = await AsyncImage.LoadBitmapAsync(localIconUrl);
-                    if (real is not null)
-                    {
-                        await localIcon.Dispatcher.BeginInvoke(() =>
-                        {
-                            if (localIcon.Source == fallbackBitmap)
-                                localIcon.Source = real;
-                        });
-                    }
-                }
-                catch
-                {
-                    // ignora — fallback já está em vigor
-                }
-            });
-        }
-
-        var textPanel = new StackPanel
-        {
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        var nameText = new TextBlock
-        {
-            Text = app.Name,
-            FontSize = 12,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC)),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 100
-        };
-
-        var idText = new TextBlock
-        {
-            Text = app.Id,
-            FontSize = 10,
-            Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8)),
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 100,
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-
-        textPanel.Children.Add(nameText);
-        textPanel.Children.Add(idText);
-        stackPanel.Children.Add(iconImage);
-        stackPanel.Children.Add(textPanel);
-        chip.Child = stackPanel;
-
-        // Enable drag-and-drop from the chip
-        chip.MouseLeftButtonDown += (s, args) =>
-        {
-            if (s is Border border && border.Tag is AppEntry appEntry)
-            {
-                var data = new DataObject(DataFormats.Text, appEntry.Id);
-                DragDrop.DoDragDrop(border, data, DragDropEffects.Copy);
-            }
-        };
-
-        return chip;
-    }
-
-    /// <summary>
-    /// Permite arrastar aplicativos da bandeja para o canvas do desktop.
-    /// </summary>
-    private void DesktopIconsCanvas_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(DataFormats.Text) ? DragDropEffects.Copy : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    /// <summary>
-    /// Cria um ícone no desktop quando um aplicativo é solto.
-    /// Limitado a um ícone por aplicativo para evitar duplicação.
-    /// </summary>
-    private void DesktopIconsCanvas_Drop(object sender, DragEventArgs e)
-    {
-        if (e.Data.GetData(DataFormats.Text) is string appId && DesktopIconsGroup != null)
-        {
-            // Find the app across all tabs
-            var allApps = _packageCollectionService.Tabs.SelectMany(c => c.Items).ToList();
-            var app = allApps.FirstOrDefault(a => a.Id.Equals(appId, StringComparison.OrdinalIgnoreCase));
-
-            if (app != null)
-            {
-                // Check if an icon for this app already exists
-                bool alreadyExists = _userAddedDesktopIcons.Any(icon =>
-                    icon.Tag is AppEntry existingApp && existingApp.Id.Equals(app.Id, StringComparison.OrdinalIgnoreCase));
-
-                if (alreadyExists)
-                {
-                    StatusText.Text = $"O atalho de '{app.Name}' já existe na área de trabalho. Apenas um ícone por aplicativo é permitido.";
-                    e.Handled = true;
-                    return;
-                }
-
-                // Calculate drop position
-                Point dropPosition = e.GetPosition(DesktopIconsGroup);
-
-                // Create desktop icon
-                var icon = CreateDesktopIcon(app, dropPosition.X, dropPosition.Y);
-                DesktopIconsGroup.Children.Add(icon);
-                _userAddedDesktopIcons.Add(icon);
-
-                if (_autoArrange)
-                {
-                    AutoArrangeIcons();
-                }
-                else
-                {
-                    PushCurrentToService();
-                }
-
-                StatusText.Text = $"Atalho de '{app.Name}' adicionado à área de trabalho.";
-            }
-        }
-
-        e.Handled = true;
-    }
-
-    /// <summary>
-    /// Cria um ícone de área de trabalho para um aplicativo usando ícones reais.
-    /// Espaçamento mais compacto para melhor proporção (72px horizontal, 90px vertical).
-    /// </summary>
-    private Border CreateDesktopIcon(AppEntry app, double x, double y)
-    {
-        var icon = new Border
-        {
-            Width = 76,
-            Height = 82,
-            CornerRadius = new CornerRadius(4),
-            Background = Brushes.Transparent,
-            Cursor = Cursors.Hand,
-            Tag = app
-        };
-
-        // Snap to grid if enabled (spacing mais compacto: 72px horizontal, 90px vertical)
-        if (_alignToGrid)
-        {
-            x = Math.Round((x - 16) / 72.0) * 72.0 + 16;
-            y = Math.Round((y - 16) / 90.0) * 90.0 + 16;
-        }
-
-        // Clamp to canvas bounds
-        x = Math.Clamp(x, 16, 1200);
-        y = Math.Clamp(y, 16, 560);
-
-        Canvas.SetLeft(icon, x);
-        Canvas.SetTop(icon, y);
-
-        var stackPanel = new StackPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        // Use real icon from IconService
-        var iconUrl = _iconService.ResolveIconUrl(app);
-        var iconImage = new Image
-        {
-            Name = "AppIcon",
-            Width = 44,
-            Height = 44,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 4),
-            Stretch = Stretch.Uniform
-        };
-
-        RenderOptions.SetBitmapScalingMode(iconImage, BitmapScalingMode.HighQuality);
-
-        // PASSO 1: SÍNCRONO — põe o ícone padrão SEMPRE (nunca mostra caixa preta)
-        var fallbackBitmap = new BitmapImage();
-        fallbackBitmap.BeginInit();
-        fallbackBitmap.CacheOption = BitmapCacheOption.OnLoad;
-        fallbackBitmap.UriSource = new Uri(IconService.DefaultIconPackUri, UriKind.Absolute);
-        fallbackBitmap.EndInit();
-        fallbackBitmap.Freeze();
-        iconImage.Source = fallbackBitmap;
-
-        // PASSO 2: ASSÍNCRONO — tenta baixar/carregar o ícone real via AsyncImage
-        // (cache em memória → disco → HTTP), e só troca se for bem-sucedido.
-        // Se falhar (404, host fora do ar, formato ruim), fica com o fallback que já está aí.
-        string localIconUrl = iconUrl;
-        Image localIcon = iconImage;
-        bool needsAsyncDownload = !localIconUrl.StartsWith("pack://", StringComparison.OrdinalIgnoreCase) &&
-                                  !localIconUrl.Equals(IconService.DefaultIconPackUri, StringComparison.OrdinalIgnoreCase);
-        if (needsAsyncDownload)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    BitmapImage? real = await AsyncImage.LoadBitmapAsync(localIconUrl);
-                    if (real is not null)
-                    {
-                        await localIcon.Dispatcher.BeginInvoke(() =>
-                        {
-                            if (localIcon.Source == fallbackBitmap)
-                                localIcon.Source = real;
-                        });
-                    }
-                }
-                catch
-                {
-                    // ignora — fallback já está em vigor
-                }
-            });
-        }
-
-        var nameText = new TextBlock
-        {
-            Name = "AppName",
-            Text = app.Name,
-            FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xFF, 0xFF)),
-            TextAlignment = TextAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxWidth = 70,
-            Margin = new Thickness(0, 4, 0, 0),
-            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI")
-        };
-
-        // Add shadow effect
-        var shadow = new DropShadowEffect
-        {
-            BlurRadius = 4,
-            ShadowDepth = 1,
-            Direction = 270,
-            Color = Colors.Black,
-            Opacity = 0.95
-        };
-
-        nameText.Effect = shadow;
-
-        stackPanel.Children.Add(iconImage);
-        stackPanel.Children.Add(nameText);
-        icon.Child = stackPanel;
-
-        // Attach event handlers for dragging and context menu
-        icon.MouseLeftButtonDown += DesktopIcon_MouseLeftButtonDown;
-        icon.MouseMove += DesktopIcon_MouseMove;
-        icon.MouseLeftButtonUp += DesktopIcon_MouseLeftButtonUp;
-        icon.MouseRightButtonUp += DesktopIcon_MouseRightButtonUp;
-
-        return icon;
-    }
-
-    /// <summary>
-    /// Fecha o menu de contexto quando o usuário clica no backdrop.
-    /// </summary>
-    private void DesktopMenuBackdrop_MouseDown(object sender, MouseButtonEventArgs e)
-    {
-        CloseContextMenu();
-    }
-
-    /// <summary>
-    /// Remove o atalho selecionado da área de trabalho.
-    /// </summary>
-    private void MenuItemRemoveShortcut_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (_selectedIcon != null && _userAddedDesktopIcons.Contains(_selectedIcon))
-        {
-            if (DesktopIconsGroup != null)
-            {
-                DesktopIconsGroup.Children.Remove(_selectedIcon);
-            }
-            _userAddedDesktopIcons.Remove(_selectedIcon);
-            DeselectAllDesktopIcons();
-            CloseContextMenu();
-            StatusText.Text = "Atalho removido da área de trabalho.";
-            PushCurrentToService();
-        }
-        e.Handled = true;
-    }
-
-    /// <summary>
-    /// Atualiza o menu de contexto para mostrar a opção de remover quando um ícone do usuário está selecionado.
-    /// </summary>
-    private void UpdateContextMenuForSelection()
-    {
-        if (MenuItemRemoveShortcut != null && MenuSeparatorRemoveShortcut != null)
-        {
-            bool isUserIcon = _selectedIcon != null && _userAddedDesktopIcons.Contains(_selectedIcon);
-            MenuItemRemoveShortcut.Visibility = isUserIcon ? Visibility.Visible : Visibility.Collapsed;
-            MenuSeparatorRemoveShortcut.Visibility = isUserIcon ? Visibility.Visible : Visibility.Collapsed;
-        }
-    }
-
-    #endregion
 }

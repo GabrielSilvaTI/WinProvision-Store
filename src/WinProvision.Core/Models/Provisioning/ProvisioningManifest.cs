@@ -142,35 +142,4 @@ public class ProvisioningManifest
     /// </summary>
     public int? StandbyTimeoutOnDc { get; set; }
 
-    /// <summary>
-    /// Posições dos ícones de atalho que o usuário arrastou na simulação da Área de Trabalho
-    /// (tela Provisionamento → Personalização). Null/vazio = "não mexer no layout". Ver
-    /// <see cref="DesktopIconPlacement"/> — a posição é gravada em Coluna/Linha (não em pixel),
-    /// pois a grade real de ícones da máquina-alvo depende de DPI/resolução/tamanho de ícone
-    /// configurados nela, que podem não ter nada a ver com a máquina onde o perfil foi montado.
-    /// Aplicado por <see cref="WinProvision.Core.Services.Provisioning.ProvisioningService"/>
-    /// via a interface COM IFolderView do Shell do Windows — não existe uma chave de Registro
-    /// documentada/estável para posição de ícone (ver comentário no Apply) — por isso exige que
-    /// os atalhos (.lnk) já existam na Área de Trabalho no momento do Apply (rodar depois da
-    /// instalação dos apps, não antes).
-    /// </summary>
-    public List<DesktopIconPlacement>? DesktopIconLayout { get; set; }
-}
-
-/// <summary>
-/// Um atalho posicionado na simulação da Área de Trabalho, identificado pelo Id do pacote
-/// winget (pra reencontrar o AppEntry ao reabrir a tela) e pelo nome de exibição (usado no
-/// Apply pra localizar o arquivo .lnk correspondente de verdade na Área de Trabalho da
-/// máquina-alvo, já que o Id do winget não tem relação com o nome do atalho criado pelo instalador).
-/// Column/Row são relativos à grade de ícones (0 = primeira coluna/linha), não pixels.
-/// </summary>
-public class DesktopIconPlacement
-{
-    public string AppId { get; set; } = string.Empty;
-
-    public string DisplayName { get; set; } = string.Empty;
-
-    public int Column { get; set; }
-
-    public int Row { get; set; }
 }

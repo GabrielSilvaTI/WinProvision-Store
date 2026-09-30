@@ -8,9 +8,9 @@
 		<UseWPF>true</UseWPF>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<ApplicationIcon>Assets\app.ico</ApplicationIcon>
-		<Version>1.0.3</Version>
-		<AssemblyVersion>1.0.3.0</AssemblyVersion>
-		<FileVersion>1.0.3.0</FileVersion>
+		<Version>1.0.4</Version>
+		<AssemblyVersion>1.0.4.0</AssemblyVersion>
+		<FileVersion>1.0.4.0</FileVersion>
 		<LangVersion>latest</LangVersion>
 
 		<Platforms>x64;ARM64</Platforms>
@@ -111,6 +111,8 @@
 		<Resource Include="Assets\Desktop\**\*.png" />
 		<Resource Include="Assets\Office\**\*.jpg" />
 		<Resource Include="Assets\app.ico" />
+		<Resource Include="Assets\WinProvisionStore_Black.png" />
+		<Resource Include="Assets\WinProvisionStore_White.png" />
 		<Resource Include="Assets\app_icon_256.png" />
 		<Resource Include="Assets\Background.png" />
 	</ItemGroup>

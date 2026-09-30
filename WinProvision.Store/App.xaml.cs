@@ -113,7 +113,6 @@ public partial class App : Application
             services.AddSingleton<HistoryPage>();
             services.AddSingleton<LogViewerPage>();
             services.AddSingleton<ProvisioningPage>();
-            services.AddTransient<UnattendCanvasPage>();
         })
         .Build();
 
@@ -201,37 +200,42 @@ public partial class App : Application
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             NativeConsole.AttachToParentIfAvailable();
 
+            string? autoInstallProfilePath = TryGetAutoInstallProfilePath(e.Args);
+            if (autoInstallProfilePath is null)
+            {
+                Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /auto <caminho-ou-URL-do-perfil.json> [/silent] [/log <caminho.log>] [/cloudlog]");
+                if (!HasKeepConsoleFlag(e.Args)) NativeConsole.ReleaseParentPrompt();
+                Shutdown((int)AutoInstallExitCode.InvalidArguments);
+                return;
+            }
+
+            bool isSilent = HasSilentFlag(e.Args);
+            string logPath = TryGetLogPath(e.Args) ?? DefaultLogPath(autoInstallProfilePath);
+            using var logger = new CliFileLogger(logPath);
+            logger.Log($"[WinProvision] /auto iniciado. Perfil: {autoInstallProfilePath}. Modo: {(isSilent ? "Silencioso" : "UI Visível")}");
+
             try
             {
+                var startupTimer = Stopwatch.StartNew();
                 await _host.StartAsync();
-                await _host.Services.GetRequiredService<OfficeCatalogService>().RefreshAsync();
+                logger.Log($"[WinProvision] Serviços iniciais carregados em {startupTimer.Elapsed.TotalSeconds:0.0}s.");
+                var autoWinGetService = _host.Services.GetRequiredService<WinGetService>();
                 OperationRunner.ConfigureInstallHandler(
-                    _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
+                    (packageId, log, cancellationToken, installLocation, progress, source) =>
+                        autoWinGetService.InstallApiFirstAsync(packageId, log, cancellationToken,
+                            installLocation, progress, source));
                 OperationRunner.ConfigureUpdateHandler(
                     _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
                 WinProvisionLog.Write(
-                    "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallAsync");
+                    "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallApiFirstAsync");
                 WinProvisionLog.Write(
                     "UPDATE HANDLER CONFIGURED startupPath=auto handler=WinGetService.UpdateAsync");
-                _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
+                // O catálogo Office não é necessário: os planos já vêm no perfil.
+                // Não iniciar PrepareAsync aqui; COM/CLI/API acionam o WinGet sob demanda.
                 _host.Services.GetRequiredService<BackupAutoSyncService>();
 
-                string? autoInstallProfilePath = TryGetAutoInstallProfilePath(e.Args);
-                if (autoInstallProfilePath is null)
-                {
-                    Console.WriteLine("[WinProvision] Uso: WinProvision.Store.exe /auto <caminho-ou-URL-do-perfil.json> [/silent] [/log <caminho.log>] [/cloudlog]");
-                    NativeConsole.ReleaseParentPrompt();
-                    Shutdown((int)AutoInstallExitCode.InvalidArguments);
-                    return;
-                }
-
-                bool isSilent = HasSilentFlag(e.Args);
-
-                string logPath = TryGetLogPath(e.Args) ?? DefaultLogPath(autoInstallProfilePath);
-                using var logger = new CliFileLogger(logPath);
-                logger.Log($"[WinProvision] /auto iniciado. Perfil: {autoInstallProfilePath}. Modo: {(isSilent ? "Silencioso" : "UI Visível")}");
-
                 AutoWindow? autoWindow = null;
+                WinProvision.Core.Services.CloudLogService.CloudLogSession? cloudLogSession = null;
 
                 if (!isSilent)
                 {
@@ -256,9 +260,8 @@ public partial class App : Application
                 AutoInstallExitCode exitCode;
                 try
                 {
-                    // Quando /cloudlog está presente, gera um session ID curto, exibe o QR
-                    // Code ASCII no console e envolve o delegate de log para replicar cada
-                    // linha para o Worker Cloudflare em fire-and-forget (falha silenciosa).
+                    // Quando /cloudlog está presente, os logs são enfileirados e enviados
+                    // em ordem; a fila será drenada antes de encerrar o processo.
                     bool useCloudLog = HasCloudLogFlag(e.Args);
                     Action<string> logDelegate = logger.Log;
 
@@ -266,19 +269,29 @@ public partial class App : Application
                     if (useCloudLog)
                     {
                         cloudSessionId = WinProvision.Core.Services.CloudLogSessionId.Generate();
+                        cloudLogSession = WinProvision.Core.Services.CloudLogService.StartSession(cloudSessionId);
                         string viewUrl = WinProvision.Core.Services.CloudLogSessionId.ViewUrl(cloudSessionId);
 
-                        Console.WriteLine();
-                        Console.WriteLine($"[WinProvision] Logs na Nuvem ativados — sessão: {cloudSessionId}");
-                        Console.WriteLine($"[WinProvision] Acompanhe em: {viewUrl}");
-                        Console.WriteLine();
-                        Console.WriteLine(WinProvision.Core.Services.CloudLogSessionId.QrAscii(viewUrl));
+                        logger.Log($"[WinProvision] Rastreamento na nuvem: {viewUrl}");
+                        if (autoWindow is not null)
+                        {
+                            autoWindow.ShowCloudTracking(viewUrl);
+                            Console.WriteLine($"[WinProvision] Acompanhe os logs em: {viewUrl}");
+                        }
+                        else
+                        {
+                            Console.WriteLine();
+                            Console.WriteLine($"[WinProvision] Logs na Nuvem ativados — sessão: {cloudSessionId}");
+                            Console.WriteLine($"[WinProvision] Acompanhe em: {viewUrl}");
+                            Console.WriteLine();
+                            Console.WriteLine(WinProvision.Core.Services.CloudLogSessionId.QrAscii(viewUrl));
+                        }
 
                         logDelegate = msg =>
                         {
                             logger.Log(msg);
                             int pct = autoWindow?.CurrentProgress ?? 0;
-                            WinProvision.Core.Services.CloudLogService.Send(cloudSessionId, msg, pct);
+                            cloudLogSession.Send(msg, pct);
                         };
                     }
 
@@ -287,13 +300,6 @@ public partial class App : Application
                         ? await autoWindow.RunAsync(autoInstallProfilePath, logDelegate)
                         : await cliService.RunAsync(autoInstallProfilePath, logDelegate);
 
-                    if (cloudSessionId is not null)
-                    {
-                        WinProvision.Core.Services.CloudLogService.Send(
-                            cloudSessionId,
-                            $"[WinProvision] Provisionamento concluído com código {(int)exitCode} ({exitCode}).",
-                            100);
-                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -308,18 +314,30 @@ public partial class App : Application
 
                 logger.Log($"[WinProvision] Código de saída: {(int)exitCode} ({exitCode}).");
 
+                if (cloudLogSession is not null)
+                {
+                    int droppedCloudLines = await cloudLogSession.CompleteAsync(
+                        $"[WinProvision] Provisionamento concluído com código {(int)exitCode} ({exitCode}).");
+                    logger.Log(droppedCloudLines == 0
+                        ? "[WinProvision] Rastreamento na nuvem sincronizado."
+                        : $"[WinProvision] AVISO: {droppedCloudLines} linha(s) não chegaram à nuvem; o log local foi preservado.");
+                }
+
                 if (autoWindow is not null && autoWindow.IsVisible)
                     await autoWindow.WaitForCloseAsync();
 
-                NativeConsole.ReleaseParentPrompt();
-                NativeConsole.CloseParentConsole();
+                if (!HasKeepConsoleFlag(e.Args))
+                {
+                    NativeConsole.ReleaseParentPrompt();
+                    NativeConsole.CloseParentConsole();
+                }
                 Shutdown((int)exitCode);
                 return;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[WinProvision] ERRO fatal ao iniciar /auto: {ex}");
-                NativeConsole.ReleaseParentPrompt();
+                logger.Log($"[WinProvision] ERRO fatal ao iniciar /auto: {ex}");
+                if (!HasKeepConsoleFlag(e.Args)) NativeConsole.ReleaseParentPrompt();
                 Shutdown((int)AutoInstallExitCode.UnexpectedError);
                 return;
             }
@@ -755,6 +773,9 @@ public partial class App : Application
     private static bool HasCloudLogFlag(string[] args) =>
         args.Any(a => string.Equals(a, "/cloudlog", StringComparison.OrdinalIgnoreCase)
                    || string.Equals(a, "--cloudlog", StringComparison.OrdinalIgnoreCase));
+
+    private static bool HasKeepConsoleFlag(string[] args) =>
+        args.Any(a => string.Equals(a, "/keepconsole", StringComparison.OrdinalIgnoreCase));
 
     private static string DefaultLogPath(string profilePath, string prefix = "auto")
     {

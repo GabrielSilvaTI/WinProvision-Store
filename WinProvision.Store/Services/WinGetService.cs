@@ -223,6 +223,36 @@ public sealed class WinGetService
         => InstallWithMethodAsync(packageId, _installationPreferences.PreferredMethod, onLogReceived,
             cancellationToken, installLocation, onProgress, source);
 
+    /// <summary>
+    /// Fluxo dedicado ao /auto: tenta primeiro a API WinProvision e recorre ao WinGet
+    /// se a API não concluir a instalação. O método preferido da interface não é alterado.
+    /// </summary>
+    public async Task<WingetExecutionResult> InstallApiFirstAsync(
+        string packageId,
+        Action<string>? onLogReceived = null,
+        CancellationToken cancellationToken = default,
+        string? installLocation = null,
+        Action<InstallProgressUpdate>? onProgress = null,
+        string source = "winget")
+    {
+        if (string.Equals(source, "msstore", StringComparison.OrdinalIgnoreCase))
+        {
+            onLogReceived?.Invoke("Pacote da Microsoft Store: usando WinGet com a origem msstore.");
+            return await _wingetExecutor.InstallAppAsync(packageId, onLogReceived,
+                cancellationToken, installLocation, source).ConfigureAwait(false);
+        }
+
+        var apiResult = await InstallWithMethodAsync(packageId, PackageInstallMethod.WinProvisionApi,
+            onLogReceived, cancellationToken, installLocation, onProgress, source).ConfigureAwait(false);
+        if (apiResult.Success || apiResult.WingetUnavailable)
+            return apiResult;
+
+        onLogReceived?.Invoke($"API WinProvision não concluiu ({apiResult.FailureReason}); tentando WinGet.");
+        onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.WingetExe));
+        return await _wingetExecutor.InstallAppAsync(packageId, onLogReceived,
+            cancellationToken, installLocation, source).ConfigureAwait(false);
+    }
+
     public async Task<WingetExecutionResult> InstallWithMethodAsync(
         string packageId,
         PackageInstallMethod method,
@@ -273,9 +303,15 @@ public sealed class WinGetService
                         onLogReceived is null ? null : new Progress<string>(onLogReceived),
                         cancellationToken,
                         onProgress: onProgress).ConfigureAwait(false);
-                    if (result.Outcome == WinProvisionInstallOutcome.RequiresWinget)
+                    if (result.Outcome is WinProvisionInstallOutcome.RequiresWinget
+                        or WinProvisionInstallOutcome.PackageNotFound
+                        or WinProvisionInstallOutcome.NoCompatibleInstaller)
                     {
-                        onLogReceived?.Invoke(result.Message ?? "Encaminhando para a fonte Microsoft Store do WinGet.");
+                        string fallbackSource = result.Outcome == WinProvisionInstallOutcome.RequiresWinget
+                            ? "msstore"
+                            : source;
+                        onLogReceived?.Invoke(result.Message
+                            ?? "A API própria não contém um instalador compatível; preparando o WinGet sob demanda.");
                         onProgress?.Invoke(new InstallProgressUpdate(
                             InstallProgressPhase.Preparing,
                             Method: WingetMethod.WingetExe));
@@ -284,7 +320,7 @@ public sealed class WinGetService
                             onLogReceived,
                             cancellationToken,
                             installLocation,
-                            source: "msstore").ConfigureAwait(false);
+                            source: fallbackSource).ConfigureAwait(false);
                     }
 
                     return new WingetExecutionResult

@@ -476,7 +476,7 @@ public partial class AccountSyncPage : Page
                 : syncResult.CloudSucceeded
                     ? "Backup salvo no computador e na nuvem."
                     : syncResult.CloudAttempted
-                        ? "Backup salvo no computador, mas não na nuvem. Tente novamente."
+                        ? $"Backup salvo no computador, mas não na nuvem. {syncResult.ErrorMessage}"
                         : "Backup salvo no computador. Conecte o GitHub para sincronizar.";
         }
         catch
@@ -496,12 +496,14 @@ public partial class AccountSyncPage : Page
 
         try
         {
-            var backupSet = await _backupService.DownloadProfileAsync();
-            if (backupSet is null)
+            var downloadResult = await _backupService.DownloadProfileAsync();
+            if (!downloadResult.Success || downloadResult.BackupSet is null)
             {
-                StatusText.Text = "Não foi possível localizar ou baixar um backup da nuvem.";
+                StatusText.Text = downloadResult.ErrorMessage
+                    ?? "Ainda não existe um backup de perfil na nuvem.";
                 return;
             }
+            var backupSet = downloadResult.BackupSet;
 
             var catalog = await _storeService.LoadCatalogAsync();
             var catalogById = catalog.ToDictionary(app => app.Id, StringComparer.OrdinalIgnoreCase);

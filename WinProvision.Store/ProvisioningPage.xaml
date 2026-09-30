@@ -289,9 +289,9 @@
                                 </Grid>
                             </ui:Button>
 
-                            <ui:Button x:Name="UnattendCanvasNavCard"
+                            <ui:Button x:Name="OrchestratorNavCard"
                                        Style="{StaticResource MenuCardButtonStyle}"
-                                       Click="UnattendCanvasNavCard_Click">
+                                       Click="OrchestratorNavCard_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -301,18 +301,17 @@
                                     <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
                                             CornerRadius="{StaticResource ControlCornerRadius}"
                                             Background="{DynamicResource FluentPanelElevatedBrush}">
-                                        <ui:SymbolIcon Symbol="DocumentArrowRight24" FontSize="20"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image x:Name="OrchestratorIcon" Width="20" Height="20"
+                                               Source="pack://application:,,,/Assets/WinProvisionStore_White.png"
+                                               Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Border>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Gerador de arquivo de resposta" Style="{StaticResource FluentCardTitleStyle}" />
-                                        <TextBlock Text="Configure o Windows no Canvas Schneegans, em português."
+                                        <TextBlock Text="WinProvision Orchestrator" Style="{StaticResource FluentCardTitleStyle}" />
+                                        <TextBlock Text="Prepare a instalação automática do app e deste perfil."
                                                    Style="{StaticResource CardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2"
-                                                   Symbol="ChevronRight24"
+                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24"
                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                    VerticalAlignment="Center" />
                                 </Grid>
@@ -524,910 +523,78 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!--  ================= CARD SANDBOX / VM: SIMULAÇÃO DA ÁREA DE TRABALHO (16:9 COMPLETO) =================  -->
-                                    <Border Style="{StaticResource SettingsCardStyle}"
-                                            Margin="0,0,0,24"
-                                            Background="{DynamicResource StoreBrush_0CFFFFFF}"
-                                            ClipToBounds="True">
+                                    <!-- Prévia ilustrativa da área de trabalho -->
+                                    <Border Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,24" Padding="16" ClipToBounds="True">
                                         <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                                <RowDefinition Height="Auto" />
-                                            </Grid.RowDefinitions>
-
-                                            <!--  Barra de Título da Janela Sandbox / VM  -->
-                                            <Border Grid.Row="0"
-                                                    Background="{DynamicResource StoreBrush_14000000}"
-                                                    Padding="16,10">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <!--  Status do Ambiente Virtual  -->
-                                                    <StackPanel Grid.Column="0"
-                                                                Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
-                                                        <Border Width="8"
-                                                                Height="8"
-                                                                CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                Background="{DynamicResource StoreBrush_4CAF50}"
-                                                                Margin="0,0,10,0"
-                                                                VerticalAlignment="Center">
-                                                            <Border.Effect>
-                                                                <DropShadowEffect Color="{DynamicResource StoreColor_36C875}"
-                                                                                  BlurRadius="6"
-                                                                                  ShadowDepth="0"
-                                                                                  Opacity="0.8" />
-                                                            </Border.Effect>
-                                                        </Border>
-                                                        <TextBlock Text="Ambiente Virtual • Simulação da Área de Trabalho"
-                                                                   FontSize="12"
-                                                                   FontWeight="SemiBold"
-                                                                   FontFamily="Segoe UI Variable Display, Aptos Display, Segoe UI"
-                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                   VerticalAlignment="Center" />
-                                                        <Border Margin="12,0,0,0"
-                                                                Background="{DynamicResource StoreBrush_16FFFFFF}"
-                                                                CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                Padding="6,2"
-                                                                VerticalAlignment="Center">
-                                                            <TextBlock x:Name="DesktopPreviewThemeTag"
-                                                                       Text="Windows 11 (16:9 Widescreen)"
-                                                                       FontSize="10"
-                                                                       FontWeight="Medium"
-                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                        </Border>
-                                                    </StackPanel>
-
-                                                    <!--  Controles Decorativos da VM (Minimizar, Maximizar, Fechar)  -->
-                                                    <StackPanel Grid.Column="2"
-                                                                Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
-                                                        <Border Width="10"
-                                                                Height="10"
-                                                                CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                Background="{DynamicResource StoreBrush_26FFFFFF}"
-                                                                Margin="0,0,6,0" />
-                                                        <Border Width="10"
-                                                                Height="10"
-                                                                CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                Background="{DynamicResource StoreBrush_26FFFFFF}"
-                                                                Margin="0,0,6,0" />
-                                                        <Border Width="10"
-                                                                Height="10"
-                                                                CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                Background="{DynamicResource StoreBrush_26FFFFFF}" />
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Border>
-
-                                            <Rectangle Grid.Row="0"
-                                                       Height="1"
-                                                       Fill="{DynamicResource StoreBrush_14FFFFFF}"
-                                                       VerticalAlignment="Bottom" />
-
-                                            <!--  BANDEJA DE APLICATIVOS (Pacotes Selecionados para Arrastar)  -->
-                                            <Border Grid.Row="1"
-                                                    Background="{DynamicResource StoreBrush_0AFFFFFF}"
-                                                    BorderBrush="{DynamicResource StoreBrush_14FFFFFF}"
-                                                    BorderThickness="0,0,0,1"
-                                                    Padding="16,12">
-                                                <Grid>
-                                                    <Grid.RowDefinitions>
-                                                        <RowDefinition Height="Auto" />
-                                                        <RowDefinition Height="Auto" />
-                                                    </Grid.RowDefinitions>
-
-                                                    <!--  Cabeçalho da Bandeja de Apps  -->
-                                                    <Grid Grid.Row="0" Margin="0,0,0,10">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <StackPanel Grid.Column="0">
-                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                <ui:SymbolIcon Symbol="Apps24"
-                                                                               FontSize="16"
-                                                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                               Margin="0,0,8,0" />
-                                                                <TextBlock Text="Aplicativos • Arraste para a área de trabalho"
-                                                                           FontSize="13"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                           VerticalAlignment="Center" />
-                                                                <Border Background="{DynamicResource StoreBrush_200078D4}"
-                                                                        CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                        Padding="8,2"
-                                                                        Margin="10,0,0,0"
-                                                                        VerticalAlignment="Center">
-                                                                    <TextBlock x:Name="AvailablePackagesCountText"
-                                                                               Text="Nenhum aplicativo"
-                                                                               FontSize="11"
-                                                                               Foreground="{DynamicResource AppAccentBrush}"
-                                                                               FontWeight="Medium" />
-                                                                </Border>
-                                                            </StackPanel>
-                                                            <TextBlock Text="Arraste aplicativos para a área de trabalho ou clique em + para adicioná-los."
-                                                                       FontSize="11.5"
-                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                       Margin="0,3,0,0" />
-                                                        </StackPanel>
-
-                                                        <Button Grid.Column="1"
-                                                                VerticalAlignment="Center"
-                                                                Padding="10,4"
-                                                                Content="Atualizar da Coleção"
-                                                                FontSize="11.5"
-                                                                Click="RefreshPackagesShelfButton_Click" />
-                                                    </Grid>
-
-                                                    <!--  Faixa Horizontal de Chips de Aplicativos  -->
-                                                    <ScrollViewer Grid.Row="1"
-                                                                  HorizontalScrollBarVisibility="Auto"
-                                                                  VerticalScrollBarVisibility="Disabled"
-                                                                  PanningMode="HorizontalOnly">
-                                                        <StackPanel x:Name="AvailablePackagesShelf"
-                                                                    Orientation="Horizontal"
-                                                                    Margin="0,2,0,2">
-                                                            <!--  Chips gerados dinamicamente via C#  -->
-                                                        </StackPanel>
-                                                    </ScrollViewer>
-                                                </Grid>
-                                            </Border>
-
-                                            <!--  Tela do Monitor / Desktop Virtual (Proporção 16:9 Widescreen Completo via Viewbox)  -->
-                                            <Viewbox Grid.Row="2"
-                                                     Stretch="Uniform"
-                                                     HorizontalAlignment="Stretch">
-                                                <Border Width="1280"
-                                                        Height="720"
-                                                        ClipToBounds="True"
-                                                        Background="{DynamicResource StoreBrush_0F172A}">
+                                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                            <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                                                <TextBlock Text="Prévia da área de trabalho" Style="{StaticResource SettingsSectionHeaderStyle}" />
+                                                <TextBlock Text="Visualize o papel de parede e a barra de tarefas antes de aplicar. Esta prévia é ilustrativa."
+                                                           Style="{StaticResource CardSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Stretch">
+                                                <Border Width="1280" Height="720" ClipToBounds="True" Background="{DynamicResource StoreBrush_0F172A}">
                                                     <Grid>
-                                                        <!--  Wallpaper Dinâmico (Preenche tela 1280x720)  -->
-                                                        <Image x:Name="DesktopPreviewWallpaper"
-                                                               Stretch="UniformToFill"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"
-                                                               Width="1280"
-                                                               Height="720" />
-
-                                                        <!--  Gradiente de Vinheta sutil  -->
-                                                        <Border Background="{DynamicResource StoreBrush_0A000000}" />
-
-                                                        <!--  Área de Trabalho Interativa (Canvas de 1280x672 para manipulação de ícones e menu de contexto)  -->
-                                                        <Canvas x:Name="DesktopIconsCanvas"
-                                                                Width="1280"
-                                                                Height="672"
-                                                                VerticalAlignment="Top"
-                                                                Background="Transparent"
-                                                                AllowDrop="True"
-                                                                DragOver="DesktopIconsCanvas_DragOver"
-                                                                Drop="DesktopIconsCanvas_Drop"
-                                                                MouseLeftButtonDown="DesktopCanvas_MouseLeftButtonDown"
-                                                                MouseMove="DesktopCanvas_MouseMove"
-                                                                MouseLeftButtonUp="DesktopCanvas_MouseLeftButtonUp"
-                                                                MouseRightButtonUp="DesktopCanvas_MouseRightButtonUp">
-
-                                                            <!--  Grupo de Ícones da Área de Trabalho (Permite ocultar/exibir todos via menu Exibir)  -->
-                                                            <Canvas x:Name="DesktopIconsGroup"
-                                                                    Width="1280"
-                                                                    Height="672"
-                                                                    Background="Transparent">
-
-                                                                <!--  Lixeira (Ícone oficial do Windows 11)  -->
-                                                                <Border x:Name="DesktopIconRecycleBin"
-                                                                        Width="76"
-                                                                        Height="82"
-                                                                        CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                        Background="Transparent"
-                                                                        Canvas.Left="16"
-                                                                        Canvas.Top="16"
-                                                                        Cursor="Hand"
-                                                                        MouseLeftButtonDown="DesktopIcon_MouseLeftButtonDown"
-                                                                        MouseMove="DesktopIcon_MouseMove"
-                                                                        MouseLeftButtonUp="DesktopIcon_MouseLeftButtonUp"
-                                                                        MouseRightButtonUp="DesktopIcon_MouseRightButtonUp">
-                                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                        <Image x:Name="ImageRecycleBin"
-                                                                               Source="pack://application:,,,/Assets/Desktop/recycle_bin.png"
-                                                                               Width="44"
-                                                                               Height="44"
-                                                                               HorizontalAlignment="Center"
-                                                                               RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                        <TextBlock Text="Lixeira"
-                                                                                   FontSize="11"
-                                                                                   Foreground="{DynamicResource StoreBrush_FFFFFF}"
-                                                                                   TextAlignment="Center"
-                                                                                   HorizontalAlignment="Center"
-                                                                                   Margin="0,4,0,0"
-                                                                                   FontFamily="Segoe UI Variable Text, Segoe UI">
-                                                                            <TextBlock.Effect>
-                                                                                <DropShadowEffect BlurRadius="4"
-                                                                                                  ShadowDepth="1"
-                                                                                                  Direction="270"
-                                                                                                  Color="{DynamicResource StoreColor_000000}"
-                                                                                                  Opacity="0.95" />
-                                                                            </TextBlock.Effect>
-                                                                        </TextBlock>
-                                                                    </StackPanel>
-                                                                </Border>
-
-                                                                <!--  Microsoft Edge (Ícone oficial do Windows 11)  -->
-                                                                <Border x:Name="DesktopIconEdge"
-                                                                        Width="76"
-                                                                        Height="82"
-                                                                        CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                        Background="Transparent"
-                                                                        Canvas.Left="16"
-                                                                        Canvas.Top="106"
-                                                                        Cursor="Hand"
-                                                                        MouseLeftButtonDown="DesktopIcon_MouseLeftButtonDown"
-                                                                        MouseMove="DesktopIcon_MouseMove"
-                                                                        MouseLeftButtonUp="DesktopIcon_MouseLeftButtonUp"
-                                                                        MouseRightButtonUp="DesktopIcon_MouseRightButtonUp">
-                                                                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                        <Image x:Name="ImageEdge"
-                                                                               Source="pack://application:,,,/Assets/Desktop/edge.png"
-                                                                               Width="44"
-                                                                               Height="44"
-                                                                               HorizontalAlignment="Center"
-                                                                               RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                        <TextBlock Text="Microsoft Edge"
-                                                                                   FontSize="11"
-                                                                                   Foreground="{DynamicResource StoreBrush_FFFFFF}"
-                                                                                   TextAlignment="Center"
-                                                                                   HorizontalAlignment="Center"
-                                                                                   Margin="0,4,0,0"
-                                                                                   FontFamily="Segoe UI Variable Text, Segoe UI">
-                                                                            <TextBlock.Effect>
-                                                                                <DropShadowEffect BlurRadius="4"
-                                                                                                  ShadowDepth="1"
-                                                                                                  Direction="270"
-                                                                                                  Color="{DynamicResource StoreColor_000000}"
-                                                                                                  Opacity="0.95" />
-                                                                            </TextBlock.Effect>
-                                                                        </TextBlock>
-                                                                    </StackPanel>
-                                                                </Border>
-
-                                                            </Canvas>
+                                                        <Image x:Name="DesktopPreviewWallpaper" Stretch="UniformToFill" />
+                                                        <Canvas x:Name="DesktopPreviewIconLayer" Height="672" VerticalAlignment="Top" IsHitTestVisible="False">
+                                                            <StackPanel Width="88" Canvas.Left="16" Canvas.Top="16">
+                                                                <Image Source="pack://application:,,,/Assets/Desktop/recycle_bin.png" Width="44" Height="44" HorizontalAlignment="Center" />
+                                                                <TextBlock Text="Lixeira" FontSize="11" Foreground="{DynamicResource StoreBrush_FFFFFF}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,4,0,0">
+                                                                    <TextBlock.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Direction="270" Color="{DynamicResource StoreColor_000000}" Opacity="0.9" /></TextBlock.Effect>
+                                                                </TextBlock>
+                                                            </StackPanel>
                                                         </Canvas>
-
-                                                        <!--  Barra de Tarefas Oficial do Windows 11 (48px de altura proporcional)  -->
-                                                        <Border x:Name="DesktopPreviewTaskbar"
-                                                                Height="48"
-                                                                VerticalAlignment="Bottom"
-                                                                BorderThickness="0,1,0,0"
-                                                                BorderBrush="{DynamicResource StoreBrush_22FFFFFF}"
+                                                        <Border x:Name="DesktopPreviewTaskbar" Height="48" VerticalAlignment="Bottom" ClipToBounds="True"
                                                                 Background="{DynamicResource StoreBrush_D91C1C1C}">
-                                                            <Grid Margin="12,0">
-                                                                <!--  Ícones Principais da Barra de Tarefas (Alinhamento Centro ou Esquerda)  -->
-                                                                <StackPanel x:Name="DesktopPreviewTaskbarIcons"
-                                                                            Orientation="Horizontal"
-                                                                            HorizontalAlignment="Center"
-                                                                            VerticalAlignment="Center">
-
-                                                                    <!--  Botão Iniciar (Windows 11 oficial)  -->
-                                                                    <Border Width="44"
-                                                                            Height="44"
-                                                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                            Background="Transparent"
-                                                                            VerticalAlignment="Center">
-                                                                        <Image Source="pack://application:,,,/Assets/Desktop/start.png"
-                                                                               Width="24"
-                                                                               Height="24"
-                                                                               HorizontalAlignment="Center"
-                                                                               VerticalAlignment="Center"
-                                                                               RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                    </Border>
-
-                                                                    <!--  Caixa de Pesquisa Adaptável (&#xE721;)  -->
-                                                                    <!--  1. Caixa Completa  -->
-                                                                    <Border x:Name="DesktopPreviewSearchBoxFull"
-                                                                            Width="200"
-                                                                            Height="32"
-                                                                            CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                            Background="{DynamicResource StoreBrush_26FFFFFF}"
-                                                                            BorderBrush="{DynamicResource StoreBrush_20FFFFFF}"
-                                                                            BorderThickness="1"
-                                                                            VerticalAlignment="Center"
-                                                                            Padding="12,0"
-                                                                            Margin="4,0,2,0">
-                                                                        <Grid VerticalAlignment="Center">
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Grid.Column="0"
-                                                                                       x:Name="DesktopPreviewSearchIcon"
-                                                                                       Text="&#xE721;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       x:Name="DesktopPreviewSearchText"
-                                                                                       Text="Pesquisar"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="8,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  2. Apenas Ícone  -->
-                                                                    <Border x:Name="DesktopPreviewSearchBoxIcon"
-                                                                            Width="44"
-                                                                            Height="44"
-                                                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                            Background="Transparent"
-                                                                            VerticalAlignment="Center"
-                                                                            Visibility="Collapsed"
-                                                                            Margin="4,0,2,0">
-                                                                        <TextBlock x:Name="DesktopPreviewSearchIconOnly"
-                                                                                   Text="&#xE721;"
-                                                                                   FontFamily="SegoeFluentIcons"
-                                                                                   FontSize="18"
-                                                                                   HorizontalAlignment="Center"
-                                                                                   VerticalAlignment="Center"
-                                                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                                                    </Border>
-
-                                                                    <!--  Explorador de Arquivos (Ícone oficial do Windows 11)  -->
-                                                                    <Border Width="44"
-                                                                            Height="44"
-                                                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                            Background="Transparent"
-                                                                            VerticalAlignment="Center">
-                                                                        <Image Source="pack://application:,,,/Assets/Desktop/explorer.png"
-                                                                               Width="24"
-                                                                               Height="24"
-                                                                               HorizontalAlignment="Center"
-                                                                               VerticalAlignment="Center"
-                                                                               RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                    </Border>
-
-                                                                    <!--  Microsoft Edge (Ícone oficial do Windows 11)  -->
-                                                                    <Border Width="44"
-                                                                            Height="44"
-                                                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                                                            Background="Transparent"
-                                                                            VerticalAlignment="Center">
-                                                                        <Image Source="pack://application:,,,/Assets/Desktop/edge.png"
-                                                                               Width="24"
-                                                                               Height="24"
-                                                                               HorizontalAlignment="Center"
-                                                                               VerticalAlignment="Center"
-                                                                               RenderOptions.BitmapScalingMode="HighQuality" />
-                                                                    </Border>
-
-                                                                </StackPanel>
-
-                                                                <!--  Bandeja do Sistema (Canto Direito - Idêntico ao Windows 11)  -->
-                                                                <StackPanel Orientation="Horizontal"
-                                                                            HorizontalAlignment="Right"
-                                                                            VerticalAlignment="Center">
-                                                                    <!--  Ícone de Chevron (ChevronUp: &#xE70E;)  -->
-                                                                    <Border Width="24"
-                                                                            Height="36"
-                                                                            Background="Transparent"
-                                                                            VerticalAlignment="Center">
-                                                                        <TextBlock x:Name="DesktopPreviewTrayChevron"
-                                                                                   Text="&#xE70E;"
-                                                                                   FontFamily="SegoeFluentIcons"
-                                                                                   FontSize="10"
-                                                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                   HorizontalAlignment="Center"
-                                                                                   VerticalAlignment="Center" />
-                                                                    </Border>
-
-                                                                    <!--  Indicador de Idioma (POR PTB2)  -->
-                                                                    <Border Height="36"
-                                                                            Background="Transparent"
-                                                                            Padding="4,2"
-                                                                            VerticalAlignment="Center"
-                                                                            Margin="2,0,2,0">
-                                                                        <StackPanel VerticalAlignment="Center">
-                                                                            <TextBlock x:Name="DesktopPreviewTrayLang1"
-                                                                                       Text="POR"
-                                                                                       FontSize="8.5"
-                                                                                       FontWeight="SemiBold"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       LineHeight="10"
-                                                                                       TextAlignment="Center" />
-                                                                            <TextBlock x:Name="DesktopPreviewTrayLang2"
-                                                                                       Text="PTB2"
-                                                                                       FontSize="7.5"
-                                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                                       LineHeight="9"
-                                                                                       TextAlignment="Center" />
-                                                                        </StackPanel>
-                                                                    </Border>
-
-                                                                    <!--  Pílula de Configurações Rápidas (Rede e Som)  -->
-                                                                    <Border Height="36"
-                                                                            CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                            Background="Transparent"
-                                                                            Padding="6,0"
-                                                                            VerticalAlignment="Center"
-                                                                            Margin="2,0,2,0">
-                                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                            <!--  Ícone de Rede / Desktop (Monitor com cabo: &#xE839;)  -->
-                                                                            <TextBlock x:Name="DesktopPreviewTrayWifi"
-                                                                                       Text="&#xE839;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="14"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="0,0,8,0" />
-                                                                            <!--  Ícone de Volume / Speaker (&#xE767;)  -->
-                                                                            <TextBlock x:Name="DesktopPreviewTraySpeaker"
-                                                                                       Text="&#xE767;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="14"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center" />
-                                                                        </StackPanel>
-                                                                    </Border>
-
-                                                                    <!--  Pílula de Relógio e Data  -->
-                                                                    <Border Height="36"
-                                                                            CornerRadius="{StaticResource CompactCornerRadius}"
-                                                                            Background="Transparent"
-                                                                            Padding="6,0"
-                                                                            VerticalAlignment="Center"
-                                                                            Margin="2,0,4,0">
-                                                                        <StackPanel VerticalAlignment="Center">
-                                                                            <TextBlock x:Name="DesktopPreviewClockText"
-                                                                                       Text="22:50"
-                                                                                       FontSize="11.5"
-                                                                                       FontWeight="SemiBold"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       HorizontalAlignment="Right" />
-                                                                            <TextBlock x:Name="DesktopPreviewDateText"
-                                                                                       Text="03/09/2026"
-                                                                                       FontSize="10"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       HorizontalAlignment="Right" />
-                                                                        </StackPanel>
-                                                                    </Border>
-
-                                                                    <!--  Borda de Desktop Peek na extrema direita  -->
-                                                                    <Rectangle Width="1"
-                                                                               Height="20"
-                                                                               Fill="{DynamicResource StoreBrush_20FFFFFF}"
-                                                                               VerticalAlignment="Center"
-                                                                               Margin="0,0,4,0" />
-                                                                    <Border Width="4"
-                                                                            Height="48"
-                                                                            Background="Transparent" />
-                                                                </StackPanel>
+                                                            <Grid>
+                                                                <!-- Simula o backdrop-filter: blur() usado pela barra do win11React. -->
+                                                                <Image Source="{Binding Source, ElementName=DesktopPreviewWallpaper}" Height="720" VerticalAlignment="Bottom"
+                                                                       Stretch="Fill" IsHitTestVisible="False">
+                                                                    <Image.Effect><BlurEffect Radius="18" RenderingBias="Performance" /></Image.Effect>
+                                                                </Image>
+                                                                <Border x:Name="DesktopPreviewTaskbarTint" Background="#BF202020" />
+                                                                <Grid Margin="4,0,0,0">
+                                                                    <StackPanel x:Name="DesktopPreviewTaskbarIcons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4" Background="Transparent">
+                                                                            <Image Source="pack://application:,,,/Assets/Desktop/start.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                        </Border>
+                                                                        <Border x:Name="DesktopPreviewSearchBoxIcon" Width="38" Height="38" Visibility="Collapsed" Margin="3,0" CornerRadius="4">
+                                                                            <Path x:Name="DesktopPreviewSearchIconOnly" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M13.5,13.5 L19,19 M15.5,8.5 A7,7 0 1 1 1.5,8.5 A7,7 0 1 1 15.5,8.5" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                                        </Border>
+                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/settings.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
+                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/explorer.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
+                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/edge.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
+                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/store.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
+                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/spotify.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
+                                                                    </StackPanel>
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Stretch">
+                                                                        <Border Width="28" Height="48" CornerRadius="4"><Path x:Name="DesktopPreviewTrayChevron" Width="8" Height="5" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M1,4 L4,1 L7,4" Stroke="{DynamicResource TextFillColorSecondaryBrush}" StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Border>
+                                                                        <Border Width="72" Height="48" CornerRadius="4"><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Height="24">
+                                                                            <Grid Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                                                <Path x:Name="DesktopPreviewTrayWifi" Data="M1,6 C5,2 13,2 17,6 M4,9 C7,6 11,6 14,9 M7,12 C8.5,10.5 9.5,10.5 11,12" Stroke="{DynamicResource TextFillColorSecondaryBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
+                                                                                <Ellipse x:Name="DesktopPreviewTrayWifiDot" Width="2.2" Height="2.2" Fill="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,1" />
+                                                                            </Grid>
+                                                                            <Grid Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                                                <Path x:Name="DesktopPreviewTraySpeaker" Data="M2,7 H5 L9,4 V14 L5,11 H2 Z" Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                                <Path x:Name="DesktopPreviewTraySpeakerWaves" Data="M11,7 C13,8 13,10 11,11 M13,5 C17,8 17,10 13,13" Stroke="{DynamicResource TextFillColorSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
+                                                                            </Grid>
+                                                                            <Grid Width="18" Height="16" VerticalAlignment="Center">
+                                                                                <Border x:Name="DesktopPreviewTrayBattery" Width="13" Height="8" HorizontalAlignment="Left" VerticalAlignment="Center" BorderThickness="1" CornerRadius="2" BorderBrush="{DynamicResource TextFillColorSecondaryBrush}">
+                                                                                    <Border x:Name="DesktopPreviewTrayBatteryLevel" Width="6" Height="4" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="1,0,0,0" Background="{DynamicResource TextFillColorSecondaryBrush}" CornerRadius="1" />
+                                                                                </Border>
+                                                                                <Border x:Name="DesktopPreviewTrayBatteryTerminal" Width="2" Height="4" HorizontalAlignment="Right" VerticalAlignment="Center" Background="{DynamicResource TextFillColorSecondaryBrush}" CornerRadius="0,1,1,0" />
+                                                                            </Grid>
+                                                                        </StackPanel></Border>
+                                                                        <Border Height="48" Padding="8,0" CornerRadius="4"><StackPanel VerticalAlignment="Center">
+                                                                            <TextBlock x:Name="DesktopPreviewClockText" Text="22:50" FontSize="11.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" HorizontalAlignment="Center" />
+                                                                            <TextBlock x:Name="DesktopPreviewDateText" Text="29/09/2026" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
+                                                                        </StackPanel></Border>
+                                                                        <Border Width="4" Height="48" Margin="2,0,0,0" BorderThickness="1,0,0,0" BorderBrush="#33FFFFFF" />
+                                                                    </StackPanel>
+                                                                </Grid>
                                                             </Grid>
                                                         </Border>
-
-                                                        <!--  Indicador de Barra Oculta (quando TaskbarAutoHide = true)  -->
-                                                        <Border x:Name="DesktopPreviewAutoHideIndicator"
-                                                                Height="4"
-                                                                VerticalAlignment="Bottom"
-                                                                Background="{DynamicResource StoreBrush_99FFFFFF}"
-                                                                Visibility="Collapsed" />
-
-                                                        <!--  Overlay do Menu de Contexto da Área de Trabalho (Windows 11 Fluent)  -->
-                                                        <Canvas x:Name="DesktopMenuOverlay"
-                                                                Width="1280"
-                                                                Height="720"
-                                                                Background="Transparent"
-                                                                Visibility="Collapsed">
-                                                            <!--  Backdrop transparente que captura cliques fora dos menus para fechar  -->
-                                                            <Border Width="1280"
-                                                                    Height="720"
-                                                                    Background="{DynamicResource StoreBrush_01000000}"
-                                                                    PreviewMouseLeftButtonDown="DesktopMenuBackdrop_MouseDown"
-                                                                    PreviewMouseRightButtonDown="DesktopMenuBackdrop_MouseDown" />
-
-                                                            <!--  Menu Principal  -->
-                                                            <Border x:Name="DesktopContextMenuMain"
-                                                                    Width="240"
-                                                                    CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                    Background="{DynamicResource StoreBrush_F2202020}"
-                                                                    BorderBrush="{DynamicResource StoreBrush_33FFFFFF}"
-                                                                    BorderThickness="1"
-                                                                    Padding="4"
-                                                                    Canvas.Left="100"
-                                                                    Canvas.Top="100">
-                                                                <Border.Effect>
-                                                                    <DropShadowEffect BlurRadius="24"
-                                                                                      ShadowDepth="6"
-                                                                                      Direction="270"
-                                                                                      Color="{DynamicResource StoreColor_000000}"
-                                                                                      Opacity="0.55" />
-                                                                </Border.Effect>
-                                                                <StackPanel>
-                                                                    <!--  Exibir >  -->
-                                                                    <Border x:Name="MenuItemExibir"
-                                                                            Style="{StaticResource Win11MenuItemStyle}"
-                                                                            MouseEnter="MenuItemExibir_MouseEnter"
-                                                                            MouseLeave="MenuItemExibir_MouseLeave"
-                                                                            PreviewMouseLeftButtonUp="MenuItemExibir_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="24" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE790;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Exibir"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                            <TextBlock Grid.Column="2"
-                                                                                       Text="&#xE76C;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="10"
-                                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Right"
-                                                                                       Margin="0,0,6,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Classificar por >  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="24" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE8CB;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Classificar por"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                            <TextBlock Grid.Column="2"
-                                                                                       Text="&#xE76C;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="10"
-                                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Right"
-                                                                                       Margin="0,0,6,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Atualizar  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}" PreviewMouseLeftButtonUp="MenuItemAtualizar_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE72C;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Atualizar"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <Rectangle Height="1"
-                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
-                                                                               Margin="8,4" />
-
-                                                                    <!--  Novo >  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="24" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE710;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Novo"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                            <TextBlock Grid.Column="2"
-                                                                                       Text="&#xE76C;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="10"
-                                                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Right"
-                                                                                       Margin="0,0,6,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <Rectangle Height="1"
-                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
-                                                                               Margin="8,4" />
-
-                                                                    <!--  Configurações de exibição  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE7F4;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Configurações de exibição"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Personalizar  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE771;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Personalizar"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Opção de Remoção de Atalho (quando selecionado um ícone adicionado)  -->
-                                                                    <Rectangle x:Name="MenuSeparatorRemoveShortcut"
-                                                                               Height="1"
-                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
-                                                                               Margin="8,4"
-                                                                               Visibility="Collapsed" />
-                                                                    <Border x:Name="MenuItemRemoveShortcut"
-                                                                            Style="{StaticResource Win11MenuItemStyle}"
-                                                                            PreviewMouseLeftButtonUp="MenuItemRemoveShortcut_Click"
-                                                                            Visibility="Collapsed">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="&#xE74D;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource StoreBrush_EF4444}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Remover atalho da área de trabalho"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource StoreBrush_FCA5A5}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </StackPanel>
-                                                            </Border>
-
-                                                            <!--  Submenu de "Exibir"  -->
-                                                            <Border x:Name="DesktopContextMenuSubExibir"
-                                                                    Width="260"
-                                                                    CornerRadius="{StaticResource OverlayCornerRadius}"
-                                                                    Background="{DynamicResource StoreBrush_F2202020}"
-                                                                    BorderBrush="{DynamicResource StoreBrush_33FFFFFF}"
-                                                                    BorderThickness="1"
-                                                                    Padding="4"
-                                                                    Visibility="Collapsed"
-                                                                    Canvas.Left="340"
-                                                                    Canvas.Top="100">
-                                                                <Border.Effect>
-                                                                    <DropShadowEffect BlurRadius="24"
-                                                                                      ShadowDepth="6"
-                                                                                      Direction="270"
-                                                                                      Color="{DynamicResource StoreColor_000000}"
-                                                                                      Opacity="0.55" />
-                                                                </Border.Effect>
-                                                                <StackPanel>
-                                                                    <!--  Ícones grandes  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}" PreviewMouseLeftButtonUp="MenuIconSize_Large_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock x:Name="MenuCheckLarge"
-                                                                                       Text="&#xE73E;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       Visibility="Collapsed" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Ícones grandes"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Ícones médios  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}" PreviewMouseLeftButtonUp="MenuIconSize_Medium_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock x:Name="MenuCheckMedium"
-                                                                                       Text="&#xE73E;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       Visibility="Visible" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Ícones médios"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Ícones pequenos  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}" PreviewMouseLeftButtonUp="MenuIconSize_Small_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock x:Name="MenuCheckSmall"
-                                                                                       Text="&#xE73E;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       Visibility="Collapsed" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Ícones pequenos"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <Rectangle Height="1"
-                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
-                                                                               Margin="8,4" />
-
-                                                                    <!--  Organizar ícones automaticamente  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}" PreviewMouseLeftButtonUp="MenuAutoArrange_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock x:Name="MenuCheckAutoArrange"
-                                                                                       Text="&#xE73E;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       Visibility="Collapsed" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Organizar ícones automaticamente"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <!--  Alinhar ícones à grade  -->
-                                                                    <Border Style="{StaticResource Win11MenuItemStyle}" PreviewMouseLeftButtonUp="MenuAlignToGrid_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock x:Name="MenuCheckAlignToGrid"
-                                                                                       Text="&#xE73E;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       Visibility="Visible" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Alinhar ícones à grade"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-
-                                                                    <Rectangle Height="1"
-                                                                               Fill="{DynamicResource StoreBrush_1FFFFFFF}"
-                                                                               Margin="8,4" />
-
-                                                                    <!--  Mostrar ícones da área de trabalho (Permite ocultar/exibir todos os ícones)  -->
-                                                                    <Border x:Name="MenuItemToggleDesktopIcons"
-                                                                            Style="{StaticResource Win11MenuItemStyle}"
-                                                                            PreviewMouseLeftButtonUp="MenuItemToggleDesktopIcons_Click">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="28" />
-                                                                                <ColumnDefinition Width="*" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock x:Name="MenuCheckShowDesktopIcons"
-                                                                                       Text="&#xE73E;"
-                                                                                       FontFamily="SegoeFluentIcons"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       HorizontalAlignment="Center"
-                                                                                       Visibility="Visible" />
-                                                                            <TextBlock Grid.Column="1"
-                                                                                       Text="Mostrar ícones da área de trabalho"
-                                                                                       FontSize="12"
-                                                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                                                       VerticalAlignment="Center"
-                                                                                       Margin="4,0,0,0" />
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </StackPanel>
-                                                            </Border>
-                                                        </Canvas>
-
+                                                        <Border x:Name="DesktopPreviewAutoHideIndicator" Height="4" VerticalAlignment="Bottom" Background="{DynamicResource StoreBrush_99FFFFFF}" Visibility="Collapsed" />
                                                     </Grid>
                                                 </Border>
                                             </Viewbox>
@@ -1830,6 +997,116 @@
                                                     </ui:Button.Icon>
                                                 </ui:Button>
                                             </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel x:Name="OrchestratorSectionPanel" Visibility="Collapsed">
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <StackPanel Margin="24,20">
+                                            <TextBlock Text="Prepare o FirstLogon do Schneegans"
+                                                       Style="{StaticResource SettingsRowTitleStyle}" />
+                                            <TextBlock Text="Publique o perfil e o script no seu Gist secreto. Depois, cole o comando curto no FirstLogon para instalar o app e aplicar este perfil automaticamente."
+                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                       Margin="0,6,0,16" />
+                                            <TextBlock Text="Exibição durante a execução"
+                                                       Style="{StaticResource SettingsRowTitleStyle}"
+                                                       Margin="0,0,0,8" />
+                                            <StackPanel Margin="0,0,0,16">
+                                                <RadioButton x:Name="OrchestratorDisplayUiRadio"
+                                                             GroupName="OrchestratorDisplayMode"
+                                                             Content="Exibir a interface do WinProvision"
+                                                             IsChecked="True"
+                                                             Margin="0,2,0,6"
+                                                             Checked="OrchestratorOptions_Changed" />
+                                                <RadioButton x:Name="OrchestratorDisplayTerminalRadio"
+                                                             GroupName="OrchestratorDisplayMode"
+                                                             Content="Exibir o progresso no Terminal"
+                                                             Margin="0,2,0,0"
+                                                             Checked="OrchestratorOptions_Changed" />
+                                            </StackPanel>
+                                            <TextBlock Text="Rastreamento de logs"
+                                                       Style="{StaticResource SettingsRowTitleStyle}"
+                                                       Margin="0,0,0,8" />
+                                            <StackPanel Margin="0,0,0,16">
+                                                <RadioButton x:Name="OrchestratorLogsLocalRadio"
+                                                             GroupName="OrchestratorLogMode"
+                                                             Content="Salvar neste computador"
+                                                             IsChecked="True"
+                                                             Margin="0,2,0,6"
+                                                             Checked="OrchestratorOptions_Changed" />
+                                                <RadioButton x:Name="OrchestratorLogsCloudRadio"
+                                                             GroupName="OrchestratorLogMode"
+                                                             Content="Acompanhar pela nuvem"
+                                                             Margin="0,2,0,0"
+                                                             Checked="OrchestratorOptions_Changed" />
+                                            </StackPanel>
+                                            <StackPanel x:Name="OrchestratorLocalLogPathPanel" Margin="0,0,0,16">
+                                                <TextBlock Text="Arquivo de log TXT no computador de destino"
+                                                           Style="{StaticResource CardSubtitleStyle}"
+                                                           Margin="0,0,0,8" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox x:Name="OrchestratorLogPathTextBox"
+                                                             IsReadOnly="True"
+                                                             VerticalContentAlignment="Center"
+                                                             Padding="10,6"
+                                                             Text="Selecione o destino do arquivo TXT"
+                                                             ToolTip="Caminho usado no computador que executar o Orchestrator" />
+                                                    <ui:Button Grid.Column="1"
+                                                               Content="Escolher arquivo..."
+                                                               Appearance="Secondary"
+                                                               Margin="8,0,0,0"
+                                                               Click="ChooseOrchestratorLogPathButton_Click"
+                                                               CornerRadius="{StaticResource ControlCornerRadius}" />
+                                                </Grid>
+                                            </StackPanel>
+                                            <TextBlock Text="Uma cópia local é mantida como segurança. O modo nuvem também envia os logs para acompanhamento remoto."
+                                                       Style="{StaticResource CardSubtitleStyle}"
+                                                       Margin="0,0,0,16" />
+                                            <Border CornerRadius="{StaticResource ControlCornerRadius}"
+                                                    BorderThickness="1"
+                                                    BorderBrush="{DynamicResource AppCardBorderBrush}"
+                                                    Background="{DynamicResource FluentPanelElevatedBrush}"
+                                                    Margin="0,0,0,12">
+                                                <TextBox x:Name="BootstrapCommandTextBox"
+                                                         IsReadOnly="True"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Padding="12"
+                                                         FontFamily="Cascadia Mono, Consolas, Courier New"
+                                                         FontSize="13"
+                                                         TextWrapping="Wrap"
+                                                         MinHeight="48"
+                                                         Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                            </Border>
+                                            <TextBlock Text="O Gist é secreto, mas qualquer pessoa com o link pode ler o perfil e executar o script. Publique novamente depois de alterar o perfil para atualizar o comando."
+                                                       Style="{StaticResource CardSubtitleStyle}"
+                                                       Margin="0,0,0,12" />
+                                            <WrapPanel>
+                                                <ui:Button x:Name="PublishBootstrapButton"
+                                                           Appearance="Secondary"
+                                                           Click="PublishBootstrapButton_Click"
+                                                           Style="{StaticResource StoreActionButtonStyle}"
+                                                           Margin="0,0,8,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="CloudArrowUp24" FontSize="16" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Publicar Orchestrator" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </ui:Button>
+                                                <ui:Button x:Name="CopyBootstrapCommandButton"
+                                                           Appearance="Secondary"
+                                                           Click="CopyBootstrapCommandButton_Click"
+                                                           Style="{StaticResource StoreActionButtonStyle}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ui:SymbolIcon Symbol="Copy24" FontSize="16" Margin="0,0,8,0" />
+                                                        <TextBlock Text="Copiar comando" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </ui:Button>
+                                            </WrapPanel>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>

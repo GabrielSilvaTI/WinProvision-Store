@@ -17,6 +17,7 @@ public class WingetExecutionResult
     public int ExitCode { get; set; }
     public string Output { get; set; } = string.Empty;
     public bool WasElevated { get; set; }
+    public bool WingetUnavailable { get; set; }
 
     /// <summary>
     /// Motivo canônico da falha (ver <see cref="WingetErrorTranslator"/>), já classificado a
@@ -74,7 +75,8 @@ public class WingetExecutor
             {
                 Success = false,
                 ExitCode = -1,
-                Output = $"Winget não está disponível e não foi possível deixá-lo funcional: {bootstrapResult.ErrorMessage}"
+                Output = $"Winget não está disponível e não foi possível deixá-lo funcional: {bootstrapResult.ErrorMessage}",
+                WingetUnavailable = true
             };
         }
 

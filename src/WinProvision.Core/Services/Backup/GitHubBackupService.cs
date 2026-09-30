@@ -33,6 +33,10 @@ public class GitHubBackupService
     private const string BackupFileName = "profile.json";
     private const string LegacyBackupFileName = "winprovision-profile.json";
     private const string GistDescription = "WinProvision Store — backup automático de perfil (não editar manualmente)";
+    private const string BootstrapGistDescription = "WinProvision Store — bootstrap de instalação e perfil";
+    private const string BootstrapScriptFileName = "WinProvision-Bootstrap.ps1";
+    private const int MaxTransientRetries = 2;
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(1);
 
     // Mesmas opções usadas em todo o resto do app (ProfileService/ProvisioningService) — um
     // arquivo salvo por um lado sempre bate com o que o outro espera ao ler de volta.
@@ -56,7 +60,7 @@ public class GitHubBackupService
         _accountInfoPath = Path.Combine(backupDir, "github-account.json");
         _tokenPath = Path.Combine(backupDir, "github-token.dat");
 
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("WinProvision-Store", "1.0"));
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         _http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
@@ -223,11 +227,15 @@ public class GitHubBackupService
         _account.Login = user.Login;
         _account.AvatarUrl = user.AvatarUrl;
         if (accountChanged)
+        {
             _account.GistId = null;
+            _account.BootstrapGistId = null;
+        }
         string? previousGistId = accountChanged ? null : _account.GistId ?? LoadGistIdFromRegistry();
         if (accountChanged)
             SaveGistIdToRegistry(null);
-        _account.GistId = await ResolveOwnedGistIdAsync(previousGistId, ct);
+        var gistLookup = await ResolveOwnedGistIdAsync(previousGistId, ct);
+        _account.GistId = gistLookup.Id;
         PersistAccountInfo();
 
         return GitHubConnectResult.Ok(user.Login);
@@ -248,10 +256,10 @@ public class GitHubBackupService
     }
 
     /// <summary>Cria ou atualiza o Gist secreto com TODAS as guias atuais (ver <see cref="ProfileBackupSet"/>). Retorna false em qualquer falha (sem lançar) — chamado de rotinas automáticas em segundo plano.</summary>
-    public async Task<bool> UploadProfileAsync(ProfileBackupSet backupSet, CancellationToken ct = default)
+    public async Task<GitHubBackupUploadResult> UploadProfileAsync(ProfileBackupSet backupSet, CancellationToken ct = default)
     {
         if (!IsConnected)
-            return false;
+            return GitHubBackupUploadResult.Fail("Conecte o GitHub antes de sincronizar o backup.");
 
         await _syncLock.WaitAsync(ct);
         try
@@ -264,10 +272,12 @@ public class GitHubBackupService
             };
 
             // Confirma o marcador WinProvision antes de modificar o Gist salvo.
-            _account.GistId = await ResolveOwnedGistIdAsync(
-                _account.GistId ?? LoadGistIdFromRegistry(), ct);
+            var lookup = await ResolveOwnedGistIdAsync(_account.GistId ?? LoadGistIdFromRegistry(), ct);
+            if (lookup.Error is not null)
+                return GitHubBackupUploadResult.Fail(lookup.Error);
+            _account.GistId = lookup.Id;
 
-            bool success = await UpsertGistAsync(
+            var upsert = await UpsertGistAsync(
                 backupFiles, GistDescription, _account.GistId,
                 onIdChanged: id =>
                 {
@@ -281,20 +291,28 @@ public class GitHubBackupService
                 },
                 ct);
 
-            if (!success)
-                return false;
+            if (!upsert.Success)
+                return GitHubBackupUploadResult.Fail(upsert.Error ?? "O GitHub não confirmou o salvamento do backup.");
 
             _account.LastSyncUtc = DateTime.UtcNow;
             PersistAccountInfo();
-            return true;
+            return GitHubBackupUploadResult.Ok();
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            return false;
+            return GitHubBackupUploadResult.Fail($"Falha de rede ao sincronizar o backup: {ex.Message}");
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException ex)
         {
-            return false;
+            return GitHubBackupUploadResult.Fail(ct.IsCancellationRequested ? "A sincronização foi cancelada." : $"Tempo esgotado ao sincronizar com o GitHub: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return GitHubBackupUploadResult.Fail($"O GitHub retornou uma resposta inválida: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            return GitHubBackupUploadResult.Fail($"Não foi possível salvar o estado do backup: {ex.Message}");
         }
         finally
         {
@@ -302,113 +320,387 @@ public class GitHubBackupService
         }
     }
 
-    /// <summary>Baixa o backup (todas as guias) salvo no Gist da conta conectada. Retorna null se não houver backup ou em caso de falha.</summary>
-    public async Task<ProfileBackupSet?> DownloadProfileAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Publica o perfil e um script de instalação em um Gist secreto dedicado. O link raw do
+    /// script permanece estável entre publicações e o comando do usuário precisa conter só esse link.
+    /// </summary>
+    public async Task<GitHubBootstrapPublishResult> PublishBootstrapAsync(
+        string profileJson,
+        BootstrapDisplayMode displayMode = BootstrapDisplayMode.UserInterface,
+        BootstrapLogMode logMode = BootstrapLogMode.Local,
+        string? logFilePath = null,
+        CancellationToken ct = default)
     {
         if (!IsConnected)
-            return null;
+            return GitHubBootstrapPublishResult.Fail("Conecte o GitHub em Conta e Sincronização antes de publicar o Bootstrap.");
 
-        // Perfil pode ter sido criado por outra instalação do app (outra máquina) que
-        // nunca sincronizou por aqui — sempre reconfirma o GistId em vez de confiar só
-        // no cache local, que pode estar vazio ou desatualizado.
-        _account.GistId = await ResolveOwnedGistIdAsync(
-            _account.GistId ?? LoadGistIdFromRegistry(), ct);
-        if (string.IsNullOrEmpty(_account.GistId))
-            return null;
-
+        await _syncLock.WaitAsync(ct);
         try
         {
-            using var response = await _http.GetAsync(
-                $"{ApiBase}/gists/{Uri.EscapeDataString(_account.GistId)}", ct);
-            if (!response.IsSuccessStatusCode)
-                return null;
+            var gistLookup = await FindBootstrapGistIdAsync(_account.BootstrapGistId, ct);
+            string? gistId = gistLookup.Id;
+            if (gistLookup.Error is not null)
+                return GitHubBootstrapPublishResult.Fail(gistLookup.Error);
 
-            var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
-            if (!IsWinProvisionGist(gist))
-                return null;
-            string? content = gist?.Files?.GetValueOrDefault(BackupFileName)?.Content
-                ?? gist?.Files?.GetValueOrDefault(LegacyBackupFileName)?.Content;
-            if (string.IsNullOrEmpty(content))
-                return null;
+            if (gistId is null)
+            {
+                var createPayload = new
+                {
+                    description = BootstrapGistDescription,
+                    @public = false,
+                    files = new Dictionary<string, object>(StringComparer.Ordinal)
+                    {
+                        ["profile.json"] = new { content = profileJson }
+                    }
+                };
 
+                using var createRequest = new HttpRequestMessage(HttpMethod.Post, $"{ApiBase}/gists")
+                {
+                    Content = JsonContent.Create(createPayload)
+                };
+                using var createResponse = await _http.SendAsync(createRequest, ct);
+                if (!createResponse.IsSuccessStatusCode)
+                    return GitHubBootstrapPublishResult.Fail(await FormatGitHubErrorAsync(createResponse, "criar o Gist", ct));
+
+                var created = await createResponse.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
+                gistId = created?.Id;
+                if (string.IsNullOrWhiteSpace(gistId))
+                    return GitHubBootstrapPublishResult.Fail("O GitHub criou o Gist, mas não retornou seu identificador.");
+
+                _account.BootstrapGistId = gistId;
+                PersistAccountInfo();
+            }
+
+            string profileRawUrl = $"https://gist.githubusercontent.com/{_account.Login}/{gistId}/raw/profile.json";
+            string bootstrapScript = BuildBootstrapScript(profileRawUrl, displayMode, logMode, logFilePath);
+            var updatePayload = new
+            {
+                files = new Dictionary<string, object>(StringComparer.Ordinal)
+                {
+                    ["profile.json"] = new { content = profileJson },
+                    [BootstrapScriptFileName] = new { content = bootstrapScript }
+                }
+            };
+
+            using var updateRequest = new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}/gists/{Uri.EscapeDataString(gistId)}")
+            {
+                Content = JsonContent.Create(updatePayload)
+            };
+            using var updateResponse = await _http.SendAsync(updateRequest, ct);
+            if (!updateResponse.IsSuccessStatusCode)
+                return GitHubBootstrapPublishResult.Fail(await FormatGitHubErrorAsync(updateResponse, "atualizar os arquivos do Gist", ct));
+
+            _account.BootstrapGistId = gistId;
             PersistAccountInfo();
-            return JsonSerializer.Deserialize<ProfileBackupSet>(content, ManifestJsonOptions);
+            string rawUrl = $"https://gist.githubusercontent.com/{_account.Login}/{gistId}/raw/{BootstrapScriptFileName}";
+            return GitHubBootstrapPublishResult.Ok(rawUrl);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            return null;
+            return GitHubBootstrapPublishResult.Fail($"Falha de rede ao publicar no GitHub: {ex.Message}");
+        }
+        catch (TaskCanceledException)
+        {
+            return GitHubBootstrapPublishResult.Fail("O GitHub demorou demais para publicar o Bootstrap. Tente novamente.");
+        }
+        catch (JsonException ex)
+        {
+            return GitHubBootstrapPublishResult.Fail($"O GitHub retornou uma resposta inválida: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            return GitHubBootstrapPublishResult.Fail($"Não foi possível salvar os dados da publicação: {ex.Message}");
+        }
+        finally
+        {
+            _syncLock.Release();
+        }
+    }
+
+    private async Task<(string? Id, string? Error)> FindBootstrapGistIdAsync(string? candidateId, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(candidateId))
+        {
+            using var response = await _http.GetAsync($"{ApiBase}/gists/{Uri.EscapeDataString(candidateId)}", ct);
+            if (response.IsSuccessStatusCode)
+            {
+                var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
+                if (string.Equals(gist?.Description, BootstrapGistDescription, StringComparison.Ordinal))
+                    return (gist!.Id, null);
+            }
+            else if (response.StatusCode != HttpStatusCode.NotFound)
+            {
+                return (null, await FormatGitHubErrorAsync(response, "consultar o Gist de Bootstrap", ct));
+            }
+        }
+
+        for (int page = 1; page <= 10; page++)
+        {
+            using var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100&page={page}", ct);
+            if (!response.IsSuccessStatusCode)
+                return (null, await FormatGitHubErrorAsync(response, "localizar o Gist de Bootstrap", ct));
+
+            var gists = await response.Content.ReadFromJsonAsync<List<GitHubGistResponse>>(cancellationToken: ct);
+            if (gists is null || gists.Count == 0)
+                return (null, null);
+
+            var match = gists.FirstOrDefault(g =>
+                string.Equals(g.Description, BootstrapGistDescription, StringComparison.Ordinal)
+                && g.Files?.ContainsKey(BootstrapScriptFileName) == true);
+            if (match?.Id is not null)
+                return (match.Id, null);
+            if (gists.Count < 100)
+                return (null, null);
+        }
+
+        return (null, null);
+    }
+
+    private static async Task<string> FormatGitHubErrorAsync(HttpResponseMessage response, string action, CancellationToken ct)
+    {
+        string body = await response.Content.ReadAsStringAsync(ct);
+        string? message = null;
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            if (document.RootElement.TryGetProperty("message", out var messageElement))
+                message = messageElement.GetString();
         }
         catch (JsonException)
         {
-            return null;
+            // Usa o status HTTP abaixo quando o corpo não for JSON.
+        }
+
+        string detail = string.IsNullOrWhiteSpace(message) ? response.ReasonPhrase ?? "sem detalhes" : message;
+        string hint = response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized => " Verifique se o token continua válido.",
+            HttpStatusCode.Forbidden => " Verifique se o token tem o escopo gist e se o limite da API não foi atingido.",
+            _ => string.Empty
+        };
+        return $"Não foi possível {action} (HTTP {(int)response.StatusCode}): {detail}.{hint}";
+    }
+
+    private static string BuildBootstrapScript(string profileRawUrl, BootstrapDisplayMode displayMode, BootstrapLogMode logMode, string? logFilePath) => $$"""
+        #requires -Version 5.1
+        $ErrorActionPreference = 'Stop'
+        $ProgressPreference = 'SilentlyContinue'
+        $ProfileUrl = '{{profileRawUrl.Replace("'", "''", StringComparison.Ordinal)}}'
+        $DisplayMode = '{{(displayMode == BootstrapDisplayMode.Terminal ? "terminal" : "ui")}}'
+        $LogMode = '{{(logMode == BootstrapLogMode.Cloud ? "cloud" : "local")}}'
+        $SelectedLogPath = '{{(logFilePath ?? string.Empty).Replace("'", "''", StringComparison.Ordinal)}}'
+        $SetupUrl = 'https://github.com/GabrielSilvaTI/WinProvision-Store/releases/latest/download/WinProvision.Store-Setup.exe'
+        $ChecksumUrl = $SetupUrl + '.sha256'
+        $WorkDirectory = Join-Path $env:TEMP ('WinProvisionBootstrap-' + [guid]::NewGuid().ToString('N'))
+        $SetupPath = Join-Path $WorkDirectory 'WinProvision.Store-Setup.exe'
+        $ChecksumPath = $SetupPath + '.sha256'
+        $ProfilePath = Join-Path $WorkDirectory 'profile.json'
+
+        New-Item -ItemType Directory -Path $WorkDirectory -Force | Out-Null
+        try {
+            Write-Host 'Baixando o perfil e o instalador...'
+            Invoke-WebRequest -Uri $ProfileUrl -OutFile $ProfilePath -UseBasicParsing
+            Invoke-WebRequest -Uri $SetupUrl -OutFile $SetupPath -UseBasicParsing
+            Invoke-WebRequest -Uri $ChecksumUrl -OutFile $ChecksumPath -UseBasicParsing
+
+            $ChecksumText = Get-Content -LiteralPath $ChecksumPath -Raw
+            if ($ChecksumText -notmatch '(?im)^\s*([0-9a-f]{64})\b') {
+                throw 'O arquivo de checksum da Release está inválido.'
+            }
+            $ExpectedHash = $Matches[1].ToLowerInvariant()
+            $ActualHash = (Get-FileHash -LiteralPath $SetupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($ActualHash -ne $ExpectedHash) {
+                throw 'A verificação SHA-256 do instalador falhou.'
+            }
+
+            Write-Host 'Instalando WinProvision Store para o usuário atual...'
+            $SetupProcess = Start-Process -FilePath $SetupPath `
+                -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER') `
+                -Wait -PassThru -WindowStyle Hidden
+            if ($SetupProcess.ExitCode -ne 0) {
+                throw "O instalador terminou com código $($SetupProcess.ExitCode)."
+            }
+
+            $UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{57E31A2E-BBE2-48F4-8902-CB249FE1D38C}_is1'
+            $InstallInfo = Get-ItemProperty -LiteralPath $UninstallKey -ErrorAction SilentlyContinue
+            $InstallDirectory = $InstallInfo.InstallLocation
+            if ([string]::IsNullOrWhiteSpace($InstallDirectory)) {
+                $InstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\WinProvision Store'
+            }
+            $AppPath = Join-Path $InstallDirectory 'WinProvision.Store.exe'
+            if (-not (Test-Path -LiteralPath $AppPath -PathType Leaf)) {
+                throw "Não encontrei o app instalado em '$AppPath'."
+            }
+
+            if ([string]::IsNullOrWhiteSpace($SelectedLogPath)) {
+                $LogDirectory = Join-Path $env:LOCALAPPDATA 'WinProvisionStore\Logs'
+                $LogPath = Join-Path $LogDirectory ('orchestrator-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.txt')
+            }
+            else {
+                $LogPath = $SelectedLogPath
+                $LogDirectory = Split-Path -Parent $LogPath
+            }
+            if (-not [string]::IsNullOrWhiteSpace($LogDirectory)) {
+                New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
+            }
+
+            $AppArguments = @('/auto', ('"{0}"' -f $ProfilePath), '/log', ('"{0}"' -f $LogPath), '/keepconsole')
+            if ($LogMode -eq 'cloud') { $AppArguments += '/cloudlog' }
+
+            if ($DisplayMode -eq 'terminal') {
+                Write-Host "Aplicando o perfil no Terminal. Log local: $LogPath"
+                $AppArguments += '/silent'
+                $AppProcess = Start-Process -FilePath $AppPath `
+                    -ArgumentList $AppArguments `
+                    -Wait -PassThru -NoNewWindow
+            }
+            else {
+                Write-Host 'Aplicando o perfil com a interface do WinProvision...'
+                $AppProcess = Start-Process -FilePath $AppPath `
+                    -ArgumentList $AppArguments `
+                    -Wait -PassThru -WindowStyle Normal
+            }
+            if ($AppProcess.ExitCode -ne 0) {
+                throw "O modo /auto terminou com código $($AppProcess.ExitCode)."
+            }
+            Write-Host 'Bootstrap concluído com sucesso.'
+        }
+        finally {
+            Remove-Item -LiteralPath $ProfilePath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $SetupPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $ChecksumPath -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $WorkDirectory -Force -ErrorAction SilentlyContinue
+        }
+        """;
+
+    /// <summary>Baixa o backup (todas as guias) salvo no Gist da conta conectada. Retorna null se não houver backup ou em caso de falha.</summary>
+    public async Task<GitHubBackupDownloadResult> DownloadProfileAsync(CancellationToken ct = default)
+    {
+        if (!IsConnected)
+            return GitHubBackupDownloadResult.Fail("Conecte o GitHub antes de baixar o backup.");
+
+        try
+        {
+            // Perfil pode ter sido criado por outra instalação do app (outra máquina) que
+            // nunca sincronizou por aqui — sempre reconfirma o GistId em vez de confiar só
+            // no cache local, que pode estar vazio ou desatualizado.
+            var lookup = await ResolveOwnedGistIdAsync(_account.GistId ?? LoadGistIdFromRegistry(), ct);
+            if (lookup.Error is not null)
+                return GitHubBackupDownloadResult.Fail(lookup.Error);
+            _account.GistId = lookup.Id;
+            if (string.IsNullOrEmpty(_account.GistId))
+                return GitHubBackupDownloadResult.NotFound();
+
+            using var response = await SendWithTransientRetryAsync(
+                () => new HttpRequestMessage(HttpMethod.Get, $"{ApiBase}/gists/{Uri.EscapeDataString(_account.GistId)}"), ct);
+            if (!response.IsSuccessStatusCode)
+                return GitHubBackupDownloadResult.Fail(await FormatGitHubErrorAsync(response, "baixar o backup", ct));
+
+            var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
+            if (!IsWinProvisionGist(gist))
+                return GitHubBackupDownloadResult.Fail("O Gist encontrado não corresponde ao backup do WinProvision Store.");
+            var backupFile = gist?.Files?.GetValueOrDefault(BackupFileName)
+                ?? gist?.Files?.GetValueOrDefault(LegacyBackupFileName);
+            string? content = backupFile?.Content;
+            if ((backupFile?.Truncated == true || string.IsNullOrEmpty(content))
+                && !string.IsNullOrWhiteSpace(backupFile?.RawUrl))
+            {
+                using var rawResponse = await SendWithTransientRetryAsync(
+                    () => new HttpRequestMessage(HttpMethod.Get, backupFile.RawUrl), ct);
+                if (!rawResponse.IsSuccessStatusCode)
+                    return GitHubBackupDownloadResult.Fail(await FormatGitHubErrorAsync(rawResponse, "baixar o arquivo completo do backup", ct));
+                content = await rawResponse.Content.ReadAsStringAsync(ct);
+            }
+            if (string.IsNullOrEmpty(content))
+                return GitHubBackupDownloadResult.NotFound();
+
+            PersistAccountInfo();
+            var backup = JsonSerializer.Deserialize<ProfileBackupSet>(content, ManifestJsonOptions);
+            return backup is null
+                ? GitHubBackupDownloadResult.Fail("O arquivo do backup está vazio ou em formato inválido.")
+                : GitHubBackupDownloadResult.Ok(backup);
+        }
+        catch (HttpRequestException ex)
+        {
+            return GitHubBackupDownloadResult.Fail($"Falha de rede ao baixar o backup: {ex.Message}");
+        }
+        catch (TaskCanceledException ex)
+        {
+            return GitHubBackupDownloadResult.Fail(ct.IsCancellationRequested ? "O download foi cancelado." : $"Tempo esgotado ao baixar o backup: {ex.Message}");
+        }
+        catch (JsonException ex)
+        {
+            return GitHubBackupDownloadResult.Fail($"O arquivo do backup contém JSON inválido: {ex.Message}");
         }
     }
 
     // Helper genérico para localizar e atualizar o Gist de backup do perfil.
 
     /// <summary>Varre os Gists da conta procurando exclusivamente a descrição própria do WinProvision.</summary>
-    private async Task<string?> TryFindGistIdAsync(string description, string fileName, CancellationToken ct)
+    private async Task<(string? Id, string? Error)> TryFindGistIdAsync(string description, string fileName, CancellationToken ct)
     {
         try
         {
             for (int page = 1; page <= 10; page++)
             {
-                using var response = await _http.GetAsync($"{ApiBase}/gists?per_page=100&page={page}", ct);
+                using var response = await SendWithTransientRetryAsync(
+                    () => new HttpRequestMessage(HttpMethod.Get, $"{ApiBase}/gists?per_page=100&page={page}"), ct);
                 if (!response.IsSuccessStatusCode)
-                    return null;
+                    return (null, await FormatGitHubErrorAsync(response, "localizar o Gist de backup", ct));
 
                 var gists = await response.Content.ReadFromJsonAsync<List<GitHubGistResponse>>(cancellationToken: ct);
                 if (gists is null || gists.Count == 0)
-                    return null;
+                    return (null, null);
 
                 var match = gists.FirstOrDefault(g =>
-                    string.Equals(g.Description, description, StringComparison.Ordinal));
+                    string.Equals(g.Description, description, StringComparison.Ordinal)
+                    && g.Files?.ContainsKey(fileName) == true);
 
                 if (match?.Id is not null)
-                    return match.Id;
+                    return (match.Id, null);
 
                 if (gists.Count < 100)
-                    return null;
+                    return (null, null);
             }
 
-            return null;
+            return (null, null);
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            return null;
+            return (null, $"Falha de rede ao localizar o Gist de backup: {ex.Message}");
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return null;
+            return (null, $"O GitHub retornou uma lista de Gists inválida: {ex.Message}");
         }
     }
 
-    private async Task<string?> ResolveOwnedGistIdAsync(string? candidateId, CancellationToken ct)
+    private async Task<(string? Id, string? Error)> ResolveOwnedGistIdAsync(string? candidateId, CancellationToken ct)
     {
         if (!string.IsNullOrWhiteSpace(candidateId))
         {
             try
             {
-                using var response = await _http.GetAsync(
-                    $"{ApiBase}/gists/{Uri.EscapeDataString(candidateId)}", ct);
+                using var response = await SendWithTransientRetryAsync(
+                    () => new HttpRequestMessage(HttpMethod.Get, $"{ApiBase}/gists/{Uri.EscapeDataString(candidateId)}"), ct);
                 if (response.IsSuccessStatusCode)
                 {
                     var gist = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
                     if (IsWinProvisionGist(gist))
-                        return gist!.Id;
+                        return (gist!.Id, null);
                 }
                 else if (response.StatusCode != HttpStatusCode.NotFound)
                 {
-                    return null;
+                    return (null, await FormatGitHubErrorAsync(response, "validar o Gist de backup", ct));
                 }
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
-                return null;
+                return (null, $"Falha de rede ao validar o Gist de backup: {ex.Message}");
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                return null;
+                return (null, $"O GitHub retornou dados inválidos ao validar o Gist: {ex.Message}");
             }
         }
 
@@ -427,7 +719,7 @@ public class GitHubBackupService
         return $"profile-device-{suffix}.json";
     }
 
-    private async Task<string?> CreateGistAsync(
+    private async Task<(string? Id, string? Error)> CreateGistAsync(
         IReadOnlyDictionary<string, string> files, string description, CancellationToken ct)
     {
         var payload = new
@@ -439,10 +731,12 @@ public class GitHubBackupService
 
         using var response = await _http.PostAsJsonAsync($"{ApiBase}/gists", payload, ct);
         if (!response.IsSuccessStatusCode)
-            return null;
+            return (null, await FormatGitHubErrorAsync(response, "criar o Gist de backup", ct));
 
         var created = await response.Content.ReadFromJsonAsync<GitHubGistResponse>(cancellationToken: ct);
-        return created?.Id;
+        return created?.Id is { Length: > 0 } id
+            ? (id, null)
+            : (null, "O GitHub aceitou a criação, mas não retornou o identificador do Gist.");
     }
 
     /// <summary>
@@ -451,7 +745,7 @@ public class GitHubBackupService
     /// vez), reencontra por descrição/nome de arquivo e tenta de novo antes de desistir.
     /// Único chamador hoje é <see cref="UploadProfileAsync"/>.
     /// </summary>
-    private async Task<bool> UpsertGistAsync(
+    private async Task<(bool Success, string? Error)> UpsertGistAsync(
         IReadOnlyDictionary<string, string> files, string description, string? existingGistId,
         Action<string?> onIdChanged, Action onRecreateNeeded, CancellationToken ct)
     {
@@ -459,42 +753,91 @@ public class GitHubBackupService
         {
             if (string.IsNullOrEmpty(existingGistId))
             {
-                string? createdId = await CreateGistAsync(files, description, ct);
-                if (createdId is null)
-                    return false;
+                var created = await CreateGistAsync(files, description, ct);
+                if (created.Error is not null || created.Id is null)
+                    return (false, created.Error ?? "O Gist não foi criado.");
 
-                onIdChanged(createdId);
-                return true;
+                onIdChanged(created.Id);
+                return (true, null);
             }
 
             var payload = new
             {
                 files = files.ToDictionary(file => file.Key, file => (object)new { content = file.Value }, StringComparer.Ordinal)
             };
-            using var request = new HttpRequestMessage(
-                HttpMethod.Patch, $"{ApiBase}/gists/{Uri.EscapeDataString(existingGistId)}")
-            {
-                Content = JsonContent.Create(payload)
-            };
-
-            using var response = await _http.SendAsync(request, ct);
+            using var response = await SendWithTransientRetryAsync(
+                () => new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}/gists/{Uri.EscapeDataString(existingGistId)}")
+                {
+                    Content = JsonContent.Create(payload)
+                }, ct);
             if (response.StatusCode != HttpStatusCode.NotFound)
-                return response.IsSuccessStatusCode;
+                return response.IsSuccessStatusCode
+                    ? (true, null)
+                    : (false, await FormatGitHubErrorAsync(response, "atualizar o backup", ct));
 
             // Gist foi apagado/perdeu acesso desde a última vez — reencontra por
             // descrição/nome de arquivo antes de desistir, em vez de falhar direto.
             onRecreateNeeded();
-            string? recheckedId = await TryFindGistIdAsync(description, BackupFileName, ct);
-            onIdChanged(recheckedId);
-            return await UpsertGistAsync(files, description, recheckedId, onIdChanged, onRecreateNeeded, ct);
+            var rechecked = await TryFindGistIdAsync(description, BackupFileName, ct);
+            if (rechecked.Error is not null)
+                return (false, rechecked.Error);
+            onIdChanged(rechecked.Id);
+            if (rechecked.Id is null)
+            {
+                var created = await CreateGistAsync(files, description, ct);
+                if (created.Error is not null || created.Id is null)
+                    return (false, created.Error ?? "O Gist não foi recriado.");
+                onIdChanged(created.Id);
+                return (true, null);
+            }
+
+            // Reenvia uma única vez ao Gist reencontrado; não recursa indefinidamente.
+            var retryPayload = new
+            {
+                files = files.ToDictionary(file => file.Key, file => (object)new { content = file.Value }, StringComparer.Ordinal)
+            };
+            using var retryResponse = await SendWithTransientRetryAsync(
+                () => new HttpRequestMessage(HttpMethod.Patch, $"{ApiBase}/gists/{Uri.EscapeDataString(rechecked.Id)}")
+                {
+                    Content = JsonContent.Create(retryPayload)
+                }, ct);
+            return retryResponse.IsSuccessStatusCode
+                ? (true, null)
+                : (false, await FormatGitHubErrorAsync(retryResponse, "atualizar o backup reencontrado", ct));
         }
-        catch (HttpRequestException)
+        catch (HttpRequestException ex)
         {
-            return false;
+            return (false, $"Falha de rede ao salvar o backup: {ex.Message}");
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return false;
+            return (false, $"Não foi possível preparar os dados do backup: {ex.Message}");
+        }
+    }
+
+    private async Task<HttpResponseMessage> SendWithTransientRetryAsync(
+        Func<HttpRequestMessage> createRequest, CancellationToken ct)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            using var request = createRequest();
+            try
+            {
+                var response = await _http.SendAsync(request, ct);
+                bool transient = response.StatusCode == (HttpStatusCode)429 || (int)response.StatusCode >= 500;
+                if (!transient || attempt >= MaxTransientRetries)
+                    return response;
+
+                TimeSpan delay = response.Headers.RetryAfter?.Delta is { } retryAfter
+                    ? TimeSpan.FromSeconds(Math.Clamp(retryAfter.TotalSeconds, 1, 30))
+                    : RetryDelay * (attempt + 1);
+                response.Dispose();
+                await Task.Delay(delay, ct);
+            }
+            catch (HttpRequestException) when (attempt < MaxTransientRetries)
+            {
+                await Task.Delay(RetryDelay * (attempt + 1), ct);
+            }
         }
     }
 
@@ -541,5 +884,11 @@ public class GitHubBackupService
     {
         [JsonPropertyName("content")]
         public string? Content { get; set; }
+
+        [JsonPropertyName("raw_url")]
+        public string? RawUrl { get; set; }
+
+        [JsonPropertyName("truncated")]
+        public bool Truncated { get; set; }
     }
 }

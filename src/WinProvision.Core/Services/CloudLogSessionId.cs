@@ -47,6 +47,9 @@ public static class CloudLogSessionId
     public static string PushUrl(string sessionId) =>
         $"https://winprovision-logs.gabriel-silva20090.workers.dev/push?session={sessionId}";
 
+    /// <summary>Codifica uma URL de acompanhamento para renderização em outras interfaces.</summary>
+    public static bool[,] EncodeQr(string url) => QrEncoder.Encode(url);
+
     /// <summary>
     /// Renderiza a <paramref name="url"/> como QR Code ASCII com módulos ██ (escuro) e
     /// espaço duplo (claro). Usa uma implementação pure-C# sem dependências externas.

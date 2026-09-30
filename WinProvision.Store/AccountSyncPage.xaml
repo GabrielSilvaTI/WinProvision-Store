@@ -419,6 +419,7 @@
                             </ui:Button>
                         </StackPanel>
                     </ui:CardExpander>
+
                 </StackPanel>
             </ScrollViewer>
 

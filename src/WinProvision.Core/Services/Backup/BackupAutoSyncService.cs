@@ -85,6 +85,7 @@ public class BackupAutoSyncService : IDisposable
         bool localSucceeded = false;
         bool cloudAttempted = false;
         bool cloudSucceeded = false;
+        string? cloudError = null;
         try
         {
             var nonEmptyTabs = _collectionService.Tabs.Where(t => t.Items.Count > 0).ToList();
@@ -104,7 +105,9 @@ public class BackupAutoSyncService : IDisposable
             if (_cloudBackup.IsConnected)
             {
                 cloudAttempted = true;
-                cloudSucceeded = await _cloudBackup.UploadProfileAsync(backupSet, ct);
+                var uploadResult = await _cloudBackup.UploadProfileAsync(backupSet, ct);
+                cloudSucceeded = uploadResult.Success;
+                cloudError = uploadResult.ErrorMessage;
             }
         }
         catch (Exception ex)
@@ -121,7 +124,7 @@ public class BackupAutoSyncService : IDisposable
         }
 
         return new BackupSyncResult(localSucceeded, cloudAttempted, cloudSucceeded,
-            cloudAttempted && !cloudSucceeded ? "O serviço de nuvem não aceitou o backup." : null);
+            cloudAttempted && !cloudSucceeded ? cloudError ?? "O serviço de nuvem não aceitou o backup." : null);
     }
 
     public void Dispose()
