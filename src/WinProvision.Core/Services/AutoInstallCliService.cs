@@ -102,11 +102,15 @@ public class AutoInstallCliService
     {
         var stages = new List<AutoInstallStageInfo>();
 
-        bool hasPackages = manifest.Apps.Any(a => a.OfficeOptions is null);
-        bool hasOffice = manifest.Apps.Any(a => a.OfficeOptions is not null);
+        int packageCount = manifest.Apps.Count(a => a.OfficeOptions is null);
+        int officeCount = manifest.Apps.Count(a => a.OfficeOptions is not null);
+        bool hasPackages = packageCount > 0;
+        bool hasOffice = officeCount > 0;
 
-        if (hasPackages) stages.Add(StageCatalog[AutoInstallStage.PackagesAndApps]);
-        if (hasOffice) stages.Add(StageCatalog[AutoInstallStage.MicrosoftOffice]);
+        if (hasPackages)
+            stages.Add(StageCatalog[AutoInstallStage.PackagesAndApps] with { WorkUnits = packageCount });
+        if (hasOffice)
+            stages.Add(StageCatalog[AutoInstallStage.MicrosoftOffice] with { WorkUnits = officeCount });
 
         if (manifest.Provisioning is { } provisioning)
         {
@@ -124,8 +128,16 @@ public class AutoInstallCliService
                 || provisioning.AutoCreateRestorePoint == true
                 || provisioning.AutoCleanTempOnLogon == true;
 
-            if (hasPersonalization) stages.Add(StageCatalog[AutoInstallStage.SystemPersonalization]);
-            if (hasConfigurations) stages.Add(StageCatalog[AutoInstallStage.PredefinedConfigurations]);
+            if (hasPersonalization)
+                stages.Add(StageCatalog[AutoInstallStage.SystemPersonalization] with
+                {
+                    WorkUnits = CountProvisioningSteps(provisioning, personalization: true)
+                });
+            if (hasConfigurations)
+                stages.Add(StageCatalog[AutoInstallStage.PredefinedConfigurations] with
+                {
+                    WorkUnits = CountProvisioningSteps(provisioning, personalization: false)
+                });
         }
 
         return stages;
@@ -324,22 +336,60 @@ public class AutoInstallCliService
         if (packageApps.Count > 0)
         {
             var packageStageTimer = Stopwatch.StartNew();
-            // Progresso em degraus: cada app concluído preenche 1/N da barra (25% pra
-            // 4 apps, e assim por diante). Não tentamos mais acompanhar o percentual
-            // interno do winget (baseProgress + p/N) — a saída dele quando redirecionada
-            // chega em rajadas, então aquele percentual só fazia a barra parecer travada
-            // e pular de vez; o degrau por item concluído é o dado confiável que temos.
-            // Enquanto o item atual instala, a barra fica no degrau anterior (a
-            // AutoWindowViewModel mostra "indeterminado" só no primeiro item, com 0
-            // concluído — ver AutoStageViewModel.IsIndeterminate).
+            // O progresso interno do COM e da WinProvision API é confiável durante o
+            // download. Cada pacote pesa igualmente; metade do item representa download
+            // e metade instalação, evitando que 100% do download pareça instalação pronta.
             StageProgress(AutoInstallStage.PackagesAndApps, 0, $"Preparando {packageApps.Count} pacote(s)…");
             bool allSucceeded = true;
             for (int i = 0; i < packageApps.Count; i++)
             {
                 var appRef = packageApps[i];
                 string label = appRef.Name ?? appRef.Id;
-                if (i > 0) StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Instalando {label}…");
-                var installResult = await InstallWingetAsync(appRef, ct);
+                double itemProgress = 0;
+                double lastReportedProgress = -1;
+                InstallProgressPhase? lastReportedPhase = null;
+                var progressThrottle = Stopwatch.StartNew();
+                StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Preparando {label}…");
+
+                void ReportPackageProgress(InstallProgressUpdate update)
+                {
+                    string phase = update.Phase switch
+                    {
+                        InstallProgressPhase.Downloading => "Baixando",
+                        InstallProgressPhase.Installing => "Instalando",
+                        _ => "Preparando"
+                    };
+                    double? phaseProgress = update.Phase switch
+                    {
+                        InstallProgressPhase.Downloading when update.Percent is double downloadPercent
+                            => Math.Clamp(downloadPercent, 0, 100) * 0.5,
+                        InstallProgressPhase.Installing when update.Percent is double installPercent
+                            => 50 + Math.Clamp(installPercent, 0, 100) * 0.5,
+                        InstallProgressPhase.Installing => 50,
+                        _ => null
+                    };
+
+                    if (phaseProgress is double value)
+                        itemProgress = Math.Max(itemProgress, value);
+
+                    bool phaseChanged = lastReportedPhase != update.Phase;
+                    if (!phaseChanged
+                        && itemProgress - lastReportedProgress < 0.5
+                        && progressThrottle.ElapsedMilliseconds < 120)
+                        return;
+
+                    lastReportedProgress = itemProgress;
+                    lastReportedPhase = update.Phase;
+                    progressThrottle.Restart();
+                    string detail = update.Percent is double percent
+                        ? $"{phase} {label} · {percent:0}%"
+                        : $"{phase} {label}…";
+                    StageProgress(AutoInstallStage.PackagesAndApps,
+                        (i + itemProgress / 100d) * 100d / packageApps.Count,
+                        detail);
+                }
+
+                var installResult = await InstallWingetAsync(appRef, ct, ReportPackageProgress);
                 bool ok = installResult.Success;
                 itemResults.Add(new AutoItemResult(label, appRef.Id, installResult.Source, installResult.Method,
                     ok, installResult.Elapsed, installResult.Error));
@@ -491,7 +541,7 @@ public class AutoInstallCliService
             : wingetUnavailable ? AutoInstallExitCode.WingetUnavailable : AutoInstallExitCode.CompletedWithFailures;
     }
 
-    private async Task<PackageInstallResult> InstallWingetAsync(ProfileAppRef appRef, CancellationToken ct, Action<double>? progress = null)
+    private async Task<PackageInstallResult> InstallWingetAsync(ProfileAppRef appRef, CancellationToken ct, Action<InstallProgressUpdate>? progress = null)
     {
         string displayName = appRef.Name ?? appRef.Id;
         // Perfis antigos não carregavam Source. IDs de produto da Store têm nove
@@ -512,12 +562,23 @@ public class AutoInstallCliService
                 var result = await OperationRunner.InstallWithConfiguredHandlerAsync(
                     _wingetExecutor,
                     appRef.Id,
-                    onLogReceived: line => { LogLine(displayName, line); if (TryParsePercent(line, out var pct)) progress?.Invoke(pct); },
+                    onLogReceived: line =>
+                    {
+                        LogLine(displayName, line);
+                        if (TryParsePercent(line, out var pct))
+                        {
+                            var phase = line.Contains("install", StringComparison.OrdinalIgnoreCase)
+                                || line.Contains("instal", StringComparison.OrdinalIgnoreCase)
+                                ? InstallProgressPhase.Installing
+                                : InstallProgressPhase.Downloading;
+                            progress?.Invoke(new InstallProgressUpdate(phase, pct, WingetMethod.WingetExe));
+                        }
+                    },
                     cancellationToken: ct,
                     onProgress: update =>
                     {
                         if (update.Method is { } installMethod) method = installMethod.ToString();
-                        if (update.Percent is double percent) progress?.Invoke((int)Math.Floor(percent));
+                        progress?.Invoke(update);
                     },
                     source: source);
 
@@ -547,7 +608,8 @@ public class AutoInstallCliService
             : $"[WinProvision] \"{displayName}\": FALHOU em {FormatElapsed(installTimer.Elapsed)}.");
         _log($"[WinProvision] Tempo de \"{displayName}\": {FormatElapsed(installTimer.Elapsed)}.");
 
-        progress?.Invoke(100);
+        progress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Installing, 100,
+            Enum.TryParse<WingetMethod>(method, out var completedMethod) ? completedMethod : WingetMethod.Unknown));
         return new PackageInstallResult(success, wingetWasUnavailable, source, method, installTimer.Elapsed, Truncate(error, 240));
     }
 

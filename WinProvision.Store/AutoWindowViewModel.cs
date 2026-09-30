@@ -122,9 +122,12 @@ public sealed class AutoWindowViewModel : INotifyPropertyChanged, IDisposable
         if (evt.State is AutoInstallStageState.Completed or AutoInstallStageState.Failed)
             item.UpdateElapsed(DateTime.Now);
 
-        double overall = Stages.Count == 0 ? 100 : Stages.Average(x => x.Progress);
-        GlobalProgress = Math.Round(overall, 0);
-        GlobalProgressText = $"{(int)GlobalProgress}%";
+        int totalWorkUnits = Stages.Sum(x => x.WorkUnits);
+        double overall = totalWorkUnits == 0
+            ? 100
+            : Stages.Sum(x => x.Progress * x.WorkUnits) / totalWorkUnits;
+        GlobalProgress = Math.Clamp(overall, 0, 100);
+        GlobalProgressText = $"{GlobalProgress:0.0}%";
         HasFailed |= evt.State == AutoInstallStageState.Failed;
         StatusText = evt.State switch
         {

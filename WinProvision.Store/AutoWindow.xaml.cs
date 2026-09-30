@@ -1,9 +1,11 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
@@ -16,6 +18,8 @@ public partial class AutoWindow : FluentWindow
     private readonly AutoInstallCliService _cliService;
     private readonly AutoWindowViewModel _viewModel = new();
     private readonly TaskCompletionSource _closedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool _globalProgressShimmerRunning;
+    private double _globalProgressShimmerTrackWidth;
 
     public int CurrentProgress => (int)_viewModel.GlobalProgress;
 
@@ -33,6 +37,9 @@ public partial class AutoWindow : FluentWindow
         DataContext = _viewModel;
         InitializeComponent();
         WindowState = WindowState.Maximized;
+        Loaded += AutoWindow_Loaded;
+        GlobalProgressTrack.SizeChanged += GlobalProgressTrack_SizeChanged;
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
 
         // Quando o pipeline termina, o ViewModel conta 10s e avisa por aqui —
         // fecha a janela sozinha, sem esperar o clique em "Fechar". O fechamento
@@ -86,6 +93,66 @@ public partial class AutoWindow : FluentWindow
     }
 
     public Task WaitForCloseAsync() => _closedTcs.Task;
+
+    private void AutoWindow_Loaded(object sender, RoutedEventArgs e)
+        => UpdateGlobalProgressShimmer(restart: true);
+
+    private void GlobalProgressTrack_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (Math.Abs(e.NewSize.Width - _globalProgressShimmerTrackWidth) > 1)
+            UpdateGlobalProgressShimmer(restart: true);
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(AutoWindowViewModel.GlobalProgress)) return;
+
+        if (_viewModel.GlobalProgress >= 100)
+        {
+            StopGlobalProgressShimmer();
+            return;
+        }
+
+        UpdateGlobalProgressShimmer();
+    }
+
+    private void UpdateGlobalProgressShimmer(bool restart = false)
+    {
+        double trackWidth = GlobalProgressTrack.ActualWidth;
+        if (_viewModel.GlobalProgress >= 100 || trackWidth <= 0)
+        {
+            StopGlobalProgressShimmer();
+            return;
+        }
+
+        GlobalProgressShimmer.Visibility = Visibility.Visible;
+        if (_globalProgressShimmerRunning && !restart) return;
+
+        _globalProgressShimmerTrackWidth = trackWidth;
+        _globalProgressShimmerRunning = true;
+
+        double travelDistance = trackWidth + GlobalProgressShimmer.Width;
+        double durationMs = Math.Clamp(travelDistance / 780d * 1000d, 1000d, 2800d);
+        var animation = new DoubleAnimation(
+            -GlobalProgressShimmer.Width,
+            trackWidth,
+            TimeSpan.FromMilliseconds(durationMs))
+        {
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+
+        GlobalProgressShimmerTransform.BeginAnimation(
+            TranslateTransform.XProperty,
+            animation,
+            HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void StopGlobalProgressShimmer()
+    {
+        _globalProgressShimmerRunning = false;
+        GlobalProgressShimmerTransform.BeginAnimation(TranslateTransform.XProperty, null);
+        GlobalProgressShimmer.Visibility = Visibility.Collapsed;
+    }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -148,6 +215,10 @@ public partial class AutoWindow : FluentWindow
 
     protected override void OnClosed(EventArgs e)
     {
+        Loaded -= AutoWindow_Loaded;
+        GlobalProgressTrack.SizeChanged -= GlobalProgressTrack_SizeChanged;
+        _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        StopGlobalProgressShimmer();
         _viewModel.Dispose();
         _closedTcs.TrySetResult();
         base.OnClosed(e);

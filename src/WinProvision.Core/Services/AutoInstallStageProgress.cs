@@ -25,7 +25,7 @@ public enum AutoInstallStageState
 }
 
 /// <summary>Metadados fixos (título/descrição) de uma etapa — usados pela UI pra montar a lista antes de a execução começar.</summary>
-public record AutoInstallStageInfo(AutoInstallStage Stage, string Title, string Description);
+public record AutoInstallStageInfo(AutoInstallStage Stage, string Title, string Description, int WorkUnits = 1);
 
 /// <summary>Notificação de mudança de estado de uma etapa, reportada via <see cref="IProgress{T}"/> durante a execução.</summary>
 public record AutoInstallStageEvent(

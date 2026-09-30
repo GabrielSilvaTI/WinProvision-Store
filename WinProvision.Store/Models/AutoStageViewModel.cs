@@ -17,6 +17,7 @@ public sealed class AutoStageViewModel : INotifyPropertyChanged
         Stage = info.Stage;
         Title = info.Title;
         Description = info.Description;
+        WorkUnits = Math.Max(1, info.WorkUnits);
         Number = number.ToString("00");
     }
 
@@ -24,6 +25,7 @@ public sealed class AutoStageViewModel : INotifyPropertyChanged
     public string Number { get; }
     public string Title { get; }
     public string Description { get; }
+    public int WorkUnits { get; }
 
     public double Progress
     {
@@ -53,7 +55,7 @@ public sealed class AutoStageViewModel : INotifyPropertyChanged
     }
 
     public string ProgressText => Status == AutoInstallStageState.InProgress && Progress > 0
-        ? $"{Math.Round(Progress):0}%"
+        ? $"{Progress:0.0}%"
         : StatusText;
 
     public AutoInstallStageState Status

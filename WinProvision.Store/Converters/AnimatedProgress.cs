@@ -29,9 +29,8 @@ namespace WinProvision.Store.Converters;
 /// </summary>
 public static class AnimatedProgress
 {
-    // Rápido o bastante pra não parecer "atrasado" em relação ao valor real, devagar
-    // o bastante pra realmente parecer um preenchimento contínuo em vez de um pulo.
-    private static readonly Duration AnimationDuration = new(TimeSpan.FromMilliseconds(450));
+    private static readonly TimeSpan MinimumAnimationDuration = TimeSpan.FromMilliseconds(90);
+    private static readonly TimeSpan MaximumAnimationDuration = TimeSpan.FromMilliseconds(260);
 
     public static readonly DependencyProperty PercentProperty =
         DependencyProperty.RegisterAttached(
@@ -45,16 +44,12 @@ public static class AnimatedProgress
 
     private static void OnPercentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        double from = e.OldValue is double oldValue ? oldValue : 0d;
         double to = e.NewValue is double newValue ? newValue : 0d;
-
-        // Regressão (reinício de item/etapa voltando a 0, ou correção pra baixo) não
-        // anima "pra trás" — só transições pra frente ganham o efeito suave. Isso
-        // também evita animação estranha quando um novo item é enfileirado do zero.
-        bool animate = to > from + 0.01;
 
         if (d is RangeBase rangeBase)
         {
+            double from = rangeBase.Value;
+            bool animate = to > from + 0.01;
             if (!animate)
             {
                 rangeBase.BeginAnimation(RangeBase.ValueProperty, null);
@@ -62,7 +57,7 @@ public static class AnimatedProgress
                 return;
             }
 
-            rangeBase.BeginAnimation(RangeBase.ValueProperty, new DoubleAnimation(from, to, AnimationDuration)
+            rangeBase.BeginAnimation(RangeBase.ValueProperty, new DoubleAnimation(from, to, GetDuration(from, to))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             });
@@ -71,7 +66,10 @@ public static class AnimatedProgress
 
         if (d is FrameworkElement { RenderTransform: ScaleTransform scale })
         {
-            double fromScale = Math.Clamp(from, 0, 100) / 100d;
+            double currentScale = scale.ScaleX;
+            double from = currentScale * 100d;
+            bool animate = to > from + 0.01;
+            double fromScale = Math.Clamp(currentScale, 0, 1);
             double toScale = Math.Clamp(to, 0, 100) / 100d;
 
             if (!animate)
@@ -81,10 +79,16 @@ public static class AnimatedProgress
                 return;
             }
 
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, toScale, AnimationDuration)
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(fromScale, toScale, GetDuration(from, to))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
             });
         }
+    }
+
+    private static Duration GetDuration(double from, double to)
+    {
+        double milliseconds = Math.Clamp(Math.Abs(to - from) * 5, MinimumAnimationDuration.TotalMilliseconds, MaximumAnimationDuration.TotalMilliseconds);
+        return new Duration(TimeSpan.FromMilliseconds(milliseconds));
     }
 }
