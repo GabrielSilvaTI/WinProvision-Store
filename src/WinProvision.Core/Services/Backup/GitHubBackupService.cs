@@ -372,7 +372,8 @@ public class GitHubBackupService
             }
 
             string profileRawUrl = $"https://gist.githubusercontent.com/{_account.Login}/{gistId}/raw/profile.json";
-            string bootstrapScript = BuildBootstrapScript(profileRawUrl, displayMode, logMode, logFilePath);
+            string rawUrl = $"https://gist.githubusercontent.com/{_account.Login}/{gistId}/raw/{BootstrapScriptFileName}";
+            string bootstrapScript = BuildBootstrapScript(profileRawUrl, rawUrl, displayMode, logMode, logFilePath);
             var updatePayload = new
             {
                 files = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -392,7 +393,6 @@ public class GitHubBackupService
 
             _account.BootstrapGistId = gistId;
             PersistAccountInfo();
-            string rawUrl = $"https://gist.githubusercontent.com/{_account.Login}/{gistId}/raw/{BootstrapScriptFileName}";
             return GitHubBootstrapPublishResult.Ok(rawUrl);
         }
         catch (HttpRequestException ex)
@@ -481,11 +481,13 @@ public class GitHubBackupService
         return $"Não foi possível {action} (HTTP {(int)response.StatusCode}): {detail}.{hint}";
     }
 
-    private static string BuildBootstrapScript(string profileRawUrl, BootstrapDisplayMode displayMode, BootstrapLogMode logMode, string? logFilePath) => $$"""
+    private static string BuildBootstrapScript(string profileRawUrl, string bootstrapRawUrl, BootstrapDisplayMode displayMode, BootstrapLogMode logMode, string? logFilePath) => $$"""
         #requires -Version 5.1
         $ErrorActionPreference = 'Stop'
         $ProgressPreference = 'SilentlyContinue'
         $ProfileUrl = '{{profileRawUrl.Replace("'", "''", StringComparison.Ordinal)}}'
+        $BootstrapScriptUrl = '{{bootstrapRawUrl.Replace("'", "''", StringComparison.Ordinal)}}'
+        $BootstrapCommand = "irm '$BootstrapScriptUrl' | iex"
         $DisplayMode = '{{(displayMode == BootstrapDisplayMode.Terminal ? "terminal" : "ui")}}'
         $LogMode = '{{(logMode == BootstrapLogMode.Cloud ? "cloud" : "local")}}'
         $SelectedLogPath = '{{(logFilePath ?? string.Empty).Replace("'", "''", StringComparison.Ordinal)}}'
@@ -496,12 +498,96 @@ public class GitHubBackupService
         $ChecksumPath = $SetupPath + '.sha256'
         $ProfilePath = Join-Path $WorkDirectory 'profile.json'
 
+        function Remove-BootstrapRetryTask {
+            try {
+                $Scheduler = New-Object -ComObject Schedule.Service
+                $Scheduler.Connect()
+                $Scheduler.GetFolder('\').DeleteTask('WinProvisionBootstrapNetworkRetry', 0)
+            }
+            catch { }
+        }
+
+        function Register-BootstrapRetryTask {
+            $Scheduler = New-Object -ComObject Schedule.Service
+            $Scheduler.Connect()
+            $Root = $Scheduler.GetFolder('\')
+            $Task = $Scheduler.NewTask(0)
+            $Task.RegistrationInfo.Description = 'Retoma a instalação do WinProvision quando houver conexão de rede.'
+            $Task.Principal.UserId = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+            $Task.Principal.LogonType = 3
+            $Task.Principal.RunLevel = 0
+
+            $LogonTrigger = $Task.Triggers.Create(9)
+            $LogonTrigger.Enabled = $true
+            $NetworkTrigger = $Task.Triggers.Create(0)
+            $NetworkTrigger.Enabled = $true
+            $NetworkTrigger.Subscription = '<QueryList><Query Id="0" Path="Microsoft-Windows-NetworkProfile/Operational"><Select Path="Microsoft-Windows-NetworkProfile/Operational">*[System[(EventID=10000)]]</Select></Query></QueryList>'
+
+            $Action = $Task.Actions.Create(0)
+            $Action.Path = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+            $Action.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "' + $BootstrapCommand + '"'
+
+            $Task.Settings.Enabled = $true
+            $Task.Settings.StartWhenAvailable = $true
+            $Task.Settings.MultipleInstances = 2
+            $Task.Settings.DisallowStartIfOnBatteries = $false
+            $Task.Settings.StopIfGoingOnBatteries = $false
+
+            $Root.RegisterTaskDefinition('WinProvisionBootstrapNetworkRetry', $Task, 6, $Task.Principal.UserId, $null, 3, $null) | Out-Null
+        }
+
+        function Invoke-DownloadWithRetry([string]$Url, [string]$Destination, [string]$Label) {
+            for ($Attempt = 1; $Attempt -le 10; $Attempt++) {
+                try {
+                    Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+                    return $true
+                }
+                catch {
+                    $StatusCode = $null
+                    try { $StatusCode = [int]$_.Exception.Response.StatusCode } catch { }
+                    if ($StatusCode -ge 400 -and $StatusCode -lt 500 -and $StatusCode -notin @(408, 429)) {
+                        throw
+                    }
+
+                    $NetworkError = $false
+                    $CurrentException = $_.Exception
+                    while ($null -ne $CurrentException) {
+                        if ($CurrentException -is [System.Net.WebException] -or
+                            $CurrentException -is [System.Net.Http.HttpRequestException] -or
+                            $CurrentException -is [System.TimeoutException]) {
+                            $NetworkError = $true
+                            break
+                        }
+                        $CurrentException = $CurrentException.InnerException
+                    }
+                    if (-not $NetworkError) { throw }
+
+                    Write-Host "Falha de rede ao baixar $Label (tentativa $Attempt de 10)."
+                    if ($Attempt -lt 10) { Start-Sleep -Seconds 3 }
+                }
+            }
+            return $false
+        }
+
         New-Item -ItemType Directory -Path $WorkDirectory -Force | Out-Null
         try {
+            Remove-BootstrapRetryTask
             Write-Host 'Baixando o perfil e o instalador...'
-            Invoke-WebRequest -Uri $ProfileUrl -OutFile $ProfilePath -UseBasicParsing
-            Invoke-WebRequest -Uri $SetupUrl -OutFile $SetupPath -UseBasicParsing
-            Invoke-WebRequest -Uri $ChecksumUrl -OutFile $ChecksumPath -UseBasicParsing
+            if (-not (Invoke-DownloadWithRetry $ProfileUrl $ProfilePath 'o perfil')) {
+                try { Register-BootstrapRetryTask; Write-Host 'Sem conexão após 10 tentativas. O Bootstrap será retomado quando a rede estiver disponível.' }
+                catch { Write-Host "Não foi possível agendar a retomada automática: $($_.Exception.Message)" }
+                return
+            }
+            if (-not (Invoke-DownloadWithRetry $SetupUrl $SetupPath 'o instalador')) {
+                try { Register-BootstrapRetryTask; Write-Host 'Sem conexão após 10 tentativas. O Bootstrap será retomado quando a rede estiver disponível.' }
+                catch { Write-Host "Não foi possível agendar a retomada automática: $($_.Exception.Message)" }
+                return
+            }
+            if (-not (Invoke-DownloadWithRetry $ChecksumUrl $ChecksumPath 'o checksum')) {
+                try { Register-BootstrapRetryTask; Write-Host 'Sem conexão após 10 tentativas. O Bootstrap será retomado quando a rede estiver disponível.' }
+                catch { Write-Host "Não foi possível agendar a retomada automática: $($_.Exception.Message)" }
+                return
+            }
 
             $ChecksumText = Get-Content -LiteralPath $ChecksumPath -Raw
             if ($ChecksumText -notmatch '(?im)^\s*([0-9a-f]{64})\b') {
