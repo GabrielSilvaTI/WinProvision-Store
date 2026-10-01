@@ -244,15 +244,50 @@ public class WinProvisionApiReliabilityTests
     }
 
     [Fact]
-    public async Task GetPackageAsync_Distingue404DeFalhaTemporaria()
+    public async Task GetPackageAsync_Manifest404RetornaNulo()
     {
-        using var http = new HttpClient(new StubHttpMessageHandler(_ =>
-            new HttpResponseMessage(HttpStatusCode.NotFound)));
+        const string indexJson = """{"schema":1,"generatedAt":"2026-09-23T00:00:00Z","count":1,"packages":[{"id":"Vendor.Missing","version":"1.0","architectures":["x64"]}]}""";
+        int manifestRequests = 0;
+        using var http = new HttpClient(new StubHttpMessageHandler(request =>
+        {
+            if (request.RequestUri?.AbsolutePath.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase) == true)
+                return Json(indexJson);
+
+            manifestRequests++;
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        }));
         string cache = Path.Combine(Path.GetTempPath(), $"WinProvisionApiTests-{Guid.NewGuid():N}");
         try
         {
             var api = new WinProvisionApiService(http, cache);
             Assert.Null(await api.GetPackageAsync("Vendor.Missing"));
+            Assert.Equal(1, manifestRequests);
+        }
+        finally
+        {
+            if (Directory.Exists(cache)) Directory.Delete(cache, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task GetPackageAsync_FalhaTemporariaNoManifestPropagaErro()
+    {
+        const string indexJson = """{"schema":1,"generatedAt":"2026-09-23T00:00:00Z","count":1,"packages":[{"id":"Vendor.App","version":"1.0","architectures":["x64"]}]}""";
+        int manifestRequests = 0;
+        using var http = new HttpClient(new StubHttpMessageHandler(request =>
+        {
+            if (request.RequestUri?.AbsolutePath.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase) == true)
+                return Json(indexJson);
+
+            manifestRequests++;
+            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        }));
+        string cache = Path.Combine(Path.GetTempPath(), $"WinProvisionApiTests-{Guid.NewGuid():N}");
+        try
+        {
+            var api = new WinProvisionApiService(http, cache);
+            await Assert.ThrowsAsync<HttpRequestException>(() => api.GetPackageAsync("Vendor.App"));
+            Assert.Equal(4, manifestRequests);
         }
         finally
         {
