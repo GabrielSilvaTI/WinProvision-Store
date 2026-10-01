@@ -9,9 +9,9 @@
         <GradientStop Color="#D9000000" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="StorefrontHeroScrimBrush" StartPoint="0,0.5" EndPoint="1,0.5">
-        <GradientStop Color="#E6091A2C" Offset="0" />
-        <GradientStop Color="#A6091A2C" Offset="0.4" />
-        <GradientStop Color="#18091A2C" Offset="1" />
+        <GradientStop Color="#E6000000" Offset="0" />
+        <GradientStop Color="#A6000000" Offset="0.4" />
+        <GradientStop Color="#18000000" Offset="1" />
     </LinearGradientBrush>
     <!-- Tokens globais do Store. -->
     <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
@@ -64,7 +64,7 @@
     <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="#FF454545" />
     <SolidColorBrush x:Key="RegionFillColorDefaultBrush" Color="#FF252525" />
     <SolidColorBrush x:Key="RegionFillColorSecondaryBrush" Color="#FF303030" />
-    <SolidColorBrush x:Key="SystemFillColorAttentionBrush" Color="#1688E8" />
+    <SolidColorBrush x:Key="SystemFillColorAttentionBrush" Color="#0078D4" />
     <SolidColorBrush x:Key="SystemFillColorSuccessBrush" Color="#4CAF50" />
     <SolidColorBrush x:Key="SystemFillColorCautionBrush" Color="#FFC107" />
     <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#EF4444" />
@@ -111,6 +111,36 @@
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="FontFamily" Value="{StaticResource StoreFontFamily}" />
+    </Style>
+
+    <!-- Cartão navegável usado pelas páginas que apresentam categorias de configuração. -->
+    <Style x:Key="PageNavigationCardStyle" TargetType="ui:Button" BasedOn="{StaticResource SettingsSearchResultButtonStyle}">
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+        <Setter Property="Padding" Value="18,16" />
+        <Setter Property="MinHeight" Value="72" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+        <Setter Property="PressedBackground" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
+    </Style>
+
+    <Style x:Key="PageSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentSectionTitleStyle}">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontFamily" Value="{StaticResource StoreDisplayFontFamily}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="PageEmptyStateCardStyle" TargetType="Border" BasedOn="{StaticResource StoreCardSurfaceStyle}">
+        <Setter Property="Padding" Value="28" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderSubtleBrush}" />
     </Style>
 
     <Style x:Key="SettingsOptionCardStyle" TargetType="Border" BasedOn="{StaticResource StoreCardSurfaceStyle}">

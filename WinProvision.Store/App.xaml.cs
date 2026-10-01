@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -60,7 +61,6 @@ public partial class App : Application
             services.AddSingleton<InstalledAppsService>();
 
             // Adições para Atualizações ->
-            services.AddSingleton<ScheduledUpdatesService>();
             services.AddSingleton<IgnoredUpdatesService>();
             services.AddSingleton<ScheduledTempCleanerService>();
 
@@ -78,6 +78,7 @@ public partial class App : Application
             services.AddSingleton<WinGetService>();
             services.AddSingleton<InstallationPreferencesService>();
             services.AddSingleton<ApplicationPreferencesService>();
+            services.AddSingleton<BackgroundUpdateStartupService>();
             services.AddSingleton<InstalledPackagesService>();
             services.AddSingleton<InstalledPackageClassifier>();
             services.AddSingleton<AutoInstallCliService>();
@@ -132,6 +133,8 @@ public partial class App : Application
 
         var executablePath = Environment.ProcessPath ?? AppContext.BaseDirectory;
         bool isAuto = HasAutoFlag(e.Args);
+        bool isBackgroundUpdate = HasArgument(e.Args, "--background-update");
+        bool isUpdateAtStartup = HasArgument(e.Args, "--update-at-startup");
         bool isElevated = WinProvisionLog.IsElevated();
         var buildDate = File.Exists(executablePath)
             ? File.GetLastWriteTime(executablePath)
@@ -139,7 +142,7 @@ public partial class App : Application
         WinProvisionLog.Write(
             $"STARTUP elevated={isElevated} " +
             $"exe=\"{executablePath}\" buildDate={buildDate:O} " +
-            $"auto={isAuto} debugger={Debugger.IsAttached} " +
+            $"auto={isAuto} backgroundUpdate={isBackgroundUpdate} debugger={Debugger.IsAttached} " +
             $"relaunched={HasArgument(e.Args, RelaunchedUnelevatedArgument)}");
         WingetCliAudit.Sink = WinProvisionLog.Write;
         WinGetFactoryHelper.ConfigureMode(e.Args);
@@ -193,7 +196,26 @@ public partial class App : Application
         var appPreferences = _host.Services.GetRequiredService<ApplicationPreferencesService>();
         ApplicationPreferencesService.ApplyTheme(appPreferences.Theme);
         ApplicationThemeManager.Changed += ApplicationThemeManager_Changed;
-        ApplyThemePalette(ApplicationThemeManager.GetAppTheme());
+        ApplyThemePalette(
+            ApplicationThemeManager.GetAppTheme(),
+            ApplicationAccentColorManager.SystemAccent);
+
+        if (isBackgroundUpdate)
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try
+            {
+                await _host.StartAsync();
+                int exitCode = await RunStartupPackageUpdatesAsync();
+                Shutdown(exitCode);
+            }
+            catch (Exception ex)
+            {
+                WinProvisionLog.Write($"BACKGROUND UPDATE fatal={ex}");
+                Shutdown(1);
+            }
+            return;
+        }
 
         if (isAuto)
         {
@@ -355,7 +377,10 @@ public partial class App : Application
                 "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
             WinProvisionLog.Write(
                 "UPDATE HANDLER CONFIGURED startupPath=interactive handler=WinGetService.UpdateAsync");
-            _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
+            if (isUpdateAtStartup)
+                _ = RunStartupPackageUpdatesAsync();
+            else
+                _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
             _host.Services.GetRequiredService<BackupAutoSyncService>();
 
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
@@ -377,50 +402,71 @@ public partial class App : Application
 
     private static void ApplicationThemeManager_Changed(ApplicationTheme theme, Color systemAccent)
     {
-        ApplyThemePalette(theme);
+        ApplyThemePalette(theme, systemAccent);
     }
 
-    private static void ApplyThemePalette(ApplicationTheme theme)
+    private static void ApplyThemePalette(ApplicationTheme theme, Color systemAccent)
     {
         bool isLight = theme == ApplicationTheme.Light;
 
-        SetWindowBackground(isLight);
-        SetBrushColor("ApplicationBackgroundBrush", isLight ? "#FFF7F9FC" : "#F0101B2D");
-        SetBrushColor("LayerFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#E8172A40");
-        SetBrushColor("ControlFillColorDefaultBrush", isLight ? "#FFFFFFFF" : "#E0263446");
-        SetBrushColor("ControlFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#F02D4056");
-        SetBrushColor("ControlFillColorTertiaryBrush", isLight ? "#FFE9EEF5" : "#E01D3047");
-        SetBrushColor("CardBackgroundFillColorDefaultBrush", isLight ? "#FFFFFFFF" : "#E0263446");
-        SetBrushColor("CardBackgroundFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#E02B3B50");
-        SetBrushColor("ControlStrokeColorDefaultBrush", isLight ? "#FFCBD5E1" : "#8050657D");
-        SetBrushColor("ControlStrokeColorSecondaryBrush", isLight ? "#FFB8C5D4" : "#70475C75");
-        SetBrushColor("SurfaceFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#E01D3047");
-        SetBrushColor("SurfaceFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#E02B3B50");
-        SetBrushColor("SubtleFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#E02B3B50");
-        SetBrushColor("SubtleFillColorTertiaryBrush", isLight ? "#FFE9EEF5" : "#E01D3047");
-        SetBrushColor("DividerStrokeColorDefaultBrush", isLight ? "#FFCBD5E1" : "#8050657D");
-        SetBrushColor("RegionFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#E8172A40");
-        SetBrushColor("RegionFillColorSecondaryBrush", isLight ? "#FFFFFFFF" : "#E0263446");
+        string emptyStateIcon = isLight ? "WinProvisionStore_Black.png" : "WinProvisionStore_White.png";
+        var emptyStateBitmap = new BitmapImage(new Uri(
+            $"pack://application:,,,/Assets/{emptyStateIcon}", UriKind.Absolute));
+        emptyStateBitmap.Freeze();
+        Current.Resources["EmptyStateBrandIcon"] = emptyStateBitmap;
 
-        SetBrushColor("AppSurfaceBrush", isLight ? "#FFF0F4F8" : "#E01D3047");
-        SetBrushColor("AppSurfaceElevatedBrush", isLight ? "#FFFFFFFF" : "#E0263446");
-        SetBrushColor("AppSurfaceStrongBrush", isLight ? "#FFF3F6FA" : "#F02D4056");
-        SetBrushColor("AppBorderBrush", isLight ? "#FFCBD5E1" : "#8050657D");
-        SetBrushColor("AppBorderSubtleBrush", isLight ? "#FFDCE4EC" : "#5050657D");
+        // Ícones de cabeçalho seguem o contraste pedido para cada tema.
+        SetBrushColor("PageHeaderIconBrush", isLight ? "#FF000000" : "#FFFFFFFF");
+
+        // Mantém os controles Primary do WPF-UI alinhados ao acento azul do app,
+        // mesmo quando o Windows está configurado com outro acento (como rosa/roxo).
+        SetBrushColor("AccentFillColorDefaultBrush", "#FF0078D4");
+        SetBrushColor("AccentFillColorSecondaryBrush", "#CC0078D4");
+        SetBrushColor("AccentFillColorTertiaryBrush", "#660078D4");
+        SetBrushColor("AccentFillColorDisabledBrush", "#660078D4");
+        SetBrushColor("InstallActionBrush", "#FF0078D4");
+        SetBrushColor("InstallActionHoverBrush", "#FF1688E8");
+        SetBrushColor("InstallActionPressedBrush", "#FF0067B8");
+        SetBrushColor("AppAccentBrush", "#FF0078D4");
+        SetBrushColor("AppAccentSoftBrush", "#3A0078D4");
+        SetBrushColor("FluentAccentSoftBrush", "#3A0078D4");
+        SetBrushColor("AppWindowBackgroundBrush", isLight ? "#FFF7F9FC" : "#FF202020");
+        SetBrushColor("ApplicationBackgroundBrush", isLight ? "#FFF7F9FC" : "#FF202020");
+        SetBrushColor("LayerFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#FF252525");
+        SetBrushColor("ControlFillColorDefaultBrush", isLight ? "#FFFFFFFF" : "#FF303030");
+        SetBrushColor("ControlFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#FF383838");
+        SetBrushColor("ControlFillColorTertiaryBrush", isLight ? "#FFE9EEF5" : "#FF292929");
+        SetBrushColor("CardBackgroundFillColorDefaultBrush", isLight ? "#FFFFFFFF" : "#FF303030");
+        SetBrushColor("CardBackgroundFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#FF383838");
+        SetBrushColor("ControlStrokeColorDefaultBrush", isLight ? "#FFCBD5E1" : "#FF454545");
+        SetBrushColor("ControlStrokeColorSecondaryBrush", isLight ? "#FFB8C5D4" : "#FF3D3D3D");
+        SetBrushColor("SurfaceFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#FF202020");
+        SetBrushColor("SurfaceFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#FF303030");
+        SetBrushColor("SubtleFillColorSecondaryBrush", isLight ? "#FFF3F6FA" : "#FF383838");
+        SetBrushColor("SubtleFillColorTertiaryBrush", isLight ? "#FFE9EEF5" : "#FF252525");
+        SetBrushColor("DividerStrokeColorDefaultBrush", isLight ? "#FFCBD5E1" : "#FF454545");
+        SetBrushColor("RegionFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#FF252525");
+        SetBrushColor("RegionFillColorSecondaryBrush", isLight ? "#FFFFFFFF" : "#FF303030");
+
+        SetBrushColor("AppSurfaceBrush", isLight ? "#FFF0F4F8" : "#FF202020");
+        SetBrushColor("AppSurfaceElevatedBrush", isLight ? "#FFFFFFFF" : "#FF303030");
+        SetBrushColor("AppSurfaceStrongBrush", isLight ? "#FFF3F6FA" : "#FF383838");
+        SetBrushColor("AppBorderBrush", isLight ? "#FFCBD5E1" : "#FF454545");
+        SetBrushColor("AppBorderSubtleBrush", isLight ? "#FFDCE4EC" : "#FF3D3D3D");
         SetBrushColor("AppTextPrimaryBrush", isLight ? "#FF182230" : "#FFF5F7FA");
-        SetBrushColor("AppTextSecondaryBrush", isLight ? "#FF526274" : "#FFC6D1E0");
-        SetBrushColor("AppTextTertiaryBrush", isLight ? "#FF718096" : "#FF95A5B9");
-        SetBrushColor("AppIconBrush", isLight ? "#FF334155" : "#FFE0E9F5");
-        SetBrushColor("AppIconMutedBrush", isLight ? "#FF64748B" : "#FF9BAAC0");
-        SetBrushColor("AppCardBackgroundBrush", isLight ? "#FFFFFFFF" : "#E0263446");
-        SetBrushColor("AppCardBorderBrush", isLight ? "#FFCBD5E1" : "#8050657D");
+        SetBrushColor("AppTextSecondaryBrush", isLight ? "#FF526274" : "#FFD0D0D0");
+        SetBrushColor("AppTextTertiaryBrush", isLight ? "#FF718096" : "#FFA8A8A8");
+        SetBrushColor("AppIconBrush", isLight ? "#FF334155" : "#FFE6E6E6");
+        SetBrushColor("AppIconMutedBrush", isLight ? "#FF64748B" : "#FFAAAAAA");
+        SetBrushColor("AppCardBackgroundBrush", isLight ? "#FFFFFFFF" : "#FF303030");
+        SetBrushColor("AppCardBorderBrush", isLight ? "#FFCBD5E1" : "#FF454545");
 
-        SetBrushColor("FluentWindowSurfaceBrush", isLight ? "#FFF3F6FA" : "#FF1B2835");
-        SetBrushColor("FluentPanelBrush", isLight ? "#FFF9FBFD" : "#E0263446");
-        SetBrushColor("FluentPanelElevatedBrush", isLight ? "#FFFFFFFF" : "#F02D4056");
-        SetBrushColor("FluentPanelPressedBrush", isLight ? "#FFE8EEF5" : "#E01D3047");
-        SetBrushColor("FluentPanelBorderBrush", isLight ? "#FFD2DBE5" : "#8050657D");
-        SetBrushColor("FluentPanelBorderStrongBrush", isLight ? "#FFB8C7D6" : "#98627A94");
+        SetBrushColor("FluentWindowSurfaceBrush", isLight ? "#FFF3F6FA" : "#FF202020");
+        SetBrushColor("FluentPanelBrush", isLight ? "#FFF9FBFD" : "#FF303030");
+        SetBrushColor("FluentPanelElevatedBrush", isLight ? "#FFFFFFFF" : "#FF383838");
+        SetBrushColor("FluentPanelPressedBrush", isLight ? "#FFE8EEF5" : "#FF252525");
+        SetBrushColor("FluentPanelBorderBrush", isLight ? "#FFD2DBE5" : "#FF454545");
+        SetBrushColor("FluentPanelBorderStrongBrush", isLight ? "#FFB8C7D6" : "#FF5A5A5A");
 
         SetBrushColor("AppOperationSuccessBrush", isLight ? "#FF176B37" : "#FF79D99A");
         SetBrushColor("AppOperationSuccessSurfaceBrush", isLight ? "#FFE9F7EF" : "#2679D99A");
@@ -435,23 +481,6 @@ public partial class App : Application
         SetBrushColor("AppProgressTrackBrush", isLight ? "#FFD7E0E8" : "#24FFFFFF");
         Current.Resources["AppPanelShadowColor"] = (Color)ColorConverter.ConvertFromString(
             isLight ? "#FF536273" : "#FF000000");
-    }
-
-    private static void SetWindowBackground(bool isLight)
-    {
-        Color[] colors = isLight
-            ? [Color.FromRgb(0xF4, 0xF7, 0xFB), Color.FromRgb(0xE9, 0xF0, 0xF6), Color.FromRgb(0xF6, 0xF8, 0xFB)]
-            : [Color.FromRgb(0x19, 0x23, 0x2F), Color.FromRgb(0x24, 0x33, 0x42), Color.FromRgb(0x1B, 0x28, 0x35)];
-
-        var background = new LinearGradientBrush
-        {
-            StartPoint = new Point(0, 0),
-            EndPoint = new Point(1, 1)
-        };
-        background.GradientStops.Add(new GradientStop(colors[0], 0));
-        background.GradientStops.Add(new GradientStop(colors[1], 0.52));
-        background.GradientStops.Add(new GradientStop(colors[2], 1));
-        Current.Resources["AppWindowBackgroundBrush"] = background;
     }
 
     private static void SetBrushColor(string key, string hex)
@@ -485,6 +514,54 @@ public partial class App : Application
 
     private static bool HasAutoFlag(string[] args) =>
         args.Any(a => string.Equals(a, "/auto", StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<int> RunStartupPackageUpdatesAsync()
+    {
+        var winGetService = _host.Services.GetRequiredService<WinGetService>();
+        var ignoredUpdates = _host.Services.GetRequiredService<IgnoredUpdatesService>();
+        WinProvisionLog.Write("BACKGROUND UPDATE started source=login");
+
+        var availableUpdates = await winGetService.GetUpgradablePackagesAsync(
+            line => WinProvisionLog.Write($"BACKGROUND UPDATE {line}"));
+        var packages = availableUpdates
+            .Where(package => !ignoredUpdates.IsIgnored(package.Id, package.AvailableVersion))
+            .GroupBy(package => package.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        WinProvisionLog.Write($"BACKGROUND UPDATE discovered count={packages.Count}");
+        int succeeded = 0;
+        int failed = 0;
+        foreach (var package in packages)
+        {
+            WinProvisionLog.Write($"BACKGROUND UPDATE installing id=\"{package.Id}\" name=\"{package.Name}\"");
+            try
+            {
+                var result = await winGetService.UpdateAsync(
+                    package.Id,
+                    line => WinProvisionLog.Write($"BACKGROUND UPDATE {package.Id}: {line}"),
+                    source: string.IsNullOrWhiteSpace(package.Source) ? "winget" : package.Source);
+                if (result.Success)
+                {
+                    succeeded++;
+                    WinProvisionLog.Write($"BACKGROUND UPDATE success id=\"{package.Id}\"");
+                }
+                else
+                {
+                    failed++;
+                    WinProvisionLog.Write($"BACKGROUND UPDATE failed id=\"{package.Id}\" reason={result.FailureReason} output={result.Output}");
+                }
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                WinProvisionLog.Write($"BACKGROUND UPDATE exception id=\"{package.Id}\" type={ex.GetType().Name} message={ex.Message}");
+            }
+        }
+
+        WinProvisionLog.Write($"BACKGROUND UPDATE finished success={succeeded} failed={failed}");
+        return failed == 0 ? 0 : 1;
+    }
 
     private static bool HasArgument(string[] args, string argument) =>
         args.Any(a => string.Equals(a, argument, StringComparison.OrdinalIgnoreCase));

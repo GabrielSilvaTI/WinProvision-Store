@@ -14,7 +14,7 @@
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
                  WindowCornerPreference="Default"
-                 Background="{DynamicResource AppWindowBackgroundBrush}"
+                 Background="Transparent"
                  FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
                  TextElement.FontFamily="Segoe UI Variable Text, Aptos, Segoe UI"
                  TextElement.FontSize="14"
@@ -25,7 +25,7 @@
                  UseLayoutRounding="True"
                  SnapsToDevicePixels="True">
 
-    <Grid Background="{DynamicResource AppWindowBackgroundBrush}">
+    <Grid Background="Transparent">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -35,7 +35,7 @@
                      Grid.Row="0"
                      Title="WinProvision Store"
                      Height="48"
-                     Background="{DynamicResource AppWindowBackgroundBrush}"
+                     Background="Transparent"
                      BorderBrush="{DynamicResource AppBorderBrush}"
                      BorderThickness="0,0,0,1"
                      CloseWindowByDoubleClickOnIcon="True">

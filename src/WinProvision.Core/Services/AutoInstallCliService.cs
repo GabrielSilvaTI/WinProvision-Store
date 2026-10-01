@@ -81,17 +81,6 @@ public class AutoInstallCliService
             "Configurações Finais", "Finalizando configurações e otimizando o sistema..."),
     };
 
-    /// <summary>Nomes de ajuste (ver ProvisioningService.ApplyAsync/Report) que contam como "System Personalization" na UI — os demais ajustes de provisionamento caem em "Pre-defined Configurations".</summary>
-    private static readonly HashSet<string> PersonalizationSettings = new(StringComparer.Ordinal)
-    {
-        "Tema do sistema",
-        "Alinhamento da barra de tarefas",
-        "Ocultar automaticamente a barra de tarefas",
-        "Caixa de pesquisa da barra de tarefas",
-        "Papel de parede",
-        "Região",
-    };
-
     /// <summary>
     /// Decide, a partir do conteúdo de <paramref name="manifest"/>, quais etapas a AutoWindow
     /// deve exibir — só as que de fato têm algo a fazer (ex.: sem apps de Office no perfil,
@@ -106,11 +95,7 @@ public class AutoInstallCliService
         int officeCount = manifest.Apps.Count(a => a.OfficeOptions is not null);
         bool hasPackages = packageCount > 0;
         bool hasOffice = officeCount > 0;
-
-        if (hasPackages)
-            stages.Add(StageCatalog[AutoInstallStage.PackagesAndApps] with { WorkUnits = packageCount });
-        if (hasOffice)
-            stages.Add(StageCatalog[AutoInstallStage.MicrosoftOffice] with { WorkUnits = officeCount });
+        bool hasConfigurations = false;
 
         if (manifest.Provisioning is { } provisioning)
         {
@@ -122,9 +107,15 @@ public class AutoInstallCliService
                 || !string.IsNullOrWhiteSpace(provisioning.WallpaperImageBase64)
                 || !string.IsNullOrWhiteSpace(provisioning.Region);
 
-            bool hasConfigurations =
+            hasConfigurations =
                 provisioning.PowerPlan is not null && provisioning.PowerPlan != PowerPlanMode.NaoDefinido
+                || provisioning.DisplayTimeoutOnAc is not null
+                || provisioning.DisplayTimeoutOnDc is not null
+                || provisioning.StandbyTimeoutOnAc is not null
+                || provisioning.StandbyTimeoutOnDc is not null
                 || !string.IsNullOrWhiteSpace(provisioning.MachineName)
+                || !string.IsNullOrWhiteSpace(provisioning.Creator)
+                || !string.IsNullOrWhiteSpace(provisioning.Name)
                 || provisioning.AutoCreateRestorePoint == true
                 || provisioning.AutoCleanTempOnLogon == true;
 
@@ -133,12 +124,17 @@ public class AutoInstallCliService
                 {
                     WorkUnits = CountProvisioningSteps(provisioning, personalization: true)
                 });
-            if (hasConfigurations)
-                stages.Add(StageCatalog[AutoInstallStage.PredefinedConfigurations] with
-                {
-                    WorkUnits = CountProvisioningSteps(provisioning, personalization: false)
-                });
         }
+
+        if (hasPackages)
+            stages.Add(StageCatalog[AutoInstallStage.PackagesAndApps] with { WorkUnits = packageCount });
+        if (hasOffice)
+            stages.Add(StageCatalog[AutoInstallStage.MicrosoftOffice] with { WorkUnits = officeCount });
+        if (hasConfigurations && manifest.Provisioning is { } configurationManifest)
+            stages.Add(StageCatalog[AutoInstallStage.PredefinedConfigurations] with
+            {
+                WorkUnits = CountProvisioningSteps(configurationManifest, personalization: false)
+            });
 
         return stages;
     }
@@ -323,15 +319,65 @@ public class AutoInstallCliService
         bool wingetUnavailable = false;
         var stages = PlanStages(manifest).Select(s => s.Stage).ToHashSet();
 
-        void Stage(AutoInstallStage stage, AutoInstallStageState state, double progress = 0, string? detail = null)
-            => stageProgress?.Report(new AutoInstallStageEvent(stage, state, Math.Clamp(progress, 0, 100), detail));
+        void Stage(AutoInstallStage stage, AutoInstallStageState state, double progress = 0, string? detail = null, WingetMethod? method = null)
+            => stageProgress?.Report(new AutoInstallStageEvent(stage, state, Math.Clamp(progress, 0, 100), detail, method));
 
-        void StageProgress(AutoInstallStage stage, double progress, string? detail = null)
-            => Stage(stage, AutoInstallStageState.InProgress, progress, detail);
+        void StageProgress(AutoInstallStage stage, double progress, string? detail = null, WingetMethod? method = null)
+            => Stage(stage, AutoInstallStageState.InProgress, progress, detail, method);
 
         var packageApps = manifest.Apps.Where(a => a.OfficeOptions is null).ToList();
         var officeApps = manifest.Apps.Where(a => a.OfficeOptions is not null).ToList();
         var itemResults = new List<AutoItemResult>(manifest.Apps.Count);
+
+        var provisioning = manifest.Provisioning;
+        var provisioningTimer = provisioning is null ? null : Stopwatch.StartNew();
+        var provisioningSteps = new List<ProvisioningStepResult>();
+        bool provisioningRestartRequired = false;
+
+        async Task ApplyProvisioningPhaseAsync(
+            AutoInstallStage stage,
+            ProvisioningManifest phaseManifest,
+            bool personalization)
+        {
+            int total = CountProvisioningSteps(phaseManifest, personalization);
+            int done = 0;
+            StageProgress(stage, 0, personalization ? "Preparando personalização…" : "Preparando configurações do sistema…");
+
+            try
+            {
+                var result = await _provisioningService.ApplyAsync(
+                    phaseManifest,
+                    _log,
+                    ct,
+                    step =>
+                    {
+                        provisioningSteps.Add(step);
+                        done++;
+                        StageProgress(stage, total == 0 ? 100 : done * 100d / total, step.Setting);
+                    },
+                    updateCurrent: false);
+
+                succeeded += result.Steps.Count(step => step.Success);
+                failed += result.Steps.Count(step => !step.Success);
+                provisioningRestartRequired |= result.RestartRequired;
+                bool phaseFailed = result.Steps.Any(step => !step.Success);
+                Stage(stage, phaseFailed ? AutoInstallStageState.Failed : AutoInstallStageState.Completed, 100);
+            }
+            catch
+            {
+                Stage(stage, AutoInstallStageState.Failed);
+                throw;
+            }
+        }
+
+        if (provisioning is not null && stages.Contains(AutoInstallStage.SystemPersonalization))
+        {
+            _log("[WinProvision] Aplicando personalização antes da instalação dos pacotes...");
+            await ApplyProvisioningPhaseAsync(
+                AutoInstallStage.SystemPersonalization,
+                CreatePersonalizationManifest(provisioning),
+                personalization: true);
+        }
 
         if (packageApps.Count > 0)
         {
@@ -349,7 +395,7 @@ public class AutoInstallCliService
                 double lastReportedProgress = -1;
                 InstallProgressPhase? lastReportedPhase = null;
                 var progressThrottle = Stopwatch.StartNew();
-                StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Preparando {label}…");
+                StageProgress(AutoInstallStage.PackagesAndApps, i * 100d / packageApps.Count, $"Preparando {label}…", WingetMethod.Unknown);
 
                 void ReportPackageProgress(InstallProgressUpdate update)
                 {
@@ -386,7 +432,8 @@ public class AutoInstallCliService
                         : $"{phase} {label}…";
                     StageProgress(AutoInstallStage.PackagesAndApps,
                         (i + itemProgress / 100d) * 100d / packageApps.Count,
-                        detail);
+                        detail,
+                        update.Method);
                 }
 
                 var installResult = await InstallWingetAsync(appRef, ct, ReportPackageProgress);
@@ -397,7 +444,9 @@ public class AutoInstallCliService
                 if (ok) succeeded++; else failed++;
                 if (!ok && installResult.WingetUnavailable)
                     wingetUnavailable = true;
-                StageProgress(AutoInstallStage.PackagesAndApps, (i + 1) * 100d / packageApps.Count, ok ? $"Instalado {label}" : $"Falhou: {label}");
+                Enum.TryParse<WingetMethod>(installResult.Method, out var completedMethod);
+                StageProgress(AutoInstallStage.PackagesAndApps, (i + 1) * 100d / packageApps.Count,
+                    ok ? $"Instalado {label}" : $"Falhou: {label}", completedMethod);
             }
             Stage(AutoInstallStage.PackagesAndApps, allSucceeded ? AutoInstallStageState.Completed : AutoInstallStageState.Failed, 100);
             _log($"[WinProvision] Etapa de pacotes concluída em {FormatElapsed(packageStageTimer.Elapsed)}.");
@@ -432,68 +481,21 @@ public class AutoInstallCliService
             _log($"[WinProvision] Etapa Office concluída em {FormatElapsed(officeStageTimer.Elapsed)}.");
         }
 
-        if (manifest.Provisioning is { } provisioning)
+        if (provisioning is not null && stages.Contains(AutoInstallStage.PredefinedConfigurations))
         {
-            var provisioningTimer = Stopwatch.StartNew();
-            _log("[WinProvision] Aplicando ajustes de provisionamento do sistema...");
-            bool hasPersonalization = stages.Contains(AutoInstallStage.SystemPersonalization);
-            bool hasConfigurations = stages.Contains(AutoInstallStage.PredefinedConfigurations);
-            var active = new HashSet<AutoInstallStage>();
-            int personalizationTotal = CountProvisioningSteps(provisioning, true);
-            int configurationTotal = CountProvisioningSteps(provisioning, false);
-            int personalizationDone = 0;
-            int configurationDone = 0;
-
-            if (hasPersonalization) StageProgress(AutoInstallStage.SystemPersonalization, 0, "Preparando personalização…");
-            if (hasConfigurations) StageProgress(AutoInstallStage.PredefinedConfigurations, 0, "Preparando configurações do sistema…");
-
-            void OnProvisioningStep(ProvisioningStepResult step)
-            {
-                var stage = PersonalizationSettings.Contains(step.Setting)
-                    ? AutoInstallStage.SystemPersonalization
-                    : AutoInstallStage.PredefinedConfigurations;
-                active.Add(stage);
-                if (stage == AutoInstallStage.SystemPersonalization)
-                {
-                    personalizationDone++;
-                    StageProgress(stage, personalizationTotal == 0 ? 100 : personalizationDone * 100d / personalizationTotal, step.Setting);
-                }
-                else
-                {
-                    configurationDone++;
-                    StageProgress(stage, configurationTotal == 0 ? 100 : configurationDone * 100d / configurationTotal, step.Setting);
-                }
-            }
-
-            ProvisioningApplyResult result;
-            try
-            {
-                result = await _provisioningService.ApplyAsync(provisioning, _log, ct, OnProvisioningStep);
-            }
-            catch
-            {
-                foreach (var stage in active) Stage(stage, AutoInstallStageState.Failed);
-                throw;
-            }
-
-            succeeded += result.Steps.Count(s => s.Success);
-            failed += result.Steps.Count(s => !s.Success);
-            restartRequired = result.RestartRequired;
-
-            if (hasPersonalization && !active.Contains(AutoInstallStage.SystemPersonalization))
-                Stage(AutoInstallStage.SystemPersonalization, AutoInstallStageState.Completed, 100);
-            if (hasConfigurations && !active.Contains(AutoInstallStage.PredefinedConfigurations))
-                Stage(AutoInstallStage.PredefinedConfigurations, AutoInstallStageState.Completed, 100);
-
-            foreach (var stage in active)
-            {
-                bool stageFailed = result.Steps.Any(s =>
-                    (((PersonalizationSettings.Contains(s.Setting) && stage == AutoInstallStage.SystemPersonalization) ||
-                      (!PersonalizationSettings.Contains(s.Setting) && stage == AutoInstallStage.PredefinedConfigurations)) && !s.Success));
-                Stage(stage, stageFailed ? AutoInstallStageState.Failed : AutoInstallStageState.Completed, stageFailed ? Math.Max(0, stage == AutoInstallStage.SystemPersonalization ? personalizationDone * 100d / Math.Max(1, personalizationTotal) : configurationDone * 100d / Math.Max(1, configurationTotal)) : 100);
-            }
-            _log($"[WinProvision] Etapa de provisionamento concluída em {FormatElapsed(provisioningTimer.Elapsed)}.");
+            _log("[WinProvision] Aplicando configurações finais do sistema...");
+            await ApplyProvisioningPhaseAsync(
+                AutoInstallStage.PredefinedConfigurations,
+                CreateConfigurationManifest(provisioning),
+                personalization: false);
         }
+
+        if (provisioning is not null && provisioningSteps.Count > 0)
+            _provisioningService.SetCurrent(provisioning);
+
+        restartRequired = provisioningRestartRequired;
+        if (provisioningTimer is not null && provisioningSteps.Count > 0)
+            _log($"[WinProvision] Etapa de provisionamento concluída em {FormatElapsed(provisioningTimer.Elapsed)}.");
 
         var backupTimer = Stopwatch.StartNew();
         try
@@ -715,13 +717,45 @@ public class AutoInstallCliService
         else
         {
             if (manifest.PowerPlan is { } power && power != PowerPlanMode.NaoDefinido) count++;
+            if (manifest.DisplayTimeoutOnAc is not null || manifest.DisplayTimeoutOnDc is not null
+                || manifest.StandbyTimeoutOnAc is not null || manifest.StandbyTimeoutOnDc is not null) count++;
             if (!string.IsNullOrWhiteSpace(manifest.MachineName)) count++;
+            if (!string.IsNullOrWhiteSpace(manifest.Creator) || !string.IsNullOrWhiteSpace(manifest.Name)) count++;
             if (manifest.AutoCreateRestorePoint == true) count++;
             if (manifest.AutoCleanTempOnLogon == true) count++;
         }
 
         return count;
     }
+
+    private static ProvisioningManifest CreatePersonalizationManifest(ProvisioningManifest source) => new()
+    {
+        SchemaVersion = source.SchemaVersion,
+        CreatedAt = source.CreatedAt,
+        Theme = source.Theme,
+        TaskbarAlignment = source.TaskbarAlignment,
+        TaskbarAutoHide = source.TaskbarAutoHide,
+        TaskbarSearchBox = source.TaskbarSearchBox,
+        WallpaperFileName = source.WallpaperFileName,
+        WallpaperImageBase64 = source.WallpaperImageBase64,
+        Region = source.Region,
+    };
+
+    private static ProvisioningManifest CreateConfigurationManifest(ProvisioningManifest source) => new()
+    {
+        SchemaVersion = source.SchemaVersion,
+        CreatedAt = source.CreatedAt,
+        Name = source.Name,
+        Creator = source.Creator,
+        PowerPlan = source.PowerPlan,
+        MachineName = source.MachineName,
+        AutoCreateRestorePoint = source.AutoCreateRestorePoint,
+        AutoCleanTempOnLogon = source.AutoCleanTempOnLogon,
+        DisplayTimeoutOnAc = source.DisplayTimeoutOnAc,
+        DisplayTimeoutOnDc = source.DisplayTimeoutOnDc,
+        StandbyTimeoutOnAc = source.StandbyTimeoutOnAc,
+        StandbyTimeoutOnDc = source.StandbyTimeoutOnDc,
+    };
 
     private void LogLine(string label, string line)
     {

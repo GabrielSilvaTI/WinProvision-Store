@@ -1,3 +1,5 @@
+using WinProvision.Core.Models;
+
 namespace WinProvision.Core.Services;
 
 /// <summary>
@@ -32,4 +34,5 @@ public record AutoInstallStageEvent(
     AutoInstallStage Stage,
     AutoInstallStageState State,
     double Progress = 0,
-    string? Detail = null);
+    string? Detail = null,
+    WingetMethod? Method = null);

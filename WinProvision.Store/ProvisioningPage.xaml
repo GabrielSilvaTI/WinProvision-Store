@@ -16,38 +16,10 @@
       UseLayoutRounding="True">
 
     <Page.Resources>
-        <!--  Tipografia Fluent (Segoe UI Variable)  -->
-        <Style x:Key="CardSubtitleStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Margin" Value="0,2,0,0" />
-        </Style>
-
-        <Style x:Key="FieldLabelStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontWeight" Value="Medium" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Aptos, Segoe UI" />
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
-            <Setter Property="Margin" Value="0,0,0,8" />
-        </Style>
-
         <!-- Cartões de configuração consomem a superfície compartilhada do app. -->
         <Style x:Key="SettingsCardStyle" TargetType="Border" BasedOn="{StaticResource StoreCardSurfaceStyle}">
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="Padding" Value="0" />
-        </Style>
-
-        <Style x:Key="SettingsSectionHeaderStyle"
-               TargetType="TextBlock"
-               BasedOn="{StaticResource {x:Type TextBlock}}">
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontFamily" Value="Segoe UI Variable Display, Aptos, Segoe UI" />
         </Style>
 
         <!--  Estilo de Item do Menu de Contexto do Windows 11  -->
@@ -81,24 +53,6 @@
             <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,4,0,0" />
-        </Style>
-
-        <!--  Menu Principal (Cards Largos)  -->
-        <Style x:Key="MenuCardButtonStyle"
-               TargetType="ui:Button"
-               BasedOn="{StaticResource SettingsSearchResultButtonStyle}">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
-            <Setter Property="Margin" Value="0,0,0,12" />
-            <Setter Property="Padding" Value="18,16" />
-            <Setter Property="MinHeight" Value="72" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="MouseOverBackground" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
-            <Setter Property="PressedBackground" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
         </Style>
 
     </Page.Resources>
@@ -138,6 +92,7 @@
                             VerticalAlignment="Center">
                     <ui:Button x:Name="ApplyButton"
                                Content="Aplicar agora"
+                               Visibility="Collapsed"
                                Appearance="Primary"
                                Style="{StaticResource StoreActionButtonStyle}"
                                Click="ApplyButton_Click"
@@ -162,7 +117,8 @@
                 </Grid.ColumnDefinitions>
                 <ui:TextBox x:Name="ProvisioningSearchBox"
                             Grid.Column="1"
-                            Width="320"
+                            MaxWidth="320"
+                            HorizontalAlignment="Stretch"
                             MinHeight="36"
                             PlaceholderText="Pesquisar opções de provisionamento"
                             Icon="Search24"
@@ -193,17 +149,36 @@
                             <StackPanel x:Name="ProvisioningSearchResultsPanel" Visibility="Collapsed">
                                 <TextBlock Text="Resultados da pesquisa" Style="{StaticResource StoreSectionTitleStyle}" Margin="0,0,0,12" />
                                 <StackPanel x:Name="ProvisioningSearchResultsList" />
-                                <TextBlock x:Name="ProvisioningSearchEmptyText"
-                                           Text="Nenhuma opção corresponde à pesquisa. Tente outro termo."
-                                           Visibility="Collapsed"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,8,0,0" />
+                                <Border x:Name="ProvisioningSearchEmptyText"
+                                        Style="{StaticResource PageEmptyStateCardStyle}"
+                                        Visibility="Collapsed"
+                                        Margin="0,8,0,0">
+                                    <StackPanel HorizontalAlignment="Center" MaxWidth="360">
+                                        <Border Width="44" Height="44"
+                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                                HorizontalAlignment="Center"
+                                                Margin="0,0,0,12">
+                                            <ui:SymbolIcon Symbol="Search24"
+                                                           FontSize="22"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="Nenhuma opção encontrada"
+                                                   Style="{StaticResource FluentCardTitleStyle}"
+                                                   TextAlignment="Center" />
+                                        <TextBlock Text="Tente outro termo para localizar a configuração desejada."
+                                                   Style="{StaticResource StoreCardSubtitleStyle}"
+                                                   TextAlignment="Center"
+                                                   Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                             <StackPanel x:Name="ProvisioningCategoriesPanel">
                             <TextBlock Text="Categorias" Style="{StaticResource StoreSectionTitleStyle}" Margin="0,0,0,12" />
                             <ui:Button x:Name="PersonalizationNavCard"
-                                       Style="{StaticResource MenuCardButtonStyle}"
+                                       Style="{StaticResource PageNavigationCardStyle}"
                                        Click="PersonalizationNavCard_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -221,7 +196,7 @@
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Personalização" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Tema, barra de tarefas e plano de fundo."
-                                                   Style="{StaticResource CardSubtitleStyle}"
+                                                   Style="{StaticResource StoreCardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
                                     <ui:SymbolIcon Grid.Column="2"
@@ -232,7 +207,7 @@
                             </ui:Button>
 
                             <ui:Button x:Name="AdvancedNavCard"
-                                       Style="{StaticResource MenuCardButtonStyle}"
+                                       Style="{StaticResource PageNavigationCardStyle}"
                                        Click="AdvancedNavCard_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -250,7 +225,7 @@
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Configurações Avançadas" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Nome, região, energia e restauração."
-                                                   Style="{StaticResource CardSubtitleStyle}"
+                                                   Style="{StaticResource StoreCardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
                                     <ui:SymbolIcon Grid.Column="2"
@@ -261,7 +236,7 @@
                             </ui:Button>
 
                             <ui:Button x:Name="JsonNavCard"
-                                       Style="{StaticResource MenuCardButtonStyle}"
+                                       Style="{StaticResource PageNavigationCardStyle}"
                                        Click="JsonNavCard_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -279,7 +254,7 @@
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="Visualização do JSON" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Identificação e perfil JSON."
-                                                   Style="{StaticResource CardSubtitleStyle}"
+                                                   Style="{StaticResource StoreCardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
                                     <ui:SymbolIcon Grid.Column="2"
@@ -290,7 +265,7 @@
                             </ui:Button>
 
                             <ui:Button x:Name="OrchestratorNavCard"
-                                       Style="{StaticResource MenuCardButtonStyle}"
+                                       Style="{StaticResource PageNavigationCardStyle}"
                                        Click="OrchestratorNavCard_Click">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -308,7 +283,7 @@
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="WinProvision Orchestrator" Style="{StaticResource FluentCardTitleStyle}" />
                                         <TextBlock Text="Prepare a instalação automática do app e deste perfil."
-                                                   Style="{StaticResource CardSubtitleStyle}"
+                                                   Style="{StaticResource StoreCardSubtitleStyle}"
                                                    FontSize="13" />
                                     </StackPanel>
                                     <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24"
@@ -528,9 +503,9 @@
                                         <Grid>
                                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                             <StackPanel Grid.Row="0" Margin="0,0,0,16">
-                                                <TextBlock Text="Prévia da área de trabalho" Style="{StaticResource SettingsSectionHeaderStyle}" />
+                                                <TextBlock Text="Prévia da área de trabalho" Style="{StaticResource PageSectionHeaderStyle}" />
                                                 <TextBlock Text="Visualize o papel de parede e a barra de tarefas antes de aplicar. Esta prévia é ilustrativa."
-                                                           Style="{StaticResource CardSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                           Style="{StaticResource StoreCardSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
                                             </StackPanel>
                                             <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Stretch">
                                                 <Border Width="1280" Height="720" ClipToBounds="True" Background="{DynamicResource StoreBrush_0F172A}">
@@ -612,10 +587,10 @@
                                                            Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                            Margin="0,0,10,0"
                                                            VerticalAlignment="Center" />
-                                            <TextBlock Text="Sistema" Style="{StaticResource SettingsSectionHeaderStyle}" />
+                                            <TextBlock Text="Sistema" Style="{StaticResource PageSectionHeaderStyle}" />
                                         </StackPanel>
                                         <TextBlock Text="Altere as configurações do sistema."
-                                                   Style="{StaticResource CardSubtitleStyle}"
+                                                   Style="{StaticResource StoreCardSubtitleStyle}"
                                                    Margin="32,2,0,0" />
                                     </StackPanel>
 
@@ -1043,7 +1018,7 @@
                                             </StackPanel>
                                             <StackPanel x:Name="OrchestratorLocalLogPathPanel" Margin="0,0,0,16">
                                                 <TextBlock Text="Arquivo de log TXT no computador de destino"
-                                                           Style="{StaticResource CardSubtitleStyle}"
+                                                           Style="{StaticResource StoreCardSubtitleStyle}"
                                                            Margin="0,0,0,8" />
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
@@ -1065,7 +1040,7 @@
                                                 </Grid>
                                             </StackPanel>
                                             <TextBlock Text="Uma cópia local é mantida como segurança. O modo nuvem também envia os logs para acompanhamento remoto."
-                                                       Style="{StaticResource CardSubtitleStyle}"
+                                                       Style="{StaticResource StoreCardSubtitleStyle}"
                                                        Margin="0,0,0,16" />
                                             <Border CornerRadius="{StaticResource ControlCornerRadius}"
                                                     BorderThickness="1"
@@ -1084,7 +1059,7 @@
                                                          Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                                             </Border>
                                             <TextBlock Text="O Gist é secreto, mas qualquer pessoa com o link pode ler o perfil e executar o script. Publique novamente depois de alterar o perfil para atualizar o comando."
-                                                       Style="{StaticResource CardSubtitleStyle}"
+                                                       Style="{StaticResource StoreCardSubtitleStyle}"
                                                        Margin="0,0,0,12" />
                                             <WrapPanel>
                                                 <ui:Button x:Name="PublishBootstrapButton"

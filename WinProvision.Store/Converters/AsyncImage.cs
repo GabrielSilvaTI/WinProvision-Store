@@ -36,6 +36,18 @@ public static class AsyncImage
             typeof(AsyncImage),
             new PropertyMetadata(null, OnSourceUrlChanged));
 
+    /// <summary>
+    /// Largura máxima usada ao decodificar uma imagem. Os arquivos originais continuam no
+    /// cache em disco; o cache de memória guarda somente o bitmap no tamanho necessário
+    /// pelo controle que o exibe.
+    /// </summary>
+    public static readonly DependencyProperty DecodePixelWidthProperty =
+        DependencyProperty.RegisterAttached(
+            "DecodePixelWidth",
+            typeof(int),
+            typeof(AsyncImage),
+            new PropertyMetadata(0, OnDecodePixelWidthChanged));
+
     // Só true quando um bitmap de verdade está em Image.Source. Falso para URL vazia,
     // para o pack:// genérico (IconService.DefaultIconPackUri, que já não carregamos
     // aqui) e para qualquer falha de download/decodificação. Consumido pelo XAML via
@@ -50,6 +62,9 @@ public static class AsyncImage
 
     public static string? GetSourceUrl(DependencyObject obj) => (string?)obj.GetValue(SourceUrlProperty);
     public static void SetSourceUrl(DependencyObject obj, string? value) => obj.SetValue(SourceUrlProperty, value);
+
+    public static int GetDecodePixelWidth(DependencyObject obj) => (int)obj.GetValue(DecodePixelWidthProperty);
+    public static void SetDecodePixelWidth(DependencyObject obj, int value) => obj.SetValue(DecodePixelWidthProperty, value);
 
     public static bool GetHasContent(DependencyObject obj) => (bool)obj.GetValue(HasContentProperty);
     public static void SetHasContent(DependencyObject obj, bool value) => obj.SetValue(HasContentProperty, value);
@@ -76,14 +91,27 @@ public static class AsyncImage
     /// a imagem não existir (404) ou não decodificar (formato ruim) — o chamador deve
     /// manter o fallback nesse caso.
     /// </summary>
-    public static Task<BitmapImage?> LoadBitmapAsync(string url) => LoadAsync(url);
+    public static Task<BitmapImage?> LoadBitmapAsync(string url) => LoadAsync(url, 0);
 
-    private static async void OnSourceUrlChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    private static void OnSourceUrlChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not Image image)
             return;
 
-        string? url = e.NewValue as string;
+        BeginLoad(image, e.NewValue as string, GetDecodePixelWidth(image));
+    }
+
+    private static void OnDecodePixelWidthChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is Image image)
+            BeginLoad(image, GetSourceUrl(image), (int)e.NewValue);
+    }
+
+    private static void BeginLoad(Image image, string? url, int decodePixelWidth) =>
+        _ = LoadAndAssignAsync(image, url, Math.Max(0, decodePixelWidth));
+
+    private static async Task LoadAndAssignAsync(Image image, string? url, int decodePixelWidth)
+    {
         image.Source = null;
         SetHasContent(image, false);
 
@@ -99,7 +127,8 @@ public static class AsyncImage
             return;
         }
 
-        if (MemoryCache.TryGetValue(url, out BitmapImage? cached))
+        string requestKey = GetRequestKey(url, decodePixelWidth);
+        if (MemoryCache.TryGetValue(requestKey, out BitmapImage? cached))
         {
             image.Source = cached;
             SetHasContent(image, true);
@@ -108,7 +137,9 @@ public static class AsyncImage
 
         try
         {
-            BitmapImage? bitmap = await InFlight.GetOrAdd(url, static key => LoadAsync(key));
+            BitmapImage? bitmap = await InFlight.GetOrAdd(
+                requestKey,
+                _ => LoadAsync(url, decodePixelWidth));
 
             // Download falhou (404, timeout, host fora do ar) ou o conteúdo baixado
             // não decodificou como imagem. Fica sem bitmap — o SymbolIcon genérico
@@ -116,11 +147,12 @@ public static class AsyncImage
             if (bitmap is null)
                 return;
 
-            MemoryCache[url] = bitmap;
+            MemoryCache[requestKey] = bitmap;
             TrimMemoryCache();
 
             // A lista pode ter reciclado o Image enquanto o download ocorria.
-            if (string.Equals(GetSourceUrl(image), url, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(GetSourceUrl(image), url, StringComparison.OrdinalIgnoreCase)
+                && GetDecodePixelWidth(image) == decodePixelWidth)
             {
                 image.Source = bitmap;
                 SetHasContent(image, true);
@@ -132,11 +164,11 @@ public static class AsyncImage
         }
         finally
         {
-            InFlight.TryRemove(url, out _);
+            InFlight.TryRemove(requestKey, out _);
         }
     }
 
-    private static async Task<BitmapImage?> LoadAsync(string url)
+    private static async Task<BitmapImage?> LoadAsync(string url, int decodePixelWidth)
     {
         try
         {
@@ -146,7 +178,7 @@ public static class AsyncImage
             if (File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < DiskCacheTtl)
             {
                 byte[] cachedBytes = await File.ReadAllBytesAsync(path);
-                BitmapImage? cachedBitmap = await Task.Run(() => DecodeToBitmap(cachedBytes));
+                BitmapImage? cachedBitmap = await Task.Run(() => DecodeToBitmap(cachedBytes, decodePixelWidth));
                 if (cachedBitmap is not null)
                     return cachedBitmap;
 
@@ -178,7 +210,7 @@ public static class AsyncImage
                     ? await File.ReadAllBytesAsync(localPath)
                     : await Client.GetByteArrayAsync(url);
             }
-            BitmapImage? bitmap = await Task.Run(() => DecodeToBitmap(bytes));
+            BitmapImage? bitmap = await Task.Run(() => DecodeToBitmap(bytes, decodePixelWidth));
             if (bitmap is null)
                 return null;
 
@@ -204,6 +236,9 @@ public static class AsyncImage
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(url));
         return Path.Combine(DiskCacheFolder, Convert.ToHexString(hash).ToLowerInvariant() + ".img");
     }
+
+    private static string GetRequestKey(string url, int decodePixelWidth) =>
+        $"{url}|width={decodePixelWidth}";
 
     private static void TrimMemoryCache()
     {
@@ -231,11 +266,11 @@ public static class AsyncImage
     /// restante do pipeline (cache em disco, BitmapImage final) igual para todos os
     /// formatos.
     /// </summary>
-    private static BitmapImage? DecodeToBitmap(byte[] bytes)
+    private static BitmapImage? DecodeToBitmap(byte[] bytes, int decodePixelWidth)
     {
         if (IsIcoSignature(bytes))
         {
-            BitmapImage? icoBitmap = DecodeIco(bytes);
+            BitmapImage? icoBitmap = DecodeIco(bytes, decodePixelWidth);
             if (icoBitmap is not null)
                 return icoBitmap;
 
@@ -249,6 +284,8 @@ public static class AsyncImage
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            if (decodePixelWidth > 0)
+                bitmap.DecodePixelWidth = decodePixelWidth;
             bitmap.StreamSource = stream;
             bitmap.EndInit();
             bitmap.Freeze();
@@ -263,16 +300,20 @@ public static class AsyncImage
     private static bool IsIcoSignature(byte[] bytes) =>
         bytes.Length >= 4 && bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0x01 && bytes[3] == 0x00;
 
-    private static BitmapImage? DecodeIco(byte[] bytes)
+    private static BitmapImage? DecodeIco(byte[] bytes, int decodePixelWidth)
     {
         try
         {
             using var stream = new MemoryStream(bytes);
             var decoder = new IconBitmapDecoder(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
 
-            BitmapFrame? bestFrame = decoder.Frames
-                .OrderByDescending(frame => frame.PixelWidth)
-                .FirstOrDefault();
+            BitmapFrame? bestFrame = decodePixelWidth > 0
+                ? decoder.Frames
+                    .Where(frame => frame.PixelWidth >= decodePixelWidth)
+                    .OrderBy(frame => frame.PixelWidth)
+                    .FirstOrDefault()
+                    ?? decoder.Frames.OrderByDescending(frame => frame.PixelWidth).FirstOrDefault()
+                : decoder.Frames.OrderByDescending(frame => frame.PixelWidth).FirstOrDefault();
 
             if (bestFrame is null)
                 return null;
@@ -287,6 +328,8 @@ public static class AsyncImage
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            if (decodePixelWidth > 0)
+                bitmap.DecodePixelWidth = decodePixelWidth;
             bitmap.StreamSource = pngStream;
             bitmap.EndInit();
             bitmap.Freeze();

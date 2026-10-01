@@ -22,36 +22,39 @@ public sealed class ApplicationPreferencesService
         "WinProvisionStore", "app-preferences.json");
 
     public AppThemePreference Theme { get; private set; } = AppThemePreference.System;
+    public bool LaunchAtStartup { get; private set; }
+    public bool AutoUpdateAtStartup { get; private set; }
 
     public ApplicationPreferencesService()
     {
         try
         {
-            if (!File.Exists(_filePath)) return;
-            var saved = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(_filePath));
-            if (saved is not null && Enum.IsDefined(saved.Theme)) Theme = saved.Theme;
+            if (File.Exists(_filePath))
+            {
+                var saved = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(_filePath));
+                if (saved is not null && Enum.IsDefined(saved.Theme)) Theme = saved.Theme;
+            }
         }
         catch
         {
             Theme = AppThemePreference.System;
         }
+
+        LoadStartupOptions();
     }
 
-    public bool LaunchAtStartup
+    private void LoadStartupOptions()
     {
-        get
+        try
         {
-            try
-            {
-                using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath);
-                return key?.GetValue(StartupValueName) is string value
-                    && !string.IsNullOrWhiteSpace(value);
-            }
-            catch
-            {
-                return false;
-            }
+            using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath);
+            string? command = key?.GetValue(StartupValueName) as string;
+            LaunchAtStartup = !string.IsNullOrWhiteSpace(command)
+                && !command.Contains("--background-update", StringComparison.OrdinalIgnoreCase);
+            AutoUpdateAtStartup = command?.Contains("--background-update", StringComparison.OrdinalIgnoreCase) == true
+                || command?.Contains("--update-at-startup", StringComparison.OrdinalIgnoreCase) == true;
         }
+        catch { LaunchAtStartup = false; AutoUpdateAtStartup = false; }
     }
 
     public void SetTheme(AppThemePreference theme)
@@ -64,18 +67,32 @@ public sealed class ApplicationPreferencesService
 
     public void SetLaunchAtStartup(bool enabled)
     {
+        LaunchAtStartup = enabled;
+        UpdateStartupRegistration();
+    }
+
+    public void SetAutoUpdateAtStartup(bool enabled)
+    {
+        AutoUpdateAtStartup = enabled;
+        UpdateStartupRegistration();
+    }
+
+    private void UpdateStartupRegistration()
+    {
         using var key = Registry.CurrentUser.CreateSubKey(StartupRegistryPath, writable: true)
             ?? throw new InvalidOperationException("Não foi possível abrir a configuração de inicialização do usuário.");
-        if (enabled)
-        {
-            string executable = Environment.ProcessPath
-                ?? throw new InvalidOperationException("Não foi possível localizar o executável do WinProvision.");
-            key.SetValue(StartupValueName, $"\"{executable}\"", RegistryValueKind.String);
-        }
-        else
+        if (!LaunchAtStartup && !AutoUpdateAtStartup)
         {
             key.DeleteValue(StartupValueName, throwOnMissingValue: false);
+            return;
         }
+
+        string executable = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Não foi possível localizar o executável do WinProvision.");
+        string arguments = LaunchAtStartup
+            ? AutoUpdateAtStartup ? " --update-at-startup" : string.Empty
+            : " --background-update";
+        key.SetValue(StartupValueName, $"\"{executable}\"{arguments}", RegistryValueKind.String);
     }
 
     public static void ApplyTheme(AppThemePreference theme)

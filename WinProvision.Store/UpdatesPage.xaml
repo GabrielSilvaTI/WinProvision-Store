@@ -241,7 +241,8 @@
                         <Grid Width="36" Height="36" Margin="0,0,12,0" ClipToBounds="True" VerticalAlignment="Center">
                                 <ui:SymbolIcon Symbol="Box24" FontSize="20" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=RowAppIcon, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                <Image x:Name="RowAppIcon" conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform"
+                                <Image x:Name="RowAppIcon" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                       conv:AsyncImage.DecodePixelWidth="64" Stretch="Uniform"
                                        Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=RowAppIcon, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
                         <StackPanel VerticalAlignment="Center">
@@ -313,19 +314,13 @@
                                    Foreground="{DynamicResource AppOperationSuccessBrush}"
                                    Visibility="{Binding IsSelectedForUpdate, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Grid Grid.Row="1" Margin="0,4,0,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="24" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <ui:SymbolIcon Grid.Column="0" Symbol="CheckmarkCircle24" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       Foreground="{DynamicResource AppOperationSuccessBrush}"
-                                       Visibility="{Binding IsSelectedForUpdate, Converter={StaticResource BoolToVisibilityConverter}}" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Center">
                             <Border Width="56" Height="56" Margin="0,0,0,10" CornerRadius="{StaticResource ControlCornerRadius}" ClipToBounds="True" HorizontalAlignment="Center">
                                 <Grid>
                                     <ui:SymbolIcon Symbol="Box24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=CardImg, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="CardImg" conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform"
+                                    <Image x:Name="CardImg" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                           conv:AsyncImage.DecodePixelWidth="96" Stretch="Uniform"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=CardImg, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </Grid>
                             </Border>
@@ -388,7 +383,8 @@
                             <Grid Width="40" Height="40" ClipToBounds="True" HorizontalAlignment="Center" Margin="0,0,0,8">
                                     <ui:SymbolIcon Symbol="Box24" FontSize="28" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconImg, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="IconImg" conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform"
+                                    <Image x:Name="IconImg" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                           conv:AsyncImage.DecodePixelWidth="64" Stretch="Uniform"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconImg, Converter={StaticResource BoolToVisibilityConverter}}" />
                             </Grid>
                             <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
@@ -875,10 +871,13 @@
                                 HorizontalAlignment="Center"
                                 Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Border Width="56" Height="56" CornerRadius="{StaticResource ControlCornerRadius}" Background="{DynamicResource ControlFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="ShieldTask24" FontSize="30" Foreground="{DynamicResource SystemFillColorSuccessBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border Width="72" Height="72" CornerRadius="{StaticResource ControlCornerRadius}" Background="{DynamicResource ControlFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,12">
+                                    <Image Source="{DynamicResource EmptyStateBrandIcon}"
+                                           Width="48" Height="48" Stretch="Uniform"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           AutomationProperties.Name="Ícone do WinProvision" />
                                 </Border>
-                                <TextBlock Text="Tudo atualizado" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4" />
+                                <TextBlock x:Name="EmptyStateTitle" Text="Tudo atualizado" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4" />
                                 <TextBlock x:Name="EmptyStateText" Text="Nenhuma atualização pendente encontrada para seus aplicativos."
                                            Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12"
                                            HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
@@ -915,6 +914,8 @@
                                       behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
                             <ItemsControl x:Name="UpdatesGridView"
                                           ItemTemplate="{StaticResource UpgradableCardTemplate}"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
                                           Background="Transparent">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -934,6 +935,8 @@
                                       behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
                             <ItemsControl x:Name="UpdatesIconsView"
                                           ItemTemplate="{StaticResource UpgradableIconsTemplate}"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
                                           Background="Transparent">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -1134,7 +1137,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Text="Atualizações automáticas" FontWeight="SemiBold" FontSize="13" />
-                                <TextBlock Text="Verifica atualizações em segundo plano ao iniciar o Windows" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" TextWrapping="Wrap" />
+                                <TextBlock Text="Atualiza os aplicativos em segundo plano ao entrar no Windows, sem abrir a interface." Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" TextWrapping="Wrap" />
                             </StackPanel>
                             <ui:ToggleSwitch x:Name="AutoUpdateSwitch" Grid.Column="1" VerticalAlignment="Center"
                                              Checked="AutoUpdateSwitch_Checked" Unchecked="AutoUpdateSwitch_Unchecked" />

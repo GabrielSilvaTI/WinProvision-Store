@@ -195,6 +195,7 @@
                                                Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=InstalledRowImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                                 <Image x:Name="InstalledRowImage" Stretch="Uniform"
                                        conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                       conv:AsyncImage.DecodePixelWidth="64"
                                        Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=InstalledRowImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                             </Grid>
                         </Grid>
@@ -274,6 +275,7 @@
                                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridInstalledImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                                     <Image x:Name="GridInstalledImage" Stretch="Uniform"
                                            conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                           conv:AsyncImage.DecodePixelWidth="96"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridInstalledImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </Grid>
                             </Grid>
@@ -318,7 +320,8 @@
                                 <Grid>
                                     <ui:SymbolIcon Symbol="Box24" FontSize="28" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconInstalledImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="IconInstalledImage" conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform"
+                                    <Image x:Name="IconInstalledImage" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                           conv:AsyncImage.DecodePixelWidth="64" Stretch="Uniform"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconInstalledImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </Grid>
                             </Grid>
@@ -678,7 +681,9 @@
 
                         <!-- Modo Grade -->
                         <ScrollViewer x:Name="GridViewScrollViewer" Visibility="Collapsed" VerticalScrollBarVisibility="Auto" CanContentScroll="True">
-                            <ItemsControl ItemsSource="{Binding Packages}" ItemTemplate="{StaticResource InstalledGridTemplate}">
+                            <ItemsControl ItemsSource="{Binding Packages}" ItemTemplate="{StaticResource InstalledGridTemplate}"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling">
                                 <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <ui:VirtualizingWrapPanel Orientation="Vertical" ItemSize="230,264" SpacingMode="Uniform" />
@@ -687,7 +692,9 @@
                             </ItemsControl>
                         </ScrollViewer>
                         <ScrollViewer x:Name="IconsViewScrollViewer" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding Packages}" ItemTemplate="{StaticResource InstalledIconTemplate}">
+                            <ItemsControl ItemsSource="{Binding Packages}" ItemTemplate="{StaticResource InstalledIconTemplate}"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <ui:VirtualizingWrapPanel Orientation="Vertical" ItemSize="136,148" SpacingMode="Uniform" />

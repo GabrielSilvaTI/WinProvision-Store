@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
 
+    <SolidColorBrush x:Key="PageHeaderIconBrush" Color="#FF0078D4" />
 
     <Style x:Key="PageHeaderIconTileStyle" TargetType="Border">
         <Setter Property="Width" Value="40" />
@@ -18,7 +19,7 @@
            TargetType="ui:SymbolIcon"
            BasedOn="{StaticResource {x:Type ui:SymbolIcon}}">
         <Setter Property="FontSize" Value="20" />
-        <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PageHeaderIconBrush}" />
         <Setter Property="HorizontalAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>

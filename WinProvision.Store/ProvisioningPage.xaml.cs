@@ -13,6 +13,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using Microsoft.Extensions.DependencyInjection;
 using WinProvision.Core.Models;
@@ -23,6 +24,13 @@ using WinProvision.Core.Services.Profile;
 using WinProvision.Core.Services.Provisioning;
 using WinProvision.Store.Converters;
 using Wpf.Ui.Appearance;
+using Wpf.Ui;
+using Wpf.Ui.Controls;
+using Wpf.Ui.Extensions;
+using TextBlock = System.Windows.Controls.TextBlock;
+using TextBox = System.Windows.Controls.TextBox;
+using ContentDialogResult = Wpf.Ui.Controls.ContentDialogResult;
+using SimpleContentDialogCreateOptions = Wpf.Ui.SimpleContentDialogCreateOptions;
 
 namespace WinProvision.Store;
 
@@ -33,6 +41,7 @@ public partial class ProvisioningPage : Page
     private readonly PackageCollectionService _packageCollectionService;
     private readonly ProfileService _profileService;
     private readonly GitHubBackupService _githubBackupService;
+    private readonly IContentDialogService _contentDialogService;
     // Guardados à parte (em vez de num controle de UI) porque o wallpaper é um arquivo, não um
     // valor editável — ficam aqui até o usuário exportar ou aplicar, e são preenchidos de volta
     // ao importar um perfil que já tenha wallpaper embutido.
@@ -41,6 +50,7 @@ public partial class ProvisioningPage : Page
     private string? _publishedBootstrapCommand;
     private string? _orchestratorLogFilePath;
     private bool _isPublishingBootstrap;
+    private readonly DispatcherTimer _profileEditDebounceTimer;
 
     // Evita empurrar estado pro serviço enquanto LoadManifestIntoUi está preenchendo os
     // controles programaticamente (cada SelectionChanged/TextChanged disparado durante a
@@ -67,6 +77,11 @@ public partial class ProvisioningPage : Page
     public ProvisioningPage()
     {
         InitializeComponent();
+        _profileEditDebounceTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _profileEditDebounceTimer.Tick += ProfileEditDebounceTimer_Tick;
         InitializeProvisioningSearchEntries();
         Loaded += ProvisioningPage_Loaded;
 
@@ -75,6 +90,7 @@ public partial class ProvisioningPage : Page
         _packageCollectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _profileService = App.Services.GetRequiredService<ProfileService>();
         _githubBackupService = App.Services.GetRequiredService<GitHubBackupService>();
+        _contentDialogService = App.Services.GetRequiredService<IContentDialogService>();
         _packageCollectionService.Changed += PackageCollectionChanged;
         _profileService.ImportValidationChanged += ProfileImportValidationChanged;
 
@@ -177,7 +193,7 @@ public partial class ProvisioningPage : Page
     {
         SectionPanel.Visibility = Visibility.Collapsed;
         ProfileOverviewPanel.Visibility = Visibility.Visible;
-        ApplyButton.Visibility = Visibility.Visible;
+        ApplyButton.Visibility = Visibility.Collapsed;
         RefreshProfileSummary();
     }
 
@@ -451,7 +467,8 @@ public partial class ProvisioningPage : Page
             : $"Alterações detectadas: {friendlyChanges.Count}";
 
         string profileJson = BuildProfileJson(manifest);
-        JsonPreviewTextBox.Text = profileJson;
+        if (!string.Equals(JsonPreviewTextBox.Text, profileJson, StringComparison.Ordinal))
+            JsonPreviewTextBox.Text = profileJson;
         _publishedBootstrapCommand = null;
         BootstrapCommandTextBox.Text = _githubBackupService.IsConnected
             ? "Publique o perfil para gerar o comando do PowerShell."
@@ -481,6 +498,8 @@ public partial class ProvisioningPage : Page
 
     private async void PublishBootstrapButton_Click(object sender, RoutedEventArgs e)
     {
+        CommitPendingProfileEdit();
+
         if (!_githubBackupService.IsConnected)
         {
             StatusText.Text = "Conecte o GitHub em Conta e Sincronização para publicar o Bootstrap.";
@@ -566,12 +585,14 @@ public partial class ProvisioningPage : Page
 
     private void CopyJsonButton_Click(object sender, RoutedEventArgs e)
     {
+        CommitPendingProfileEdit();
         Clipboard.SetText(JsonPreviewTextBox.Text);
         StatusText.Text = "JSON copiado para a área de transferência.";
     }
 
     private void OpenFullEditorButton_Click(object sender, RoutedEventArgs e)
     {
+        CommitPendingProfileEdit();
         var editor = new ProvisioningJsonEditorWindow(JsonPreviewTextBox.Text)
         {
             Owner = Window.GetWindow(this)
@@ -627,8 +648,40 @@ public partial class ProvisioningPage : Page
     private void Field_Changed(object sender, RoutedEventArgs e)
     {
         if (!_uiLoaded) return;
+
+        // O perfil completo pode conter uma coleção grande de aplicativos. Serializá-lo e
+        // recriar todo o editor JSON em cada tecla bloqueava o thread visual durante a
+        // digitação. A alteração continua no controle imediatamente; apenas a sincronização
+        // do estado e a prévia são agrupadas ao fim de uma pausa curta.
+        if (sender is TextBox)
+        {
+            _profileEditDebounceTimer.Stop();
+            _profileEditDebounceTimer.Start();
+            return;
+        }
+
+        _profileEditDebounceTimer.Stop();
         PushCurrentToService();
         UpdateDesktopPreview();
+    }
+
+    private void ProfileEditDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _profileEditDebounceTimer.Stop();
+        PushCurrentToService();
+    }
+
+    /// <summary>
+    /// Confirma imediatamente uma edição pendente antes de uma ação que consome o JSON.
+    /// Assim, copiar, abrir o editor ou publicar nunca usam uma prévia anterior.
+    /// </summary>
+    private void CommitPendingProfileEdit()
+    {
+        if (!_profileEditDebounceTimer.IsEnabled)
+            return;
+
+        _profileEditDebounceTimer.Stop();
+        PushCurrentToService();
     }
 
     /// <summary>
@@ -1055,13 +1108,31 @@ public partial class ProvisioningPage : Page
 
     private async void ApplyButton_Click(object sender, RoutedEventArgs e)
     {
+        var manifest = BuildManifestFromUi();
+        string[] changes = BuildApplySummary(manifest);
+        if (changes.Length == 0)
+        {
+            StatusText.Text = "Escolha ao menos uma opção para aplicar.";
+            return;
+        }
+
+        var confirmation = await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
+        {
+            Title = "Confirmar provisionamento",
+            Content = "O WinProvision aplicará estas alterações:" + Environment.NewLine + Environment.NewLine
+                + string.Join(Environment.NewLine, changes.Select(change => "• " + change)),
+            PrimaryButtonText = "Aplicar alterações",
+            CloseButtonText = "Revisar"
+        });
+        if (confirmation != ContentDialogResult.Primary)
+            return;
+
         ApplyButton.IsEnabled = false;
         StatusText.Text = "Aplicando ajustes...";
         StatusText.ToolTip = null;
 
         try
         {
-            var manifest = BuildManifestFromUi();
             var result = await _provisioningService.ApplyAsync(manifest);
 
             if (result.Steps.Count == 0)
@@ -1084,6 +1155,13 @@ public partial class ProvisioningPage : Page
                     : $"{failedSteps.Count} configurações não puderam ser aplicadas.";
                 StatusText.ToolTip = string.Join(Environment.NewLine,
                     failedSteps.Select(step => $"{step.Setting}: {step.Message}"));
+                await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
+                {
+                    Title = "Provisionamento concluído com falhas",
+                    Content = "As configurações abaixo precisam de atenção:" + Environment.NewLine + Environment.NewLine
+                        + string.Join(Environment.NewLine, failedSteps.Select(step => $"• {step.Setting}: {step.Message}")),
+                    CloseButtonText = "Fechar"
+                });
             }
 
             if (manifest.MachineName is not null)
@@ -1095,12 +1173,40 @@ public partial class ProvisioningPage : Page
         {
             StatusText.Text = "Não foi possível aplicar as configurações. Tente novamente.";
             StatusText.ToolTip = "Consulte os logs do aplicativo para ver os detalhes da falha.";
+            await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
+            {
+                Title = "Falha no provisionamento",
+                Content = "Não foi possível concluir a aplicação. Consulte os logs do aplicativo para ver os detalhes da falha.",
+                CloseButtonText = "Fechar"
+            });
         }
         finally
         {
             ApplyButton.IsEnabled = true;
         }
     }
+
+    private string[] BuildApplySummary(ProvisioningManifest manifest)
+    {
+        var changes = new List<string>();
+        if (manifest.Theme is { } theme && theme != SystemThemeMode.NaoDefinido) changes.Add($"Tema do Windows: {theme}");
+        if (manifest.TaskbarAlignment is { } alignment && alignment != TaskbarAlignmentMode.NaoDefinido) changes.Add($"Alinhamento da barra de tarefas: {alignment}");
+        if (manifest.TaskbarSearchBox is { } search && search != TaskbarSearchBoxMode.NaoDefinido) changes.Add($"Pesquisa da barra de tarefas: {search}");
+        if (manifest.TaskbarAutoHide is bool autoHide) changes.Add($"Ocultação automática da barra: {(autoHide ? "Ativada" : "Desativada")}");
+        if (manifest.PowerPlan is { } powerPlan && powerPlan != PowerPlanMode.NaoDefinido) changes.Add($"Plano de energia: {powerPlan}");
+        if (manifest.MachineName is not null) changes.Add($"Nome do computador: {manifest.MachineName} (exige reinicialização)");
+        if (manifest.WallpaperImageBase64 is not null) changes.Add($"Papel de parede: {manifest.WallpaperFileName ?? "imagem selecionada"}");
+        if (manifest.Region is not null) changes.Add($"Região: {manifest.Region}");
+        if (manifest.AutoCreateRestorePoint is bool restorePoint) changes.Add($"Ponto de restauração: {(restorePoint ? "Criar" : "Não criar")}");
+        if (manifest.AutoCleanTempOnLogon is bool cleanTemp) changes.Add($"Limpeza de arquivos temporários ao entrar: {(cleanTemp ? "Ativar" : "Desativar")}");
+        if (manifest.DisplayTimeoutOnAc is int displayAc) changes.Add($"Desligar tela na tomada: {FormatMinutes(displayAc)}");
+        if (manifest.DisplayTimeoutOnDc is int displayDc) changes.Add($"Desligar tela na bateria: {FormatMinutes(displayDc)}");
+        if (manifest.StandbyTimeoutOnAc is int standbyAc) changes.Add($"Suspender na tomada: {FormatMinutes(standbyAc)}");
+        if (manifest.StandbyTimeoutOnDc is int standbyDc) changes.Add($"Suspender na bateria: {FormatMinutes(standbyDc)}");
+        return changes.ToArray();
+    }
+
+    private static string FormatMinutes(int minutes) => minutes == 0 ? "Nunca" : $"{minutes} min";
 
     private async Task RefreshCleanTempTaskStatusAsync()
     {

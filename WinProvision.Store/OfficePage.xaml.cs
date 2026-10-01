@@ -26,12 +26,10 @@ public partial class OfficePage : Page
     private readonly OfficeInstalledProductsDetector _installedDetector;
     private readonly OperationsQueueService _queue;
     private readonly PackageCollectionService _collectionService;
-    private readonly OfficeCatalogService _catalogService;
     private readonly ObservableCollection<AppToggleItem> _appToggleItems = new();
     private readonly ObservableCollection<AppStatusRow> _appStatusRows = new();
     private readonly ObservableCollection<OfficePlan> _visioProductOptions = new();
     private readonly ObservableCollection<OfficePlan> _projectProductOptions = new();
-    private IReadOnlyList<OfficeCatalogOfferCard> _offerCards = Array.Empty<OfficeCatalogOfferCard>();
 
     // Evita reentrância quando revertemos o ToggleButton programaticamente
     // (ex.: falha ao aplicar a política) — sem isso, o Unchecked/Checked
@@ -75,21 +73,6 @@ public partial class OfficePage : Page
     private sealed record AppStatusRow(string DisplayName, string IconUrl, string StatusText, Brush StatusBrush,
         Wpf.Ui.Controls.SymbolRegular StatusSymbol, double IconScale);
 
-    private sealed record OfficeCatalogOfferCard(
-        string Key,
-        string DisplayName,
-        OfficeEditionCategory Category,
-        string DefaultProductId,
-        string Description,
-        string Details,
-        string? IconUrl,
-        string? BannerUrl,
-        IReadOnlyList<string> Screenshots,
-        bool IsSelected = false)
-    {
-        public bool HasBanner => !string.IsNullOrWhiteSpace(BannerUrl);
-    }
-
     // Os arquivos têm canvas igual, mas esses três desenhos ocupam menos área útil.
     // O RenderTransform compensa a margem interna sem alterar o layout das linhas/tiles.
     private static double GetOfficeIconScale(string id) => id switch
@@ -121,7 +104,6 @@ public partial class OfficePage : Page
         _installedDetector = App.Services.GetRequiredService<OfficeInstalledProductsDetector>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
         _collectionService = App.Services.GetRequiredService<PackageCollectionService>();
-        _catalogService = App.Services.GetRequiredService<OfficeCatalogService>();
         CategoryComboBox.DisplayMemberPath = nameof(CategoryOption.Label);
         CategoryComboBox.ItemsSource = new[]
         {
@@ -141,7 +123,6 @@ public partial class OfficePage : Page
         AppStatusItemsControl.ItemsSource = _appStatusRows;
         VisioProductComboBox.ItemsSource = _visioProductOptions;
         ProjectProductComboBox.ItemsSource = _projectProductOptions;
-        RefreshOfferCards();
         // Selecionar a categoria dispara SelectionChanged em cascata até o plano e o canal.
         // Só fazemos isso depois de preparar os toggles e combos usados por esses eventos.
         CategoryComboBox.SelectedIndex = 0;
@@ -156,8 +137,6 @@ public partial class OfficePage : Page
         Loaded += async (_, _) =>
         {
             RefreshInstalledProducts();
-            await _catalogService.RefreshAsync();
-            RefreshOfferCards();
             var selectedId = (PlanComboBox.SelectedItem as OfficePlan)?.ProductId;
             if (CategoryComboBox.SelectedItem is CategoryOption category)
             {
@@ -174,9 +153,6 @@ public partial class OfficePage : Page
     private void CategoryComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (CategoryComboBox.SelectedItem is not CategoryOption option) return;
-
-        _selectedOfferKey = null;
-        RefreshOfferCards();
 
         var plans = GetPlansForCategory(option.Category);
         PlanComboBox.ItemsSource = plans;
@@ -195,35 +171,6 @@ public partial class OfficePage : Page
     {
         return OfficePlanCatalog.ByCategory(category).ToList();
     }
-
-    private void RefreshOfferCards()
-    {
-        var offers = OfficeStoreOfferCatalog.All;
-        _offerCards = offers.Select(offer =>
-        {
-            var category = offer.OdtProductId.Equals("O365BusinessRetail", StringComparison.OrdinalIgnoreCase)
-                ? OfficeEditionCategory.Corporate365
-                : OfficeEditionCategory.Personal;
-            var plan = OfficePlanCatalog.ByProductId(offer.OdtProductId);
-            return new OfficeCatalogOfferCard(
-                offer.StoreProductId,
-                offer.DisplayName,
-                category,
-                offer.OdtProductId,
-                offer.Description ?? string.Empty,
-                offer.Description ?? "Detalhes do produto disponíveis na Microsoft Store.",
-                offer.IconUrl ?? plan?.IconUrl,
-                offer.BannerUrl ?? plan?.BannerUrl,
-                offer.Screenshots ?? Array.Empty<string>(),
-                offer.StoreProductId.Equals(_selectedOfferKey, StringComparison.OrdinalIgnoreCase));
-        }).ToArray();
-        StoreOffersItemsControl.ItemsSource = _offerCards;
-    }
-
-    private string? _selectedOfferKey;
-
-    private static bool IsHttpsUrl(string value) =>
-        Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps;
 
     private void PlanComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -323,23 +270,6 @@ public partial class OfficePage : Page
         VisioProductSelector.Visibility = visioSelected ? Visibility.Visible : Visibility.Collapsed;
         ProjectProductSelector.Visibility = projectSelected ? Visibility.Visible : Visibility.Collapsed;
         AdditionalProductsPanel.Visibility = visioSelected || projectSelected ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void StoreOfferButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { DataContext: OfficeCatalogOfferCard offer }) return;
-
-        _selectedOfferKey = offer.Key;
-        var category = CategoryComboBox.Items.OfType<CategoryOption>().FirstOrDefault(x => x.Category == offer.Category);
-        if (category is not null)
-            CategoryComboBox.SelectedItem = category;
-
-        var plans = GetPlansForCategory(offer.Category);
-        PlanComboBox.ItemsSource = plans;
-        PlanComboBox.SelectedItem = plans.FirstOrDefault(x => x.ProductId.Equals(offer.DefaultProductId, StringComparison.OrdinalIgnoreCase))
-            ?? plans.FirstOrDefault();
-        RefreshOfferCards();
-        StatusText.Text = $"Categoria selecionada: {offer.DisplayName}. Confira as opções de instalação abaixo.";
     }
 
     private static string GetCategoryLabel(OfficeEditionCategory category) => category switch

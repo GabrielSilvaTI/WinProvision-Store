@@ -217,6 +217,7 @@
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=TableAppImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                             <Image x:Name="TableAppImage"
                                    conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                   conv:AsyncImage.DecodePixelWidth="64"
                                    Stretch="Uniform"
                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=TableAppImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                     </Grid>
@@ -361,6 +362,7 @@
                                                Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridCardAppImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
                                 <Image x:Name="GridCardAppImage"
                                        conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                       conv:AsyncImage.DecodePixelWidth="96"
                                        Stretch="Uniform"
                                        Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=GridCardAppImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
@@ -437,7 +439,8 @@
                             <ui:SymbolIcon Symbol="Box24" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconTileImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                            <Image x:Name="IconTileImage" conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform"
+                            <Image x:Name="IconTileImage" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                   conv:AsyncImage.DecodePixelWidth="64" Stretch="Uniform"
                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconTileImage, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
                         <TextBlock Text="{Binding Name}" FontSize="11" TextAlignment="Center"
@@ -847,14 +850,17 @@
                                 VerticalAlignment="Center"
                                 Visibility="Collapsed"
                                 Margin="32">
-                        <Border Width="64" Height="64"
+                        <Border Width="72" Height="72"
                                 CornerRadius="{StaticResource StoreRadius_16}"
                                 Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                 BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                                 BorderThickness="1"
                                 HorizontalAlignment="Center"
                                 Margin="0,0,0,16">
-                            <ui:SymbolIcon Symbol="Box24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <Image Source="{DynamicResource EmptyStateBrandIcon}"
+                                   Width="48" Height="48" Stretch="Uniform"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   AutomationProperties.Name="Ícone do WinProvision" />
                         </Border>
 
                         <TextBlock Text="Sua coleção de pacotes está vazia"

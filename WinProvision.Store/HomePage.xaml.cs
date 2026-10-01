@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -91,10 +92,19 @@ public partial class HomePage : Page
     public static readonly DependencyProperty AppsColumnsProperty =
         DependencyProperty.Register(nameof(AppsColumns), typeof(int), typeof(HomePage), new PropertyMetadata(2));
 
+    public static readonly DependencyProperty ShelfColumnsProperty =
+        DependencyProperty.Register(nameof(ShelfColumns), typeof(int), typeof(HomePage), new PropertyMetadata(2));
+
     public int AppsColumns
     {
         get => (int)GetValue(AppsColumnsProperty);
         set => SetValue(AppsColumnsProperty, value);
+    }
+
+    public int ShelfColumns
+    {
+        get => (int)GetValue(ShelfColumnsProperty);
+        set => SetValue(ShelfColumnsProperty, value);
     }
 
     public HomePage(WingetExecutor wingetExecutor, PackageCollectionService collectionService,
@@ -160,6 +170,7 @@ public partial class HomePage : Page
         HeroPromotions.Visibility = showPromotions ? Visibility.Visible : Visibility.Collapsed;
         StorefrontHeroGrid.Height = width < 700 ? 300 : compact ? 360 : 440;
         StorefrontShelves.Columns = compact || _shelfView != ShelfView.Overview ? 1 : 2;
+        ShelfColumns = width < 760 ? 1 : 2;
         AppsColumns = width < 700 ? 1 : width < 1100 ? 2 : 3;
     }
 
@@ -184,6 +195,7 @@ public partial class HomePage : Page
         }
 
         _allApps = catalog.ToList();
+        UpdateCatalogSyncText();
         SyncInstalledFlags(_allApps);
         _ = LoadStoreBannersAsync(force: true);
         UpdatePopularApps();
@@ -199,6 +211,7 @@ public partial class HomePage : Page
         }
 
         _catalogLoaded = false;
+        CatalogSyncText.Text = "Catálogo ainda não sincronizado nesta sessão.";
         _allApps = [];
         _storeBannersLoaded = false;
         _storeBannerWeek = null;
@@ -257,6 +270,7 @@ public partial class HomePage : Page
         try
         {
             _allApps = await _storeService.LoadCatalogAsync();
+            UpdateCatalogSyncText();
             await _installedAppsService.EnsureLoadedAsync();
             SyncInstalledFlags(_allApps);
             await LoadStoreBannersAsync();
@@ -530,15 +544,39 @@ public partial class HomePage : Page
             || app.Name.StartsWith(knownName + " - ", StringComparison.OrdinalIgnoreCase)
             || app.Name.StartsWith(knownName + " ", StringComparison.OrdinalIgnoreCase));
 
+    private static string NormalizeSearchText(string? value) => string.Concat((value ?? string.Empty)
+        .Normalize(NormalizationForm.FormD)
+        .Where(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+        .Where(char.IsLetterOrDigit)
+        .Select(char.ToLowerInvariant));
+
+    private static string? GetFamiliarProductKey(string? name)
+    {
+        foreach (string knownName in FamiliarStoreAppNames)
+        {
+            if (string.Equals(name, knownName, StringComparison.OrdinalIgnoreCase)
+                || name?.StartsWith(knownName + " - ", StringComparison.OrdinalIgnoreCase) == true
+                || name?.StartsWith(knownName + ": ", StringComparison.OrdinalIgnoreCase) == true
+                || name?.StartsWith(knownName + " — ", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return $"known\0{NormalizeSearchText(knownName)}";
+            }
+        }
+
+        return null;
+    }
+
     private static string GetProductIdentityKey(AppEntry app)
     {
-        static string Normalize(string? value) => new((value ?? string.Empty)
-            .Where(char.IsLetterOrDigit)
-            .Select(char.ToLowerInvariant)
-            .ToArray());
+        // Títulos editoriais da Store, como "Spotify - Música e podcasts", não
+        // precisam repetir o mesmo produto já disponível pelo WinGet. Para marcas
+        // conhecidas, a identidade usa o nome canônico; nos demais casos, mantém a
+        // combinação nome + publicador, que evita juntar aplicativos diferentes.
+        if (GetFamiliarProductKey(app.Name) is { } familiarKey)
+            return familiarKey;
 
-        string name = Normalize(app.Name);
-        string publisher = Normalize(app.Publisher);
+        string name = NormalizeSearchText(app.Name);
+        string publisher = NormalizeSearchText(app.Publisher);
         return name.Length == 0 || publisher.Length == 0
             ? $"{app.Source}\0{app.Id}"
             : $"{name}\0{publisher}";
@@ -559,7 +597,16 @@ public partial class HomePage : Page
         if (store.StoreScreenshotUrls is { Count: > 0 })
             primary.StoreScreenshotUrls = store.StoreScreenshotUrls;
         if (!string.IsNullOrWhiteSpace(store.StoreIconUrl))
+        {
             primary.StoreIconUrl = store.StoreIconUrl;
+            primary.IconUrl = store.StoreIconUrl;
+        }
+        else if (!string.IsNullOrWhiteSpace(store.IconUrl))
+        {
+            // Resultados ao vivo podem já vir com o ícone da Store resolvido em
+            // IconUrl. Ele continua sendo preferível ao ícone genérico do manifesto.
+            primary.IconUrl = store.IconUrl;
+        }
         primary.StoreRating ??= store.StoreRating;
         primary.StoreRatingCount ??= store.StoreRatingCount;
         primary.StoreCategory ??= store.StoreCategory;
@@ -770,6 +817,12 @@ public partial class HomePage : Page
         foreach (AppEntry app in results)
             Apps.Add(app);
 
+        bool searchCompleted = string.IsNullOrWhiteSpace(query)
+            || string.Equals(_liveSearchQuery, query, StringComparison.OrdinalIgnoreCase);
+        EmptySearchResultPanel.Visibility = results.Count == 0 && searchCompleted
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         StatusText.Text = string.IsNullOrWhiteSpace(query)
             ? $"{results.Count} aplicativos nesta categoria."
             : results.Count == 0
@@ -823,34 +876,23 @@ public partial class HomePage : Page
         if (term.Length == 0)
             return int.MaxValue;
 
-        if (name.Equals(term, StringComparison.OrdinalIgnoreCase)) return 0;
-        if (id.Equals(term, StringComparison.OrdinalIgnoreCase)) return 1;
-        if (name.StartsWith(term, StringComparison.OrdinalIgnoreCase)) return 2;
+        string normalizedTerm = NormalizeSearchText(term);
+        string normalizedName = NormalizeSearchText(name);
+        string normalizedId = NormalizeSearchText(id);
+        if (normalizedTerm.Length == 0)
+            return int.MaxValue;
+
+        if (normalizedName.Equals(normalizedTerm, StringComparison.Ordinal)) return 0;
+        if (normalizedId.Equals(normalizedTerm, StringComparison.Ordinal)) return 1;
+        if (normalizedName.StartsWith(normalizedTerm, StringComparison.Ordinal)) return 2;
         if (name.Split([' ', '.', '-', '_'], StringSplitOptions.RemoveEmptyEntries)
-            .Any(token => token.StartsWith(term, StringComparison.OrdinalIgnoreCase))) return 3;
-        if (name.Contains(term, StringComparison.OrdinalIgnoreCase)) return 4;
-        if (id.StartsWith(term, StringComparison.OrdinalIgnoreCase)) return 5;
-        if (id.Contains(term, StringComparison.OrdinalIgnoreCase)) return 6;
-
-        string compactTerm = term.Replace(" ", "", StringComparison.Ordinal)
-            .Replace("-", "", StringComparison.Ordinal)
-            .Replace(".", "", StringComparison.Ordinal)
-            .Replace("_", "", StringComparison.Ordinal);
-        string compactName = name.Replace(" ", "", StringComparison.Ordinal)
-            .Replace("-", "", StringComparison.Ordinal)
-            .Replace(".", "", StringComparison.Ordinal)
-            .Replace("_", "", StringComparison.Ordinal);
-        string compactId = id.Replace(" ", "", StringComparison.Ordinal)
-            .Replace("-", "", StringComparison.Ordinal)
-            .Replace(".", "", StringComparison.Ordinal)
-            .Replace("_", "", StringComparison.Ordinal);
-
-        if (compactName.Equals(compactTerm, StringComparison.OrdinalIgnoreCase)) return 7;
-        if (compactName.Contains(compactTerm, StringComparison.OrdinalIgnoreCase)) return 8;
-        if (compactId.Contains(compactTerm, StringComparison.OrdinalIgnoreCase)) return 9;
-        if ((app.Tags ?? []).Any(tag => tag.Contains(term, StringComparison.OrdinalIgnoreCase))) return 10;
-        if ((app.Publisher ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)) return 11;
-        if ((app.Description ?? string.Empty).Contains(term, StringComparison.OrdinalIgnoreCase)) return 12;
+            .Any(token => NormalizeSearchText(token).StartsWith(normalizedTerm, StringComparison.Ordinal))) return 3;
+        if (normalizedName.Contains(normalizedTerm, StringComparison.Ordinal)) return 4;
+        if (normalizedId.StartsWith(normalizedTerm, StringComparison.Ordinal)) return 5;
+        if (normalizedId.Contains(normalizedTerm, StringComparison.Ordinal)) return 6;
+        if ((app.Tags ?? []).Any(tag => NormalizeSearchText(tag).Contains(normalizedTerm, StringComparison.Ordinal))) return 7;
+        if (NormalizeSearchText(app.Publisher).Contains(normalizedTerm, StringComparison.Ordinal)) return 8;
+        if (NormalizeSearchText(app.Description).Contains(normalizedTerm, StringComparison.Ordinal)) return 9;
 
         return int.MaxValue;
     }
@@ -893,9 +935,24 @@ public partial class HomePage : Page
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            var resolvedStoreEntries = storeIds.Length == 0
-                ? []
-                : await _msStoreCatalogService.FetchAsync(storeIds, cancellationToken);
+            IReadOnlyList<AppEntry> resolvedStoreEntries = [];
+            if (storeIds.Length > 0)
+            {
+                try
+                {
+                    resolvedStoreEntries = await _msStoreCatalogService.FetchAsync(storeIds, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    // A busca direta da Store já trouxe resultados úteis. Falhar ao
+                    // enriquecer IDs retornados pelo WinGet não deve descartá-los.
+                    System.Diagnostics.Debug.WriteLine($"[HomePage] Falha ao enriquecer resultados da Store: {ex.Message}");
+                }
+            }
             var storeEntries = directStoreEntries.Concat(resolvedStoreEntries).ToArray();
             var storeById = storeEntries
                 .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
@@ -991,6 +1048,7 @@ public partial class HomePage : Page
 
             StatusText.Text = "Atualizando catálogo...";
             _allApps = await _storeService.LoadCatalogAsync(forceRefresh: true);
+            UpdateCatalogSyncText();
             await _installedAppsService.RefreshAsync();
             SyncInstalledFlags(_allApps);
             await LoadStoreBannersAsync(force: true);
@@ -1007,6 +1065,14 @@ public partial class HomePage : Page
             _isRefreshing = false;
             RefreshCatalogButton.IsEnabled = true;
         }
+    }
+
+    private void UpdateCatalogSyncText()
+    {
+        DateTime? syncUtc = _storeService.LastCatalogSyncUtc;
+        CatalogSyncText.Text = syncUtc is DateTime timestamp
+            ? $"Catálogo sincronizado em {timestamp.ToLocalTime():dd/MM/yyyy HH:mm}."
+            : "Data de sincronização do catálogo indisponível.";
     }
 
     private async void InstallButton_Click(object sender, RoutedEventArgs e)

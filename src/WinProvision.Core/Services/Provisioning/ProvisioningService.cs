@@ -160,7 +160,8 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
         ProvisioningManifest manifest,
         Action<string>? log = null,
         CancellationToken ct = default,
-        Action<ProvisioningStepResult>? stepProgress = null)
+        Action<ProvisioningStepResult>? stepProgress = null,
+        bool updateCurrent = true)
     {
         var steps = new List<ProvisioningStepResult>();
         bool restartRequired = false;
@@ -265,7 +266,7 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
         // Só atualiza Current (e dispara o backup automático) se algo de fato foi
         // tentado — um manifesto totalmente vazio (todos os campos null) não deve gerar
         // uma entrada de backup sem sentido.
-        if (steps.Count > 0)
+        if (steps.Count > 0 && updateCurrent)
         {
             SetCurrent(manifest);
         }

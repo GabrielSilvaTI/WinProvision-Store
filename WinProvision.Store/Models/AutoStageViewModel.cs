@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 
 namespace WinProvision.Store.Models;
@@ -11,6 +12,7 @@ public sealed class AutoStageViewModel : INotifyPropertyChanged
     private double _progress;
     private string _currentDetail = "";
     private DateTime? _startedAt;
+    private WingetMethod _method = WingetMethod.Unknown;
 
     public AutoStageViewModel(AutoInstallStageInfo info, int number)
     {
@@ -26,6 +28,17 @@ public sealed class AutoStageViewModel : INotifyPropertyChanged
     public string Title { get; }
     public string Description { get; }
     public int WorkUnits { get; }
+
+    public WingetMethod Method
+    {
+        get => _method;
+        set
+        {
+            if (_method == value) return;
+            _method = value;
+            OnPropertyChanged();
+        }
+    }
 
     public double Progress
     {

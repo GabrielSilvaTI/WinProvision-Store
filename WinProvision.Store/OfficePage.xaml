@@ -149,64 +149,6 @@
 
             <!--  Esquerda: Configurações e Apps  -->
                 <StackPanel Grid.Column="0">
-
-                    <!-- Ofertas Microsoft 365 da Microsoft Store. -->
-                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Microsoft 365" Style="{StaticResource FluentCardTitleStyle}" />
-                            <TextBlock Text="Ofertas Microsoft 365 com mídia servida pelo catálogo WinProvision."
-                                       Style="{StaticResource StoreCardSubtitleStyle}" Margin="0,4,0,12" />
-                            <ItemsControl x:Name="StoreOffersItemsControl">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <UniformGrid Columns="4" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <ui:Button Click="StoreOfferButton_Click"
-                                                       Margin="0,0,8,0" Padding="0"
-                                                       BorderThickness="0" Appearance="Transparent"
-                                                       CornerRadius="{StaticResource ControlCornerRadius}"
-                                                       Background="Transparent" Cursor="Hand"
-                                                       ToolTip="{Binding DisplayName}">
-                                                <Border MinHeight="190" CornerRadius="{StaticResource StoreCardCornerRadius}"
-                                                        Background="{DynamicResource AppCardBackgroundBrush}"
-                                                        BorderBrush="{DynamicResource AppCardBorderBrush}" BorderThickness="1" ClipToBounds="True">
-                                                    <Grid>
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="96" />
-                                                            <RowDefinition Height="*" />
-                                                        </Grid.RowDefinitions>
-                                                        <Grid Grid.Row="0" Background="{DynamicResource AppSurfaceBrush}">
-                                                            <Image conv:AsyncImage.SourceUrl="{Binding BannerUrl}" Stretch="UniformToFill" />
-                                                            <Border Width="42" Height="42" Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                                    Background="{DynamicResource AppCardBackgroundBrush}" BorderBrush="{DynamicResource AppCardBorderBrush}"
-                                                                    BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="5">
-                                                                <Image conv:AsyncImage.SourceUrl="{Binding IconUrl}" Stretch="Uniform" />
-                                                            </Border>
-                                                            <ui:SymbolIcon Symbol="DocumentText24" FontSize="28"
-                                                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Visibility="{Binding HasBanner, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                                        </Grid>
-                                                        <StackPanel Grid.Row="1" Margin="12,8,12,10" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding Description}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                                                       TextTrimming="CharacterEllipsis" MaxHeight="30" TextWrapping="Wrap" />
-                                                        </StackPanel>
-                                                        <Border Grid.RowSpan="2" BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                                                BorderThickness="2" CornerRadius="{StaticResource StoreCardCornerRadius}" IsHitTestVisible="False"
-                                                                Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisibilityConverter}}" />
-                                                    </Grid>
-                                                </Border>
-                                            </ui:Button>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
-
                     <!--  Seleção de Aplicativos  -->
                     <Border Style="{StaticResource StoreCardSurfaceStyle}">
                         <StackPanel>

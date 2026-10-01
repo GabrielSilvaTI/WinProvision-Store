@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Store.Models;
 
@@ -13,6 +14,7 @@ namespace WinProvision.Store;
 public sealed class AutoWindowViewModel : INotifyPropertyChanged, IDisposable
 {
     private double _globalProgress;
+    private WingetMethod _globalMethod = WingetMethod.Unknown;
     private string _globalProgressText = "0%";
     private string _profileName = "Preparing your workspace";
     private string _statusText = "Preparing…";
@@ -33,6 +35,7 @@ public sealed class AutoWindowViewModel : INotifyPropertyChanged, IDisposable
     public AutoSystemInfo SysInfo { get; } = AutoSystemInfo.Create();
 
     public double GlobalProgress { get => _globalProgress; private set { if (Math.Abs(_globalProgress - value) < 0.01) return; _globalProgress = value; OnPropertyChanged(); } }
+    public WingetMethod GlobalMethod { get => _globalMethod; private set { if (_globalMethod == value) return; _globalMethod = value; OnPropertyChanged(); } }
     public string GlobalProgressText { get => _globalProgressText; private set { _globalProgressText = value; OnPropertyChanged(); } }
     public string ProfileName { get => _profileName; private set { _profileName = value; OnPropertyChanged(); } }
     public string StatusText { get => _statusText; private set { _statusText = value; OnPropertyChanged(); } }
@@ -107,6 +110,16 @@ public sealed class AutoWindowViewModel : INotifyPropertyChanged, IDisposable
     {
         var item = Stages.FirstOrDefault(x => x.Stage == evt.Stage);
         if (item is null) return;
+
+        if (evt.Method is { } method)
+        {
+            item.Method = method;
+            GlobalMethod = method;
+        }
+        else if (evt.Stage != AutoInstallStage.PackagesAndApps)
+        {
+            GlobalMethod = WingetMethod.Unknown;
+        }
 
         item.Status = evt.State;
         item.Progress = evt.State switch

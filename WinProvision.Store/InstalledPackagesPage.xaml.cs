@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using WinProvision.Core.Models;
@@ -31,10 +32,17 @@ public partial class InstalledPackagesPage : Page
     private readonly OperationsQueueService _queue;
     private readonly ISnackbarService _snackbarService;
     private readonly IContentDialogService _contentDialogService;
+    private readonly DispatcherTimer _searchDebounceTimer;
 
     public InstalledPackagesPage()
     {
         InitializeComponent();
+
+        _searchDebounceTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(220)
+        };
+        _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
 
         _viewModel = App.Services.GetRequiredService<InstalledPackagesViewModel>();
         _detailsOverlayService = App.Services.GetRequiredService<AppDetailsOverlayService>();
@@ -61,9 +69,26 @@ public partial class InstalledPackagesPage : Page
 
     // ─── Pesquisa e Filtros ──────────────────────────────────────────────────
 
-    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e) => ApplyPackageFilters();
+    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+            _searchDebounceTimer.Start();
+        else
+            ApplyPackageFilters();
+    }
 
-    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e) => ApplyPackageFilters();
+    private void SearchDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        ApplyPackageFilters();
+    }
+
+    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        ApplyPackageFilters();
+    }
 
     private void RefreshSearchSuggestions()
     {

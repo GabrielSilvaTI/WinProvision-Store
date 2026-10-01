@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Win32;
 using WinProvision.Core.Models;
@@ -17,6 +18,7 @@ using Wpf.Ui;
 using AutoSuggestBox = Wpf.Ui.Controls.AutoSuggestBox;
 using AutoSuggestBoxQuerySubmittedEventArgs = Wpf.Ui.Controls.AutoSuggestBoxQuerySubmittedEventArgs;
 using AutoSuggestBoxTextChangedEventArgs = Wpf.Ui.Controls.AutoSuggestBoxTextChangedEventArgs;
+using AutoSuggestionBoxTextChangeReason = Wpf.Ui.Controls.AutoSuggestionBoxTextChangeReason;
 using ControlAppearance = Wpf.Ui.Controls.ControlAppearance;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
@@ -38,7 +40,7 @@ public partial class UpdatesPage : Page
     private readonly WinGetService _winGetService;
     private readonly StoreService _storeService;
     private readonly OperationsQueueService _queue;
-    private readonly ScheduledUpdatesService _scheduledUpdatesService;
+    private readonly BackgroundUpdateStartupService _backgroundUpdateStartupService;
     private readonly IgnoredUpdatesService _ignoredUpdatesService;
     private readonly AppDetailsOverlayService _detailsOverlayService;
     private readonly ISnackbarService _snackbarService;
@@ -53,19 +55,27 @@ public partial class UpdatesPage : Page
     private bool _sortAscending = true;
     private bool _suppressSortModeSelectionChanged;
     private DateTime? _lastVerificationTime;
+    private bool _lastCheckFailed;
     private bool _suppressAutoUpdateToggleEvent;
     private bool _selectAllByDefault = true;
     private UpgradablePackage? _selectedPackage;
+    private readonly DispatcherTimer _searchDebounceTimer;
 
     public UpdatesPage()
     {
         InitializeComponent();
 
+        _searchDebounceTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(220)
+        };
+        _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
+
         _wingetExecutor = App.Services.GetRequiredService<WingetExecutor>();
         _winGetService = App.Services.GetRequiredService<WinGetService>();
         _storeService = App.Services.GetRequiredService<StoreService>();
         _queue = App.Services.GetRequiredService<OperationsQueueService>();
-        _scheduledUpdatesService = App.Services.GetRequiredService<ScheduledUpdatesService>();
+        _backgroundUpdateStartupService = App.Services.GetRequiredService<BackgroundUpdateStartupService>();
         _ignoredUpdatesService = App.Services.GetRequiredService<IgnoredUpdatesService>();
         _detailsOverlayService = App.Services.GetRequiredService<AppDetailsOverlayService>();
         _snackbarService = App.Services.GetRequiredService<ISnackbarService>();
@@ -93,8 +103,10 @@ public partial class UpdatesPage : Page
         _suppressAutoUpdateToggleEvent = true;
         try
         {
-            bool isEnabled = await _scheduledUpdatesService.IsEnabledAsync();
-            AutoUpdateSwitch.IsChecked = isEnabled;
+            string? migrationMessage = await _backgroundUpdateStartupService.MigrateLegacyTaskAsync();
+            AutoUpdateSwitch.IsChecked = _backgroundUpdateStartupService.IsEnabled;
+            if (migrationMessage is not null)
+                StatusText.Text = migrationMessage;
         }
         finally
         {
@@ -107,18 +119,20 @@ public partial class UpdatesPage : Page
         if (_suppressAutoUpdateToggleEvent) return;
 
         AutoUpdateSwitch.IsEnabled = false;
-        var result = await _scheduledUpdatesService.EnableAsync();
+        var result = await _backgroundUpdateStartupService.EnableAsync();
 
         if (!result.Success)
         {
             _suppressAutoUpdateToggleEvent = true;
             AutoUpdateSwitch.IsChecked = false;
             _suppressAutoUpdateToggleEvent = false;
-            StatusText.Text = FormatScheduledTaskFailure("ativar", result);
+            StatusText.Text = $"Falha ao ativar as atualizações em segundo plano: {result.Message}";
         }
         else
         {
-            StatusText.Text = "Atualizações automáticas ativadas (ao iniciar o PC).";
+            StatusText.Text = result.Message is null
+                ? "Atualizações em segundo plano ativadas para a entrada no Windows."
+                : $"Atualizações em segundo plano ativadas. {result.Message}";
         }
 
         AutoUpdateSwitch.IsEnabled = true;
@@ -129,14 +143,14 @@ public partial class UpdatesPage : Page
         if (_suppressAutoUpdateToggleEvent) return;
 
         AutoUpdateSwitch.IsEnabled = false;
-        var result = await _scheduledUpdatesService.DisableAsync();
+        var result = await _backgroundUpdateStartupService.DisableAsync();
 
         if (!result.Success)
         {
             _suppressAutoUpdateToggleEvent = true;
             AutoUpdateSwitch.IsChecked = true;
             _suppressAutoUpdateToggleEvent = false;
-            StatusText.Text = FormatScheduledTaskFailure("desativar", result);
+            StatusText.Text = $"Falha ao desativar as atualizações em segundo plano: {result.Message}";
         }
         else
         {
@@ -144,17 +158,6 @@ public partial class UpdatesPage : Page
         }
 
         AutoUpdateSwitch.IsEnabled = true;
-    }
-
-    private static string FormatScheduledTaskFailure(string action, WingetExecutionResult result)
-    {
-        if (result.FailureReason == WingetFailureReason.ElevationCanceled)
-            return $"Falha ao {action}: elevação (UAC) recusada.";
-
-        string detail = string.IsNullOrWhiteSpace(result.Output)
-            ? $"código {result.ExitCode}"
-            : result.Output.Trim().Replace(Environment.NewLine, " ");
-        return $"Falha ao {action}: {detail}";
     }
 
     private void SelectAllByDefaultSwitch_Click(object sender, RoutedEventArgs e)
@@ -170,6 +173,7 @@ public partial class UpdatesPage : Page
 
     private async Task CheckUpdatesAsync()
     {
+        _lastCheckFailed = false;
         ReloadButton.IsEnabled = false;
         UpdateSelectedButton.IsEnabled = false;
         TopProgressBar.Visibility = Visibility.Visible;
@@ -221,11 +225,13 @@ public partial class UpdatesPage : Page
         }
         catch (Exception ex)
         {
+            _lastCheckFailed = true;
             WinProvisionLog.Write($"UPDATE UI discovery failed {ex.GetType().Name}: {ex.Message}");
             StatusText.Text = "Não foi possível verificar atualizações. Tente novamente.";
             SubtitleText.Text = "Falha ao verificar atualizações.";
             UpdatesInfoBar.Message = "Confira sua conexão e tente recarregar a lista.";
             UpdatesInfoBar.IsOpen = true;
+            ApplyFilters();
         }
         finally
         {
@@ -352,6 +358,29 @@ public partial class UpdatesPage : Page
 
         // Estado Vazio
         bool isEmpty = _filteredPackages.Count == 0;
+        if (isEmpty)
+        {
+            if (_lastCheckFailed)
+            {
+                EmptyStateTitle.Text = "Não foi possível verificar";
+                EmptyStateText.Text = "Confira sua conexão e tente recarregar a lista de atualizações.";
+            }
+            else if (_rawPackages.Count == 0)
+            {
+                EmptyStateTitle.Text = "Tudo atualizado";
+                EmptyStateText.Text = "Nenhuma atualização pendente encontrada para seus aplicativos.";
+            }
+            else if (!string.IsNullOrWhiteSpace(query))
+            {
+                EmptyStateTitle.Text = "Nenhum resultado para a pesquisa";
+                EmptyStateText.Text = "Tente outro nome ou ID, ou limpe a pesquisa para ver as atualizações disponíveis.";
+            }
+            else
+            {
+                EmptyStateTitle.Text = "Nenhuma atualização corresponde aos filtros";
+                EmptyStateText.Text = "Revise as fontes selecionadas e os filtros para exibir mais resultados.";
+            }
+        }
         EmptyStatePanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
         TableHeaderBar.Visibility = !isEmpty && ViewModeListRadio.IsChecked == true
             ? Visibility.Visible
@@ -642,9 +671,26 @@ public partial class UpdatesPage : Page
             .ToList();
     }
 
-    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e) => ApplyFilters();
+    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        if (e.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+            _searchDebounceTimer.Start();
+        else
+            ApplyFilters();
+    }
 
-    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e) => ApplyFilters();
+    private void SearchDebounceTimer_Tick(object? sender, EventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        ApplyFilters();
+    }
+
+    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e)
+    {
+        _searchDebounceTimer.Stop();
+        ApplyFilters();
+    }
 
     private void SelectAllSources_Click(object sender, RoutedEventArgs e)
     {
