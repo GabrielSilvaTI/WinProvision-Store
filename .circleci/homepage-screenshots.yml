@@ -7,6 +7,12 @@ parameters:
   homepage_screenshot_batch_size:
     type: integer
     default: 100
+  homepage_screenshot_package_id:
+    type: string
+    default: ""
+  homepage_screenshot_url:
+    type: string
+    default: ""
 
 jobs:
   sync_homepage_screenshots:
@@ -16,6 +22,8 @@ jobs:
     resource_class: medium
     environment:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+      HOMEPAGE_SCREENSHOT_PACKAGE_ID: << pipeline.parameters.homepage_screenshot_package_id >>
+      HOMEPAGE_SCREENSHOT_URL: << pipeline.parameters.homepage_screenshot_url >>
     steps:
       - checkout
       - run:
@@ -39,10 +47,17 @@ jobs:
       - run:
           name: Procurar e publicar capturas nas páginas oficiais
           command: |
+            args=()
+            if [[ -n "$HOMEPAGE_SCREENSHOT_PACKAGE_ID" ]]; then
+              args+=(--package-id "$HOMEPAGE_SCREENSHOT_PACKAGE_ID")
+            fi
+            if [[ -n "$HOMEPAGE_SCREENSHOT_URL" ]]; then
+              args+=(--homepage-url "$HOMEPAGE_SCREENSHOT_URL")
+            fi
             /tmp/ci-venv/bin/python scripts/database/sync_homepage_screenshots.py \
               homepage-screenshot-output/apps.json homepage-screenshot-output/state.json \
               --report homepage-screenshot-output/report.json \
-              --batch-size << pipeline.parameters.homepage_screenshot_batch_size >>
+              --batch-size << pipeline.parameters.homepage_screenshot_batch_size >> "${args[@]}"
           no_output_timeout: 30m
       - store_artifacts:
           path: homepage-screenshot-output/report.json

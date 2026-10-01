@@ -87,6 +87,21 @@ def is_https_url(url: str) -> bool:
     return parsed.scheme == "https" and bool(parsed.hostname) and not parsed.username and not parsed.password
 
 
+def normalize_homepage(url: str) -> str:
+    value = url.strip()
+    if urlparse(value).scheme == "http":
+        value = "https:" + value[5:]
+    return value
+
+
+def homepage_match_key(url: str) -> tuple[str, int, str] | None:
+    value = normalize_homepage(url)
+    parsed = urlparse(value)
+    if not is_https_url(value):
+        return None
+    return (parsed.hostname.casefold(), parsed.port or 443, parsed.path.rstrip("/") or "/")
+
+
 class PageImages(HTMLParser):
     def __init__(self, base_url: str):
         super().__init__(convert_charrefs=True)
@@ -274,6 +289,8 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--recheck-days", type=int, default=30)
+    parser.add_argument("--package-id", default="", help="processa um ID do catálogo em vez do lote normal")
+    parser.add_argument("--homepage-url", default="", help="processa uma URL; sem ID, precisa corresponder a um único app")
     parser.add_argument("--public-base", default=os.environ.get("R2_PUBLIC_BASE", DEFAULT_PUBLIC_BASE).rstrip("/"))
     args = parser.parse_args()
     if args.batch_size < 1 or args.recheck_days < 1 or not args.public_base.startswith("https://"):
@@ -287,23 +304,61 @@ def main() -> int:
         print(f"Entrada inválida: {exc}", file=sys.stderr)
         return 1
 
+    package_target = args.package_id.strip().casefold()
+    url_target = normalize_homepage(args.homepage_url) if args.homepage_url.strip() else ""
+    if url_target and not is_https_url(url_target):
+        parser.error("--homepage-url precisa ser uma URL HTTPS válida")
+
     eligible = []
+    catalog_apps_by_id = {}
     for index, app in enumerate(catalog):
-        if (not isinstance(app, dict) or str(app.get("source", "winget")).casefold() not in ("winget", "msstore")
-                or not isinstance(app.get("id"), str) or not isinstance(app.get("homepage"), str)):
+        if not isinstance(app, dict) or not isinstance(app.get("id"), str):
+            continue
+        catalog_apps_by_id.setdefault(app["id"].casefold(), []).append((index, app))
+        if (str(app.get("source", "winget")).casefold() not in ("winget", "msstore")
+                or not isinstance(app.get("homepage"), str)):
             continue
         screenshot_field = "storeScreenshotUrls" if str(app.get("source", "winget")).casefold() == "msstore" else "screenshotUrls"
         if app.get(screenshot_field):
             continue
-        homepage = app["homepage"].strip()
-        if urlparse(homepage).scheme == "http":
-            homepage = "https:" + homepage[5:]
+        homepage = normalize_homepage(app["homepage"])
         if is_https_url(homepage):
             eligible.append((index, app, homepage))
 
     reports = []
     now = utc_now()
-    if not eligible:
+    targeted = bool(package_target or url_target)
+    if targeted:
+        target_matches = catalog_apps_by_id.get(package_target, []) if package_target else []
+        if package_target and len(target_matches) != 1:
+            parser.error(f"ID '{args.package_id}' não encontrado ou duplicado no catálogo")
+        if package_target:
+            target_app = target_matches[0][1]
+            target_index = target_matches[0][0]
+            if str(target_app.get("source", "winget")).casefold() not in ("winget", "msstore"):
+                parser.error(f"O pacote '{args.package_id}' tem uma origem não suportada")
+            homepage = url_target or (normalize_homepage(target_app.get("homepage", "")))
+            if not is_https_url(homepage):
+                parser.error(f"O pacote '{args.package_id}' não tem uma homepage HTTPS válida")
+        else:
+            target_key = homepage_match_key(url_target)
+            exact = [(index, app) for index, app in enumerate(catalog)
+                     if isinstance(app, dict) and isinstance(app.get("homepage"), str)
+                     and homepage_match_key(app["homepage"]) == target_key]
+            if not exact:
+                exact = [(index, app) for index, app in enumerate(catalog)
+                         if isinstance(app, dict) and isinstance(app.get("homepage"), str)
+                         and homepage_match_key(app["homepage"]) is not None
+                         and homepage_match_key(app["homepage"])[0] == target_key[0]]
+            if len(exact) != 1:
+                parser.error("A URL não identifica um único app. Informe também o ID do pacote para vinculá-la sem ambiguidade.")
+            target_index, target_app = exact[0]
+            if str(target_app.get("source", "winget")).casefold() not in ("winget", "msstore"):
+                parser.error("O app correspondente tem uma origem não suportada")
+            homepage = url_target
+        selected = [(target_index, target_app, homepage)]
+        next_index = state["nextIndex"]
+    elif not eligible:
         selected = []
         next_index = 0
     else:
@@ -338,7 +393,7 @@ def main() -> int:
             skipped_recent += 1
             reports.append({"id": package_id, "status": "cached"})
             continue
-        if checked_at and now - checked_at < timedelta(days=args.recheck_days):
+        if not targeted and checked_at and now - checked_at < timedelta(days=args.recheck_days):
             skipped_recent += 1
             reports.append({"id": package_id, "status": "recently-checked"})
             continue
@@ -354,7 +409,7 @@ def main() -> int:
                                   ContentType=content_type, CacheControl="public, max-age=31536000, immutable",
                                   Metadata={"sha256": digest})
                 public_url = f"{args.public_base}/{key}"
-                app[screenshot_field] = [public_url]
+                app[screenshot_field] = list(dict.fromkeys([*(app.get(screenshot_field) or []), public_url]))
                 record.update({"status": "found", "publicUrl": public_url, "sourceUrl": source_url,
                                "sha256": digest})
                 updated += 1
@@ -373,6 +428,8 @@ def main() -> int:
     args.state.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps({"generatedAt": now.isoformat(), "batchSize": args.batch_size,
+                                       "targetPackageId": args.package_id.strip() or None,
+                                       "targetHomepageUrl": url_target or None,
                                        "selected": len(selected), "screenshotsAdded": updated,
                                        "skippedRecent": skipped_recent, "failures": failures,
                                        "nextIndex": next_index, "packages": reports}, ensure_ascii=False, indent=2),
