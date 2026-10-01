@@ -58,7 +58,8 @@ jobs:
           name: Preservar screenshots publicados anteriormente
           command: |
             /tmp/ci-venv/bin/python scripts/database/preserve_catalog_screenshots.py \
-              "$PWD/catalog-output/apps.json" "$PWD/catalog-output/apps.previous.json"
+              "$PWD/catalog-output/apps.json" "$PWD/catalog-output/apps.previous.json" \
+              "$PWD/catalog-output/screenshot-assets.json"
       - run:
           name: Validar apps.json antes da publicação
           command: |

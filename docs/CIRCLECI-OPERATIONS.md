@@ -13,6 +13,8 @@ Os pipelines abaixo usam YAMLs independentes. Cadastre cada caminho em **Project
 
 As duas rotinas de screenshots têm finalidades diferentes: `screenshots.yml` associa imagens curadas do banco UniGetUI aos IDs WinGet; `homepage-screenshots.yml` procura capturas nas páginas oficiais dos aplicativos. O crawler respeita `robots.txt`, processa lotes e publica no catálogo apenas imagens encontradas e validadas. Nem toda página oferece capturas em um formato que o crawler consiga identificar.
 
+Ao regenerar o catálogo WinGet, `winget-sync.yml` preserva as URLs do catálogo anterior e também reconstrói `screenshotUrls` a partir de `Store/Database/screenshot-assets.json`. Assim, a atualização dos manifests não remove capturas já armazenadas no R2.
+
 ## Snapshot e restauração
 
 Os snapshots são cópias dos JSONs ativos, gravadas em `Store/Recovery/Snapshots/<id>/` no bucket público que já contém esses catálogos. Os objetos guardados são dados já públicos; os snapshots não incluem credenciais nem código-fonte. Cada cópia tem um manifesto com SHA-256 e tamanho. O manifesto só é enviado depois que todos os arquivos são lidos e validados, e a restauração verifica o snapshot inteiro antes de alterar os objetos ativos.
