@@ -279,7 +279,7 @@ jobs:
           Write-Host "Desinstalação OK"
 
       - name: Guardar como artefato do workflow
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: WinProvision.Store-${{ steps.ver.outputs.version }}
           path: dist/*
