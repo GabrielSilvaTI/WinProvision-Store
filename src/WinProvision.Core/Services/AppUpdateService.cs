@@ -347,7 +347,10 @@ public sealed class AppUpdateService
             "  timeout /t 1 /nobreak >nul",
             "  goto wait",
             ")",
-            $"\"{setupPath}\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
+            // Espere o Inno Setup concluir (inclusive eventual consentimento do UAC)
+            // antes de relançar o app. Sem /wait, o processo antigo podia abrir de novo
+            // enquanto a atualização ainda estava copiando os arquivos.
+            $"start /wait \"\" \"{setupPath}\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
             $"start \"\" \"{exePath}\"",
             ":giveup",
             $"del \"{setupPath}\" >nul 2>nul",

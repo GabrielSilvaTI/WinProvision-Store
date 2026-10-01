@@ -166,6 +166,7 @@ jobs:
           -c Release -r win-x64
           -p:RuntimeIdentifiers=win-x64
           -p:Version=${{ steps.ver.outputs.version }}
+          -p:AssemblyVersion=${{ steps.ver.outputs.file_version }}
           -p:FileVersion=${{ steps.ver.outputs.file_version }}
           ${{ steps.pubflags.outputs.extra }}
           -o publish
