@@ -1,0 +1,67 @@
+version: 2.1
+
+parameters:
+  run_screenshot_sync:
+    type: boolean
+    default: false
+
+jobs:
+  sync_winget_screenshots:
+    docker:
+      - image: cimg/python:3.12
+    working_directory: ~/project
+    resource_class: medium
+    environment:
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+    steps:
+      - checkout
+      - run:
+          name: Instalar dependências de imagens e R2
+          command: |
+            python3 -m venv /tmp/ci-venv
+            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/screenshots.txt
+      - run:
+          name: Restaurar catálogo WinGet e cache de screenshots do R2
+          command: |
+            mkdir -p screenshot-output
+            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
+              Store/Database/apps.json "$PWD/screenshot-output/apps.json"
+            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
+              Store/Database/screenshot-assets.json "$PWD/screenshot-output/screenshot-assets.json"
+            test -s screenshot-output/apps.json || {
+              echo "::error::O catálogo Store/Database/apps.json não existe no R2; execute primeiro o pipeline do catálogo WinGet."
+              exit 1
+            }
+            cp screenshot-output/apps.json screenshot-output/apps.previous.json
+      - run:
+          name: Baixar, validar e associar screenshots do WinGet
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/sync_winget_screenshots.py \
+              data/screenshots/screenshot-database-clean.json \
+              screenshot-output/apps.json screenshot-output/screenshot-assets.json \
+              --report screenshot-output/screenshot-report.json \
+              --max-failure-rate 0.25
+      - store_artifacts:
+          path: screenshot-output/screenshot-report.json
+          destination: winget-screenshot-report.json
+      - run:
+          name: Validar e publicar catálogo e cache de imagens no R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
+              screenshot-output/apps.json \
+              --previous screenshot-output/apps.previous.json \
+              --min-count 5000 --min-retention 0.70
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              "$PWD/screenshot-output/screenshot-assets.json" Store/Database/screenshot-assets.json
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              "$PWD/screenshot-output/apps.json" Store/Database/apps.json
+
+workflows:
+  screenshots:
+    when: << pipeline.parameters.run_screenshot_sync >>
+    jobs:
+      - sync_winget_screenshots:
+          context: r2-publishing
+          filters:
+            branches:
+              only: main

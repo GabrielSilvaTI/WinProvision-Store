@@ -1,0 +1,88 @@
+version: 2.1
+
+parameters:
+  run_updater_verification:
+    type: boolean
+    default: false
+
+jobs:
+  verify_background_updater:
+    machine:
+      image: windows-server-2022-gui:current
+      shell: powershell.exe -ExecutionPolicy Bypass
+    resource_class: windows.medium
+    steps:
+      - checkout
+      - run:
+          name: Preparar .NET 10, compilar o app e verificar a execução em segundo plano
+          command: |
+            $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+            $hasDotnet10 = $false
+            if ($dotnet) {
+              $hasDotnet10 = [bool](dotnet --list-sdks | Where-Object { $_ -match '^10\.' })
+            }
+            if (-not $hasDotnet10) {
+              $installer = Join-Path $env:TEMP 'dotnet-install.ps1'
+              Invoke-WebRequest 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer
+              & $installer -Channel 10.0 -InstallDir (Join-Path $env:USERPROFILE '.dotnet')
+              $env:PATH = (Join-Path $env:USERPROFILE '.dotnet') + ';' + $env:PATH
+            }
+            dotnet --version
+            winget --version
+            winget source list
+            dotnet publish WinProvision.Store/WinProvision.Store.csproj `
+              -c Release -r win-x64 -p:RuntimeIdentifiers=win-x64 `
+              -p:PublishReadyToRun=false -o updater-smoke
+            if ($LASTEXITCODE -ne 0) { throw "dotnet publish falhou ($LASTEXITCODE)." }
+            $exe = Join-Path (Resolve-Path 'updater-smoke').Path 'WinProvision.Store.exe'
+            if (-not (Test-Path $exe)) { throw 'Executável publicado não encontrado.' }
+            $uiProcess = Start-Process -FilePath $exe -PassThru
+            $uiDeadline = (Get-Date).AddSeconds(90)
+            $windowHandle = [IntPtr]::Zero
+            while ((Get-Date) -lt $uiDeadline) {
+              $uiProcess.Refresh()
+              if ($uiProcess.HasExited) { throw "O app encerrou durante a inicialização da UI (código $($uiProcess.ExitCode))." }
+              if ($uiProcess.MainWindowHandle -ne [IntPtr]::Zero) {
+                $windowHandle = $uiProcess.MainWindowHandle
+                break
+              }
+              Start-Sleep -Milliseconds 500
+            }
+            if ($windowHandle -eq [IntPtr]::Zero) {
+              Stop-Process -Id $uiProcess.Id -Force -ErrorAction SilentlyContinue
+              throw 'A janela principal do app não apareceu dentro de 90 segundos.'
+            }
+            Write-Host "Inicialização normal do WPF OK (janela $windowHandle)."
+            [void]$uiProcess.CloseMainWindow()
+            if (-not $uiProcess.WaitForExit(20000)) { Stop-Process -Id $uiProcess.Id -Force -ErrorAction SilentlyContinue }
+            $logPath = Join-Path $env:TEMP 'WinProvision-Log.log'
+            Remove-Item $logPath -Force -ErrorAction SilentlyContinue
+            $process = Start-Process -FilePath $exe -ArgumentList '--background-update' -PassThru
+            if (-not $process.WaitForExit(900000)) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              throw 'O processo --background-update não encerrou dentro de 15 minutos.'
+            }
+            $process.Refresh()
+            if (-not (Test-Path $logPath)) { throw 'A execução em segundo plano não criou WinProvision-Log.log.' }
+            $log = Get-Content $logPath -Raw
+            foreach ($pattern in @('BACKGROUND UPDATE started', 'BACKGROUND UPDATE discovered count=', 'BACKGROUND UPDATE finished success=')) {
+              if ($log -notmatch [regex]::Escape($pattern)) { throw "Log não contém a etapa esperada: $pattern" }
+            }
+            if ($process.ExitCode -ne 0) {
+              Write-Host $log
+              throw "Atualizador terminou com código $($process.ExitCode)."
+            }
+            Copy-Item $logPath (Join-Path (Resolve-Path 'updater-smoke').Path 'WinProvision-Log.log') -Force
+            Write-Host 'O atualizador iniciou sem UI, consultou atualizações, concluiu e encerrou com código 0.'
+      - store_artifacts:
+          path: updater-smoke/WinProvision-Log.log
+          destination: background-updater.log
+
+workflows:
+  updater_verification:
+    when: << pipeline.parameters.run_updater_verification >>
+    jobs:
+      - verify_background_updater:
+          filters:
+            branches:
+              only: main

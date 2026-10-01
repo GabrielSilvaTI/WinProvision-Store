@@ -1,0 +1,19 @@
+name: "Segurança | Revisão de dependências"
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Detectar vulnerabilidades novas
+    runs-on: ubuntu-latest
+    steps:
+      - name: Revisar dependências alteradas
+        uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          license-check: false

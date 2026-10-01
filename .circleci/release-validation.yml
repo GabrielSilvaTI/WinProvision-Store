@@ -1,0 +1,91 @@
+version: 2.1
+
+jobs:
+  validate_release_assets:
+    machine:
+      image: windows-server-2022-gui:current
+      shell: powershell.exe -ExecutionPolicy Bypass
+    resource_class: windows.medium
+    steps:
+      - run:
+          name: Aguardar os assets do release desta tag
+          command: |
+            if (-not $env:CIRCLE_TAG -or $env:CIRCLE_TAG -notmatch '^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+              throw "Este pipeline precisa ser iniciado por uma tag vX.Y.Z (recebido: '$env:CIRCLE_TAG')."
+            }
+            $headers = @{ 'User-Agent' = 'WinProvision-CircleCI-Release-Validator'; 'Accept' = 'application/vnd.github+json' }
+            $api = "https://api.github.com/repos/GabrielSilvaTI/WinProvision-Store/releases/tags/$env:CIRCLE_TAG"
+            $required = @('WinProvision.Store-win-x64.zip', 'WinProvision.Store-win-x64.zip.sha256', 'WinProvision.Store-Setup.exe', 'WinProvision.Store-Setup.exe.sha256')
+            $release = $null
+            for ($attempt = 1; $attempt -le 30; $attempt++) {
+              try {
+                $candidate = Invoke-RestMethod -Uri $api -Headers $headers -TimeoutSec 30
+                $names = @($candidate.assets | ForEach-Object { $_.name })
+                if (($required | Where-Object { $_ -notin $names }).Count -eq 0) {
+                  $release = $candidate
+                  break
+                }
+              } catch {
+                Write-Host "Release ainda não publicado (tentativa $attempt/30): $($_.Exception.Message)"
+              }
+              Start-Sleep -Seconds 20
+            }
+            if (-not $release) { throw "Os quatro assets esperados não apareceram no release $env:CIRCLE_TAG em 10 minutos." }
+            if ($release.tag_name -ne $env:CIRCLE_TAG) { throw "Tag retornada pela API diverge da tag do pipeline: $($release.tag_name)" }
+            New-Item -ItemType Directory -Path "$env:TEMP\WinProvisionReleaseCheck" -Force | Out-Null
+            $downloadDir = "$env:TEMP\WinProvisionReleaseCheck"
+            foreach ($name in $required) {
+              $asset = $release.assets | Where-Object { $_.name -eq $name } | Select-Object -First 1
+              Invoke-WebRequest -Uri $asset.browser_download_url -OutFile (Join-Path $downloadDir $name) -Headers @{ 'User-Agent' = 'WinProvision-CircleCI-Release-Validator' }
+            }
+            foreach ($name in @('WinProvision.Store-win-x64.zip', 'WinProvision.Store-Setup.exe')) {
+              $actual = (Get-FileHash (Join-Path $downloadDir $name) -Algorithm SHA256).Hash.ToLowerInvariant()
+              $expectedLine = (Get-Content (Join-Path $downloadDir "$name.sha256") -Raw).Trim()
+              if ($expectedLine -notmatch '^([0-9a-fA-F]{64})\s+') { throw "Checksum malformado para ${name}: '$expectedLine'" }
+              if ($Matches[1].ToLowerInvariant() -ne $actual) { throw "SHA-256 divergente para $name." }
+              Write-Host "SHA-256 OK: $name ($actual)"
+            }
+            $expectedVersion = (($env:CIRCLE_TAG -replace '^v', '') -split '-')[0] + '.0'
+            $zipPath = Join-Path $downloadDir 'WinProvision.Store-win-x64.zip'
+            $publishPath = Join-Path $downloadDir 'publish'
+            Expand-Archive -Path $zipPath -DestinationPath $publishPath -Force
+            $appExe = Join-Path $publishPath 'WinProvision.Store.exe'
+            if (-not (Test-Path $appExe)) { throw 'O ZIP não contém WinProvision.Store.exe na raiz.' }
+            $zipVersion = (Get-Item $appExe).VersionInfo.FileVersion
+            if ($zipVersion -ne $expectedVersion) { throw "Versão no ZIP ($zipVersion) não corresponde à tag ($expectedVersion)." }
+            $setupPath = Join-Path $downloadDir 'WinProvision.Store-Setup.exe'
+            $setupVersion = (Get-Item $setupPath).VersionInfo.FileVersion
+            if ($setupVersion -ne $expectedVersion) { throw "Versão do instalador ($setupVersion) não corresponde à tag ($expectedVersion)." }
+            Write-Host "Release validado: $env:CIRCLE_TAG | ZIP e Setup em $expectedVersion"
+
+      - run:
+          name: Instalar e remover o release validado
+          command: |
+            $downloadDir = "$env:TEMP\WinProvisionReleaseCheck"
+            $setupPath = Join-Path $downloadDir 'WinProvision.Store-Setup.exe'
+            $installDir = Join-Path $env:LOCALAPPDATA 'Programs\WinProvision Store'
+            $uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{57E31A2E-BBE2-48F4-8902-CB249FE1D38C}_is1'
+            $install = Start-Process -FilePath $setupPath -Wait -PassThru -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER'
+            if ($install.ExitCode -ne 0) { throw "Instalador retornou $($install.ExitCode)." }
+            $appExe = Join-Path $installDir 'WinProvision.Store.exe'
+            if (-not (Test-Path $appExe)) { throw "Instalador não deixou o executável em $installDir." }
+            $installedVersion = (Get-Item $appExe).VersionInfo.FileVersion
+            $expectedVersion = (($env:CIRCLE_TAG -replace '^v', '') -split '-')[0] + '.0'
+            if ($installedVersion -ne $expectedVersion) { throw "Executável instalado tem versão $installedVersion; esperado $expectedVersion." }
+            if (-not (Test-Path -LiteralPath $uninstallKey)) { throw 'Entrada do desinstalador não foi criada.' }
+            $uninstaller = Join-Path $installDir 'unins000.exe'
+            Start-Process -FilePath $uninstaller -Wait -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'
+            $deadline = (Get-Date).AddSeconds(60)
+            while ((Test-Path -LiteralPath $uninstallKey) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+            if ((Test-Path $appExe) -or (Test-Path -LiteralPath $uninstallKey)) { throw 'A desinstalação de smoke test não limpou os arquivos/registro.' }
+            Write-Host "Instalação e desinstalação verificadas para $env:CIRCLE_TAG."
+
+workflows:
+  release_validation:
+    jobs:
+      - validate_release_assets:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
