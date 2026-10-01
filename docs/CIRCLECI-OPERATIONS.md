@@ -7,8 +7,11 @@ Os pipelines abaixo usam YAMLs independentes. Cadastre cada caminho em **Project
 | Saúde dos catálogos | `.circleci/catalog-health.yml` | Agende com `run_catalog_health=true`. `max_media_urls=0` verifica todas as mídias; um número positivo roda uma amostra semanal rotativa. Não precisa de credenciais. |
 | Snapshots/recuperação | `.circleci/catalog-recovery.yml` | Agende `run_catalog_snapshot=true` diariamente. Para restaurar, rode manualmente com `restore_catalog_snapshot=true` e `catalog_snapshot_id=AAAAMMDDTHHMMSSZ`. |
 | Screenshots WinGet | `.circleci/screenshots.yml` | Agende `run_screenshot_sync=true` depois da atualização do catálogo WinGet. Requer o contexto `r2-publishing`. |
+| Capturas das páginas oficiais | `.circleci/homepage-screenshots.yml` | Agende `run_homepage_screenshot_sync=true`. `homepage_screenshot_batch_size` define o lote (padrão: 100). Para um caso específico, use `homepage_screenshot_package_id` ou `homepage_screenshot_url`. O nome antigo `run_screenshot_sync` é aceito temporariamente para não quebrar agendamentos existentes. Requer `r2-publishing`. |
 | Verificação do atualizador | `.circleci/updater-verification.yml` | Agende ou execute manualmente com `run_updater_verification=true`. Compila, abre a janela WPF e exercita o atualizador em uma VM descartável. Requer WinGet disponível na imagem Windows. |
 | Validação do Release | `.circleci/release-validation.yml` | Associado à publicação de tags estáveis/pré-lançamentos `vX.Y.Z`; confere os assets publicados, instala e desinstala o pacote. |
+
+As duas rotinas de screenshots têm finalidades diferentes: `screenshots.yml` associa imagens curadas do banco UniGetUI aos IDs WinGet; `homepage-screenshots.yml` procura capturas nas páginas oficiais dos aplicativos. O crawler respeita `robots.txt`, processa lotes e publica no catálogo apenas imagens encontradas e validadas. Nem toda página oferece capturas em um formato que o crawler consiga identificar.
 
 ## Snapshot e restauração
 

@@ -4,6 +4,10 @@ parameters:
   run_homepage_screenshot_sync:
     type: boolean
     default: false
+  # Compatibilidade com o nome configurado no agendamento existente do CircleCI.
+  run_screenshot_sync:
+    type: boolean
+    default: false
   homepage_screenshot_batch_size:
     type: integer
     default: 100
@@ -76,7 +80,10 @@ jobs:
 
 workflows:
   homepage_screenshots:
-    when: << pipeline.parameters.run_homepage_screenshot_sync >>
+    when:
+      or:
+        - << pipeline.parameters.run_homepage_screenshot_sync >>
+        - << pipeline.parameters.run_screenshot_sync >>
     jobs:
       - sync_homepage_screenshots:
           context: r2-publishing
