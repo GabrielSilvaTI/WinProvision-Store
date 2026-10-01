@@ -9,6 +9,7 @@ using System.Windows.Media.Animation;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using Wpf.Ui.Controls;
+using Wpf.Ui.TaskBar;
 
 namespace WinProvision.Store;
 
@@ -19,6 +20,7 @@ public partial class AutoWindow : FluentWindow
     private readonly TaskCompletionSource _closedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private bool _globalProgressShimmerRunning;
     private double _globalProgressShimmerTrackWidth;
+    private AutoInstallExitCode? _exitCode;
 
     public int CurrentProgress => (int)_viewModel.GlobalProgress;
 
@@ -66,7 +68,9 @@ public partial class AutoWindow : FluentWindow
         {
             log?.Invoke($"[WinProvision] ERRO ao carregar o perfil: {ex.Message}");
             _viewModel.BuildPlan(Array.Empty<AutoInstallStageInfo>(), null);
+            _exitCode = AutoInstallExitCode.ProfileReadError;
             _viewModel.Finish(AutoInstallExitCode.ProfileReadError);
+            UpdateTaskbarProgress();
             return AutoInstallExitCode.ProfileReadError;
         }
 
@@ -87,7 +91,9 @@ public partial class AutoWindow : FluentWindow
             exitCode = AutoInstallExitCode.UnexpectedError;
         }
 
+        _exitCode = exitCode;
         _viewModel.Finish(exitCode);
+        UpdateTaskbarProgress();
         return exitCode;
     }
 
@@ -106,6 +112,7 @@ public partial class AutoWindow : FluentWindow
     {
         if (e.PropertyName != nameof(AutoWindowViewModel.GlobalProgress)) return;
 
+        UpdateTaskbarProgress();
         if (_viewModel.GlobalProgress >= 100)
         {
             StopGlobalProgressShimmer();
@@ -113,6 +120,24 @@ public partial class AutoWindow : FluentWindow
         }
 
         UpdateGlobalProgressShimmer();
+    }
+
+    private void UpdateTaskbarProgress()
+    {
+        if (_viewModel.GlobalProgress <= 0)
+        {
+            TaskBarProgress.SetState(this, TaskBarProgressState.Indeterminate);
+            return;
+        }
+
+        TaskBarProgressState state = _exitCode switch
+        {
+            AutoInstallExitCode.Success => TaskBarProgressState.Normal,
+            null => TaskBarProgressState.Normal,
+            _ => TaskBarProgressState.Error
+        };
+        int progress = (int)Math.Clamp(Math.Round(_viewModel.GlobalProgress), 0, 100);
+        TaskBarProgress.SetValue(this, state, progress, 100);
     }
 
     private void UpdateGlobalProgressShimmer(bool restart = false)
@@ -216,6 +241,7 @@ public partial class AutoWindow : FluentWindow
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         StopGlobalProgressShimmer();
         _viewModel.Dispose();
+        TaskBarProgress.SetState(this, TaskBarProgressState.None);
         _closedTcs.TrySetResult();
         base.OnClosed(e);
     }

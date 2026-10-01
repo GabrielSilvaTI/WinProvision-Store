@@ -101,11 +101,13 @@ public class AutoInstallCliService
         {
             bool hasPersonalization =
                 provisioning.Theme is not null && provisioning.Theme != SystemThemeMode.NaoDefinido
+                || provisioning.SystemTheme is not null && provisioning.SystemTheme != SystemThemeMode.NaoDefinido
+                || provisioning.AppsTheme is not null && provisioning.AppsTheme != SystemThemeMode.NaoDefinido
+                || provisioning.AccentColorMode is not null && provisioning.AccentColorMode != AccentColorMode.NaoDefinido
                 || provisioning.TaskbarAlignment is not null && provisioning.TaskbarAlignment != TaskbarAlignmentMode.NaoDefinido
                 || provisioning.TaskbarAutoHide is not null
                 || provisioning.TaskbarSearchBox is not null && provisioning.TaskbarSearchBox != TaskbarSearchBoxMode.NaoDefinido
-                || !string.IsNullOrWhiteSpace(provisioning.WallpaperImageBase64)
-                || !string.IsNullOrWhiteSpace(provisioning.Region);
+                || !string.IsNullOrWhiteSpace(provisioning.WallpaperImageBase64);
 
             hasConfigurations =
                 provisioning.PowerPlan is not null && provisioning.PowerPlan != PowerPlanMode.NaoDefinido
@@ -113,11 +115,14 @@ public class AutoInstallCliService
                 || provisioning.DisplayTimeoutOnDc is not null
                 || provisioning.StandbyTimeoutOnAc is not null
                 || provisioning.StandbyTimeoutOnDc is not null
+                || provisioning.EnableAutomaticTime == true
+                || provisioning.EnableAutomaticTimeZone == true
+                || provisioning.ShowFileExtensions is not null
+                || provisioning.ShowHiddenFiles is not null
+                || provisioning.OpenExplorerToThisPc is not null
                 || !string.IsNullOrWhiteSpace(provisioning.MachineName)
                 || !string.IsNullOrWhiteSpace(provisioning.Creator)
-                || !string.IsNullOrWhiteSpace(provisioning.Name)
-                || provisioning.AutoCreateRestorePoint == true
-                || provisioning.AutoCleanTempOnLogon == true;
+                || !string.IsNullOrWhiteSpace(provisioning.Name);
 
             if (hasPersonalization)
                 stages.Add(StageCatalog[AutoInstallStage.SystemPersonalization] with
@@ -707,22 +712,32 @@ public class AutoInstallCliService
         int count = 0;
         if (personalization)
         {
-            if (manifest.Theme is { } theme && theme != SystemThemeMode.NaoDefinido) count++;
+            SystemThemeMode? systemTheme = manifest.SystemTheme is { } configuredSystemTheme
+                && configuredSystemTheme != SystemThemeMode.NaoDefinido
+                    ? configuredSystemTheme
+                    : manifest.Theme;
+            SystemThemeMode? appsTheme = manifest.AppsTheme is { } configuredAppsTheme
+                && configuredAppsTheme != SystemThemeMode.NaoDefinido
+                    ? configuredAppsTheme
+                    : manifest.Theme;
+            if (systemTheme is { } system && system != SystemThemeMode.NaoDefinido) count++;
+            if (appsTheme is { } apps && apps != SystemThemeMode.NaoDefinido) count++;
+            if (manifest.AccentColorMode is { } accent && accent != AccentColorMode.NaoDefinido) count++;
             if (manifest.TaskbarAlignment is { } alignment && alignment != TaskbarAlignmentMode.NaoDefinido) count++;
             if (manifest.TaskbarAutoHide is not null) count++;
             if (manifest.TaskbarSearchBox is { } search && search != TaskbarSearchBoxMode.NaoDefinido) count++;
             if (!string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64)) count++;
-            if (!string.IsNullOrWhiteSpace(manifest.Region)) count++;
         }
         else
         {
             if (manifest.PowerPlan is { } power && power != PowerPlanMode.NaoDefinido) count++;
             if (manifest.DisplayTimeoutOnAc is not null || manifest.DisplayTimeoutOnDc is not null
                 || manifest.StandbyTimeoutOnAc is not null || manifest.StandbyTimeoutOnDc is not null) count++;
+            if (manifest.EnableAutomaticTime == true || manifest.EnableAutomaticTimeZone == true) count++;
+            if (manifest.ShowFileExtensions is not null || manifest.ShowHiddenFiles is not null
+                || manifest.OpenExplorerToThisPc is not null) count++;
             if (!string.IsNullOrWhiteSpace(manifest.MachineName)) count++;
             if (!string.IsNullOrWhiteSpace(manifest.Creator) || !string.IsNullOrWhiteSpace(manifest.Name)) count++;
-            if (manifest.AutoCreateRestorePoint == true) count++;
-            if (manifest.AutoCleanTempOnLogon == true) count++;
         }
 
         return count;
@@ -733,12 +748,15 @@ public class AutoInstallCliService
         SchemaVersion = source.SchemaVersion,
         CreatedAt = source.CreatedAt,
         Theme = source.Theme,
+        SystemTheme = source.SystemTheme,
+        AppsTheme = source.AppsTheme,
+        AccentColorMode = source.AccentColorMode,
+        AccentColor = source.AccentColor,
         TaskbarAlignment = source.TaskbarAlignment,
         TaskbarAutoHide = source.TaskbarAutoHide,
         TaskbarSearchBox = source.TaskbarSearchBox,
         WallpaperFileName = source.WallpaperFileName,
         WallpaperImageBase64 = source.WallpaperImageBase64,
-        Region = source.Region,
     };
 
     private static ProvisioningManifest CreateConfigurationManifest(ProvisioningManifest source) => new()
@@ -748,9 +766,12 @@ public class AutoInstallCliService
         Name = source.Name,
         Creator = source.Creator,
         PowerPlan = source.PowerPlan,
+        EnableAutomaticTime = source.EnableAutomaticTime,
+        EnableAutomaticTimeZone = source.EnableAutomaticTimeZone,
+        ShowFileExtensions = source.ShowFileExtensions,
+        ShowHiddenFiles = source.ShowHiddenFiles,
+        OpenExplorerToThisPc = source.OpenExplorerToThisPc,
         MachineName = source.MachineName,
-        AutoCreateRestorePoint = source.AutoCreateRestorePoint,
-        AutoCleanTempOnLogon = source.AutoCleanTempOnLogon,
         DisplayTimeoutOnAc = source.DisplayTimeoutOnAc,
         DisplayTimeoutOnDc = source.DisplayTimeoutOnDc,
         StandbyTimeoutOnAc = source.StandbyTimeoutOnAc,

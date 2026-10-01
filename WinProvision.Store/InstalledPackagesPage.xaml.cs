@@ -154,6 +154,7 @@ public partial class InstalledPackagesPage : Page
 
     private void ApplyPackageFilters()
     {
+        UpdateFilterButtonState();
         string query = InstalledSearchBox?.Text?.Trim() ?? string.Empty;
         bool searchName = SearchModeNameRadio?.IsChecked == true;
         bool searchId = SearchModeIdRadio?.IsChecked == true;
@@ -194,6 +195,20 @@ public partial class InstalledPackagesPage : Page
         UpdateMasterSelectAllState();
     }
 
+    private void UpdateFilterButtonState()
+    {
+        if (ToggleFiltersButton is null)
+            return;
+
+        bool allSourcesSelected = FilterWingetCheckBox?.IsChecked == true
+            && FilterStoreCheckBox?.IsChecked == true
+            && FilterLocalCheckBox?.IsChecked == true;
+        ToggleFiltersButton.Tag = !allSourcesSelected
+            || FilterRemovableCheckBox?.IsChecked == true
+            || FilterHideSystemCheckBox?.IsChecked != true
+            || FilterOnlySelectedCheckBox?.IsChecked == true;
+    }
+
     // ─── Desinstalação e Variantes ───────────────────────────────────────────
 
     private async void Remove_Click(object sender, RoutedEventArgs e)
@@ -205,13 +220,11 @@ public partial class InstalledPackagesPage : Page
             return;
         }
 
-        var result = await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
-        {
-            Title = "Desinstalar aplicativos?",
-            Content = $"Os {selected.Count} aplicativos selecionados serão removidos do computador.",
-            PrimaryButtonText = "Desinstalar",
-            CloseButtonText = "Cancelar"
-        });
+        var result = await StoreConfirmationDialog.ShowAsync(
+            "Desinstalar aplicativos?",
+            $"Os {selected.Count} aplicativos selecionados serão removidos do computador.",
+            "Desinstalar",
+            "Cancelar");
 
         if (result == ContentDialogResult.Primary)
         {
@@ -292,50 +305,41 @@ public partial class InstalledPackagesPage : Page
         ExecuteManualUninstall(target);
     }
 
-    private void ExecuteManualUninstall(InstalledPackageRow target)
+    private async void ExecuteManualUninstall(InstalledPackageRow target)
     {
         string cmd = !string.IsNullOrWhiteSpace(target.Package.UninstallString)
             ? target.Package.UninstallString
             : $"winget uninstall --id \"{target.Id}\"";
 
-        var dialog = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = "Desinstalação manual",
-            Content = $"Comando de desinstalação para {target.Name}:\n\n{cmd}\n\nDeseja abrir o terminal e executar o comando?",
-            PrimaryButtonText = "Abrir Terminal",
-            SecondaryButtonText = "Copiar Comando",
-            CloseButtonText = "Cancelar"
-        };
+        var result = await StoreConfirmationDialog.ShowAsync(
+            "Desinstalação manual",
+            $"Comando de desinstalação para {target.Name}:{Environment.NewLine}{Environment.NewLine}{cmd}{Environment.NewLine}{Environment.NewLine}Deseja abrir o terminal e executar o comando?",
+            "Abrir Terminal",
+            "Cancelar",
+            "Copiar Comando");
 
-        StoreDialogStyles.Apply(dialog);
-        _ = dialog.ShowDialogAsync().ContinueWith(t =>
+        if (result == ContentDialogResult.Primary)
         {
-            Dispatcher.Invoke(() =>
+            try
             {
-                if (t.Result == Wpf.Ui.Controls.MessageBoxResult.Primary)
+                Process.Start(new ProcessStartInfo
                 {
-                    try
-                    {
-                        Process.Start(new ProcessStartInfo
-                        {
-                            FileName = "cmd.exe",
-                            Arguments = $"/k {cmd}",
-                            UseShellExecute = true
-                        });
-                        _viewModel.Status = $"Terminal iniciado para desinstalação de '{target.Name}'.";
-                    }
-                    catch (Exception ex)
-                    {
-                        _viewModel.Status = $"Erro ao abrir terminal: {ex.Message}";
-                    }
-                }
-                else if (t.Result == Wpf.Ui.Controls.MessageBoxResult.Secondary)
-                {
-                    Clipboard.SetText(cmd);
-                    _viewModel.Status = "Comando copiado para a área de transferência.";
-                }
-            });
-        });
+                    FileName = "cmd.exe",
+                    Arguments = $"/k {cmd}",
+                    UseShellExecute = true
+                });
+                _viewModel.Status = $"Terminal iniciado para desinstalação de '{target.Name}'.";
+            }
+            catch (Exception ex)
+            {
+                _viewModel.Status = $"Erro ao abrir terminal: {ex.Message}";
+            }
+        }
+        else if (result == ContentDialogResult.Secondary)
+        {
+            Clipboard.SetText(cmd);
+            _viewModel.Status = "Comando copiado para a área de transferência.";
+        }
     }
 
     // ─── Coleção e Exportação ────────────────────────────────────────────────

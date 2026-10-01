@@ -835,18 +835,12 @@ public partial class AppDetailsOverlay : UserControl
     {
         if (_app is null) return;
 
-        var confirmDialog = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = "Desinstalar aplicativo",
-            Content = $"Desinstalar {_app.Name}?",
-            PrimaryButtonText = "Desinstalar",
-            CloseButtonText = "Cancelar"
-        };
-
-        confirmDialog.Resources[typeof(Wpf.Ui.Controls.Button)] = StoreDialogStyles.CreatePrimaryActionButtonStyle();
-
-        var confirmResult = await confirmDialog.ShowDialogAsync();
-        if (confirmResult != Wpf.Ui.Controls.MessageBoxResult.Primary)
+        var confirmResult = await StoreConfirmationDialog.ShowAsync(
+            "Desinstalar aplicativo",
+            $"Desinstalar {_app.Name}?",
+            "Desinstalar",
+            "Cancelar");
+        if (confirmResult != Wpf.Ui.Controls.ContentDialogResult.Primary)
             return;
 
         if (_app is null) return;

@@ -1,4 +1,4 @@
-<Page x:Class="WinProvision.Store.ProvisioningPage"
+﻿<Page x:Class="WinProvision.Store.ProvisioningPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -16,8 +16,10 @@
       UseLayoutRounding="True">
 
     <Page.Resources>
-        <!-- Cartões de configuração consomem a superfície compartilhada do app. -->
-        <Style x:Key="SettingsCardStyle" TargetType="Border" BasedOn="{StaticResource StoreCardSurfaceStyle}">
+        <!--  Cartões de configuração consomem a superfície compartilhada do app.  -->
+        <Style x:Key="SettingsCardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource StoreCardSurfaceStyle}">
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="Padding" Value="0" />
         </Style>
@@ -78,7 +80,9 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
+                    <Border Style="{StaticResource PageHeaderIconTileStyle}">
+                        <ui:SymbolIcon Symbol="Desktop24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+                    </Border>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Provisionamento" Style="{StaticResource StorePageTitleStyle}" />
                         <TextBlock Text="Configure o Windows e exporte um perfil reutilizável."
@@ -105,7 +109,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Pesquisa alinhada à página Configurações. -->
+            <!--  Pesquisa alinhada à página Configurações.  -->
             <Grid Grid.Row="1" Margin="0,0,0,16">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -147,14 +151,17 @@
                                   behaviors:ScrollBehavior.EnableMouseWheelOnContent="True">
                         <StackPanel Margin="0,0,8,0">
                             <StackPanel x:Name="ProvisioningSearchResultsPanel" Visibility="Collapsed">
-                                <TextBlock Text="Resultados da pesquisa" Style="{StaticResource StoreSectionTitleStyle}" Margin="0,0,0,12" />
+                                <TextBlock Text="Resultados da pesquisa"
+                                           Style="{StaticResource StoreSectionTitleStyle}"
+                                           Margin="0,0,0,12" />
                                 <StackPanel x:Name="ProvisioningSearchResultsList" />
                                 <Border x:Name="ProvisioningSearchEmptyText"
                                         Style="{StaticResource PageEmptyStateCardStyle}"
                                         Visibility="Collapsed"
                                         Margin="0,8,0,0">
                                     <StackPanel HorizontalAlignment="Center" MaxWidth="360">
-                                        <Border Width="44" Height="44"
+                                        <Border Width="44"
+                                                Height="44"
                                                 Background="{DynamicResource ControlFillColorSecondaryBrush}"
                                                 CornerRadius="{StaticResource ControlCornerRadius}"
                                                 HorizontalAlignment="Center"
@@ -176,121 +183,145 @@
                                 </Border>
                             </StackPanel>
                             <StackPanel x:Name="ProvisioningCategoriesPanel">
-                            <TextBlock Text="Categorias" Style="{StaticResource StoreSectionTitleStyle}" Margin="0,0,0,12" />
-                            <ui:Button x:Name="PersonalizationNavCard"
-                                       Style="{StaticResource PageNavigationCardStyle}"
-                                       Click="PersonalizationNavCard_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
-                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                            Background="{DynamicResource FluentPanelElevatedBrush}">
-                                        <ui:SymbolIcon Symbol="PaintBrush24" FontSize="20"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Personalização" Style="{StaticResource FluentCardTitleStyle}" />
-                                        <TextBlock Text="Tema, barra de tarefas e plano de fundo."
-                                                   Style="{StaticResource StoreCardSubtitleStyle}"
-                                                   FontSize="13" />
-                                    </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2"
-                                                   Symbol="ChevronRight24"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                   VerticalAlignment="Center" />
-                                </Grid>
-                            </ui:Button>
+                                <TextBlock Text="Categorias"
+                                           Style="{StaticResource StoreSectionTitleStyle}"
+                                           Margin="0,0,0,12" />
+                                <ui:Button x:Name="PersonalizationNavCard"
+                                           Style="{StaticResource PageNavigationCardStyle}"
+                                           Click="PersonalizationNavCard_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="40"
+                                                Height="40"
+                                                Margin="0,0,16,0"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                                Background="{DynamicResource FluentPanelElevatedBrush}">
+                                            <ui:SymbolIcon Symbol="PaintBrush24"
+                                                           FontSize="20"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Personalização" Style="{StaticResource FluentCardTitleStyle}" />
+                                            <TextBlock Text="Tema, barra de tarefas e plano de fundo."
+                                                       Style="{StaticResource StoreCardSubtitleStyle}"
+                                                       FontSize="13" />
+                                        </StackPanel>
+                                        <ui:SymbolIcon Grid.Column="2"
+                                                       Symbol="ChevronRight24"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                    </Grid>
+                                </ui:Button>
 
-                            <ui:Button x:Name="AdvancedNavCard"
-                                       Style="{StaticResource PageNavigationCardStyle}"
-                                       Click="AdvancedNavCard_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
-                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                            Background="{DynamicResource FluentPanelElevatedBrush}">
-                                        <ui:SymbolIcon Symbol="Settings24" FontSize="20"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Configurações Avançadas" Style="{StaticResource FluentCardTitleStyle}" />
-                                        <TextBlock Text="Nome, região, energia e restauração."
-                                                   Style="{StaticResource StoreCardSubtitleStyle}"
-                                                   FontSize="13" />
-                                    </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2"
-                                                   Symbol="ChevronRight24"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                   VerticalAlignment="Center" />
-                                </Grid>
-                            </ui:Button>
+                                <ui:Button x:Name="AdvancedNavCard"
+                                           Style="{StaticResource PageNavigationCardStyle}"
+                                           Click="AdvancedNavCard_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="40"
+                                                Height="40"
+                                                Margin="0,0,16,0"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                                Background="{DynamicResource FluentPanelElevatedBrush}">
+                                            <ui:SymbolIcon Symbol="Settings24"
+                                                           FontSize="20"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Configurações Avançadas" Style="{StaticResource FluentCardTitleStyle}" />
+                                            <TextBlock Text="Nome, região, energia e restauração."
+                                                       Style="{StaticResource StoreCardSubtitleStyle}"
+                                                       FontSize="13" />
+                                        </StackPanel>
+                                        <ui:SymbolIcon Grid.Column="2"
+                                                       Symbol="ChevronRight24"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                    </Grid>
+                                </ui:Button>
 
-                            <ui:Button x:Name="JsonNavCard"
-                                       Style="{StaticResource PageNavigationCardStyle}"
-                                       Click="JsonNavCard_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
-                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                            Background="{DynamicResource FluentPanelElevatedBrush}">
-                                        <ui:SymbolIcon Symbol="Code24" FontSize="20"
-                                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="Visualização do JSON" Style="{StaticResource FluentCardTitleStyle}" />
-                                        <TextBlock Text="Identificação e perfil JSON."
-                                                   Style="{StaticResource StoreCardSubtitleStyle}"
-                                                   FontSize="13" />
-                                    </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2"
-                                                   Symbol="ChevronRight24"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                   VerticalAlignment="Center" />
-                                </Grid>
-                            </ui:Button>
+                                <ui:Button x:Name="JsonNavCard"
+                                           Style="{StaticResource PageNavigationCardStyle}"
+                                           Click="JsonNavCard_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="40"
+                                                Height="40"
+                                                Margin="0,0,16,0"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                                Background="{DynamicResource FluentPanelElevatedBrush}">
+                                            <ui:SymbolIcon Symbol="Code24"
+                                                           FontSize="20"
+                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Visualização do JSON" Style="{StaticResource FluentCardTitleStyle}" />
+                                            <TextBlock Text="Identificação e perfil JSON."
+                                                       Style="{StaticResource StoreCardSubtitleStyle}"
+                                                       FontSize="13" />
+                                        </StackPanel>
+                                        <ui:SymbolIcon Grid.Column="2"
+                                                       Symbol="ChevronRight24"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                    </Grid>
+                                </ui:Button>
 
-                            <ui:Button x:Name="OrchestratorNavCard"
-                                       Style="{StaticResource PageNavigationCardStyle}"
-                                       Click="OrchestratorNavCard_Click">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Width="40" Height="40" Margin="0,0,16,0"
-                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                            Background="{DynamicResource FluentPanelElevatedBrush}">
-                                        <Image x:Name="OrchestratorIcon" Width="20" Height="20"
-                                               Source="pack://application:,,,/Assets/WinProvisionStore_White.png"
-                                               Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="WinProvision Orchestrator" Style="{StaticResource FluentCardTitleStyle}" />
-                                        <TextBlock Text="Prepare a instalação automática do app e deste perfil."
-                                                   Style="{StaticResource StoreCardSubtitleStyle}"
-                                                   FontSize="13" />
-                                    </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24"
-                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                <ui:Button x:Name="OrchestratorNavCard"
+                                           Style="{StaticResource PageNavigationCardStyle}"
+                                           Click="OrchestratorNavCard_Click">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="40"
+                                                Height="40"
+                                                Margin="0,0,16,0"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                                Background="{DynamicResource FluentPanelElevatedBrush}">
+                                            <Image x:Name="OrchestratorIcon"
+                                                   Width="20"
+                                                   Height="20"
+                                                   Stretch="Uniform"
+                                                   HorizontalAlignment="Center"
                                                    VerticalAlignment="Center" />
-                                </Grid>
-                            </ui:Button>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="WinProvision Orchestrator" Style="{StaticResource FluentCardTitleStyle}" />
+                                            <TextBlock Text="Prepare a instalação automática do app e deste perfil."
+                                                       Style="{StaticResource StoreCardSubtitleStyle}"
+                                                       FontSize="13" />
+                                        </StackPanel>
+                                        <ui:SymbolIcon Grid.Column="2"
+                                                       Symbol="ChevronRight24"
+                                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                    </Grid>
+                                </ui:Button>
 
                             </StackPanel>
                         </StackPanel>
@@ -333,15 +364,15 @@
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
 
-                                            <!--  Tema  -->
+                                            <!--  Tema do Windows  -->
                                             <Grid Margin="24,16">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="220" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                    <TextBlock Text="Tema do sistema" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Escolha o tema visual do sistema." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Tema do Windows" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                    <TextBlock Text="Escolha o tema claro ou escuro da interface do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <ComboBox x:Name="ThemeComboBox"
                                                           Grid.Column="1"
@@ -354,6 +385,86 @@
                                                     <ComboBoxItem Content="Claro" Tag="Claro" />
                                                     <ComboBoxItem Content="Escuro" Tag="Escuro" />
                                                 </ComboBox>
+                                            </Grid>
+
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+
+                                            <!--  Tema dos aplicativos  -->
+                                            <Grid Margin="24,16">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="220" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                    <TextBlock Text="Tema dos aplicativos" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                    <TextBlock Text="Defina o modo claro ou escuro usado pelos aplicativos compatíveis." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                </StackPanel>
+                                                <ComboBox x:Name="AppsThemeComboBox"
+                                                          Grid.Column="1"
+                                                          VerticalAlignment="Center"
+                                                          HorizontalAlignment="Stretch"
+                                                          SelectionChanged="Field_Changed">
+                                                    <ComboBoxItem Content="Não alterar"
+                                                                  Tag="NaoDefinido"
+                                                                  IsSelected="True" />
+                                                    <ComboBoxItem Content="Claro" Tag="Claro" />
+                                                    <ComboBoxItem Content="Escuro" Tag="Escuro" />
+                                                </ComboBox>
+                                            </Grid>
+
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+
+                                            <!--  Cor de destaque  -->
+                                            <Grid Margin="24,16">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="220" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                    <TextBlock Text="Cor de destaque" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                    <TextBlock Text="Use uma cor fixa ou deixe o Windows escolhê-la pelo papel de parede." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                </StackPanel>
+                                                <ComboBox x:Name="AccentColorModeComboBox"
+                                                          Grid.Column="1"
+                                                          VerticalAlignment="Center"
+                                                          HorizontalAlignment="Stretch"
+                                                          SelectionChanged="AccentColorModeComboBox_SelectionChanged">
+                                                    <ComboBoxItem Content="Não alterar"
+                                                                  Tag="NaoDefinido"
+                                                                  IsSelected="True" />
+                                                    <ComboBoxItem Content="Automático" Tag="Automatico" />
+                                                    <ComboBoxItem Content="Personalizado" Tag="Personalizado" />
+                                                </ComboBox>
+                                            </Grid>
+
+                                            <Grid x:Name="AccentColorInputPanel"
+                                                  Margin="24,0,24,16"
+                                                  Visibility="Collapsed">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="220" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="Cor hexadecimal"
+                                                           Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                           VerticalAlignment="Center" />
+                                                <StackPanel Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
+                                                    <ui:TextBox x:Name="AccentColorHexTextBox"
+                                                                Width="172"
+                                                                MaxLength="7"
+                                                                Text="#0078D4"
+                                                                PlaceholderText="#RRGGBB"
+                                                                TextChanged="AccentColorHexTextBox_TextChanged" />
+                                                    <Border x:Name="AccentColorPreview"
+                                                            Width="24"
+                                                            Height="24"
+                                                            Margin="8,0,0,0"
+                                                            CornerRadius="{StaticResource ControlCornerRadius}"
+                                                            BorderThickness="1"
+                                                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                            Background="#0078D4" />
+                                                </StackPanel>
                                             </Grid>
 
                                             <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
@@ -498,78 +609,318 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- Prévia ilustrativa da área de trabalho -->
-                                    <Border Style="{StaticResource SettingsCardStyle}" Margin="0,0,0,24" Padding="16" ClipToBounds="True">
+                                    <!--  Prévia ilustrativa da área de trabalho  -->
+                                    <Border Style="{StaticResource SettingsCardStyle}"
+                                            Margin="0,0,0,24"
+                                            Padding="16"
+                                            ClipToBounds="True">
                                         <Grid>
-                                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
                                             <StackPanel Grid.Row="0" Margin="0,0,0,16">
                                                 <TextBlock Text="Prévia da área de trabalho" Style="{StaticResource PageSectionHeaderStyle}" />
                                                 <TextBlock Text="Visualize o papel de parede e a barra de tarefas antes de aplicar. Esta prévia é ilustrativa."
-                                                           Style="{StaticResource StoreCardSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                           Style="{StaticResource StoreCardSubtitleStyle}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0" />
                                             </StackPanel>
-                                            <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Stretch">
-                                                <Border Width="1280" Height="720" ClipToBounds="True" Background="{DynamicResource StoreBrush_0F172A}">
+                                            <Viewbox Grid.Row="1"
+                                                     Stretch="Uniform"
+                                                     HorizontalAlignment="Stretch">
+                                                <Border Width="1280"
+                                                        Height="720"
+                                                        ClipToBounds="True"
+                                                        Background="{DynamicResource StoreBrush_0F172A}">
                                                     <Grid>
                                                         <Image x:Name="DesktopPreviewWallpaper" Stretch="UniformToFill" />
-                                                        <Canvas x:Name="DesktopPreviewIconLayer" Height="672" VerticalAlignment="Top" IsHitTestVisible="False">
-                                                            <StackPanel Width="88" Canvas.Left="16" Canvas.Top="16">
-                                                                <Image Source="pack://application:,,,/Assets/Desktop/recycle_bin.png" Width="44" Height="44" HorizontalAlignment="Center" />
-                                                                <TextBlock Text="Lixeira" FontSize="11" Foreground="{DynamicResource StoreBrush_FFFFFF}" TextAlignment="Center" TextWrapping="Wrap" Margin="0,4,0,0">
-                                                                    <TextBlock.Effect><DropShadowEffect BlurRadius="5" ShadowDepth="1" Direction="270" Color="{DynamicResource StoreColor_000000}" Opacity="0.9" /></TextBlock.Effect>
+                                                        <Canvas x:Name="DesktopPreviewIconLayer"
+                                                                Height="672"
+                                                                VerticalAlignment="Top"
+                                                                IsHitTestVisible="False">
+                                                            <StackPanel Width="88"
+                                                                        Canvas.Left="16"
+                                                                        Canvas.Top="16">
+                                                                <Image Source="{DynamicResource RecycleBinPreviewImage}"
+                                                                       Width="44"
+                                                                       Height="44"
+                                                                       HorizontalAlignment="Center" />
+                                                                <TextBlock Text="Lixeira"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource StoreBrush_FFFFFF}"
+                                                                           TextAlignment="Center"
+                                                                           TextWrapping="Wrap"
+                                                                           Margin="0,4,0,0">
+                                                                    <TextBlock.Effect>
+                                                                        <DropShadowEffect BlurRadius="5"
+                                                                                          ShadowDepth="1"
+                                                                                          Direction="270"
+                                                                                          Color="{DynamicResource StoreColor_000000}"
+                                                                                          Opacity="0.9" />
+                                                                    </TextBlock.Effect>
                                                                 </TextBlock>
                                                             </StackPanel>
                                                         </Canvas>
-                                                        <Border x:Name="DesktopPreviewTaskbar" Height="48" VerticalAlignment="Bottom" ClipToBounds="True"
+                                                        <Border x:Name="DesktopPreviewTaskbar"
+                                                                Height="48"
+                                                                VerticalAlignment="Bottom"
+                                                                ClipToBounds="True"
                                                                 Background="{DynamicResource StoreBrush_D91C1C1C}">
                                                             <Grid>
-                                                                <!-- Simula o backdrop-filter: blur() usado pela barra do win11React. -->
-                                                                <Image Source="{Binding Source, ElementName=DesktopPreviewWallpaper}" Height="720" VerticalAlignment="Bottom"
-                                                                       Stretch="Fill" IsHitTestVisible="False">
-                                                                    <Image.Effect><BlurEffect Radius="18" RenderingBias="Performance" /></Image.Effect>
+                                                                <!--  Simula o backdrop-filter: blur() usado pela barra do win11React.  -->
+                                                                <Image Source="{Binding Source, ElementName=DesktopPreviewWallpaper}"
+                                                                       Height="720"
+                                                                       VerticalAlignment="Bottom"
+                                                                       Stretch="Fill"
+                                                                       IsHitTestVisible="False">
+                                                                    <Image.Effect>
+                                                                        <BlurEffect Radius="18" RenderingBias="Performance" />
+                                                                    </Image.Effect>
                                                                 </Image>
                                                                 <Border x:Name="DesktopPreviewTaskbarTint" Background="#BF202020" />
                                                                 <Grid Margin="4,0,0,0">
-                                                                    <StackPanel x:Name="DesktopPreviewTaskbarIcons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4" Background="Transparent">
-                                                                            <Image Source="pack://application:,,,/Assets/Desktop/start.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                                    <StackPanel x:Name="DesktopPreviewTaskbarIcons"
+                                                                                Orientation="Horizontal"
+                                                                                HorizontalAlignment="Center"
+                                                                                VerticalAlignment="Center">
+                                                                        <Border Width="38"
+                                                                                Height="38"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4"
+                                                                                Background="Transparent">
+                                                                            <Image Source="{DynamicResource StartMenuPreviewImage}"
+                                                                                   Width="24"
+                                                                                   Height="24"
+                                                                                   HorizontalAlignment="Center"
+                                                                                   VerticalAlignment="Center" />
                                                                         </Border>
-                                                                        <Border x:Name="DesktopPreviewSearchBoxIcon" Width="38" Height="38" Visibility="Collapsed" Margin="3,0" CornerRadius="4">
-                                                                            <Path x:Name="DesktopPreviewSearchIconOnly" Width="20" Height="20" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M13.5,13.5 L19,19 M15.5,8.5 A7,7 0 1 1 1.5,8.5 A7,7 0 1 1 15.5,8.5" Stroke="{DynamicResource TextFillColorPrimaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                                        <Border x:Name="DesktopPreviewSearchBoxIcon"
+                                                                                Width="38"
+                                                                                Height="38"
+                                                                                Visibility="Collapsed"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4">
+                                                                            <Path x:Name="DesktopPreviewSearchIconOnly"
+                                                                                  Width="20"
+                                                                                  Height="20"
+                                                                                  HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Data="M13.5,13.5 L19,19 M15.5,8.5 A7,7 0 1 1 1.5,8.5 A7,7 0 1 1 15.5,8.5"
+                                                                                  Stroke="{DynamicResource TextFillColorPrimaryBrush}"
+                                                                                  StrokeThickness="2"
+                                                                                  StrokeStartLineCap="Round"
+                                                                                  StrokeEndLineCap="Round" />
                                                                         </Border>
-                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/settings.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
-                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/explorer.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
-                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/edge.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
-                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/store.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
-                                                                        <Border Width="38" Height="38" Margin="3,0" CornerRadius="4"><Grid><Image Source="pack://application:,,,/Assets/Desktop/Taskbar/spotify.png" Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" /><Border Width="6" Height="3" Background="#BFFFFFFF" VerticalAlignment="Bottom" Margin="0,0,0,1" CornerRadius="2" /></Grid></Border>
+                                                                        <Border Width="38"
+                                                                                Height="38"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4">
+                                                                            <Grid>
+                                                                                <Image Source="{DynamicResource TaskbarSettingsPreviewImage}"
+                                                                                       Width="24"
+                                                                                       Height="24"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" />
+                                                                                <Border Width="6"
+                                                                                        Height="3"
+                                                                                        Background="#BFFFFFFF"
+                                                                                        VerticalAlignment="Bottom"
+                                                                                        Margin="0,0,0,1"
+                                                                                        CornerRadius="2" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <Border Width="38"
+                                                                                Height="38"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4">
+                                                                            <Grid>
+                                                                                <Image Source="{DynamicResource TaskbarExplorerPreviewImage}"
+                                                                                       Width="24"
+                                                                                       Height="24"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" />
+                                                                                <Border Width="6"
+                                                                                        Height="3"
+                                                                                        Background="#BFFFFFFF"
+                                                                                        VerticalAlignment="Bottom"
+                                                                                        Margin="0,0,0,1"
+                                                                                        CornerRadius="2" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <Border Width="38"
+                                                                                Height="38"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4">
+                                                                            <Grid>
+                                                                                <Image Source="{DynamicResource TaskbarEdgePreviewImage}"
+                                                                                       Width="24"
+                                                                                       Height="24"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" />
+                                                                                <Border Width="6"
+                                                                                        Height="3"
+                                                                                        Background="#BFFFFFFF"
+                                                                                        VerticalAlignment="Bottom"
+                                                                                        Margin="0,0,0,1"
+                                                                                        CornerRadius="2" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <Border Width="38"
+                                                                                Height="38"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4">
+                                                                            <Grid>
+                                                                                <Image Source="{DynamicResource TaskbarStorePreviewImage}"
+                                                                                       Width="24"
+                                                                                       Height="24"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" />
+                                                                                <Border Width="6"
+                                                                                        Height="3"
+                                                                                        Background="#BFFFFFFF"
+                                                                                        VerticalAlignment="Bottom"
+                                                                                        Margin="0,0,0,1"
+                                                                                        CornerRadius="2" />
+                                                                            </Grid>
+                                                                        </Border>
+                                                                        <Border Width="38"
+                                                                                Height="38"
+                                                                                Margin="3,0"
+                                                                                CornerRadius="4">
+                                                                            <Grid>
+                                                                                <Image Source="{DynamicResource TaskbarSpotifyPreviewImage}"
+                                                                                       Width="24"
+                                                                                       Height="24"
+                                                                                       HorizontalAlignment="Center"
+                                                                                       VerticalAlignment="Center" />
+                                                                                <Border Width="6"
+                                                                                        Height="3"
+                                                                                        Background="#BFFFFFFF"
+                                                                                        VerticalAlignment="Bottom"
+                                                                                        Margin="0,0,0,1"
+                                                                                        CornerRadius="2" />
+                                                                            </Grid>
+                                                                        </Border>
                                                                     </StackPanel>
-                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Stretch">
-                                                                        <Border Width="28" Height="48" CornerRadius="4"><Path x:Name="DesktopPreviewTrayChevron" Width="8" Height="5" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M1,4 L4,1 L7,4" Stroke="{DynamicResource TextFillColorSecondaryBrush}" StrokeThickness="1" StrokeStartLineCap="Round" StrokeEndLineCap="Round" /></Border>
-                                                                        <Border Width="72" Height="48" CornerRadius="4"><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Height="24">
-                                                                            <Grid Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,7,0">
-                                                                                <Path x:Name="DesktopPreviewTrayWifi" Data="M1,6 C5,2 13,2 17,6 M4,9 C7,6 11,6 14,9 M7,12 C8.5,10.5 9.5,10.5 11,12" Stroke="{DynamicResource TextFillColorSecondaryBrush}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
-                                                                                <Ellipse x:Name="DesktopPreviewTrayWifiDot" Width="2.2" Height="2.2" Fill="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,1" />
-                                                                            </Grid>
-                                                                            <Grid Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,6,0">
-                                                                                <Path x:Name="DesktopPreviewTraySpeaker" Data="M2,7 H5 L9,4 V14 L5,11 H2 Z" Fill="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                                                <Path x:Name="DesktopPreviewTraySpeakerWaves" Data="M11,7 C13,8 13,10 11,11 M13,5 C17,8 17,10 13,13" Stroke="{DynamicResource TextFillColorSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent" />
-                                                                            </Grid>
-                                                                            <Grid Width="18" Height="16" VerticalAlignment="Center">
-                                                                                <Border x:Name="DesktopPreviewTrayBattery" Width="13" Height="8" HorizontalAlignment="Left" VerticalAlignment="Center" BorderThickness="1" CornerRadius="2" BorderBrush="{DynamicResource TextFillColorSecondaryBrush}">
-                                                                                    <Border x:Name="DesktopPreviewTrayBatteryLevel" Width="6" Height="4" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="1,0,0,0" Background="{DynamicResource TextFillColorSecondaryBrush}" CornerRadius="1" />
-                                                                                </Border>
-                                                                                <Border x:Name="DesktopPreviewTrayBatteryTerminal" Width="2" Height="4" HorizontalAlignment="Right" VerticalAlignment="Center" Background="{DynamicResource TextFillColorSecondaryBrush}" CornerRadius="0,1,1,0" />
-                                                                            </Grid>
-                                                                        </StackPanel></Border>
-                                                                        <Border Height="48" Padding="8,0" CornerRadius="4"><StackPanel VerticalAlignment="Center">
-                                                                            <TextBlock x:Name="DesktopPreviewClockText" Text="22:50" FontSize="11.5" Foreground="{DynamicResource TextFillColorPrimaryBrush}" HorizontalAlignment="Center" />
-                                                                            <TextBlock x:Name="DesktopPreviewDateText" Text="29/09/2026" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" />
-                                                                        </StackPanel></Border>
-                                                                        <Border Width="4" Height="48" Margin="2,0,0,0" BorderThickness="1,0,0,0" BorderBrush="#33FFFFFF" />
+                                                                    <StackPanel Orientation="Horizontal"
+                                                                                HorizontalAlignment="Right"
+                                                                                VerticalAlignment="Stretch">
+                                                                        <Border Width="28"
+                                                                                Height="48"
+                                                                                CornerRadius="4">
+                                                                            <Path x:Name="DesktopPreviewTrayChevron"
+                                                                                  Width="8"
+                                                                                  Height="5"
+                                                                                  HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Data="M1,4 L4,1 L7,4"
+                                                                                  Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                  StrokeThickness="1"
+                                                                                  StrokeStartLineCap="Round"
+                                                                                  StrokeEndLineCap="Round" />
+                                                                        </Border>
+                                                                        <Border Width="72"
+                                                                                Height="48"
+                                                                                CornerRadius="4">
+                                                                            <StackPanel Orientation="Horizontal"
+                                                                                        HorizontalAlignment="Center"
+                                                                                        VerticalAlignment="Center"
+                                                                                        Height="24">
+                                                                                <Grid Width="18"
+                                                                                      Height="18"
+                                                                                      VerticalAlignment="Center"
+                                                                                      Margin="0,0,7,0">
+                                                                                    <Path x:Name="DesktopPreviewTrayWifi"
+                                                                                          Data="M1,6 C5,2 13,2 17,6 M4,9 C7,6 11,6 14,9 M7,12 C8.5,10.5 9.5,10.5 11,12"
+                                                                                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                          StrokeThickness="1.6"
+                                                                                          StrokeStartLineCap="Round"
+                                                                                          StrokeEndLineCap="Round"
+                                                                                          Fill="Transparent" />
+                                                                                    <Ellipse x:Name="DesktopPreviewTrayWifiDot"
+                                                                                             Width="2.2"
+                                                                                             Height="2.2"
+                                                                                             Fill="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                             HorizontalAlignment="Center"
+                                                                                             VerticalAlignment="Bottom"
+                                                                                             Margin="0,0,0,1" />
+                                                                                </Grid>
+                                                                                <Grid Width="18"
+                                                                                      Height="18"
+                                                                                      VerticalAlignment="Center"
+                                                                                      Margin="0,0,6,0">
+                                                                                    <Path x:Name="DesktopPreviewTraySpeaker"
+                                                                                          Data="M2,7 H5 L9,4 V14 L5,11 H2 Z"
+                                                                                          Fill="{DynamicResource TextFillColorSecondaryBrush}" />
+                                                                                    <Path x:Name="DesktopPreviewTraySpeakerWaves"
+                                                                                          Data="M11,7 C13,8 13,10 11,11 M13,5 C17,8 17,10 13,13"
+                                                                                          Stroke="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                          StrokeThickness="1.4"
+                                                                                          StrokeStartLineCap="Round"
+                                                                                          StrokeEndLineCap="Round"
+                                                                                          Fill="Transparent" />
+                                                                                </Grid>
+                                                                                <Grid Width="18"
+                                                                                      Height="16"
+                                                                                      VerticalAlignment="Center">
+                                                                                    <Border x:Name="DesktopPreviewTrayBattery"
+                                                                                            Width="13"
+                                                                                            Height="8"
+                                                                                            HorizontalAlignment="Left"
+                                                                                            VerticalAlignment="Center"
+                                                                                            BorderThickness="1"
+                                                                                            CornerRadius="2"
+                                                                                            BorderBrush="{DynamicResource TextFillColorSecondaryBrush}">
+                                                                                        <Border x:Name="DesktopPreviewTrayBatteryLevel"
+                                                                                                Width="6"
+                                                                                                Height="4"
+                                                                                                HorizontalAlignment="Left"
+                                                                                                VerticalAlignment="Center"
+                                                                                                Margin="1,0,0,0"
+                                                                                                Background="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                                CornerRadius="1" />
+                                                                                    </Border>
+                                                                                    <Border x:Name="DesktopPreviewTrayBatteryTerminal"
+                                                                                            Width="2"
+                                                                                            Height="4"
+                                                                                            HorizontalAlignment="Right"
+                                                                                            VerticalAlignment="Center"
+                                                                                            Background="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                            CornerRadius="0,1,1,0" />
+                                                                                </Grid>
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                        <Border Height="48"
+                                                                                Padding="8,0"
+                                                                                CornerRadius="4">
+                                                                            <StackPanel VerticalAlignment="Center">
+                                                                                <TextBlock x:Name="DesktopPreviewClockText"
+                                                                                           Text="22:50"
+                                                                                           FontSize="11.5"
+                                                                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                                                           HorizontalAlignment="Center" />
+                                                                                <TextBlock x:Name="DesktopPreviewDateText"
+                                                                                           Text="29/09/2026"
+                                                                                           FontSize="10"
+                                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                                                           HorizontalAlignment="Center" />
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                        <Border Width="4"
+                                                                                Height="48"
+                                                                                Margin="2,0,0,0"
+                                                                                BorderThickness="1,0,0,0"
+                                                                                BorderBrush="#33FFFFFF" />
                                                                     </StackPanel>
                                                                 </Grid>
                                                             </Grid>
                                                         </Border>
-                                                        <Border x:Name="DesktopPreviewAutoHideIndicator" Height="4" VerticalAlignment="Bottom" Background="{DynamicResource StoreBrush_99FFFFFF}" Visibility="Collapsed" />
+                                                        <Border x:Name="DesktopPreviewAutoHideIndicator"
+                                                                Height="4"
+                                                                VerticalAlignment="Bottom"
+                                                                Background="{DynamicResource StoreBrush_99FFFFFF}"
+                                                                Visibility="Collapsed" />
                                                     </Grid>
                                                 </Border>
                                             </Viewbox>
@@ -594,7 +945,7 @@
                                                    Margin="32,2,0,0" />
                                     </StackPanel>
 
-                                    <!--  Nome e Região  -->
+                                    <!--  Identidade e data/hora  -->
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
                                             <Grid Margin="24,16">
@@ -622,29 +973,47 @@
                                                             TextChanged="Field_Changed" />
                                             </Grid>
 
-                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                        </StackPanel>
+                                    </Border>
 
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <Grid Margin="24,16">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="220" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                <TextBlock Text="Informação OEM" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Texto de identificação exibido nas informações do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" />
+                                            </StackPanel>
+                                            <ui:TextBox x:Name="ProfileNameTextBox" Grid.Column="1" VerticalAlignment="Center" MaxLength="14" PlaceholderText="Sem nome" TextChanged="Field_Changed" />
+                                        </Grid>
+                                    </Border>
+
+                                    <Border Style="{StaticResource SettingsCardStyle}">
+                                        <StackPanel>
                                             <Grid Margin="24,16">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="220" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                    <TextBlock Text="Região" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Define a região do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock Text="Data e hora automáticas" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                    <TextBlock Text="Sincroniza usando a fonte de horário já configurada no Windows, preservando políticas de domínio." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" />
                                                 </StackPanel>
-                                                <ComboBox x:Name="RegionComboBox"
-                                                          Grid.Column="1"
-                                                          VerticalAlignment="Center"
-                                                          HorizontalAlignment="Stretch"
-                                                          SelectionChanged="Field_Changed">
-                                                    <ComboBoxItem Content="Não alterar"
-                                                                  Tag=""
-                                                                  IsSelected="True" />
-                                                    <ComboBoxItem Content="Brasil" Tag="BR" />
-                                                    <ComboBoxItem Content="Estados Unidos" Tag="US" />
-                                                    <ComboBoxItem Content="Portugal" Tag="PT" />
-                                                </ComboBox>
+                                                <CheckBox x:Name="AutomaticTimeCheckBox" Grid.Column="1" VerticalAlignment="Center" Content="Ativar" Checked="Field_Changed" Unchecked="Field_Changed" />
+                                            </Grid>
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                            <Grid Margin="24,16">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
+                                                    <TextBlock Text="Fuso horário automático" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                    <TextBlock Text="Ajusta o fuso conforme a localização do sistema. A permissão de localização do Windows precisa estar ativa." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <CheckBox x:Name="AutomaticTimeZoneCheckBox" Grid.Column="1" VerticalAlignment="Center" Content="Ativar" Checked="Field_Changed" Unchecked="Field_Changed" />
                                             </Grid>
                                         </StackPanel>
                                     </Border>
@@ -652,28 +1021,59 @@
                                     <!--  Energia  -->
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
-                                            <Grid Margin="24,16">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="220" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                    <TextBlock Text="Plano de energia" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Escolha o plano de energia do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                                </StackPanel>
-                                                <ComboBox x:Name="PowerPlanComboBox"
-                                                          Grid.Column="1"
-                                                          VerticalAlignment="Center"
-                                                          HorizontalAlignment="Stretch"
-                                                          SelectionChanged="Field_Changed">
-                                                    <ComboBoxItem Content="Não alterar"
-                                                                  Tag="NaoDefinido"
-                                                                  IsSelected="True" />
-                                                    <ComboBoxItem Content="Economia de energia" Tag="Economia" />
-                                                    <ComboBoxItem Content="Equilibrado" Tag="Equilibrado" />
-                                                    <ComboBoxItem Content="Alto desempenho" Tag="AltoDesempenho" />
-                                                </ComboBox>
-                                            </Grid>
+                                            <StackPanel Margin="24,16">
+                                                <TextBlock Text="Plano de energia" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Escolha como equilibrar autonomia e desempenho."
+                                                           Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                           Margin="0,4,0,12" />
+                                                <UniformGrid x:Name="PowerPlanOptionsPanel" Columns="2">
+                                                    <RadioButton Tag="NaoDefinido"
+                                                                 IsChecked="True"
+                                                                 Style="{StaticResource SettingsChoiceCardRadioButtonStyle}"
+                                                                 Checked="Field_Changed"
+                                                                 Margin="0,0,8,8">
+                                                        <StackPanel>
+                                                            <TextBlock Text="Não alterar" FontWeight="SemiBold" />
+                                                            <TextBlock Text="Manter a configuração atual"
+                                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </RadioButton>
+                                                    <RadioButton Tag="Equilibrado"
+                                                                 Style="{StaticResource SettingsChoiceCardRadioButtonStyle}"
+                                                                 Checked="Field_Changed"
+                                                                 Margin="0,0,0,8">
+                                                        <StackPanel>
+                                                            <TextBlock Text="Equilibrado" FontWeight="SemiBold" />
+                                                            <TextBlock Text="Uso diário e consumo moderado"
+                                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </RadioButton>
+                                                    <RadioButton Tag="Economia"
+                                                                 Style="{StaticResource SettingsChoiceCardRadioButtonStyle}"
+                                                                 Checked="Field_Changed"
+                                                                 Margin="0,0,8,0">
+                                                        <StackPanel>
+                                                            <TextBlock Text="Economia de energia" FontWeight="SemiBold" />
+                                                            <TextBlock Text="Prioriza a duração da bateria"
+                                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </RadioButton>
+                                                    <RadioButton Tag="AltoDesempenho"
+                                                                 Style="{StaticResource SettingsChoiceCardRadioButtonStyle}"
+                                                                 Checked="Field_Changed"
+                                                                 Margin="0">
+                                                        <StackPanel>
+                                                            <TextBlock Text="Alto desempenho" FontWeight="SemiBold" />
+                                                            <TextBlock Text="Prioriza o desempenho do computador"
+                                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </RadioButton>
+                                                </UniformGrid>
+                                            </StackPanel>
 
                                             <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
 
@@ -777,75 +1177,118 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!--  Restauração  -->
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
-                                            <Grid Margin="24,16">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                    <TextBlock Text="Ponto de restauração" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Cria um ponto de restauração antes de aplicar as mudanças." Style="{StaticResource SettingsRowSubtitleStyle}" />
-                                                </StackPanel>
-                                                <CheckBox x:Name="AutoCreateRestorePointCheckBox"
-                                                          Grid.Column="1"
-                                                          VerticalAlignment="Center"
-                                                          Checked="Field_Changed"
-                                                          Unchecked="Field_Changed" />
-                                            </Grid>
+                                            <StackPanel Margin="24,16,24,12">
+                                                <TextBlock Text="Explorador de Arquivos" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Ajuste como arquivos e pastas aparecem no Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                            </StackPanel>
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                            <CheckBox x:Name="ShowFileExtensionsCheckBox"
+                                                      Content="Mostrar extensões de arquivos"
+                                                      IsThreeState="True"
+                                                      IsChecked="{x:Null}"
+                                                      Margin="24,12"
+                                                      Checked="Field_Changed"
+                                                      Unchecked="Field_Changed"
+                                                      Indeterminate="Field_Changed" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                            <CheckBox x:Name="ShowHiddenFilesCheckBox"
+                                                      Content="Mostrar arquivos ocultos"
+                                                      IsThreeState="True"
+                                                      IsChecked="{x:Null}"
+                                                      Margin="24,12"
+                                                      Checked="Field_Changed"
+                                                      Unchecked="Field_Changed"
+                                                      Indeterminate="Field_Changed" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                            <CheckBox x:Name="OpenExplorerToThisPcCheckBox"
+                                                      Content="Abrir o Explorador em Este Computador"
+                                                      IsThreeState="True"
+                                                      IsChecked="{x:Null}"
+                                                      Margin="24,12"
+                                                      Checked="Field_Changed"
+                                                      Unchecked="Field_Changed"
+                                                      Indeterminate="Field_Changed" />
                                         </StackPanel>
                                     </Border>
 
-                                    <!--  Limpeza de Arquivos Temporários ao Logon  -->
+                                    <!--  Limpeza segura de arquivos temporários  -->
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
-                                            <Grid Margin="24,16">
+                                            <StackPanel Margin="24,16,24,12">
+                                                <TextBlock Text="Limpeza de arquivos temporários" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                <TextBlock Text="Analisa antes de excluir. Itens em uso e links para outras pastas são ignorados." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <Grid Margin="24,0,24,12">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="112" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                    <TextBlock Text="Limpar arquivos temporários ao fazer Logon" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Limpa os arquivos temporários sempre que você entrar no Windows." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="Idade mínima dos arquivos" Style="{StaticResource SettingsRowTitleStyle}" />
+                                                    <TextBlock x:Name="CleanTempAgeHintText" Text="Serão considerados arquivos com mais de 7 dias." Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
-                                                <CheckBox x:Name="AutoCleanTempOnLogonCheckBox"
-                                                          Grid.Column="1"
-                                                          VerticalAlignment="Center"
-                                                          Checked="Field_Changed"
-                                                          Unchecked="Field_Changed" />
+                                                <ui:NumberBox x:Name="TempFileMinimumAgeDaysNumberBox"
+                                                              Style="{StaticResource StoreNumberBoxStyle}"
+                                                              Grid.Column="1"
+                                                              Minimum="1"
+                                                              Maximum="365"
+                                                              Value="7"
+                                                              SmallChange="1"
+                                                              LargeChange="7"
+                                                              MaxDecimalPlaces="0"
+                                                              SpinButtonPlacementMode="Compact"
+                                                              VerticalAlignment="Center"
+                                                              ValueChanged="TempFileMinimumAgeDays_ValueChanged" />
                                             </Grid>
-
                                             <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
-
-                                            <Grid Margin="24,14">
+                                            <CheckBox x:Name="CleanUserTempCheckBox"
+                                                      Content="Temporários deste usuário"
+                                                      Margin="24,12"
+                                                      Checked="TempCleanupSelection_Changed"
+                                                      Unchecked="TempCleanupSelection_Changed" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                            <CheckBox x:Name="CleanSystemTempCheckBox"
+                                                      Content="Temporários do Windows (pode solicitar permissão de administrador)"
+                                                      Margin="24,12"
+                                                      Checked="TempCleanupSelection_Changed"
+                                                      Unchecked="TempCleanupSelection_Changed" />
+                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
+                                            <TextBlock x:Name="CleanTempAnalysisText"
+                                                       Text="Selecione Analisar para estimar a quantidade recuperável."
+                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="24,12" />
+                                            <TextBlock x:Name="CleanTempResultText"
+                                                       Visibility="Collapsed"
+                                                       Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="24,0,24,12" />
+                                            <Grid Margin="24,0,24,16">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0"
-                                                            VerticalAlignment="Center"
-                                                            Margin="0,0,16,0">
-                                                    <TextBlock x:Name="CleanTempTaskStatusText"
-                                                               Text="Status da tarefa no sistema: Verificando…"
-                                                               FontSize="12"
-                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1"
-                                                            Orientation="Horizontal"
-                                                            VerticalAlignment="Center">
-                                                    <ui:Button x:Name="ScheduleCleanTempNowButton"
-                                                               Content="Agendar Tarefa Agora"
-                                                               Appearance="Secondary"
-                                                               CornerRadius="{StaticResource ControlCornerRadius}"
-                                                               Click="ScheduleCleanTempNowButton_Click">
-                                                        <ui:Button.Icon>
-                                                            <ui:SymbolIcon Symbol="CalendarClock24" />
-                                                        </ui:Button.Icon>
-                                                    </ui:Button>
-                                                </StackPanel>
+                                                <ui:Button x:Name="AnalyzeTempFilesButton"
+                                                           Grid.Column="0"
+                                                           Content="Analisar"
+                                                           Appearance="Secondary"
+                                                           HorizontalAlignment="Left"
+                                                           CornerRadius="{StaticResource ControlCornerRadius}"
+                                                           Click="AnalyzeTempFilesButton_Click">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
+                                                </ui:Button>
+                                                <ui:Button x:Name="CleanTempFilesButton"
+                                                           Grid.Column="1"
+                                                           Content="Limpar selecionados"
+                                                           Appearance="Primary"
+                                                           CornerRadius="{StaticResource ControlCornerRadius}"
+                                                           Click="CleanTempFilesButton_Click">
+                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                                                </ui:Button>
                                             </Grid>
+
                                         </StackPanel>
                                     </Border>
 
@@ -855,24 +1298,6 @@
                                 <StackPanel x:Name="JsonSectionPanel" Visibility="Collapsed">
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel>
-                                            <Grid Margin="24,16">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="220" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
-                                                    <TextBlock Text="Informação OEM" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                </StackPanel>
-                                                <ui:TextBox x:Name="ProfileNameTextBox"
-                                                            Grid.Column="1"
-                                                            VerticalAlignment="Center"
-                                                            MaxLength="14"
-                                                            PlaceholderText="Sem nome"
-                                                            TextChanged="Field_Changed" />
-                                            </Grid>
-
-                                            <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
-
                                             <Grid Margin="24,16">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -979,8 +1404,7 @@
                                 <StackPanel x:Name="OrchestratorSectionPanel" Visibility="Collapsed">
                                     <Border Style="{StaticResource SettingsCardStyle}">
                                         <StackPanel Margin="24,20">
-                                            <TextBlock Text="Prepare o FirstLogon do Schneegans"
-                                                       Style="{StaticResource SettingsRowTitleStyle}" />
+                                            <TextBlock Text="Prepare o FirstLogon do Schneegans" Style="{StaticResource SettingsRowTitleStyle}" />
                                             <TextBlock Text="Publique o perfil e o script no seu Gist secreto. Depois, cole o comando curto no FirstLogon para instalar o app e aplicar este perfil automaticamente."
                                                        Style="{StaticResource SettingsRowSubtitleStyle}"
                                                        Margin="0,6,0,16" />
@@ -1068,7 +1492,9 @@
                                                            Style="{StaticResource StoreActionButtonStyle}"
                                                            Margin="0,0,8,0">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <ui:SymbolIcon Symbol="CloudArrowUp24" FontSize="16" Margin="0,0,8,0" />
+                                                        <ui:SymbolIcon Symbol="CloudArrowUp24"
+                                                                       FontSize="16"
+                                                                       Margin="0,0,8,0" />
                                                         <TextBlock Text="Publicar Orchestrator" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </ui:Button>
@@ -1077,7 +1503,9 @@
                                                            Click="CopyBootstrapCommandButton_Click"
                                                            Style="{StaticResource StoreActionButtonStyle}">
                                                     <StackPanel Orientation="Horizontal">
-                                                        <ui:SymbolIcon Symbol="Copy24" FontSize="16" Margin="0,0,8,0" />
+                                                        <ui:SymbolIcon Symbol="Copy24"
+                                                                       FontSize="16"
+                                                                       Margin="0,0,8,0" />
                                                         <TextBlock Text="Copiar comando" VerticalAlignment="Center" />
                                                     </StackPanel>
                                                 </ui:Button>
@@ -1100,10 +1528,15 @@
             <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">
                 <StackPanel Orientation="Horizontal">
                     <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
-                    <TextBlock x:Name="StatusText"
-                               Style="{StaticResource PageStatusTextStyle}" />
+                    <TextBlock x:Name="StatusText" Style="{StaticResource PageStatusTextStyle}" />
                 </StackPanel>
             </Border>
+            <ui:InfoBar x:Name="ProvisioningInfoBar"
+                        Style="{StaticResource StoreInfoBarStyle}"
+                        Grid.Row="2"
+                        IsOpen="False"
+                        Severity="Informational"
+                        Panel.ZIndex="10" />
         </Grid>
     </Border>
 </Page>

@@ -1,4 +1,4 @@
-<Page x:Class="WinProvision.Store.UpdatesPage"
+﻿<Page x:Class="WinProvision.Store.UpdatesPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -21,11 +21,17 @@
         <conv:CountToVisibilityConverter x:Key="CountToVisibilityConverter" />
         <conv:InverseBooleanConverter x:Key="InverseBooleanConverter" />
 
-        <!-- Estilos de Cabeçalho / Cartões -->
-        <Style x:Key="PageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentPageTitleStyle}" />
-        <Style x:Key="CardTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource FluentCardTitleStyle}" />
+        <!--  Estilos de Cabeçalho / Cartões  -->
+        <Style x:Key="PageTitleStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource FluentPageTitleStyle}" />
+        <Style x:Key="CardTitleStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource FluentCardTitleStyle}" />
 
-        <Style x:Key="CardStyle" TargetType="Border" BasedOn="{StaticResource StoreCardSurfaceStyle}">
+        <Style x:Key="CardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource StoreCardSurfaceStyle}">
             <Setter Property="CornerRadius" Value="{StaticResource StoreCardCornerRadius}" />
             <Setter Property="Background" Value="{DynamicResource AppCardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
@@ -34,18 +40,22 @@
             <Setter Property="Effect" Value="{x:Null}" />
         </Style>
 
-        <!-- Geometria desta página: controles compactos com cantos discretos. -->
+        <!--  Geometria desta página: controles compactos com cantos discretos.  -->
         <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
         </Style>
 
-        <Style x:Key="UpdatesActionButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Style x:Key="UpdatesActionButtonStyle"
+               TargetType="ui:Button"
+               BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
             <Setter Property="MinHeight" Value="32" />
             <Setter Property="Padding" Value="12,0" />
         </Style>
 
-        <Style x:Key="SourceSelectionButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+        <Style x:Key="SourceSelectionButtonStyle"
+               TargetType="ui:Button"
+               BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="30" />
             <Setter Property="Padding" Value="6,0" />
@@ -61,7 +71,9 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Source}" Value="winget"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="winget">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -71,7 +83,9 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Source}" Value="msstore"><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="msstore">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -81,7 +95,9 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Source}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 
@@ -91,14 +107,22 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
             <Setter Property="Visibility" Value="Visible" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Source}" Value="winget"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                <DataTrigger Binding="{Binding Source}" Value="msstore"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
-                <DataTrigger Binding="{Binding Source}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="winget">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="msstore">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Source}" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <!-- Estilos da barra de ferramentas -->
-        <Style x:Key="ToolbarButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+        <!--  Estilos da barra de ferramentas  -->
+        <Style x:Key="ToolbarButtonStyle"
+               TargetType="ui:Button"
+               BasedOn="{StaticResource {x:Type ui:Button}}">
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,0,4,0" />
@@ -108,7 +132,9 @@
             <Setter Property="FontSize" Value="12" />
         </Style>
 
-        <Style x:Key="ToolbarToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+        <Style x:Key="ToolbarToggleButtonStyle"
+               TargetType="ToggleButton"
+               BasedOn="{StaticResource {x:Type ToggleButton}}">
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="10,0" />
             <Setter Property="Margin" Value="0,0,6,0" />
@@ -121,31 +147,38 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="ToggleSurface" Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="{StaticResource ControlCornerRadius}" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        <Border x:Name="ToggleSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="ToggleSurface" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                             </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
+                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
                                 <Setter TargetName="ToggleSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
                                 <Setter TargetName="ToggleSurface" Property="BorderBrush" Value="{DynamicResource InstallActionBrush}" />
-                            </Trigger>
+                            </DataTrigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="ToggleSurface" Property="BorderBrush" Value="{DynamicResource SystemAccentColorPrimaryBrush}" />
                                 <Setter TargetName="ToggleSurface" Property="BorderThickness" Value="2" />
                             </Trigger>
-                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
 
-        <!-- Estilo das linhas da lista de atualizações -->
+        <!--  Estilo das linhas da lista de atualizações  -->
         <Style x:Key="PackageTableRowStyle" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
@@ -173,7 +206,7 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Template de linha da lista de atualizações -->
+        <!--  Template de linha da lista de atualizações  -->
         <DataTemplate x:Key="UpgradableTableRowTemplate">
             <Border Style="{StaticResource PackageTableRowStyle}"
                     MouseLeftButtonUp="PackageRow_Click"
@@ -230,63 +263,128 @@
                         <ColumnDefinition Width="1.3*" />
                     </Grid.ColumnDefinitions>
 
-                    <!-- A própria linha seleciona; o check verde evita duplicar o checkbox mestre. -->
-                    <ui:SymbolIcon Grid.Column="0" Symbol="CheckmarkCircle24" FontSize="18"
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                    <!--  A própria linha seleciona; o check verde evita duplicar o checkbox mestre.  -->
+                    <ui:SymbolIcon Grid.Column="0"
+                                   Symbol="CheckmarkCircle24"
+                                   FontSize="18"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
                                    Foreground="{DynamicResource AppOperationSuccessBrush}"
                                    Visibility="{Binding IsSelectedForUpdate, Converter={StaticResource BoolToVisibilityConverter}}" />
 
-                    <!-- Nome do Pacote (com ícone) -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,10,0">
-                        <Grid Width="36" Height="36" Margin="0,0,12,0" ClipToBounds="True" VerticalAlignment="Center">
-                                <ui:SymbolIcon Symbol="Box24" FontSize="20" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                               Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=RowAppIcon, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                <Image x:Name="RowAppIcon" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                       conv:AsyncImage.DecodePixelWidth="64" Stretch="Uniform"
-                                       Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=RowAppIcon, Converter={StaticResource BoolToVisibilityConverter}}" />
+                    <!--  Nome do Pacote (com ícone)  -->
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="6,0,10,0">
+                        <Grid Width="36"
+                              Height="36"
+                              Margin="0,0,12,0"
+                              ClipToBounds="True"
+                              VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Box24"
+                                           FontSize="20"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=RowAppIcon, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                            <Image x:Name="RowAppIcon"
+                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                   conv:AsyncImage.DecodePixelWidth="64"
+                                   Stretch="Uniform"
+                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=RowAppIcon, Converter={StaticResource BoolToVisibilityConverter}}" />
                         </Grid>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding Name}"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </StackPanel>
 
-                    <!-- ID do Pacote -->
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,10,0">
-                        <ui:SymbolIcon Symbol="Tag24" FontSize="15" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding Id}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <!--  ID do Pacote  -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="6,0,10,0">
+                        <ui:SymbolIcon Symbol="Tag24"
+                                       FontSize="15"
+                                       Margin="0,0,6,0"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Id}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
 
-                    <!-- Versão Atual -->
-                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,10,0">
-                        <ui:SymbolIcon Symbol="BranchFork24" FontSize="15" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding CurrentVersion}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <!--  Versão Atual  -->
+                    <StackPanel Grid.Column="3"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="6,0,10,0">
+                        <ui:SymbolIcon Symbol="BranchFork24"
+                                       FontSize="15"
+                                       Margin="0,0,6,0"
+                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                       VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding CurrentVersion}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
 
-                    <!-- Nova Versão (destaque em verde/accent) -->
-                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,10,0">
-                        <ui:SymbolIcon Symbol="ArrowSync24" FontSize="15" Margin="0,0,6,0" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" VerticalAlignment="Center" />
-                        <TextBlock Text="{Binding AvailableVersion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SystemFillColorSuccessBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <!--  Nova Versão (destaque em verde/accent)  -->
+                    <StackPanel Grid.Column="4"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="6,0,10,0">
+                        <ui:SymbolIcon Symbol="ArrowSync24"
+                                       FontSize="15"
+                                       Margin="0,0,6,0"
+                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding AvailableVersion}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
 
-                    <!-- Origem -->
-                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,6,0">
-                        <Grid Width="18" Height="18" Margin="0,0,6,0">
+                    <!--  Origem  -->
+                    <StackPanel Grid.Column="5"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="6,0,6,0">
+                        <Grid Width="18"
+                              Height="18"
+                              Margin="0,0,6,0">
                             <ui:SymbolIcon Style="{StaticResource WingetSourceIconStyle}" />
                             <ui:SymbolIcon Style="{StaticResource MsStoreSourceIconStyle}" />
                             <ui:SymbolIcon Style="{StaticResource LocalSourceIconStyle}" />
                             <ui:SymbolIcon Style="{StaticResource GenericSourceIconStyle}" />
                         </Grid>
-                        <TextBlock Text="{Binding SourceLabel}" FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding SourceLabel}"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
 
-        <!-- Template de Cartões Compactos (Grid Mode) -->
+        <!--  Template de Cartões Compactos (Grid Mode)  -->
         <DataTemplate x:Key="UpgradableCardTemplate">
-            <Border Width="214" Height="248" Margin="0,0,16,16" Padding="14"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}" Cursor="Hand"
-                    MouseLeftButtonUp="PackageRow_Click" Tag="{Binding}">
+            <Border Width="214"
+                    Height="248"
+                    Margin="0,0,16,16"
+                    Padding="14"
+                    CornerRadius="{StaticResource StoreCardCornerRadius}"
+                    Cursor="Hand"
+                    MouseLeftButtonUp="PackageRow_Click"
+                    Tag="{Binding}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -309,37 +407,67 @@
                         <RowDefinition Height="20" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <ui:SymbolIcon Grid.Row="0" Symbol="CheckmarkCircle24" FontSize="17"
-                                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                    <ui:SymbolIcon Grid.Row="0"
+                                   Symbol="CheckmarkCircle24"
+                                   FontSize="17"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
                                    Foreground="{DynamicResource AppOperationSuccessBrush}"
                                    Visibility="{Binding IsSelectedForUpdate, Converter={StaticResource BoolToVisibilityConverter}}" />
                     <Grid Grid.Row="1" Margin="0,4,0,12">
                         <StackPanel VerticalAlignment="Center">
-                            <Border Width="56" Height="56" Margin="0,0,0,10" CornerRadius="{StaticResource ControlCornerRadius}" ClipToBounds="True" HorizontalAlignment="Center">
+                            <Border Width="56"
+                                    Height="56"
+                                    Margin="0,0,0,10"
+                                    CornerRadius="{StaticResource ControlCornerRadius}"
+                                    ClipToBounds="True"
+                                    HorizontalAlignment="Center">
                                 <Grid>
-                                    <ui:SymbolIcon Symbol="Box24" FontSize="32" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                    <ui:SymbolIcon Symbol="Box24"
+                                                   FontSize="32"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}"
                                                    Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=CardImg, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="CardImg" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                           conv:AsyncImage.DecodePixelWidth="96" Stretch="Uniform"
+                                    <Image x:Name="CardImg"
+                                           conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                           conv:AsyncImage.DecodePixelWidth="96"
+                                           Stretch="Uniform"
                                            Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=CardImg, Converter={StaticResource BoolToVisibilityConverter}}" />
                                 </Grid>
                             </Border>
-                            <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" />
-                            <Border Background="{DynamicResource AppBorderSubtleBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="6,2" Margin="2,4" HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="13.5"
+                                       FontWeight="SemiBold"
+                                       TextAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <Border Background="{DynamicResource AppBorderSubtleBrush}"
+                                    CornerRadius="{StaticResource ControlCornerRadius}"
+                                    Padding="6,2"
+                                    Margin="2,4"
+                                    HorizontalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
-                                    <Grid Width="14" Height="14" Margin="0,0,4,0">
+                                    <Grid Width="14"
+                                          Height="14"
+                                          Margin="0,0,4,0">
                                         <ui:SymbolIcon Style="{StaticResource WingetSourceIconStyle}" FontSize="14" />
                                         <ui:SymbolIcon Style="{StaticResource MsStoreSourceIconStyle}" FontSize="14" />
                                         <ui:SymbolIcon Style="{StaticResource LocalSourceIconStyle}" FontSize="14" />
                                         <ui:SymbolIcon Style="{StaticResource GenericSourceIconStyle}" FontSize="14" />
                                     </Grid>
-                                    <TextBlock Text="{Binding SourceLabel}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding SourceLabel}"
+                                               FontSize="10"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                             </Border>
-                            <TextBlock FontSize="11" TextAlignment="Center" TextTrimming="CharacterEllipsis">
+                            <TextBlock FontSize="11"
+                                       TextAlignment="Center"
+                                       TextTrimming="CharacterEllipsis">
                                 <Run Text="{Binding CurrentVersion}" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                                 <Run Text="  →  " Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                <Run Text="{Binding AvailableVersion}" Foreground="{DynamicResource SystemFillColorSuccessBrush}" FontWeight="SemiBold" />
+                                <Run Text="{Binding AvailableVersion}"
+                                     Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                     FontWeight="SemiBold" />
                             </TextBlock>
                         </StackPanel>
                     </Grid>
@@ -347,11 +475,16 @@
             </Border>
         </DataTemplate>
 
-        <!-- Template de Ícones Grandes (Icons Mode) -->
+        <!--  Template de Ícones Grandes (Icons Mode)  -->
         <DataTemplate x:Key="UpgradableIconsTemplate">
-            <Border Width="120" Height="140" Margin="0,0,8,8" Padding="8"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}" Cursor="Hand"
-                    MouseLeftButtonUp="PackageRow_Click" Tag="{Binding}">
+            <Border Width="120"
+                    Height="140"
+                    Margin="0,0,8,8"
+                    Padding="8"
+                    CornerRadius="{StaticResource StoreCardCornerRadius}"
+                    Cursor="Hand"
+                    MouseLeftButtonUp="PackageRow_Click"
+                    Tag="{Binding}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
@@ -374,62 +507,97 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0">
-                        <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="16"
-                                       HorizontalAlignment="Left" VerticalAlignment="Center"
+                        <ui:SymbolIcon Symbol="CheckmarkCircle24"
+                                       FontSize="16"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"
                                        Foreground="{DynamicResource AppOperationSuccessBrush}"
                                        Visibility="{Binding IsSelectedForUpdate, Converter={StaticResource BoolToVisibilityConverter}}" />
                     </Grid>
-                    <StackPanel Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,2,0,0">
-                            <Grid Width="40" Height="40" ClipToBounds="True" HorizontalAlignment="Center" Margin="0,0,0,8">
-                                    <ui:SymbolIcon Symbol="Box24" FontSize="28" Foreground="{DynamicResource TextFillColorTertiaryBrush}"
-                                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconImg, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
-                                    <Image x:Name="IconImg" conv:AsyncImage.SourceUrl="{Binding IconUrl}"
-                                           conv:AsyncImage.DecodePixelWidth="64" Stretch="Uniform"
-                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconImg, Converter={StaticResource BoolToVisibilityConverter}}" />
-                            </Grid>
-                            <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" TextAlignment="Center"
-                                       TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="36" />
+                    <StackPanel Grid.Row="1"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"
+                                Margin="0,2,0,0">
+                        <Grid Width="40"
+                              Height="40"
+                              ClipToBounds="True"
+                              HorizontalAlignment="Center"
+                              Margin="0,0,0,8">
+                            <ui:SymbolIcon Symbol="Box24"
+                                           FontSize="28"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                           Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconImg, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}" />
+                            <Image x:Name="IconImg"
+                                   conv:AsyncImage.SourceUrl="{Binding IconUrl}"
+                                   conv:AsyncImage.DecodePixelWidth="64"
+                                   Stretch="Uniform"
+                                   Visibility="{Binding (conv:AsyncImage.HasContent), ElementName=IconImg, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        </Grid>
+                        <TextBlock Text="{Binding Name}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxHeight="36" />
                     </StackPanel>
                 </Grid>
             </Border>
         </DataTemplate>
     </Page.Resources>
 
-    <Grid Margin="{StaticResource PageContentMargin}" MaxWidth="{StaticResource PageContentMaxWidth}" HorizontalAlignment="Stretch">
+    <Grid Margin="{StaticResource PageContentMargin}"
+          MaxWidth="{StaticResource PageContentMaxWidth}"
+          HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" /> <!-- Cabeçalho -->
-            <RowDefinition Height="Auto" /> <!-- Barra de Ferramentas -->
-            <RowDefinition Height="*" />    <!-- Conteúdo Principal (Filtros + Lista) -->
-            <RowDefinition Height="Auto" /> <!-- Barra de Status / Rodapé -->
+            <RowDefinition Height="Auto" />
+            <!--  Cabeçalho  -->
+            <RowDefinition Height="Auto" />
+            <!--  Barra de Ferramentas  -->
+            <RowDefinition Height="*" />
+            <!--  Conteúdo Principal (Filtros + Lista)  -->
+            <RowDefinition Height="Auto" />
+            <!--  Barra de Status / Rodapé  -->
         </Grid.RowDefinitions>
 
-        <!-- Cabeçalho da página -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="{StaticResource PageHeaderMargin}">
-            <Border Style="{StaticResource PageHeaderIconTileStyle}"><ui:SymbolIcon Symbol="ArrowSync24" Style="{StaticResource PageHeaderSymbolIconStyle}" /></Border>
+        <!--  Cabeçalho da página  -->
+        <StackPanel Grid.Row="0"
+                    Orientation="Horizontal"
+                    Margin="{StaticResource PageHeaderMargin}">
+            <Border Style="{StaticResource PageHeaderIconTileStyle}">
+                <ui:SymbolIcon Symbol="ArrowSync24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+            </Border>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Atualizações" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock x:Name="SubtitleText" Text="Procurando atualizações..."
-                           Style="{StaticResource FluentPageSubtitleStyle}" Margin="0,4,0,0" />
+                <TextBlock x:Name="SubtitleText"
+                           Text="Procurando atualizações..."
+                           Style="{StaticResource FluentPageSubtitleStyle}"
+                           Margin="0,4,0,0" />
             </StackPanel>
         </StackPanel>
-        <!-- Barra de ferramentas -->
+        <!--  Barra de ferramentas  -->
         <Border Grid.Row="1" Style="{StaticResource PageToolbarContainerStyle}">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
 
-                    <!-- Botão Filtros -->
+                    <!--  Botão Filtros  -->
                     <ToggleButton x:Name="ToggleFiltersButton"
                                   Style="{StaticResource ToolbarToggleButtonStyle}"
                                   IsChecked="True"
                                   ToolTip="Exibir ou ocultar o painel de filtros laterais"
                                   Click="ToggleFiltersButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Filter24" FontSize="16" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Text="Filtros" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="Filter24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Filtros"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </ToggleButton>
 
-                    <!-- Ação principal e variantes seguem o controle SplitButton do WPF-UI. -->
+                    <!--  Ação principal e variantes seguem o controle SplitButton do WPF-UI.  -->
                     <ui:SplitButton x:Name="UpdateSelectedButton"
                                     Appearance="Primary"
                                     Height="34"
@@ -441,73 +609,114 @@
                                     ToolTip="Atualizar os pacotes selecionados ou escolher uma opção avançada"
                                     Click="UpdateSelectedButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowSync24" FontSize="16" Margin="0,0,6,0" />
-                            <TextBlock Text="Atualizar seleção" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="ArrowSync24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0" />
+                            <TextBlock Text="Atualizar seleção"
+                                       FontWeight="SemiBold"
+                                       FontSize="12"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                         <ui:SplitButton.Flyout>
                             <ContextMenu>
-                                <MenuItem Header="Atualizar como administrador" Tag="Admin" Click="UpdateVariant_Click">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Shield24" /></MenuItem.Icon>
+                                <MenuItem Header="Atualizar como administrador"
+                                          Tag="Admin"
+                                          Click="UpdateVariant_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="Shield24" />
+                                    </MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="Atualização interativa" Tag="Interactive" Click="UpdateVariant_Click">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Window24" /></MenuItem.Icon>
+                                <MenuItem Header="Atualização interativa"
+                                          Tag="Interactive"
+                                          Click="UpdateVariant_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="Window24" />
+                                    </MenuItem.Icon>
                                 </MenuItem>
-                                <MenuItem Header="Pular verificação de integridade" Tag="SkipHash" Click="UpdateVariant_Click">
-                                    <MenuItem.Icon><ui:SymbolIcon Symbol="Warning24" /></MenuItem.Icon>
+                                <MenuItem Header="Pular verificação de integridade"
+                                          Tag="SkipHash"
+                                          Click="UpdateVariant_Click">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon Symbol="Warning24" />
+                                    </MenuItem.Icon>
                                 </MenuItem>
                             </ContextMenu>
                         </ui:SplitButton.Flyout>
                     </ui:SplitButton>
 
-                    <Rectangle Visibility="Collapsed" Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Visibility="Collapsed"
+                               Width="1"
+                               Height="20"
+                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                               Margin="4,0"
+                               VerticalAlignment="Center" />
 
-                    <ui:Button x:Name="ToggleSelectAllToolbarButton" Visibility="Collapsed"
+                    <ui:Button x:Name="ToggleSelectAllToolbarButton"
+                               Visibility="Collapsed"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Selecionar ou desmarcar todas as atualizações filtradas"
                                Click="ToggleSelectAllToolbarButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon x:Name="ToggleSelectAllToolbarIcon" Symbol="CheckmarkCircle24" FontSize="16" Margin="0,0,6,0" />
-                            <TextBlock x:Name="ToggleSelectAllToolbarText" Text="Selecionar todos" VerticalAlignment="Center" />
+                            <ui:SymbolIcon x:Name="ToggleSelectAllToolbarIcon"
+                                           Symbol="CheckmarkCircle24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0" />
+                            <TextBlock x:Name="ToggleSelectAllToolbarText"
+                                       Text="Selecionar todos"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <ui:Button x:Name="UninstallSelectedButton" Visibility="Collapsed"
-                               Style="{StaticResource ToolbarButtonStyle}"
-                               ToolTip="Desinstalar os pacotes selecionados"
-                               Click="UninstallSelectedButton_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Delete24" FontSize="16" Margin="0,0,6,0" />
-                            <TextBlock Text="Desinstalar seleção" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </ui:Button>
-
-                    <ui:Button x:Name="PackageDetailsToolbarButton" Visibility="Visible"
+                    <ui:Button x:Name="PackageDetailsToolbarButton"
+                               Visibility="Visible"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Ver detalhes do pacote selecionado"
                                Click="PackageDetailsToolbarButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Info24" FontSize="16" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Text="Detalhes" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="Info24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Detalhes"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <Rectangle Visibility="Collapsed" Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Visibility="Collapsed"
+                               Width="1"
+                               Height="20"
+                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                               Margin="4,0"
+                               VerticalAlignment="Center" />
 
-                    <!-- Botão Recarregar -->
-                    <ui:Button x:Name="ReloadButton" Visibility="Visible"
+                    <!--  Botão Recarregar  -->
+                    <ui:Button x:Name="ReloadButton"
+                               Visibility="Visible"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Recarregar e buscar atualizações de pacotes"
                                Click="CheckUpdatesButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowClockwise24" FontSize="16" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Text="Recarregar" Foreground="{DynamicResource TextFillColorPrimaryBrush}" VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="ArrowClockwise24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <TextBlock Text="Recarregar"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                       VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <Rectangle Visibility="Collapsed" Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Visibility="Collapsed"
+                               Width="1"
+                               Height="20"
+                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                               Margin="4,0"
+                               VerticalAlignment="Center" />
 
-                    <!-- Opções de Atualização -->
-                    <ui:Button x:Name="OptionsButton" Visibility="Collapsed"
+                    <!--  Opções de Atualização  -->
+                    <ui:Button x:Name="OptionsButton"
+                               Visibility="Collapsed"
                                Style="{StaticResource ToolbarButtonStyle}"
                                Padding="8,0"
                                ToolTip="Opções de atualização do sistema"
@@ -515,65 +724,98 @@
                         <ui:SymbolIcon Symbol="Settings24" FontSize="16" />
                     </ui:Button>
 
-                    <Rectangle Visibility="Collapsed" Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Visibility="Collapsed"
+                               Width="1"
+                               Height="20"
+                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                               Margin="4,0"
+                               VerticalAlignment="Center" />
 
-                    <!-- Atualização Manual -->
-                    <ui:Button x:Name="ManualUpdateButton" Visibility="Collapsed"
+                    <!--  Atualização Manual  -->
+                    <ui:Button x:Name="ManualUpdateButton"
+                               Visibility="Collapsed"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Executar atualização manual via comando"
                                Click="ManualUpdateButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="WindowConsole20" FontSize="16" Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="WindowConsole20"
+                                           FontSize="16"
+                                           Margin="0,0,6,0" />
                             <TextBlock Text="Atualização manual" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <Rectangle Visibility="Collapsed" Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Visibility="Collapsed"
+                               Width="1"
+                               Height="20"
+                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                               Margin="4,0"
+                               VerticalAlignment="Center" />
 
-                    <!-- Ignorar Selecionados -->
-                    <ui:Button x:Name="IgnoreSelectedButton" Visibility="Collapsed"
+                    <!--  Ignorar Selecionados  -->
+                    <ui:Button x:Name="IgnoreSelectedButton"
+                               Visibility="Collapsed"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Ignorar a versão atual dos pacotes selecionados"
                                Click="IgnoreSelectedButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Pin24" FontSize="16" Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="Pin24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0" />
                             <TextBlock Text="Ignorar pacotes selecionados" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <!-- Gerenciar Atualizações Ignoradas -->
-                    <ui:Button x:Name="ManageIgnoredButton" Visibility="Collapsed"
+                    <!--  Gerenciar Atualizações Ignoradas  -->
+                    <ui:Button x:Name="ManageIgnoredButton"
+                               Visibility="Collapsed"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Gerenciar e restaurar atualizações ignoradas"
                                Click="ManageIgnoredButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ClipboardTask24" FontSize="16" Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="ClipboardTask24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0" />
                             <TextBlock Text="Gerenciar atualizações ignoradas" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <Rectangle Visibility="Collapsed" Width="1" Height="20" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="4,0" VerticalAlignment="Center" />
+                    <Rectangle Visibility="Collapsed"
+                               Width="1"
+                               Height="20"
+                               Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                               Margin="4,0"
+                               VerticalAlignment="Center" />
 
-                    <!-- Exportar para CSV -->
-                    <ui:Button x:Name="ExportCsvButton" Visibility="Collapsed"
+                    <!--  Exportar para CSV  -->
+                    <ui:Button x:Name="ExportCsvButton"
+                               Visibility="Collapsed"
                                Style="{StaticResource ToolbarButtonStyle}"
                                ToolTip="Exportar lista de atualizações para arquivo CSV"
                                Click="ExportCsvButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowExport24" FontSize="16" Margin="0,0,6,0" />
+                            <ui:SymbolIcon Symbol="ArrowExport24"
+                                           FontSize="16"
+                                           Margin="0,0,6,0" />
                             <TextBlock Text="Exportar para CSV" VerticalAlignment="Center" />
                         </StackPanel>
                     </ui:Button>
 
-                    <ui:Button x:Name="MoreActionsButton" Style="{StaticResource UpdatesActionButtonStyle}"
-                               Appearance="Secondary" Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                               Width="34" Height="34" MinHeight="34" Padding="0" ToolTip="Mais ações"
+                    <ui:Button x:Name="MoreActionsButton"
+                               Style="{StaticResource UpdatesActionButtonStyle}"
+                               Appearance="Secondary"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Width="34"
+                               Height="34"
+                               MinHeight="34"
+                               Padding="0"
+                               ToolTip="Mais ações"
                                Click="MoreActionsButton_Click">
-                        <ui:SymbolIcon Symbol="MoreHorizontal24" FontSize="18" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <ui:SymbolIcon Symbol="MoreHorizontal24"
+                                       FontSize="18"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <ui:Button.ContextMenu>
                             <ContextMenu x:Name="MoreActionsMenu">
-                                <MenuItem Header="Desinstalar seleção" Click="UninstallSelectedButton_Click" />
-                                <Separator />
                                 <MenuItem Header="Opções de atualização" Click="OptionsButton_Click" />
                                 <MenuItem Header="Atualização manual" Click="ManualUpdateButton_Click" />
                                 <Separator />
@@ -588,7 +830,7 @@
             </ScrollViewer>
         </Border>
 
-        <!-- ==================== ÁREA PRINCIPAL ==================== -->
+        <!--  ==================== ÁREA PRINCIPAL ====================  -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="FilterSidebarColumn" Width="260" />
@@ -596,7 +838,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Painel lateral de filtros -->
+            <!--  Painel lateral de filtros  -->
             <Border x:Name="FilterSidebarPanel"
                     Grid.Column="0"
                     Style="{StaticResource CardStyle}"
@@ -607,9 +849,13 @@
                     Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
-                        <TextBlock Text="Filtros" FontSize="14" FontWeight="SemiBold" Margin="4,0,0,10" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <TextBlock Text="Filtros"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Margin="4,0,0,10"
+                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
-                        <!-- Expander: Fontes -->
+                        <!--  Expander: Fontes  -->
                         <Expander IsExpanded="True"
                                   Background="Transparent"
                                   BorderThickness="0"
@@ -617,66 +863,104 @@
                                   Margin="0,0,0,8">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Apps24" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="Fontes" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="Apps24"
+                                                   FontSize="16"
+                                                   Margin="0,0,6,0"
+                                                   VerticalAlignment="Center" />
+                                    <TextBlock Text="Fontes"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               VerticalAlignment="Center" />
                                 </StackPanel>
                             </Expander.Header>
                             <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                    CornerRadius="{StaticResource StoreRadius_6}" Padding="6" Margin="0,6,0,0">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="3*" />
-                                        <ColumnDefinition Width="2*" />
-                                    </Grid.ColumnDefinitions>
-                                    <ui:Button Grid.Column="0" Style="{StaticResource SourceSelectionButtonStyle}"
-                                               Margin="0,0,4,0" Click="SelectAllSources_Click">
+                                    CornerRadius="{StaticResource StoreRadius_6}"
+                                    Padding="6"
+                                    Margin="0,6,0,0">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="3*" />
+                                            <ColumnDefinition Width="2*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ui:Button Grid.Column="0"
+                                                   Style="{StaticResource SourceSelectionButtonStyle}"
+                                                   Margin="0,0,4,0"
+                                                   Click="SelectAllSources_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="CheckmarkCircle24"
+                                                               FontSize="14"
+                                                               Margin="0,0,4,0" />
+                                                <TextBlock Text="Selecionar tudo" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </ui:Button>
+                                        <ui:Button Grid.Column="1"
+                                                   Style="{StaticResource SourceSelectionButtonStyle}"
+                                                   Margin="4,0,0,0"
+                                                   Click="ClearSources_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:SymbolIcon Symbol="DismissCircle24"
+                                                               FontSize="14"
+                                                               Margin="0,0,5,0" />
+                                                <TextBlock Text="Limpar" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </ui:Button>
+                                    </Grid>
+                                    <CheckBox x:Name="AllSourcesChip"
+                                              Content="Todas as fontes"
+                                              IsChecked="True"
+                                              IsThreeState="False"
+                                              Click="AllSourcesChip_Click"
+                                              ToolTip="Mostrar atualizações de todas as origens"
+                                              Margin="2,3" />
+                                    <CheckBox x:Name="SourceWingetCheck"
+                                              IsChecked="True"
+                                              IsThreeState="False"
+                                              Click="SourceFilter_Changed"
+                                              Margin="2,3">
                                         <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="CheckmarkCircle24" FontSize="14" Margin="0,0,4,0" />
-                                            <TextBlock Text="Selecionar tudo" VerticalAlignment="Center" />
+                                            <ui:SymbolIcon Symbol="MailInboxArrowDown16"
+                                                           FontSize="16"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="WinGet" VerticalAlignment="Center" />
                                         </StackPanel>
-                                    </ui:Button>
-                                    <ui:Button Grid.Column="1" Style="{StaticResource SourceSelectionButtonStyle}"
-                                               Margin="4,0,0,0" Click="ClearSources_Click">
+                                    </CheckBox>
+                                    <CheckBox x:Name="SourceMsStoreCheck"
+                                              IsChecked="True"
+                                              IsThreeState="False"
+                                              Click="SourceFilter_Changed"
+                                              Margin="2,3">
                                         <StackPanel Orientation="Horizontal">
-                                            <ui:SymbolIcon Symbol="DismissCircle24" FontSize="14" Margin="0,0,5,0" />
-                                            <TextBlock Text="Limpar" VerticalAlignment="Center" />
+                                            <ui:SymbolIcon Symbol="StoreMicrosoft24"
+                                                           FontSize="16"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="Microsoft Store" VerticalAlignment="Center" />
                                         </StackPanel>
-                                    </ui:Button>
-                                </Grid>
-                                <CheckBox x:Name="AllSourcesChip" Content="Todas as fontes" IsChecked="True" IsThreeState="False"
-                                          Click="AllSourcesChip_Click" ToolTip="Mostrar atualizações de todas as origens" Margin="2,3" />
-                                <CheckBox x:Name="SourceWingetCheck" IsChecked="True" IsThreeState="False"
-                                          Click="SourceFilter_Changed" Margin="2,3">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="MailInboxArrowDown16" FontSize="16" Margin="0,0,8,0"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock Text="WinGet" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </CheckBox>
-                                <CheckBox x:Name="SourceMsStoreCheck" IsChecked="True" IsThreeState="False"
-                                          Click="SourceFilter_Changed" Margin="2,3">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="StoreMicrosoft24" FontSize="16" Margin="0,0,8,0"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock Text="Microsoft Store" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </CheckBox>
-                                <CheckBox x:Name="SourceOtherCheck" IsChecked="True" IsThreeState="False"
-                                          Click="SourceFilter_Changed" Margin="2,3">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="Desktop24" FontSize="16" Margin="0,0,8,0"
-                                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                        <TextBlock Text="PC Local" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </CheckBox>
-                            </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox x:Name="SourceOtherCheck"
+                                              IsChecked="True"
+                                              IsThreeState="False"
+                                              Click="SourceFilter_Changed"
+                                              Margin="2,3">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ui:SymbolIcon Symbol="Desktop24"
+                                                           FontSize="16"
+                                                           Margin="0,0,8,0"
+                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                            <TextBlock Text="PC Local" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </CheckBox>
+                                </StackPanel>
                             </Border>
                         </Expander>
 
-                        <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8" />
+                        <Rectangle Height="1"
+                                   Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                   Margin="0,0,0,8" />
 
-                        <!-- Expander: Filtros adicionais -->
+                        <!--  Expander: Filtros adicionais  -->
                         <Expander IsExpanded="False"
                                   Background="Transparent"
                                   BorderThickness="0"
@@ -684,13 +968,22 @@
                                   Margin="0,0,0,8">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Filter24" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="Filtros" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="Filter24"
+                                                   FontSize="16"
+                                                   Margin="0,0,6,0"
+                                                   VerticalAlignment="Center" />
+                                    <TextBlock Text="Filtros"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               VerticalAlignment="Center" />
                                 </StackPanel>
                             </Expander.Header>
                             <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                    CornerRadius="{StaticResource StoreRadius_6}" Padding="6" Margin="0,6,0,0">
-                                <CheckBox x:Name="HideSameVersionCheck" IsThreeState="False"
+                                    CornerRadius="{StaticResource StoreRadius_6}"
+                                    Padding="6"
+                                    Margin="0,6,0,0">
+                                <CheckBox x:Name="HideSameVersionCheck"
+                                          IsThreeState="False"
                                           Content="Ocultar versões idênticas"
                                           IsChecked="True"
                                           Click="FilterOption_Changed"
@@ -698,17 +991,25 @@
                             </Border>
                         </Expander>
 
-                        <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,0,0,8" />
+                        <Rectangle Height="1"
+                                   Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                                   Margin="0,0,0,8" />
 
-                        <!-- Expander: Modo de pesquisa -->
+                        <!--  Expander: Modo de pesquisa  -->
                         <Expander IsExpanded="True"
                                   Background="Transparent"
                                   BorderThickness="0"
                                   Padding="4,2">
                             <Expander.Header>
                                 <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Search24" FontSize="16" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                    <TextBlock Text="Modo de pesquisa" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                                    <ui:SymbolIcon Symbol="Search24"
+                                                   FontSize="16"
+                                                   Margin="0,0,6,0"
+                                                   VerticalAlignment="Center" />
+                                    <TextBlock Text="Modo de pesquisa"
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               VerticalAlignment="Center" />
                                 </StackPanel>
                             </Expander.Header>
                             <StackPanel Margin="0,6,0,0">
@@ -723,10 +1024,31 @@
                                                    QuerySubmitted="SearchBox_QuerySubmitted"
                                                    AutomationProperties.Name="Pesquisar atualizações por nome ou ID"
                                                    ToolTip="Pesquise pelo nome ou ID do pacote" />
-                                <RadioButton x:Name="SearchModeNameRadio" GroupName="SearchMode" Content="Nome do Pacote" FontSize="12" Margin="0,2,0,4" Click="SearchMode_Changed" />
-                                <RadioButton x:Name="SearchModeIdRadio" GroupName="SearchMode" Content="ID do Pacote" FontSize="12" Margin="0,2,0,4" Click="SearchMode_Changed" />
-                                <RadioButton x:Name="SearchModeBothRadio" GroupName="SearchMode" Content="Ambos" IsChecked="True" FontSize="12" Margin="0,2,0,4" Click="SearchMode_Changed" />
-                                <RadioButton x:Name="SearchModeExactRadio" GroupName="SearchMode" Content="Correspondência exata" FontSize="12" Margin="0,2,0,4" Click="SearchMode_Changed" />
+                                <RadioButton x:Name="SearchModeNameRadio"
+                                             GroupName="SearchMode"
+                                             Content="Nome do Pacote"
+                                             FontSize="12"
+                                             Margin="0,2,0,4"
+                                             Click="SearchMode_Changed" />
+                                <RadioButton x:Name="SearchModeIdRadio"
+                                             GroupName="SearchMode"
+                                             Content="ID do Pacote"
+                                             FontSize="12"
+                                             Margin="0,2,0,4"
+                                             Click="SearchMode_Changed" />
+                                <RadioButton x:Name="SearchModeBothRadio"
+                                             GroupName="SearchMode"
+                                             Content="Ambos"
+                                             IsChecked="True"
+                                             FontSize="12"
+                                             Margin="0,2,0,4"
+                                             Click="SearchMode_Changed" />
+                                <RadioButton x:Name="SearchModeExactRadio"
+                                             GroupName="SearchMode"
+                                             Content="Correspondência exata"
+                                             FontSize="12"
+                                             Margin="0,2,0,4"
+                                             Click="SearchMode_Changed" />
                             </StackPanel>
                         </Expander>
 
@@ -734,10 +1056,14 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- Splitter sutil -->
-            <Rectangle x:Name="FilterSplitter" Grid.Column="1" Width="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" HorizontalAlignment="Center" />
+            <!--  Splitter sutil  -->
+            <Rectangle x:Name="FilterSplitter"
+                       Grid.Column="1"
+                       Width="1"
+                       Fill="{DynamicResource DividerStrokeColorDefaultBrush}"
+                       HorizontalAlignment="Center" />
 
-            <!-- Área principal de atualizações -->
+            <!--  Área principal de atualizações  -->
             <Border Grid.Column="2"
                     Style="{StaticResource CardStyle}"
                     Background="{DynamicResource AppCardBackgroundBrush}"
@@ -747,12 +1073,15 @@
                     Padding="8,8,8,6">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" /> <!-- Barra de Progresso Superior -->
-                        <RowDefinition Height="Auto" /> <!-- Barra de Cabeçalho da Tabela -->
-                        <RowDefinition Height="*" />    <!-- Lista de Itens -->
+                        <RowDefinition Height="Auto" />
+                        <!--  Barra de Progresso Superior  -->
+                        <RowDefinition Height="Auto" />
+                        <!--  Barra de Cabeçalho da Tabela  -->
+                        <RowDefinition Height="*" />
+                        <!--  Lista de Itens  -->
                     </Grid.RowDefinitions>
 
-                    <!-- Indicador de Carregamento Superior -->
+                    <!--  Indicador de Carregamento Superior  -->
                     <ProgressBar x:Name="TopProgressBar"
                                  Grid.Row="0"
                                  Height="3"
@@ -761,7 +1090,7 @@
                                  Margin="0,0,0,4"
                                  Visibility="Collapsed" />
 
-                    <!-- Cabeçalho da lista -->
+                    <!--  Cabeçalho da lista  -->
                     <Border x:Name="TableHeaderBar"
                             Grid.Row="1"
                             Background="{DynamicResource ControlFillColorSecondaryBrush}"
@@ -780,7 +1109,7 @@
                                 <ColumnDefinition Width="1.3*" />
                             </Grid.ColumnDefinitions>
 
-                            <!-- Checkbox Master (Selecionar todos / Parcial / Limpar) -->
+                            <!--  Checkbox Master (Selecionar todos / Parcial / Limpar)  -->
                             <CheckBox x:Name="MasterSelectCheckBox"
                                       Grid.Column="0"
                                       HorizontalAlignment="Center"
@@ -790,7 +1119,7 @@
                                       ToolTip="Selecionar ou desmarcar todos"
                                       Click="MasterSelectCheckBox_Click" />
 
-                            <!-- Header: Nome do Pacote -->
+                            <!--  Header: Nome do Pacote  -->
                             <Button Grid.Column="1"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -799,12 +1128,20 @@
                                     Padding="6,0"
                                     Click="HeaderSortName_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Nome do Pacote" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <ui:SymbolIcon x:Name="SortNameIcon" Symbol="ArrowDown24" FontSize="11" Margin="4,0,0,0" Visibility="Collapsed" />
+                                    <TextBlock Text="Nome do Pacote"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon x:Name="SortNameIcon"
+                                                   Symbol="ArrowDown24"
+                                                   FontSize="11"
+                                                   Margin="4,0,0,0"
+                                                   Visibility="Collapsed" />
                                 </StackPanel>
                             </Button>
 
-                            <!-- Header: ID do Pacote -->
+                            <!--  Header: ID do Pacote  -->
                             <Button Grid.Column="2"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -813,12 +1150,20 @@
                                     Padding="6,0"
                                     Click="HeaderSortId_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="ID do Pacote" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <ui:SymbolIcon x:Name="SortIdIcon" Symbol="ArrowDown24" FontSize="11" Margin="4,0,0,0" Visibility="Collapsed" />
+                                    <TextBlock Text="ID do Pacote"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon x:Name="SortIdIcon"
+                                                   Symbol="ArrowDown24"
+                                                   FontSize="11"
+                                                   Margin="4,0,0,0"
+                                                   Visibility="Collapsed" />
                                 </StackPanel>
                             </Button>
 
-                            <!-- Header: Versão -->
+                            <!--  Header: Versão  -->
                             <Button Grid.Column="3"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -827,12 +1172,20 @@
                                     Padding="6,0"
                                     Click="HeaderSortVersion_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Versão" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <ui:SymbolIcon x:Name="SortVersionIcon" Symbol="ArrowDown24" FontSize="11" Margin="4,0,0,0" Visibility="Collapsed" />
+                                    <TextBlock Text="Versão"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon x:Name="SortVersionIcon"
+                                                   Symbol="ArrowDown24"
+                                                   FontSize="11"
+                                                   Margin="4,0,0,0"
+                                                   Visibility="Collapsed" />
                                 </StackPanel>
                             </Button>
 
-                            <!-- Header: Nova versão -->
+                            <!--  Header: Nova versão  -->
                             <Button Grid.Column="4"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -841,12 +1194,20 @@
                                     Padding="6,0"
                                     Click="HeaderSortNewVersion_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Nova versão" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <ui:SymbolIcon x:Name="SortNewVersionIcon" Symbol="ArrowDown24" FontSize="11" Margin="4,0,0,0" Visibility="Collapsed" />
+                                    <TextBlock Text="Nova versão"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon x:Name="SortNewVersionIcon"
+                                                   Symbol="ArrowDown24"
+                                                   FontSize="11"
+                                                   Margin="4,0,0,0"
+                                                   Visibility="Collapsed" />
                                 </StackPanel>
                             </Button>
 
-                            <!-- Header: Origem -->
+                            <!--  Header: Origem  -->
                             <Button Grid.Column="5"
                                     Background="Transparent"
                                     BorderThickness="0"
@@ -855,36 +1216,62 @@
                                     Padding="6,0"
                                     Click="HeaderSortSource_Click">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Origem" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                    <ui:SymbolIcon x:Name="SortSourceIcon" Symbol="ArrowDown24" FontSize="11" Margin="4,0,0,0" Visibility="Collapsed" />
+                                    <TextBlock Text="Origem"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <ui:SymbolIcon x:Name="SortSourceIcon"
+                                                   Symbol="ArrowDown24"
+                                                   FontSize="11"
+                                                   Margin="4,0,0,0"
+                                                   Visibility="Collapsed" />
                                 </StackPanel>
                             </Button>
                         </Grid>
                     </Border>
 
-                    <!-- Lista / Modos de Visualização -->
+                    <!--  Lista / Modos de Visualização  -->
                     <Grid Grid.Row="2">
 
-                        <!-- Empty State: Tudo atualizado -->
+                        <!--  Empty State: Tudo atualizado  -->
                         <Border x:Name="EmptyStatePanel"
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
                                 Visibility="Collapsed">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Border Width="72" Height="72" CornerRadius="{StaticResource ControlCornerRadius}" Background="{DynamicResource ControlFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,0,0,12">
+                                <Border Width="72"
+                                        Height="72"
+                                        CornerRadius="{StaticResource ControlCornerRadius}"
+                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        HorizontalAlignment="Center"
+                                        Margin="0,0,0,12">
                                     <Image Source="{DynamicResource EmptyStateBrandIcon}"
-                                           Width="48" Height="48" Stretch="Uniform"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Width="48"
+                                           Height="48"
+                                           Stretch="Uniform"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
                                            AutomationProperties.Name="Ícone do WinProvision" />
                                 </Border>
-                                <TextBlock x:Name="EmptyStateTitle" Text="Tudo atualizado" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,0,0,4" />
-                                <TextBlock x:Name="EmptyStateText" Text="Nenhuma atualização pendente encontrada para seus aplicativos."
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12"
-                                           HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+                                <TextBlock x:Name="EmptyStateTitle"
+                                           Text="Tudo atualizado"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,4" />
+                                <TextBlock x:Name="EmptyStateText"
+                                           Text="Nenhuma atualização pendente encontrada para seus aplicativos."
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontSize="12"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           MaxWidth="420" />
                             </StackPanel>
                         </Border>
 
-                        <!-- Modo de lista -->
+                        <!--  Modo de lista  -->
                         <ScrollViewer x:Name="TableScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
@@ -898,13 +1285,15 @@
                                           VirtualizingPanel.ScrollUnit="Pixel"
                                           Background="Transparent">
                                 <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
 
                         </ScrollViewer>
 
-                        <!-- Modo 2: Grade de Cartões Compactos -->
+                        <!--  Modo 2: Grade de Cartões Compactos  -->
                         <ScrollViewer x:Name="GridViewScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
@@ -919,13 +1308,15 @@
                                           Background="Transparent">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <ui:VirtualizingWrapPanel Orientation="Vertical" ItemSize="230,264" SpacingMode="Uniform" />
+                                        <ui:VirtualizingWrapPanel Orientation="Vertical"
+                                                                  ItemSize="230,264"
+                                                                  SpacingMode="Uniform" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <!-- Modo 3: Ícones Grandes -->
+                        <!--  Modo 3: Ícones Grandes  -->
                         <ScrollViewer x:Name="IconsViewScrollViewer"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
@@ -940,11 +1331,29 @@
                                           Background="Transparent">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
-                                        <ui:VirtualizingWrapPanel Orientation="Vertical" ItemSize="136,148" SpacingMode="Uniform" />
+                                        <ui:VirtualizingWrapPanel Orientation="Vertical"
+                                                                  ItemSize="136,148"
+                                                                  SpacingMode="Uniform" />
                                     </ItemsPanelTemplate>
                                 </ItemsControl.ItemsPanel>
                             </ItemsControl>
                         </ScrollViewer>
+
+                        <StackPanel x:Name="InitialLoadingPanel"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed"
+                                    IsHitTestVisible="False"
+                                    AutomationProperties.Name="Carregando atualizações">
+                            <ui:ProgressRing IsIndeterminate="True"
+                                             Width="36"
+                                             Height="36"
+                                             HorizontalAlignment="Center" />
+                            <TextBlock Text="Verificando atualizações…"
+                                       Margin="0,12,0,0"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center" />
+                        </StackPanel>
 
                     </Grid>
                 </Grid>
@@ -952,93 +1361,115 @@
         </Grid>
 
         <ui:InfoBar x:Name="UpdatesInfoBar"
+                    Style="{StaticResource StoreInfoBarStyle}"
                     Grid.Row="2"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Top"
-                    Margin="16,8"
-                    MaxWidth="720"
                     IsOpen="False"
-                    IsClosable="True"
                     Severity="Error"
                     Title="Falha ao verificar atualizações"
                     Panel.ZIndex="10" />
 
-        <!-- ==================== BARRA DE STATUS / RODAPÉ ==================== -->
+        <!--  ==================== BARRA DE STATUS / RODAPÉ ====================  -->
         <Border Grid.Row="3" Style="{StaticResource PageStatusBarStyle}">
-          <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <!-- Seleção e status sempre visíveis -->
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
-                <TextBlock x:Name="SelectionSummaryText"
-                           Text="Selecionados: 0 · Ação: Atualizar seleção"
-                           Style="{StaticResource PageStatusPrimaryTextStyle}" />
-                <TextBlock Text=" · " FontSize="12" Foreground="{DynamicResource TextFillColorTertiaryBrush}" VerticalAlignment="Center" />
-                <TextBlock x:Name="StatusText"
-                           Style="{StaticResource PageStatusTextStyle}"
-                           TextTrimming="CharacterEllipsis" />
-            </StackPanel>
+                <!--  Seleção e status sempre visíveis  -->
+                <StackPanel Grid.Column="0"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <ui:SymbolIcon Style="{StaticResource PageStatusIconStyle}" />
+                    <TextBlock x:Name="SelectionSummaryText"
+                               Text="Selecionados: 0 · Ação: Atualizar seleção"
+                               Style="{StaticResource PageStatusPrimaryTextStyle}" />
+                    <TextBlock Text=" · "
+                               FontSize="12"
+                               Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="StatusText"
+                               Style="{StaticResource PageStatusTextStyle}"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
 
-            <!-- Controles à direita: Classificar por + Seletor de Modo -->
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <!--  Controles à direita: Classificar por + Seletor de Modo  -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
 
-                <!-- Classificar por -->
-                <TextBlock Text="Classificar por:" Style="{StaticResource PageStatusTextStyle}" Margin="0,0,8,0" />
-                <ComboBox x:Name="SortModeComboBox" Width="150" Height="32" SelectedIndex="0"
-                          SelectionChanged="SortModeComboBox_SelectionChanged" Margin="0,0,12,0">
-                    <ComboBoxItem Content="Nome" />
-                    <ComboBoxItem Content="ID" />
-                    <ComboBoxItem Content="Versão" />
-                    <ComboBoxItem Content="Nova versão" />
-                    <ComboBoxItem Content="Origem" />
-                </ComboBox>
+                    <!--  Classificar por  -->
+                    <TextBlock Text="Classificar por:"
+                               Style="{StaticResource PageStatusTextStyle}"
+                               Margin="0,0,8,0" />
+                    <ComboBox x:Name="SortModeComboBox"
+                              Width="150"
+                              Height="32"
+                              SelectedIndex="0"
+                              SelectionChanged="SortModeComboBox_SelectionChanged"
+                              Margin="0,0,12,0">
+                        <ComboBoxItem Content="Nome" />
+                        <ComboBoxItem Content="ID" />
+                        <ComboBoxItem Content="Versão" />
+                        <ComboBoxItem Content="Nova versão" />
+                        <ComboBoxItem Content="Origem" />
+                    </ComboBox>
 
-                <!-- Seletor de Modo de Exibição (Lista, Grade, Ícones) -->
-                <StackPanel Orientation="Horizontal">
+                    <!--  Seletor de Modo de Exibição (Lista, Grade, Ícones)  -->
+                    <StackPanel Orientation="Horizontal">
                         <ToggleButton x:Name="ViewModeListRadio"
                                       Style="{StaticResource PageViewModeToggleStyle}"
-                                     IsChecked="True"
-                                     ToolTip="Modo Tabela / Lista"
-                                     Click="ViewModeList_Click">
-                            <ui:SymbolIcon Symbol="List24" FontSize="16" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
+                                      IsChecked="True"
+                                      ToolTip="Modo Tabela / Lista"
+                                      Click="ViewModeList_Click">
+                            <ui:SymbolIcon Symbol="List24"
+                                           FontSize="16"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
                         </ToggleButton>
 
                         <ToggleButton x:Name="ViewModeGridRadio"
                                       Style="{StaticResource PageViewModeToggleStyle}"
-                                     ToolTip="Modo Grade / Cartões"
-                                     Click="ViewModeGrid_Click">
-                            <ui:SymbolIcon Symbol="Grid24" FontSize="16" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
+                                      ToolTip="Modo Grade / Cartões"
+                                      Click="ViewModeGrid_Click">
+                            <ui:SymbolIcon Symbol="Grid24"
+                                           FontSize="16"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
                         </ToggleButton>
 
                         <ToggleButton x:Name="ViewModeIconsRadio"
                                       Style="{StaticResource PageViewModeToggleStyle}"
-                                     ToolTip="Modo Ícones"
-                                     Click="ViewModeIcons_Click">
-                            <ui:SymbolIcon Symbol="Apps24" FontSize="16" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
+                                      ToolTip="Modo Ícones"
+                                      Click="ViewModeIcons_Click">
+                            <ui:SymbolIcon Symbol="Apps24"
+                                           FontSize="16"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
                         </ToggleButton>
-                </StackPanel>
+                    </StackPanel>
 
-            </StackPanel>
-          </Grid>
+                </StackPanel>
+            </Grid>
         </Border>
 
-        <!-- ==================== OVERLAYS / DIÁLOGOS ==================== -->
+        <!--  ==================== OVERLAYS / DIÁLOGOS ====================  -->
 
-        <!-- Diálogo: Gerenciar Atualizações Ignoradas -->
+        <!--  Diálogo: Gerenciar Atualizações Ignoradas  -->
         <Grid x:Name="IgnoredUpdatesOverlay"
               Grid.Row="0"
               Grid.RowSpan="4"
               Background="{DynamicResource StoreBrush_99000000}"
               Visibility="Collapsed"
               MouseLeftButtonUp="DismissModalOverlay_Click">
-            <Border Width="560" MaxHeight="520" Background="{DynamicResource ApplicationBackgroundBrush}"
-                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}" Effect="{DynamicResource StoreCardShadowEffect}" Padding="24" HorizontalAlignment="Center"
-                    VerticalAlignment="Center" MouseLeftButtonUp="ModalCard_Click">
+            <Border Width="560"
+                    MaxHeight="520"
+                    Background="{DynamicResource ApplicationBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource StoreCardCornerRadius}"
+                    Effect="{DynamicResource StoreCardShadowEffect}"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MouseLeftButtonUp="ModalCard_Click">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -1048,31 +1479,60 @@
 
                     <Grid Grid.Row="0" Margin="0,0,0,16">
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Gerenciar atualizações ignoradas" FontSize="17" FontWeight="SemiBold" />
-                            <TextBlock Text="Versões que você marcou para não atualizar:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" Margin="0,2,0,0" />
+                            <TextBlock Text="Gerenciar atualizações ignoradas"
+                                       FontSize="17"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="Versões que você marcou para não atualizar:"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       FontSize="12"
+                                       Margin="0,2,0,0" />
                         </StackPanel>
-                        <ui:Button Appearance="Transparent" Width="36" Height="36" Padding="0" HorizontalAlignment="Right" Click="CloseIgnoredOverlay_Click">
+                        <ui:Button Appearance="Transparent"
+                                   Width="36"
+                                   Height="36"
+                                   Padding="0"
+                                   HorizontalAlignment="Right"
+                                   Click="CloseIgnoredOverlay_Click">
                             <ui:SymbolIcon Symbol="Dismiss24" FontSize="16" />
                         </ui:Button>
                     </Grid>
 
-                    <ScrollViewer Grid.Row="1" MaxHeight="320" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="1"
+                                  MaxHeight="320"
+                                  VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock x:Name="IgnoredUpdatesEmptyModalText" Text="Nenhuma versão ignorada registrada." Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,16" HorizontalAlignment="Center" />
+                            <TextBlock x:Name="IgnoredUpdatesEmptyModalText"
+                                       Text="Nenhuma versão ignorada registrada."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Margin="0,16,0,16"
+                                       HorizontalAlignment="Center" />
                             <ItemsControl x:Name="IgnoredUpdatesModalList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Padding="10,8" Margin="0,0,0,6" CornerRadius="{StaticResource ControlCornerRadius}" Background="{DynamicResource ControlFillColorSecondaryBrush}">
+                                        <Border Padding="10,8"
+                                                Margin="0,0,0,6"
+                                                CornerRadius="{StaticResource ControlCornerRadius}"
+                                                Background="{DynamicResource ControlFillColorSecondaryBrush}">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding AppId}" FontWeight="SemiBold" FontSize="12" />
-                                                    <TextBlock Text="{Binding Version, StringFormat={}Versão {0}}" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" />
+                                                    <TextBlock Text="{Binding AppId}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="12" />
+                                                    <TextBlock Text="{Binding Version, StringFormat={}Versão {0}}"
+                                                               FontSize="11"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                               Margin="0,2,0,0" />
                                                 </StackPanel>
-                                                <ui:Button Grid.Column="1" Appearance="Secondary" Content="Restaurar" FontSize="11" Padding="8,4" Click="RestoreIgnoredUpdate_Click" />
+                                                <ui:Button Grid.Column="1"
+                                                           Appearance="Secondary"
+                                                           Content="Restaurar"
+                                                           FontSize="11"
+                                                           Padding="8,4"
+                                                           Click="RestoreIgnoredUpdate_Click" />
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -1081,86 +1541,149 @@
                         </StackPanel>
                     </ScrollViewer>
 
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                        <ui:Button Content="Restaurar todas" Appearance="Secondary" Margin="0,0,8,0" Click="RestoreAllIgnored_Click" />
-                        <ui:Button Content="Fechar" Appearance="Primary" Click="CloseIgnoredOverlay_Click" />
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,16,0,0">
+                        <ui:Button Content="Restaurar todas"
+                                   Appearance="Secondary"
+                                   Margin="0,0,8,0"
+                                   Click="RestoreAllIgnored_Click" />
+                        <ui:Button Content="Fechar"
+                                   Appearance="Primary"
+                                   Click="CloseIgnoredOverlay_Click" />
                     </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- Diálogo: Atualização Manual -->
+        <!--  Diálogo: Atualização Manual  -->
         <Grid x:Name="ManualUpdateOverlay"
               Grid.Row="0"
               Grid.RowSpan="4"
               Background="{DynamicResource StoreBrush_99000000}"
               Visibility="Collapsed"
               MouseLeftButtonUp="DismissModalOverlay_Click">
-            <Border Width="480" Background="{DynamicResource ApplicationBackgroundBrush}"
-                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}" Effect="{DynamicResource StoreCardShadowEffect}" Padding="24" HorizontalAlignment="Center"
-                    VerticalAlignment="Center" MouseLeftButtonUp="ModalCard_Click">
+            <Border Width="480"
+                    Background="{DynamicResource ApplicationBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource StoreCardCornerRadius}"
+                    Effect="{DynamicResource StoreCardShadowEffect}"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MouseLeftButtonUp="ModalCard_Click">
                 <StackPanel>
-                    <TextBlock Text="Atualização manual" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,4" />
-                    <TextBlock Text="Informe o ID do pacote ou parâmetros do WinGet para atualizar manualmente:" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="12" Margin="0,0,0,16" TextWrapping="Wrap" />
+                    <TextBlock Text="Atualização manual"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,4" />
+                    <TextBlock Text="Informe o ID do pacote ou parâmetros do WinGet para atualizar manualmente:"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               FontSize="12"
+                               Margin="0,0,0,16"
+                               TextWrapping="Wrap" />
 
-                    <ui:TextBox x:Name="ManualPackageIdBox" PlaceholderText="Ex: Microsoft.VisualStudioCode" Height="36" Margin="0,0,0,16" />
+                    <ui:TextBox x:Name="ManualPackageIdBox"
+                                PlaceholderText="Ex: Microsoft.VisualStudioCode"
+                                Height="36"
+                                Margin="0,0,0,16" />
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <ui:Button Content="Cancelar" Appearance="Secondary" Margin="0,0,8,0" Click="CloseManualOverlay_Click" />
-                        <ui:Button Content="Executar atualização" Appearance="Primary" Click="ExecuteManualUpdate_Click" />
+                        <ui:Button Content="Cancelar"
+                                   Appearance="Secondary"
+                                   Margin="0,0,8,0"
+                                   Click="CloseManualOverlay_Click" />
+                        <ui:Button Content="Executar atualização"
+                                   Appearance="Primary"
+                                   Click="ExecuteManualUpdate_Click" />
                     </StackPanel>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <!-- Diálogo: Opções de Atualização -->
+        <!--  Diálogo: Opções de Atualização  -->
         <Grid x:Name="OptionsOverlay"
               Grid.Row="0"
               Grid.RowSpan="4"
               Background="{DynamicResource StoreBrush_99000000}"
               Visibility="Collapsed"
               MouseLeftButtonUp="DismissModalOverlay_Click">
-            <Border Width="500" Background="{DynamicResource ApplicationBackgroundBrush}"
-                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
-                    CornerRadius="{StaticResource StoreCardCornerRadius}" Effect="{DynamicResource StoreCardShadowEffect}" Padding="24" HorizontalAlignment="Center"
-                    VerticalAlignment="Center" MouseLeftButtonUp="ModalCard_Click">
+            <Border Width="500"
+                    Background="{DynamicResource ApplicationBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource StoreCardCornerRadius}"
+                    Effect="{DynamicResource StoreCardShadowEffect}"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MouseLeftButtonUp="ModalCard_Click">
                 <StackPanel>
-                    <TextBlock Text="Opções de atualização" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,14" />
+                    <TextBlock Text="Opções de atualização"
+                               FontSize="17"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,14" />
 
-                    <!-- Toggle de Atualizações Automáticas -->
-                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="14" Margin="0,0,0,12">
+                    <!--  Toggle de Atualizações Automáticas  -->
+                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
+                            Padding="14"
+                            Margin="0,0,0,12">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Atualizações automáticas" FontWeight="SemiBold" FontSize="13" />
-                                <TextBlock Text="Atualiza os aplicativos em segundo plano ao entrar no Windows, sem abrir a interface." Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" TextWrapping="Wrap" />
+                                <TextBlock Text="Atualizações automáticas"
+                                           FontWeight="SemiBold"
+                                           FontSize="13" />
+                                <TextBlock Text="Atualiza os aplicativos em segundo plano ao entrar no Windows, sem abrir a interface."
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
-                            <ui:ToggleSwitch x:Name="AutoUpdateSwitch" Grid.Column="1" VerticalAlignment="Center"
-                                             Checked="AutoUpdateSwitch_Checked" Unchecked="AutoUpdateSwitch_Unchecked" />
+                            <ui:ToggleSwitch x:Name="AutoUpdateSwitch"
+                                             Grid.Column="1"
+                                             VerticalAlignment="Center"
+                                             Checked="AutoUpdateSwitch_Checked"
+                                             Unchecked="AutoUpdateSwitch_Unchecked" />
                         </Grid>
                     </Border>
 
-                    <!-- Toggle de Selecionar Todos Automaticamente -->
-                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="14" Margin="0,0,0,16">
+                    <!--  Toggle de Selecionar Todos Automaticamente  -->
+                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                            CornerRadius="{StaticResource ControlCornerRadius}"
+                            Padding="14"
+                            Margin="0,0,0,16">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Marcar todos por padrão" FontWeight="SemiBold" FontSize="13" />
-                                <TextBlock Text="Seleciona todas as atualizações encontradas automaticamente" Foreground="{DynamicResource TextFillColorSecondaryBrush}" FontSize="11" TextWrapping="Wrap" />
+                                <TextBlock Text="Marcar todos por padrão"
+                                           FontWeight="SemiBold"
+                                           FontSize="13" />
+                                <TextBlock Text="Seleciona todas as atualizações encontradas automaticamente"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
-                            <ui:ToggleSwitch x:Name="SelectAllByDefaultSwitch" Grid.Column="1" VerticalAlignment="Center" IsChecked="True"
+                            <ui:ToggleSwitch x:Name="SelectAllByDefaultSwitch"
+                                             Grid.Column="1"
+                                             VerticalAlignment="Center"
+                                             IsChecked="True"
                                              Click="SelectAllByDefaultSwitch_Click" />
                         </Grid>
                     </Border>
 
-                    <ui:Button Content="Concluir" Appearance="Primary" HorizontalAlignment="Right" Click="CloseOptionsOverlay_Click" />
+                    <ui:Button Content="Concluir"
+                               Appearance="Primary"
+                               HorizontalAlignment="Right"
+                               Click="CloseOptionsOverlay_Click" />
                 </StackPanel>
             </Border>
         </Grid>

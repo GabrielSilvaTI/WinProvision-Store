@@ -3,14 +3,17 @@
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+		<WindowsPackageType>None</WindowsPackageType>
+		<WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+		<WebView2EnableCsWinRTProjection>false</WebView2EnableCsWinRTProjection>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UseWPF>true</UseWPF>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<ApplicationIcon>Assets\app.ico</ApplicationIcon>
-		<Version>1.0.7</Version>
-		<AssemblyVersion>1.0.7.0</AssemblyVersion>
-		<FileVersion>1.0.7.0</FileVersion>
+		<Version>1.0.11</Version>
+		<AssemblyVersion>1.0.11.0</AssemblyVersion>
+		<FileVersion>1.0.11.0</FileVersion>
 		<LangVersion>latest</LangVersion>
 
 		<Platforms>x64;ARM64</Platforms>
@@ -100,6 +103,8 @@
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3405.78" />
 		<PackageReference Include="Microsoft.WindowsPackageManager.ComInterop" Version="1.29.380" />
+		<PackageReference Include="Microsoft.WindowsAppSDK.Foundation" Version="1.8.260222000" />
+		<PackageReference Include="Microsoft.WindowsAppSDK.Runtime" Version="1.8.260317003" />
 	</ItemGroup>
 
 	<ItemGroup>

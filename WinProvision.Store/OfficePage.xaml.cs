@@ -569,18 +569,13 @@ public partial class OfficePage : Page
             return;
         }
 
-        var confirmDialog = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = "Remover o Office",
-            Content = "Isso removerá todas as instalações do Office deste computador. Continuar?",
-            PrimaryButtonText = "Desinstalar",
-            CloseButtonText = "Cancelar"
-        };
+        var confirm = await StoreConfirmationDialog.ShowAsync(
+            "Remover o Office",
+            "Isso removerá todas as instalações do Office deste computador. Continuar?",
+            "Desinstalar",
+            "Cancelar");
 
-        StoreDialogStyles.Apply(confirmDialog);
-        var confirm = await confirmDialog.ShowDialogAsync();
-
-        if (confirm != Wpf.Ui.Controls.MessageBoxResult.Primary)
+        if (confirm != Wpf.Ui.Controls.ContentDialogResult.Primary)
             return;
 
         const bool silent = true;

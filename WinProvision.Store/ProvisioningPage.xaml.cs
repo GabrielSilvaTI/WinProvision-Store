@@ -37,7 +37,8 @@ namespace WinProvision.Store;
 public partial class ProvisioningPage : Page
 {
     private readonly ProvisioningService _provisioningService;
-    private readonly ScheduledTempCleanerService _scheduledTempCleanerService;
+    private readonly TemporaryFileCleanupService _temporaryFileCleanupService;
+    private IReadOnlyList<TemporaryFileCleanupEstimate>? _lastTempCleanupEstimates;
     private readonly PackageCollectionService _packageCollectionService;
     private readonly ProfileService _profileService;
     private readonly GitHubBackupService _githubBackupService;
@@ -77,6 +78,7 @@ public partial class ProvisioningPage : Page
     public ProvisioningPage()
     {
         InitializeComponent();
+        CleanUserTempCheckBox.IsChecked = true;
         _profileEditDebounceTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(250)
@@ -86,7 +88,7 @@ public partial class ProvisioningPage : Page
         Loaded += ProvisioningPage_Loaded;
 
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
-        _scheduledTempCleanerService = App.Services.GetRequiredService<ScheduledTempCleanerService>();
+        _temporaryFileCleanupService = App.Services.GetRequiredService<TemporaryFileCleanupService>();
         _packageCollectionService = App.Services.GetRequiredService<PackageCollectionService>();
         _profileService = App.Services.GetRequiredService<ProfileService>();
         _githubBackupService = App.Services.GetRequiredService<GitHubBackupService>();
@@ -109,7 +111,6 @@ public partial class ProvisioningPage : Page
         RefreshProfileSummary();
         UpdateDesktopPreview();
 
-        _wheelAwareComboBoxes.Add(PowerPlanComboBox);
         _wheelAwareComboBoxes.Add(DisplayTimeoutAcComboBox);
         _wheelAwareComboBoxes.Add(StandbyTimeoutAcComboBox);
         InputManager.Current.PostProcessInput += GlobalPostProcessInput;
@@ -130,11 +131,10 @@ public partial class ProvisioningPage : Page
 
     private void UpdateOrchestratorIcon()
     {
-        string iconFile = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Light
-            ? "WinProvisionStore_Black.png"
-            : "WinProvisionStore_White.png";
-        OrchestratorIcon.Source = new BitmapImage(
-            new Uri($"pack://application:,,,/Assets/{iconFile}", UriKind.Absolute));
+        string iconResource = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Light
+            ? "assets/winprovisionstore_black.png"
+            : "assets/winprovisionstore_white.png";
+        OrchestratorIcon.Source = App.LoadAssetBitmap(iconResource);
     }
 
     /// <summary>Captura TODOS os eventos de entrada do thread WPF, inclusive os do Popup do
@@ -201,19 +201,24 @@ public partial class ProvisioningPage : Page
     {
         _provisioningSearchEntries.AddRange(
         [
-            new("Tema do sistema", "Escolha o tema claro ou escuro do Windows.", "Personalização", ProvisioningCategory.Personalization, "aparência claro escuro", "Color24", ThemeComboBox),
+            new("Tema do Windows", "Escolha o tema claro ou escuro da interface do Windows.", "Personalização", ProvisioningCategory.Personalization, "aparência tema claro escuro sistema", "Color24", ThemeComboBox),
+            new("Tema dos aplicativos", "Defina o modo claro ou escuro usado pelos aplicativos compatíveis.", "Personalização", ProvisioningCategory.Personalization, "aparência tema claro escuro programas apps", "Color24", AppsThemeComboBox),
+            new("Cor de destaque", "Escolha uma cor fixa ou deixe o Windows selecioná-la pelo papel de parede.", "Personalização", ProvisioningCategory.Personalization, "cor destaque automática papel parede hexadecimal", "Color24", AccentColorModeComboBox),
             new("Alinhamento da barra de tarefas", "Posicione os ícones à esquerda ou no centro.", "Personalização", ProvisioningCategory.Personalization, "barra tarefas centralizar esquerda", "Settings24", TaskbarAlignmentComboBox),
             new("Caixa de pesquisa", "Defina como a pesquisa aparece na barra de tarefas.", "Personalização", ProvisioningCategory.Personalization, "barra tarefas pesquisa ícone ocultar", "Search24", TaskbarSearchBoxComboBox),
             new("Ocultar a barra de tarefas automaticamente", "Recolha a barra quando ela não estiver em uso.", "Personalização", ProvisioningCategory.Personalization, "auto ocultar recolher", "Desktop24", TaskbarAutoHideCheckBox),
             new("Papel de parede", "Escolha uma imagem para o plano de fundo da área de trabalho.", "Personalização", ProvisioningCategory.Personalization, "imagem fundo plano desktop área trabalho", "Desktop24", SelectWallpaperButton),
             new("Nome da máquina", "Defina o nome que será atribuído ao computador.", "Configurações avançadas", ProvisioningCategory.System, "computador pc hostname dispositivo", "Desktop24", MachineNameTextBox),
-            new("Região", "Escolha a região do Windows.", "Configurações avançadas", ProvisioningCategory.System, "país localização brasil idioma", "Globe24", RegionComboBox),
-            new("Plano de energia", "Selecione o perfil de energia do computador.", "Configurações avançadas", ProvisioningCategory.System, "bateria desempenho economia equilibrado", "Power24", PowerPlanComboBox),
+            new("Data e hora automáticas", "Sincronize o relógio pela fonte configurada no Windows.", "Configurações avançadas", ProvisioningCategory.System, "data hora sincronização automática ntp", "CalendarClock24", AutomaticTimeCheckBox),
+            new("Fuso horário automático", "Ajuste o fuso horário conforme a localização do sistema.", "Configurações avançadas", ProvisioningCategory.System, "timezone localização automático horário", "Globe24", AutomaticTimeZoneCheckBox),
+            new("Plano de energia", "Escolha como equilibrar autonomia e desempenho.", "Configurações avançadas", ProvisioningCategory.System, "bateria desempenho economia equilibrado", "Power24", PowerPlanOptionsPanel),
+            new("Extensões de arquivos", "Escolha se o Explorador exibe extensões conhecidas.", "Configurações avançadas", ProvisioningCategory.System, "explorador arquivos tipos sufixo", "FolderOpen24", ShowFileExtensionsCheckBox),
+            new("Arquivos ocultos", "Escolha se o Explorador exibe arquivos e pastas ocultos.", "Configurações avançadas", ProvisioningCategory.System, "explorador pastas arquivos hidden", "FolderOpen24", ShowHiddenFilesCheckBox),
+            new("Página inicial do Explorador", "Escolha entre Este Computador e Acesso rápido.", "Configurações avançadas", ProvisioningCategory.System, "explorador pastas abertura início este computador acesso rápido", "FolderOpen24", OpenExplorerToThisPcCheckBox),
             new("Desligar a tela", "Escolha após quanto tempo a tela será desligada.", "Configurações avançadas", ProvisioningCategory.System, "monitor vídeo tempo limite energia", "Desktop24", DisplayTimeoutAcComboBox),
             new("Suspender o computador", "Escolha após quanto tempo o PC entrará em suspensão.", "Configurações avançadas", ProvisioningCategory.System, "repouso dormir standby suspensão energia", "Power24", StandbyTimeoutAcComboBox),
-            new("Ponto de restauração", "Crie um ponto de restauração antes de aplicar o perfil.", "Configurações avançadas", ProvisioningCategory.System, "sistema backup recuperação proteger", "Settings24", AutoCreateRestorePointCheckBox),
-            new("Limpeza automática de temporários", "Agende a limpeza ao entrar no Windows.", "Configurações avançadas", ProvisioningCategory.System, "arquivos temporários logon inicialização agendar", "Broom24", AutoCleanTempOnLogonCheckBox),
-            new("Informação OEM", "Edite o texto de identificação OEM do perfil.", "Perfil e JSON", ProvisioningCategory.Json, "fabricante identificação nome", "Person24", ProfileNameTextBox),
+            new("Limpeza de arquivos temporários", "Analise e limpe arquivos temporários antigos com segurança.", "Configurações avançadas", ProvisioningCategory.System, "limpar espaço disco cache arquivos temporários", "Broom24", AnalyzeTempFilesButton),
+            new("Informação OEM", "Edite o texto de identificação OEM do Windows.", "Configurações avançadas", ProvisioningCategory.System, "fabricante identificação nome sobre", "Person24", ProfileNameTextBox),
             new("Nome do perfil", "Edite o nome associado ao perfil.", "Perfil e JSON", ProvisioningCategory.Json, "criador autor perfil", "Person24", ProfileCreatorTextBox),
             new("Código JSON", "Consulte o JSON gerado ou abra o editor completo.", "Perfil e JSON", ProvisioningCategory.Json, "arquivo código visualizar copiar exportar", "Code24", JsonPreviewTextBox)
         ]);
@@ -376,7 +381,6 @@ public partial class ProvisioningPage : Page
     private void AdvancedNavCard_Click(object sender, RoutedEventArgs e)
     {
         ShowSection(AdvancedSectionPanel, "Configurações Avançadas");
-        _ = RefreshCleanTempTaskStatusAsync();
     }
 
     private void JsonNavCard_Click(object sender, RoutedEventArgs e) => ShowSection(JsonSectionPanel, "Visualização do JSON");
@@ -626,19 +630,24 @@ public partial class ProvisioningPage : Page
         bool isEmpty = string.IsNullOrWhiteSpace(manifest.Name)
             && string.IsNullOrWhiteSpace(manifest.Creator)
             && manifest.Theme is null or SystemThemeMode.NaoDefinido
+            && manifest.SystemTheme is null or SystemThemeMode.NaoDefinido
+            && manifest.AppsTheme is null or SystemThemeMode.NaoDefinido
+            && manifest.AccentColorMode is null or AccentColorMode.NaoDefinido
             && manifest.TaskbarAlignment is null or TaskbarAlignmentMode.NaoDefinido
             && manifest.TaskbarSearchBox is null or TaskbarSearchBoxMode.NaoDefinido
             && manifest.TaskbarAutoHide is not true
             && manifest.PowerPlan is null or PowerPlanMode.NaoDefinido
+            && manifest.EnableAutomaticTime is not true
+            && manifest.EnableAutomaticTimeZone is not true
+            && manifest.ShowFileExtensions is null
+            && manifest.ShowHiddenFiles is null
+            && manifest.OpenExplorerToThisPc is null
             && manifest.DisplayTimeoutOnAc is null
             && manifest.DisplayTimeoutOnDc is null
             && manifest.StandbyTimeoutOnAc is null
             && manifest.StandbyTimeoutOnDc is null
             && string.IsNullOrWhiteSpace(manifest.MachineName)
-            && string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64)
-            && string.IsNullOrWhiteSpace(manifest.Region)
-            && manifest.AutoCreateRestorePoint is not true
-            && manifest.AutoCleanTempOnLogon is not true;
+            && string.IsNullOrWhiteSpace(manifest.WallpaperImageBase64);
 
         if (isEmpty) return;
 
@@ -648,6 +657,7 @@ public partial class ProvisioningPage : Page
     private void Field_Changed(object sender, RoutedEventArgs e)
     {
         if (!_uiLoaded) return;
+        ProvisioningInfoBar.IsOpen = false;
 
         // O perfil completo pode conter uma coleção grande de aplicativos. Serializá-lo e
         // recriar todo o editor JSON em cada tecla bloqueava o thread visual durante a
@@ -663,6 +673,71 @@ public partial class ProvisioningPage : Page
         _profileEditDebounceTimer.Stop();
         PushCurrentToService();
         UpdateDesktopPreview();
+    }
+
+    private PowerPlanMode GetSelectedPowerPlan()
+    {
+        if (PowerPlanOptionsPanel.Children.OfType<RadioButton>().FirstOrDefault(option => option.IsChecked == true)?.Tag is string tag
+            && Enum.TryParse(tag, out PowerPlanMode mode))
+        {
+            return mode;
+        }
+
+        return PowerPlanMode.NaoDefinido;
+    }
+
+    private void SelectPowerPlan(PowerPlanMode? value)
+    {
+        string tag = (value ?? PowerPlanMode.NaoDefinido).ToString();
+        RadioButton? option = PowerPlanOptionsPanel.Children.OfType<RadioButton>()
+            .FirstOrDefault(candidate => candidate.Tag as string == tag);
+        if (option is not null)
+            option.IsChecked = true;
+    }
+
+    private void AccentColorModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateAccentColorInputVisibility();
+        Field_Changed(sender, e);
+    }
+
+    private void AccentColorHexTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateAccentColorPreview();
+        Field_Changed(sender, e);
+    }
+
+    private void UpdateAccentColorInputVisibility()
+    {
+        if (AccentColorInputPanel is null || AccentColorModeComboBox is null)
+            return;
+
+        AccentColorInputPanel.Visibility = GetSelectedEnum<AccentColorMode>(AccentColorModeComboBox)
+            == AccentColorMode.Personalizado
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+    }
+
+    private void UpdateAccentColorPreview()
+    {
+        if (AccentColorPreview is null || AccentColorHexTextBox is null)
+            return;
+
+        try
+        {
+            if (ColorConverter.ConvertFromString(AccentColorHexTextBox.Text) is Color color)
+            {
+                AccentColorPreview.Background = new SolidColorBrush(color);
+                AccentColorHexTextBox.ToolTip = null;
+                return;
+            }
+        }
+        catch (FormatException)
+        {
+            // A validação final acontece ao aplicar; enquanto digita, só preservamos a amostra anterior.
+        }
+
+        AccentColorHexTextBox.ToolTip = "Use o formato hexadecimal #RRGGBB.";
     }
 
     private void ProfileEditDebounceTimer_Tick(object? sender, EventArgs e)
@@ -701,7 +776,18 @@ public partial class ProvisioningPage : Page
             changes.Add($"Nome do Perfil: {ProfileCreatorTextBox.Text.Trim()}");
 
         if (GetSelectedContent(ThemeComboBox, "NaoDefinido") is { } theme)
-            changes.Add($"Tema: {theme}");
+            changes.Add($"Tema do Windows: {theme}");
+
+        if (GetSelectedContent(AppsThemeComboBox, "NaoDefinido") is { } appsTheme)
+            changes.Add($"Tema dos aplicativos: {appsTheme}");
+
+        if (GetSelectedEnum<AccentColorMode>(AccentColorModeComboBox) is { } accentMode
+            && accentMode != AccentColorMode.NaoDefinido)
+        {
+            changes.Add(accentMode == AccentColorMode.Automatico
+                ? "Cor de destaque: automática pelo papel de parede"
+                : $"Cor de destaque: {AccentColorHexTextBox.Text.Trim()}");
+        }
 
         if (GetSelectedContent(TaskbarAlignmentComboBox, "NaoDefinido") is { } alignment)
             changes.Add($"Alinhamento da barra de tarefas: {alignment}");
@@ -715,8 +801,9 @@ public partial class ProvisioningPage : Page
         if (_wallpaperFileName is { } wallpaperName)
             changes.Add($"Papel de parede: {wallpaperName}");
 
-        if (GetSelectedContent(PowerPlanComboBox, "NaoDefinido") is { } powerPlan)
-            changes.Add($"Plano de energia: {powerPlan}");
+        PowerPlanMode powerPlan = GetSelectedPowerPlan();
+        if (powerPlan != PowerPlanMode.NaoDefinido)
+            changes.Add($"Plano de energia: {PowerPlanDisplayName(powerPlan)}");
 
         if (GetSelectedMinutes(DisplayTimeoutAcComboBox) is { } displayAc)
             changes.Add($"Tela desliga: {FriendlyMinutesLabel(displayAc)}");
@@ -726,14 +813,16 @@ public partial class ProvisioningPage : Page
         if (!string.IsNullOrWhiteSpace(MachineNameTextBox.Text))
             changes.Add($"Nome do PC: {MachineNameTextBox.Text.Trim()}");
 
-        if (GetSelectedContent(RegionComboBox, "") is { } region)
-            changes.Add($"Região: {region}");
-
-        if (AutoCreateRestorePointCheckBox.IsChecked is true)
-            changes.Add("Ponto de restauração: criar automaticamente ao aplicar");
-
-        if (AutoCleanTempOnLogonCheckBox.IsChecked is true)
-            changes.Add("Limpeza de arquivos temporários: agendar para cada logon");
+        if (AutomaticTimeCheckBox.IsChecked is true)
+            changes.Add("Data e hora: sincronizar automaticamente pela fonte configurada no Windows");
+        if (AutomaticTimeZoneCheckBox.IsChecked is true)
+            changes.Add("Fuso horário: ajustar automaticamente conforme a localização");
+        if (ShowFileExtensionsCheckBox.IsChecked is bool showExtensions)
+            changes.Add($"Extensões de arquivos: {(showExtensions ? "mostrar" : "ocultar")}");
+        if (ShowHiddenFilesCheckBox.IsChecked is bool showHidden)
+            changes.Add($"Arquivos ocultos: {(showHidden ? "mostrar" : "ocultar")}");
+        if (OpenExplorerToThisPcCheckBox.IsChecked is bool openToThisPc)
+            changes.Add($"Página inicial do Explorador: {(openToThisPc ? "Este Computador" : "Acesso rápido")}");
 
         return changes;
     }
@@ -764,23 +853,6 @@ public partial class ProvisioningPage : Page
     {
         if (comboBox is null) return;
         string tag = (value ?? default).ToString();
-        var match = comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == tag);
-        comboBox.SelectedItem = match ?? comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault();
-    }
-
-    /// <summary>Lê o código de região (Tag = ISO 3166-1) do RegionComboBox — Tag vazio ("Não alterar") vira null.</summary>
-    private static string? GetSelectedRegion(ComboBox? comboBox)
-    {
-        if (comboBox?.SelectedItem is not ComboBoxItem item) return null;
-        string? tag = item.Tag as string;
-        return string.IsNullOrEmpty(tag) ? null : tag;
-    }
-
-    /// <summary>Seleciona, no RegionComboBox, o item cujo Tag bate com o código ISO informado (null vira "Não alterar").</summary>
-    private static void SelectRegion(ComboBox? comboBox, string? value)
-    {
-        if (comboBox is null) return;
-        string tag = value ?? string.Empty;
         var match = comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == tag);
         comboBox.SelectedItem = match ?? comboBox.Items.OfType<ComboBoxItem>().FirstOrDefault();
     }
@@ -821,15 +893,33 @@ public partial class ProvisioningPage : Page
         };
     }
 
+    private static string PowerPlanDisplayName(PowerPlanMode powerPlan) => powerPlan switch
+    {
+        PowerPlanMode.Economia => "Economia de energia",
+        PowerPlanMode.Equilibrado => "Equilibrado",
+        PowerPlanMode.AltoDesempenho => "Alto desempenho",
+        _ => "Não alterar",
+    };
+
     private ProvisioningManifest BuildManifestFromUi(string? name = null) => new()
     {
         Name = name ?? (string.IsNullOrWhiteSpace(ProfileNameTextBox.Text) ? null : ProfileNameTextBox.Text.Trim()),
         Creator = string.IsNullOrWhiteSpace(ProfileCreatorTextBox.Text) ? null : ProfileCreatorTextBox.Text.Trim(),
-        Theme = GetSelectedEnum<SystemThemeMode>(ThemeComboBox),
+        SystemTheme = GetSelectedEnum<SystemThemeMode>(ThemeComboBox),
+        AppsTheme = GetSelectedEnum<SystemThemeMode>(AppsThemeComboBox),
+        AccentColorMode = GetSelectedEnum<AccentColorMode>(AccentColorModeComboBox),
+        AccentColor = GetSelectedEnum<AccentColorMode>(AccentColorModeComboBox) == AccentColorMode.Personalizado
+            ? AccentColorHexTextBox.Text.Trim()
+            : null,
         TaskbarAlignment = GetSelectedEnum<TaskbarAlignmentMode>(TaskbarAlignmentComboBox),
         TaskbarSearchBox = GetSelectedEnum<TaskbarSearchBoxMode>(TaskbarSearchBoxComboBox),
         TaskbarAutoHide = TaskbarAutoHideCheckBox.IsChecked,
-        PowerPlan = GetSelectedEnum<PowerPlanMode>(PowerPlanComboBox),
+        PowerPlan = GetSelectedPowerPlan(),
+        EnableAutomaticTime = AutomaticTimeCheckBox.IsChecked == true ? true : null,
+        EnableAutomaticTimeZone = AutomaticTimeZoneCheckBox.IsChecked == true ? true : null,
+        ShowFileExtensions = ShowFileExtensionsCheckBox.IsChecked,
+        ShowHiddenFiles = ShowHiddenFilesCheckBox.IsChecked,
+        OpenExplorerToThisPc = OpenExplorerToThisPcCheckBox.IsChecked,
         DisplayTimeoutOnAc = GetSelectedMinutes(DisplayTimeoutAcComboBox),
         DisplayTimeoutOnDc = GetSelectedMinutes(DisplayTimeoutAcComboBox),
         StandbyTimeoutOnAc = GetSelectedMinutes(StandbyTimeoutAcComboBox),
@@ -837,26 +927,34 @@ public partial class ProvisioningPage : Page
         MachineName = string.IsNullOrWhiteSpace(MachineNameTextBox.Text) ? null : MachineNameTextBox.Text.Trim(),
         WallpaperFileName = _wallpaperFileName,
         WallpaperImageBase64 = _wallpaperImageBase64,
-        Region = GetSelectedRegion(RegionComboBox),
-        AutoCreateRestorePoint = AutoCreateRestorePointCheckBox.IsChecked,
-        AutoCleanTempOnLogon = AutoCleanTempOnLogonCheckBox.IsChecked,
     };
 
     private void LoadManifestIntoUi(ProvisioningManifest manifest)
     {
+        bool wasUiLoaded = _uiLoaded;
+        _uiLoaded = false;
+        try
+        {
         ProfileNameTextBox.Text = manifest.Name ?? string.Empty;
         ProfileCreatorTextBox.Text = manifest.Creator ?? string.Empty;
-        SelectEnum(ThemeComboBox, manifest.Theme);
+        SelectEnum(ThemeComboBox, manifest.SystemTheme ?? manifest.Theme);
+        SelectEnum(AppsThemeComboBox, manifest.AppsTheme ?? manifest.Theme);
+        SelectEnum(AccentColorModeComboBox, manifest.AccentColorMode);
+        AccentColorHexTextBox.Text = manifest.AccentColor ?? "#0078D4";
+        UpdateAccentColorInputVisibility();
+        UpdateAccentColorPreview();
         SelectEnum(TaskbarAlignmentComboBox, manifest.TaskbarAlignment);
         SelectEnum(TaskbarSearchBoxComboBox, manifest.TaskbarSearchBox);
         TaskbarAutoHideCheckBox.IsChecked = manifest.TaskbarAutoHide;
-        SelectEnum(PowerPlanComboBox, manifest.PowerPlan);
+        SelectPowerPlan(manifest.PowerPlan);
+        AutomaticTimeCheckBox.IsChecked = manifest.EnableAutomaticTime == true;
+        AutomaticTimeZoneCheckBox.IsChecked = manifest.EnableAutomaticTimeZone == true;
+        ShowFileExtensionsCheckBox.IsChecked = manifest.ShowFileExtensions;
+        ShowHiddenFilesCheckBox.IsChecked = manifest.ShowHiddenFiles;
+        OpenExplorerToThisPcCheckBox.IsChecked = manifest.OpenExplorerToThisPc;
         SelectMinutes(DisplayTimeoutAcComboBox, manifest.DisplayTimeoutOnAc ?? manifest.DisplayTimeoutOnDc);
         SelectMinutes(StandbyTimeoutAcComboBox, manifest.StandbyTimeoutOnAc ?? manifest.StandbyTimeoutOnDc);
         MachineNameTextBox.Text = manifest.MachineName ?? string.Empty;
-        SelectRegion(RegionComboBox, manifest.Region);
-        AutoCreateRestorePointCheckBox.IsChecked = manifest.AutoCreateRestorePoint;
-        AutoCleanTempOnLogonCheckBox.IsChecked = manifest.AutoCleanTempOnLogon;
 
         _wallpaperFileName = manifest.WallpaperFileName;
         _wallpaperImageBase64 = manifest.WallpaperImageBase64;
@@ -882,6 +980,11 @@ public partial class ProvisioningPage : Page
         }
 
         UpdateDesktopPreview();
+        }
+        finally
+        {
+            _uiLoaded = wasUiLoaded;
+        }
     }
 
     /// <summary>Monta um BitmapImage a partir dos bytes em memória — sem isso, o preview exigiria salvar um arquivo temporário só pra exibir.</summary>
@@ -1108,6 +1211,7 @@ public partial class ProvisioningPage : Page
 
     private async void ApplyButton_Click(object sender, RoutedEventArgs e)
     {
+        ProvisioningInfoBar.IsOpen = false;
         var manifest = BuildManifestFromUi();
         string[] changes = BuildApplySummary(manifest);
         if (changes.Length == 0)
@@ -1116,14 +1220,12 @@ public partial class ProvisioningPage : Page
             return;
         }
 
-        var confirmation = await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
-        {
-            Title = "Confirmar provisionamento",
-            Content = "O WinProvision aplicará estas alterações:" + Environment.NewLine + Environment.NewLine
+        var confirmation = await StoreConfirmationDialog.ShowAsync(
+            "Confirmar provisionamento",
+            "O WinProvision aplicará estas alterações:" + Environment.NewLine + Environment.NewLine
                 + string.Join(Environment.NewLine, changes.Select(change => "• " + change)),
-            PrimaryButtonText = "Aplicar alterações",
-            CloseButtonText = "Revisar"
-        });
+            "Aplicar alterações",
+            "Revisar");
         if (confirmation != ContentDialogResult.Primary)
             return;
 
@@ -1147,6 +1249,7 @@ public partial class ProvisioningPage : Page
                 StatusText.Text = result.RestartRequired
                     ? "Tudo certo! As configurações foram aplicadas. Reinicie o Windows para concluir."
                     : "Tudo certo! As configurações foram aplicadas.";
+            ShowProvisioningInfoBar("Provisionamento concluído", StatusText.Text, InfoBarSeverity.Success);
             }
             else
             {
@@ -1155,6 +1258,7 @@ public partial class ProvisioningPage : Page
                     : $"{failedSteps.Count} configurações não puderam ser aplicadas.";
                 StatusText.ToolTip = string.Join(Environment.NewLine,
                     failedSteps.Select(step => $"{step.Setting}: {step.Message}"));
+            ShowProvisioningInfoBar("Provisionamento parcial", StatusText.Text, InfoBarSeverity.Warning);
                 await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
                 {
                     Title = "Provisionamento concluído com falhas",
@@ -1173,6 +1277,7 @@ public partial class ProvisioningPage : Page
         {
             StatusText.Text = "Não foi possível aplicar as configurações. Tente novamente.";
             StatusText.ToolTip = "Consulte os logs do aplicativo para ver os detalhes da falha.";
+            ShowProvisioningInfoBar("Falha no provisionamento", StatusText.Text, InfoBarSeverity.Error);
             await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
             {
                 Title = "Falha no provisionamento",
@@ -1189,16 +1294,31 @@ public partial class ProvisioningPage : Page
     private string[] BuildApplySummary(ProvisioningManifest manifest)
     {
         var changes = new List<string>();
-        if (manifest.Theme is { } theme && theme != SystemThemeMode.NaoDefinido) changes.Add($"Tema do Windows: {theme}");
+        SystemThemeMode? systemTheme = manifest.SystemTheme is { } configuredSystemTheme
+            && configuredSystemTheme != SystemThemeMode.NaoDefinido
+                ? configuredSystemTheme
+                : manifest.Theme;
+        SystemThemeMode? appsTheme = manifest.AppsTheme is { } configuredAppsTheme
+            && configuredAppsTheme != SystemThemeMode.NaoDefinido
+                ? configuredAppsTheme
+                : manifest.Theme;
+        if (systemTheme is { } system && system != SystemThemeMode.NaoDefinido) changes.Add($"Tema do Windows: {system}");
+        if (appsTheme is { } apps && apps != SystemThemeMode.NaoDefinido) changes.Add($"Tema dos aplicativos: {apps}");
+        if (manifest.AccentColorMode is { } accentMode && accentMode != AccentColorMode.NaoDefinido)
+            changes.Add(accentMode == AccentColorMode.Automatico
+                ? "Cor de destaque: Automática (definida pelo papel de parede)"
+                : $"Cor de destaque: {manifest.AccentColor ?? "#0078D4"}");
         if (manifest.TaskbarAlignment is { } alignment && alignment != TaskbarAlignmentMode.NaoDefinido) changes.Add($"Alinhamento da barra de tarefas: {alignment}");
         if (manifest.TaskbarSearchBox is { } search && search != TaskbarSearchBoxMode.NaoDefinido) changes.Add($"Pesquisa da barra de tarefas: {search}");
         if (manifest.TaskbarAutoHide is bool autoHide) changes.Add($"Ocultação automática da barra: {(autoHide ? "Ativada" : "Desativada")}");
-        if (manifest.PowerPlan is { } powerPlan && powerPlan != PowerPlanMode.NaoDefinido) changes.Add($"Plano de energia: {powerPlan}");
+        if (manifest.PowerPlan is { } powerPlan && powerPlan != PowerPlanMode.NaoDefinido) changes.Add($"Plano de energia: {PowerPlanDisplayName(powerPlan)}");
+        if (manifest.EnableAutomaticTime == true) changes.Add("Data e hora: sincronização automática pelo Windows");
+        if (manifest.EnableAutomaticTimeZone == true) changes.Add("Fuso horário: automático conforme a localização");
+        if (manifest.ShowFileExtensions is bool showExtensions) changes.Add($"Extensões de arquivos: {(showExtensions ? "Mostrar" : "Ocultar")}");
+        if (manifest.ShowHiddenFiles is bool showHidden) changes.Add($"Arquivos ocultos: {(showHidden ? "Mostrar" : "Ocultar")}");
+        if (manifest.OpenExplorerToThisPc is bool openToThisPc) changes.Add($"Página inicial do Explorador: {(openToThisPc ? "Este Computador" : "Acesso rápido")}");
         if (manifest.MachineName is not null) changes.Add($"Nome do computador: {manifest.MachineName} (exige reinicialização)");
         if (manifest.WallpaperImageBase64 is not null) changes.Add($"Papel de parede: {manifest.WallpaperFileName ?? "imagem selecionada"}");
-        if (manifest.Region is not null) changes.Add($"Região: {manifest.Region}");
-        if (manifest.AutoCreateRestorePoint is bool restorePoint) changes.Add($"Ponto de restauração: {(restorePoint ? "Criar" : "Não criar")}");
-        if (manifest.AutoCleanTempOnLogon is bool cleanTemp) changes.Add($"Limpeza de arquivos temporários ao entrar: {(cleanTemp ? "Ativar" : "Desativar")}");
         if (manifest.DisplayTimeoutOnAc is int displayAc) changes.Add($"Desligar tela na tomada: {FormatMinutes(displayAc)}");
         if (manifest.DisplayTimeoutOnDc is int displayDc) changes.Add($"Desligar tela na bateria: {FormatMinutes(displayDc)}");
         if (manifest.StandbyTimeoutOnAc is int standbyAc) changes.Add($"Suspender na tomada: {FormatMinutes(standbyAc)}");
@@ -1208,50 +1328,161 @@ public partial class ProvisioningPage : Page
 
     private static string FormatMinutes(int minutes) => minutes == 0 ? "Nunca" : $"{minutes} min";
 
-    private async Task RefreshCleanTempTaskStatusAsync()
+    private void TempCleanupSelection_Changed(object sender, RoutedEventArgs e)
     {
-        try
+        _lastTempCleanupEstimates = null;
+        if (ProvisioningInfoBar is not null)
+            ProvisioningInfoBar.IsOpen = false;
+        if (CleanTempResultText is not null)
+            CleanTempResultText.Visibility = Visibility.Collapsed;
+    }
+
+    private int MinimumTemporaryFileAgeDays
+    {
+        get
         {
-            bool isEnabled = await _scheduledTempCleanerService.IsEnabledAsync();
-            CleanTempTaskStatusText.Text = isEnabled
-                ? "Limpeza automática ativa."
-                : "Limpeza automática inativa.";
-            ScheduleCleanTempNowButton.Content = isEnabled ? "Atualizar agendamento" : "Agendar limpeza";
-        }
-        catch
-        {
-            CleanTempTaskStatusText.Text = "Status no sistema: Não foi possível verificar.";
+            double value = TempFileMinimumAgeDaysNumberBox?.Value ?? TemporaryFileCleanupService.DefaultMinimumFileAgeDays;
+            if (!double.IsFinite(value))
+                value = TemporaryFileCleanupService.DefaultMinimumFileAgeDays;
+            return (int)Math.Clamp(Math.Round(value), 1, 365);
         }
     }
 
-    private async void ScheduleCleanTempNowButton_Click(object sender, RoutedEventArgs e)
+    private void TempFileMinimumAgeDays_ValueChanged(object sender, NumberBoxValueChangedEventArgs e)
     {
-        ScheduleCleanTempNowButton.IsEnabled = false;
-        StatusText.Text = "Agendando a limpeza automática...";
+        if (!_uiLoaded || TempFileMinimumAgeDaysNumberBox is null)
+            return;
 
+        _lastTempCleanupEstimates = null;
+        CleanTempResultText.Visibility = Visibility.Collapsed;
+        CleanTempAgeHintText.Text = $"Serão considerados arquivos com mais de {FormatTemporaryAgeDays(MinimumTemporaryFileAgeDays)}.";
+        CleanTempAnalysisText.Text = "Selecione Analisar para atualizar a estimativa com este período.";
+        ProvisioningInfoBar.IsOpen = false;
+    }
+
+    private void ShowProvisioningInfoBar(string title, string message, InfoBarSeverity severity)
+    {
+        ProvisioningInfoBar.Title = title;
+        ProvisioningInfoBar.Message = message;
+        ProvisioningInfoBar.Severity = severity;
+        ProvisioningInfoBar.IsOpen = true;
+    }
+
+    private async void AnalyzeTempFilesButton_Click(object sender, RoutedEventArgs e)
+    {
+        ProvisioningInfoBar.IsOpen = false;
+        AnalyzeTempFilesButton.IsEnabled = false;
+        CleanTempAnalysisText.Text = "Analisando arquivos temporários…";
+        CleanTempResultText.Visibility = Visibility.Collapsed;
         try
         {
-            var result = await _scheduledTempCleanerService.EnableAsync();
-            if (result.Success)
-            {
-                StatusText.Text = "Limpeza automática agendada.";
-                AutoCleanTempOnLogonCheckBox.IsChecked = true;
-            }
-            else
-            {
-                StatusText.Text = "Não foi possível agendar a limpeza. Tente novamente.";
-            }
+            _lastTempCleanupEstimates = await _temporaryFileCleanupService.AnalyzeAsync(MinimumTemporaryFileAgeDays);
+            CleanTempAnalysisText.Text = FormatTempCleanupEstimates(_lastTempCleanupEstimates);
+            StatusText.Text = "Análise de arquivos temporários concluída.";
         }
-        catch
+        catch (OperationCanceledException)
         {
-            StatusText.Text = "Não foi possível agendar a limpeza. Tente novamente.";
+            CleanTempAnalysisText.Text = "Análise cancelada.";
+        }
+        catch (Exception ex)
+        {
+            CleanTempAnalysisText.Text = "Não foi possível analisar os diretórios temporários.";
+            CleanTempAnalysisText.ToolTip = ex.Message;
+            ShowProvisioningInfoBar("Falha na análise", "Não foi possível analisar os diretórios temporários. Consulte os detalhes ao lado da análise.", InfoBarSeverity.Error);
+        }
+        finally { AnalyzeTempFilesButton.IsEnabled = true; }
+    }
+
+    private async void CleanTempFilesButton_Click(object sender, RoutedEventArgs e)
+    {
+        ProvisioningInfoBar.IsOpen = false;
+        var categories = new List<TemporaryFileCategory>();
+        if (CleanUserTempCheckBox.IsChecked == true) categories.Add(TemporaryFileCategory.User);
+        if (CleanSystemTempCheckBox.IsChecked == true) categories.Add(TemporaryFileCategory.System);
+        if (categories.Count == 0)
+        {
+            StatusText.Text = "Selecione ao menos uma categoria para limpar.";
+            return;
+        }
+
+        CleanTempFilesButton.IsEnabled = false;
+        AnalyzeTempFilesButton.IsEnabled = false;
+        try
+        {
+            int minimumAgeDays = MinimumTemporaryFileAgeDays;
+            var confirmation = await StoreConfirmationDialog.ShowAsync(
+                "Limpar arquivos temporários?",
+                $"Serão analisadas as categorias selecionadas. Apenas arquivos com mais de {FormatTemporaryAgeDays(minimumAgeDays)} serão removidos; itens em uso serão ignorados."
+                    + (categories.Contains(TemporaryFileCategory.System) ? Environment.NewLine + Environment.NewLine + "A pasta temporária do Windows requer permissão de administrador." : string.Empty),
+                "Limpar arquivos",
+                "Cancelar");
+            if (confirmation != ContentDialogResult.Primary) return;
+
+            CleanTempAnalysisText.Text = "Analisando arquivos temporários…";
+            _lastTempCleanupEstimates = await _temporaryFileCleanupService.AnalyzeAsync(minimumAgeDays);
+            var selectedEstimates = _lastTempCleanupEstimates.Where(item => categories.Contains(item.Category)).ToArray();
+            long files = selectedEstimates.Sum(item => item.FileCount);
+            long bytes = selectedEstimates.Sum(item => item.Bytes);
+            CleanTempAnalysisText.Text = FormatTempCleanupEstimates(_lastTempCleanupEstimates);
+            if (files == 0)
+            {
+                StatusText.Text = $"Nenhum arquivo com mais de {FormatTemporaryAgeDays(minimumAgeDays)} foi encontrado nas categorias selecionadas.";
+                ShowProvisioningInfoBar("Nenhum arquivo encontrado", StatusText.Text, InfoBarSeverity.Informational);
+                return;
+            }
+
+            CleanTempAnalysisText.Text = $"Encontrados {files:N0} arquivo(s), aproximadamente {FormatTempBytes(bytes)}. Iniciando a limpeza…";
+            CleanTempFilesButton.Content = "Limpando…";
+            var results = await _temporaryFileCleanupService.CleanAsync(categories, minimumAgeDays);
+            long removed = results.Sum(item => item.DeletedCount);
+            long recoveredBytes = results.Sum(item => item.DeletedBytes);
+            long skipped = results.Sum(item => item.SkippedCount);
+            string[] errors = results.Where(item => item.Error is not null).Select(item => item.Error!).ToArray();
+            CleanTempResultText.Text = errors.Length > 0
+                ? string.Join(Environment.NewLine, errors)
+                : $"Removidos {removed:N0} arquivo(s), liberando aproximadamente {FormatTempBytes(recoveredBytes)}. {skipped:N0} item(ns) foram ignorados (em uso ou sem acesso).";
+            CleanTempResultText.Visibility = Visibility.Visible;
+            StatusText.Text = errors.Length > 0 ? "A limpeza foi concluída parcialmente." : "Limpeza de temporários concluída.";
+            ShowProvisioningInfoBar(
+                errors.Length > 0 ? "Limpeza parcial" : "Limpeza concluída",
+                errors.Length > 0 ? "Alguns diretórios não puderam ser limpos. Consulte o resumo da operação." : CleanTempResultText.Text,
+                errors.Length > 0 ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+            _lastTempCleanupEstimates = await _temporaryFileCleanupService.AnalyzeAsync(minimumAgeDays);
+            CleanTempAnalysisText.Text = FormatTempCleanupEstimates(_lastTempCleanupEstimates);
+        }
+        catch (Exception ex)
+        {
+            CleanTempResultText.Text = "A limpeza não pôde ser concluída. " + ex.Message;
+            CleanTempResultText.Visibility = Visibility.Visible;
+            StatusText.Text = "Falha na limpeza de arquivos temporários.";
+            ShowProvisioningInfoBar("Falha na limpeza", "Não foi possível concluir a limpeza de arquivos temporários.", InfoBarSeverity.Error);
         }
         finally
         {
-            ScheduleCleanTempNowButton.IsEnabled = true;
-            await RefreshCleanTempTaskStatusAsync();
+            CleanTempFilesButton.Content = "Limpar selecionados";
+            CleanTempFilesButton.IsEnabled = true;
+            AnalyzeTempFilesButton.IsEnabled = true;
         }
     }
+
+    private static string FormatTempCleanupEstimates(IEnumerable<TemporaryFileCleanupEstimate> estimates)
+    {
+        TemporaryFileCleanupEstimate[] items = estimates.ToArray();
+        return string.Join(Environment.NewLine, items.Select(item =>
+            $"{(item.Category == TemporaryFileCategory.User ? "Este usuário" : "Windows")}: {item.FileCount:N0} arquivo(s), {FormatTempBytes(item.Bytes)} estimados"
+            + (item.SkippedCount > 0 ? $"; {item.SkippedCount:N0} item(ns) sem acesso" : string.Empty)));
+    }
+
+    private static string FormatTempBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = Math.Max(0, bytes);
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        return $"{value:N1} {units[unit]}";
+    }
+
+    private static string FormatTemporaryAgeDays(int days) => days == 1 ? "1 dia" : $"{days} dias";
 
 
 }

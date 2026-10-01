@@ -7,6 +7,13 @@ public enum SystemThemeMode
     Escuro = 2,
 }
 
+public enum AccentColorMode
+{
+    NaoDefinido = 0,
+    Automatico = 1,
+    Personalizado = 2,
+}
+
 /// <summary>Só tem efeito no Windows 11 — no Windows 10 a barra de tarefas é sempre à esquerda.</summary>
 public enum TaskbarAlignmentMode
 {
@@ -61,7 +68,17 @@ public class ProvisioningManifest
     /// </summary>
     public string? Creator { get; set; }
 
+    /// <summary>Compatibilidade com perfis legados que aplicavam um único tema ao Windows e aos apps.</summary>
     public SystemThemeMode? Theme { get; set; }
+
+    public SystemThemeMode? SystemTheme { get; set; }
+
+    public SystemThemeMode? AppsTheme { get; set; }
+
+    public AccentColorMode? AccentColorMode { get; set; }
+
+    /// <summary>Cor personalizada em #RRGGBB; usada quando AccentColorMode é Personalizado.</summary>
+    public string? AccentColor { get; set; }
 
     public TaskbarAlignmentMode? TaskbarAlignment { get; set; }
 
@@ -70,6 +87,18 @@ public class ProvisioningManifest
     public TaskbarSearchBoxMode? TaskbarSearchBox { get; set; }
 
     public PowerPlanMode? PowerPlan { get; set; }
+
+    /// <summary>Solicita ao Windows sincronizar automaticamente data e hora pela fonte já configurada no sistema.</summary>
+    public bool? EnableAutomaticTime { get; set; }
+
+    /// <summary>Ativa o ajuste automático do fuso horário com base na localização, sem alterar a permissão de localização do usuário.</summary>
+    public bool? EnableAutomaticTimeZone { get; set; }
+
+    public bool? ShowFileExtensions { get; set; }
+
+    public bool? ShowHiddenFiles { get; set; }
+
+    public bool? OpenExplorerToThisPc { get; set; }
 
     /// <summary>
     /// Novo nome do computador. Requer reinício para ter efeito (ver
@@ -92,25 +121,9 @@ public class ProvisioningManifest
     public string? WallpaperImageBase64 { get; set; }
 
     /// <summary>
-    /// Localização geográfica do usuário (código ISO 3166-1 de duas letras, ex.: "BR", "US") —
-    /// aplicada via SetUserGeoName (kernel32.dll), a mesma API usada pela tela Configurações do
-    /// Windows em "Hora e idioma &gt; Idioma e região". Cobre só a localização; o formato de
-    /// data/hora/moeda (aba "Formatos" das Configurações) não tem uma API pública de gravação
-    /// documentada e por isso fica fora deste manifesto.
+    /// Campo legado aceito ao importar perfis antigos; a localização geográfica não é mais aplicada.
     /// </summary>
     public string? Region { get; set; }
-
-    /// <summary>
-    /// Se true, cria um ponto de restauração do sistema (via WMI SystemRestore) no início do
-    /// Apply, na máquina-alvo.
-    /// </summary>
-    public bool? AutoCreateRestorePoint { get; set; }
-
-    /// <summary>
-    /// Se true, agenda uma tarefa no Agendador de Tarefas do Windows para limpar automaticamente
-    /// todos os arquivos temporários do sistema (%TEMP%, Windows\Temp, etc.) ao fazer Logon.
-    /// </summary>
-    public bool? AutoCleanTempOnLogon { get; set; }
 
     /// <summary>
     /// Tempo (em minutos) até a tela ser desligada quando o PC está ligado na tomada (CA).

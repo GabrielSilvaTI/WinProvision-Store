@@ -52,8 +52,8 @@
     <SolidColorBrush x:Key="AppOperationCanceledSurfaceBrush" Color="#18C6D1E0" />
     <SolidColorBrush x:Key="AppOperationComBrush" Color="#FFB991FF" />
     <SolidColorBrush x:Key="AppOperationApiBrush" Color="#FFFF9A3D" />
-    <SolidColorBrush x:Key="AppOperationWingetBrush" Color="#FF1688E8" />
-    <SolidColorBrush x:Key="AppOperationDefaultBrush" Color="#FF1688E8" />
+    <SolidColorBrush x:Key="AppOperationWingetBrush" Color="#FF0078D4" />
+    <SolidColorBrush x:Key="AppOperationDefaultBrush" Color="#FF0078D4" />
     <SolidColorBrush x:Key="AppProgressTrackBrush" Color="#24FFFFFF" />
     <Color x:Key="AppPanelShadowColor">#FF000000</Color>
 
@@ -97,13 +97,21 @@
         branca sempre) que sofreria exatamente do mesmo problema já corrigido pro texto
         (sumiria no tema Claro, ver comentário no Style de TextBlock).
     -->
-    <Style TargetType="ui:Button"
-           BasedOn="{StaticResource {x:Type ui:Button}}">
+    <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
         <Setter Property="CornerRadius" Value="{DynamicResource StorePillCornerRadius}" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="Padding" Value="12,6" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Style.Triggers>
+            <Trigger Property="Appearance" Value="Primary">
+                <Setter Property="Background" Value="{DynamicResource InstallActionBrush}" />
+                <Setter Property="MouseOverBackground" Value="{DynamicResource InstallActionHoverBrush}" />
+                <Setter Property="PressedBackground" Value="{DynamicResource InstallActionPressedBrush}" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="PressedForeground" Value="White" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style TargetType="ui:SymbolIcon">

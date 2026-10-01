@@ -11,8 +11,8 @@
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <SolidColorBrush x:Key="InstallActionBrush" Color="#0078D4" />
-    <SolidColorBrush x:Key="InstallActionHoverBrush" Color="#1688E8" />
-    <SolidColorBrush x:Key="InstallActionPressedBrush" Color="#0067B8" />
+    <SolidColorBrush x:Key="InstallActionBrush" Color="#FF0078D4" />
+    <SolidColorBrush x:Key="InstallActionHoverBrush" Color="#FF0078D4" />
+    <SolidColorBrush x:Key="InstallActionPressedBrush" Color="#FF0078D4" />
 
 </ResourceDictionary>

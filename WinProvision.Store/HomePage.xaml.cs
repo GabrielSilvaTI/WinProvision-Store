@@ -277,7 +277,7 @@ public partial class HomePage : Page
             UpdatePopularApps();
 
             _catalogLoaded = true;
-                ApplyFilter();
+            ApplyFilter();
         }
         catch
         {
@@ -1054,7 +1054,7 @@ public partial class HomePage : Page
             await LoadStoreBannersAsync(force: true);
             UpdatePopularApps();
             _catalogLoaded = true;
-                ApplyFilter();
+            ApplyFilter();
         }
         catch
         {

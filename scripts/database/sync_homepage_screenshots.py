@@ -20,12 +20,12 @@ import sys
 import time
 import unicodedata
 import warnings
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
-from urllib.robotparser import RobotFileParser
 from urllib.parse import quote, urljoin, urlparse
+from urllib.robotparser import RobotFileParser
 
 import boto3
 import requests
@@ -40,8 +40,19 @@ MAX_HTML_BYTES = 2 * 1024 * 1024
 MAX_ROBOTS_BYTES = 512 * 1024
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_CANDIDATES = 3
-SCREENSHOT_WORDS = ("screenshot", "screen-shot", "screenshots", "screen shot", "captura", "capturas",
-                    "app-preview", "app preview", "preview-screenshot", "product-screenshot", "product screenshot")
+SCREENSHOT_WORDS = (
+    "screenshot",
+    "screen-shot",
+    "screenshots",
+    "screen shot",
+    "captura",
+    "capturas",
+    "app-preview",
+    "app preview",
+    "preview-screenshot",
+    "product-screenshot",
+    "product screenshot",
+)
 NEGATIVE_WORDS = ("logo", "icon", "favicon", "avatar", "profile", "badge", "sprite", "banner")
 EXTENSIONS = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif"}
 Image.MAX_IMAGE_PIXELS = 40_000_000
@@ -49,7 +60,7 @@ warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def normalize_id(value: str) -> str:
@@ -76,8 +87,9 @@ def is_public_https(url: str) -> bool:
         if parsed.port not in (None, 443):
             return False
         addresses = socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM)
-        return bool(addresses) and all(ipaddress.ip_address(item[4][0].split("%", 1)[0]).is_global
-                                       for item in addresses)
+        return bool(addresses) and all(
+            ipaddress.ip_address(item[4][0].split("%", 1)[0]).is_global for item in addresses
+        )
     except (OSError, ValueError):
         return False
 
@@ -127,11 +139,14 @@ class PageImages(HTMLParser):
             key = (values.get("property") or values.get("name") or "").casefold()
             value = values.get("content", "").strip()
             if value and key in ("og:image", "og:image:url", "twitter:image", "twitter:image:src"):
-                self.meta.append((self._score(value, " ".join(values.values()), metadata=True),
-                                  urljoin(self.base_url, value)))
+                self.meta.append(
+                    (self._score(value, " ".join(values.values()), metadata=True), urljoin(self.base_url, value))
+                )
         elif tag.casefold() in ("img", "source"):
-            description = " ".join(values.get(k, "") for k in (
-                "alt", "title", "aria-label", "class", "id", "data-testid", "itemprop", "src", "data-src"))
+            description = " ".join(
+                values.get(k, "")
+                for k in ("alt", "title", "aria-label", "class", "id", "data-testid", "itemprop", "src", "data-src")
+            )
             sources = [values.get("src", ""), values.get("data-src", ""), values.get("data-original", "")]
             srcset = values.get("srcset", "")
             if srcset:
@@ -163,7 +178,9 @@ class PageImages(HTMLParser):
 class SafeHttp:
     def __init__(self):
         self.session = requests.Session()
-        self.session.headers.update({"User-Agent": USER_AGENT, "Accept": "text/html,image/avif,image/webp,image/*,*/*;q=0.8"})
+        self.session.headers.update(
+            {"User-Agent": USER_AGENT, "Accept": "text/html,image/avif,image/webp,image/*,*/*;q=0.8"}
+        )
         self.robots: dict[str, tuple[float, RobotFileParser]] = {}
 
     def get(self, url: str, limit: int):
@@ -203,10 +220,17 @@ class SafeHttp:
         if cached is None or cached[0] < time.monotonic():
             try:
                 body, content_type, _ = self.get(f"{host_key}/robots.txt", MAX_ROBOTS_BYTES)
-                lines = body.decode("utf-8", errors="replace").splitlines() if content_type in (
-                    "text/plain", "application/octet-stream", "") else []
+                lines = (
+                    body.decode("utf-8", errors="replace").splitlines()
+                    if content_type in ("text/plain", "application/octet-stream", "")
+                    else []
+                )
             except requests.HTTPError as exc:
-                lines = [] if exc.response is not None and exc.response.status_code in (404, 410) else ["User-agent: *", "Disallow: /"]
+                lines = (
+                    []
+                    if exc.response is not None and exc.response.status_code in (404, 410)
+                    else ["User-agent: *", "Disallow: /"]
+                )
             except (requests.RequestException, OSError, ValueError):
                 lines = ["User-agent: *", "Disallow: /"]
             robot_parser = RobotFileParser()
@@ -229,8 +253,9 @@ def image_candidates(html: bytes, page_url: str) -> list[str]:
         if parsed.path.casefold().endswith((".svg", ".ico")):
             continue
         unique[url] = max(score, unique.get(url, -100))
-    return [url for url, score in sorted(unique.items(), key=lambda item: (-item[1], item[0]))
-            if score >= 6][:MAX_CANDIDATES]
+    return [url for url, score in sorted(unique.items(), key=lambda item: (-item[1], item[0])) if score >= 6][
+        :MAX_CANDIDATES
+    ]
 
 
 def fetch_screenshot(http: SafeHttp, homepage: str) -> tuple[bytes, str, str] | None:
@@ -258,8 +283,14 @@ def fetch_screenshot(http: SafeHttp, homepage: str) -> tuple[bytes, str, str] | 
             extension = EXTENSIONS.get(image_format or "")
             if extension:
                 return body, extension, resolved_url
-        except (requests.RequestException, OSError, ValueError, UnidentifiedImageError,
-                Image.DecompressionBombError, Image.DecompressionBombWarning):
+        except (
+            requests.RequestException,
+            OSError,
+            ValueError,
+            UnidentifiedImageError,
+            Image.DecompressionBombError,
+            Image.DecompressionBombWarning,
+        ):
             continue
     return None
 
@@ -275,11 +306,14 @@ def load_state(path: Path) -> dict:
 
 
 def make_r2_client():
-    return boto3.client("s3", endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
-                        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-                        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-                        config=Config(signature_version="s3v4", retries={"max_attempts": 4, "mode": "standard"}),
-                        region_name="auto")
+    return boto3.client(
+        "s3",
+        endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+        config=Config(signature_version="s3v4", retries={"max_attempts": 4, "mode": "standard"}),
+        region_name="auto",
+    )
 
 
 def main() -> int:
@@ -290,7 +324,9 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--recheck-days", type=int, default=30)
     parser.add_argument("--package-id", default="", help="processa um ID do catálogo em vez do lote normal")
-    parser.add_argument("--homepage-url", default="", help="processa uma URL; sem ID, precisa corresponder a um único app")
+    parser.add_argument(
+        "--homepage-url", default="", help="processa uma URL; sem ID, precisa corresponder a um único app"
+    )
     parser.add_argument("--public-base", default=os.environ.get("R2_PUBLIC_BASE", DEFAULT_PUBLIC_BASE).rstrip("/"))
     args = parser.parse_args()
     if args.batch_size < 1 or args.recheck_days < 1 or not args.public_base.startswith("https://"):
@@ -315,10 +351,13 @@ def main() -> int:
         if not isinstance(app, dict) or not isinstance(app.get("id"), str):
             continue
         catalog_apps_by_id.setdefault(app["id"].casefold(), []).append((index, app))
-        if (str(app.get("source", "winget")).casefold() not in ("winget", "msstore")
-                or not isinstance(app.get("homepage"), str)):
+        if str(app.get("source", "winget")).casefold() not in ("winget", "msstore") or not isinstance(
+            app.get("homepage"), str
+        ):
             continue
-        screenshot_field = "storeScreenshotUrls" if str(app.get("source", "winget")).casefold() == "msstore" else "screenshotUrls"
+        screenshot_field = (
+            "storeScreenshotUrls" if str(app.get("source", "winget")).casefold() == "msstore" else "screenshotUrls"
+        )
         if app.get(screenshot_field):
             continue
         homepage = normalize_homepage(app["homepage"])
@@ -342,16 +381,26 @@ def main() -> int:
                 parser.error(f"O pacote '{args.package_id}' não tem uma homepage HTTPS válida")
         else:
             target_key = homepage_match_key(url_target)
-            exact = [(index, app) for index, app in enumerate(catalog)
-                     if isinstance(app, dict) and isinstance(app.get("homepage"), str)
-                     and homepage_match_key(app["homepage"]) == target_key]
+            exact = [
+                (index, app)
+                for index, app in enumerate(catalog)
+                if isinstance(app, dict)
+                and isinstance(app.get("homepage"), str)
+                and homepage_match_key(app["homepage"]) == target_key
+            ]
             if not exact:
-                exact = [(index, app) for index, app in enumerate(catalog)
-                         if isinstance(app, dict) and isinstance(app.get("homepage"), str)
-                         and homepage_match_key(app["homepage"]) is not None
-                         and homepage_match_key(app["homepage"])[0] == target_key[0]]
+                exact = [
+                    (index, app)
+                    for index, app in enumerate(catalog)
+                    if isinstance(app, dict)
+                    and isinstance(app.get("homepage"), str)
+                    and homepage_match_key(app["homepage"]) is not None
+                    and homepage_match_key(app["homepage"])[0] == target_key[0]
+                ]
             if len(exact) != 1:
-                parser.error("A URL não identifica um único app. Informe também o ID do pacote para vinculá-la sem ambiguidade.")
+                parser.error(
+                    "A URL não identifica um único app. Informe também o ID do pacote para vinculá-la sem ambiguidade."
+                )
             target_index, target_app = exact[0]
             if str(target_app.get("source", "winget")).casefold() not in ("winget", "msstore"):
                 parser.error("O app correspondente tem uma origem não suportada")
@@ -364,7 +413,7 @@ def main() -> int:
     else:
         start = state["nextIndex"] % len(catalog)
         rotated = [item for item in eligible if item[0] >= start] + [item for item in eligible if item[0] < start]
-        selected = rotated[:args.batch_size]
+        selected = rotated[: args.batch_size]
         next_index = (selected[-1][0] + 1) % len(catalog) if selected else start
 
     try:
@@ -384,10 +433,16 @@ def main() -> int:
         previous = state["packages"].get(cache_key, {})
         same_homepage = isinstance(previous, dict) and previous.get("homepage") == homepage
         try:
-            checked_at = datetime.fromisoformat(str(previous.get("checkedAt", "")).replace("Z", "+00:00")) if same_homepage else None
+            checked_at = (
+                datetime.fromisoformat(str(previous.get("checkedAt", "")).replace("Z", "+00:00"))
+                if same_homepage
+                else None
+            )
         except ValueError:
             checked_at = None
-        screenshot_field = "storeScreenshotUrls" if str(app.get("source", "winget")).casefold() == "msstore" else "screenshotUrls"
+        screenshot_field = (
+            "storeScreenshotUrls" if str(app.get("source", "winget")).casefold() == "msstore" else "screenshotUrls"
+        )
         if same_homepage and previous.get("publicUrl"):
             app[screenshot_field] = list(dict.fromkeys([*(app.get(screenshot_field) or []), previous["publicUrl"]]))
             skipped_recent += 1
@@ -404,14 +459,20 @@ def main() -> int:
                 body, extension, source_url = found
                 digest = hashlib.sha256(body).hexdigest()
                 key = f"{R2_PREFIX}/{quote(cache_key, safe='._-')}/screenshot-{digest}.{extension}"
-                content_type = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}[extension]
-                client.put_object(Bucket=os.environ.get("R2_BUCKET") or "winprovision", Key=key, Body=body,
-                                  ContentType=content_type, CacheControl="public, max-age=31536000, immutable",
-                                  Metadata={"sha256": digest})
+                content_type = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}[
+                    extension
+                ]
+                client.put_object(
+                    Bucket=os.environ.get("R2_BUCKET") or "winprovision",
+                    Key=key,
+                    Body=body,
+                    ContentType=content_type,
+                    CacheControl="public, max-age=31536000, immutable",
+                    Metadata={"sha256": digest},
+                )
                 public_url = f"{args.public_base}/{key}"
                 app[screenshot_field] = list(dict.fromkeys([*(app.get(screenshot_field) or []), public_url]))
-                record.update({"status": "found", "publicUrl": public_url, "sourceUrl": source_url,
-                               "sha256": digest})
+                record.update({"status": "found", "publicUrl": public_url, "sourceUrl": source_url, "sha256": digest})
                 updated += 1
             state["packages"][cache_key] = record
             reports.append({"id": package_id, "status": record["status"]})
@@ -427,15 +488,29 @@ def main() -> int:
     args.state.parent.mkdir(parents=True, exist_ok=True)
     args.state.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps({"generatedAt": now.isoformat(), "batchSize": args.batch_size,
-                                       "targetPackageId": args.package_id.strip() or None,
-                                       "targetHomepageUrl": url_target or None,
-                                       "selected": len(selected), "screenshotsAdded": updated,
-                                       "skippedRecent": skipped_recent, "failures": failures,
-                                       "nextIndex": next_index, "packages": reports}, ensure_ascii=False, indent=2),
-                           encoding="utf-8")
-    print(f"Páginas avaliadas: {len(selected)}; capturas adicionadas: {updated}; "
-          f"checagens recentes reaproveitadas: {skipped_recent}; falhas isoladas: {failures}.")
+    args.report.write_text(
+        json.dumps(
+            {
+                "generatedAt": now.isoformat(),
+                "batchSize": args.batch_size,
+                "targetPackageId": args.package_id.strip() or None,
+                "targetHomepageUrl": url_target or None,
+                "selected": len(selected),
+                "screenshotsAdded": updated,
+                "skippedRecent": skipped_recent,
+                "failures": failures,
+                "nextIndex": next_index,
+                "packages": reports,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    print(
+        f"Páginas avaliadas: {len(selected)}; capturas adicionadas: {updated}; "
+        f"checagens recentes reaproveitadas: {skipped_recent}; falhas isoladas: {failures}."
+    )
     # Per-site errors are reported but do not fail independent packages in this job.
     return 0
 

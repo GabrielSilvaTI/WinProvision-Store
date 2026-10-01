@@ -91,6 +91,7 @@ public partial class PackagesPage : Page
 
         AttachToActiveTab();
         SetViewMode(false); // Cartões no padrão da Microsoft Store
+        UpdateFilterButtonState();
         UpdateStatus();
     }
 
@@ -247,6 +248,7 @@ public partial class PackagesPage : Page
         FilterOnlySelectedCheckBox.IsChecked = false;
         _searchDebounceTimer.Stop();
         _collectionView?.Refresh();
+        UpdateFilterButtonState();
         UpdateStatus();
     }
 
@@ -268,6 +270,7 @@ public partial class PackagesPage : Page
         }
 
         _collectionView?.Refresh();
+        UpdateFilterButtonState();
         UpdateStatus();
     }
 
@@ -278,6 +281,7 @@ public partial class PackagesPage : Page
         FilterSourceMsStoreCheckBox.IsChecked = true;
         FilterSourceOfficeCheckBox.IsChecked = true;
         _collectionView?.Refresh();
+        UpdateFilterButtonState();
         UpdateStatus();
     }
 
@@ -288,7 +292,19 @@ public partial class PackagesPage : Page
         FilterSourceMsStoreCheckBox.IsChecked = false;
         FilterSourceOfficeCheckBox.IsChecked = false;
         _collectionView?.Refresh();
+        UpdateFilterButtonState();
         UpdateStatus();
+    }
+
+    private void UpdateFilterButtonState()
+    {
+        if (SidebarToggleToolbarButton is null)
+            return;
+
+        bool allSourcesSelected = FilterSourceWingetCheckBox.IsChecked == true
+            && FilterSourceMsStoreCheckBox.IsChecked == true
+            && FilterSourceOfficeCheckBox.IsChecked == true;
+        SidebarToggleToolbarButton.Tag = !allSourcesSelected || FilterOnlySelectedCheckBox.IsChecked == true;
     }
 
     // ─── Ordenação da Tabela ─────────────────────────────────────────────────
@@ -665,17 +681,12 @@ public partial class PackagesPage : Page
         var tab = _collectionService.ActiveTab;
         if (tab is null || tab.IsDefault) return;
 
-        var confirmDialog = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = "Excluir perfil",
-            Content = $"Excluir “{tab.Title}”? Os pacotes continuarão instalados no Windows.",
-            PrimaryButtonText = "Excluir",
-            CloseButtonText = "Cancelar"
-        };
-
-        StoreDialogStyles.Apply(confirmDialog);
-        var result = await confirmDialog.ShowDialogAsync();
-        if (result != Wpf.Ui.Controls.MessageBoxResult.Primary) return;
+        var result = await StoreConfirmationDialog.ShowAsync(
+            "Excluir perfil",
+            $"Excluir “{tab.Title}”? Os pacotes continuarão instalados no Windows.",
+            "Excluir",
+            "Cancelar");
+        if (result != ContentDialogResult.Primary) return;
 
         _collectionService.CloseTab(tab);
         ProfileTabControl.SelectedItem = _collectionService.ActiveTab;
@@ -1124,13 +1135,11 @@ public partial class PackagesPage : Page
         var activeTab = _collectionService.ActiveTab;
         if (activeTab == null || activeTab.Items.Count == 0) return;
 
-        var result = await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
-        {
-            Title = "Limpar coleção?",
-            Content = $"Os {activeTab.Items.Count} aplicativos da guia \"{activeTab.Title}\" serão removidos.",
-            PrimaryButtonText = "Limpar coleção",
-            CloseButtonText = "Cancelar"
-        });
+        var result = await StoreConfirmationDialog.ShowAsync(
+            "Limpar coleção?",
+            $"Os {activeTab.Items.Count} aplicativos da guia \"{activeTab.Title}\" serão removidos.",
+            "Limpar coleção",
+            "Cancelar");
 
         if (result == ContentDialogResult.Primary)
         {

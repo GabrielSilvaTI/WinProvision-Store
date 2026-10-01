@@ -13,7 +13,7 @@ import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime
 from urllib.parse import quote
 
 import boto3
@@ -146,10 +146,7 @@ def upload_batch(client, bucket: str, files: list[tuple[str, str]], label: str) 
     failures = []
     print(f"Enviando {len(files)} arquivo(s) ({label}) com {MAX_WORKERS} workers...")
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {
-            executor.submit(upload_single_file, client, path, bucket, key): key
-            for path, key in files
-        }
+        futures = {executor.submit(upload_single_file, client, path, bucket, key): key for path, key in files}
         for future in as_completed(futures):
             if not future.result():
                 failures.append(futures[future])
@@ -236,10 +233,12 @@ def main() -> int:
         entry["manifestSha256"] = digest
 
         if not has_immutable_state or previous_hashes.get(package_id) != digest:
-            immutable_uploads.append((
-                manifest_path,
-                f"{r2_prefix}/packages/{package_id}/{digest}.json",
-            ))
+            immutable_uploads.append(
+                (
+                    manifest_path,
+                    f"{r2_prefix}/packages/{package_id}/{digest}.json",
+                )
+            )
         if previous_hashes.get(package_id) != digest:
             legacy_uploads.append((manifest_path, f"{r2_prefix}/packages/{filename}"))
 
@@ -279,7 +278,10 @@ def main() -> int:
             ExtraArgs={"ContentType": "application/json", "CacheControl": "no-cache"},
         )
     except Exception as exc:  # noqa: BLE001 - o índice está íntegro; repetir publicação é seguro.
-        print(f"Aviso: índice publicado; estado não atualizado e será reconstruído na próxima execução: {exc}", file=sys.stderr)
+        print(
+            f"Aviso: índice publicado; estado não atualizado e será reconstruído na próxima execução: {exc}",
+            file=sys.stderr,
+        )
         return 1
 
     print(

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
@@ -27,17 +28,15 @@ public record ProvisioningApplyResult(List<ProvisioningStepResult> Steps, bool R
 
 /// <summary>
 /// Aplica, exporta e importa perfis de provisionamento do sistema (tema, barra de tarefas,
-/// plano de energia, nome da máquina, wallpaper, ponto de
-/// restauração). Diferente do
+/// plano de energia, nome da máquina e wallpaper). Diferente do
 /// <see cref="WinProvision.Core.Services.Profile.ProfileService"/> (que fala com winget/ODT),
 /// este serviço fala direto com o Registro do Windows, com o Win32
-/// (SHAppBarMessage/SetComputerNameEx/SystemParametersInfo), com o powercfg.exe, com o WUAPI
-/// e com o WMI SystemRestore
-/// (<see cref="RestorePointService"/>) — por isso é inteiramente específico de Windows (ver
+/// (SHAppBarMessage/SetComputerNameEx/SystemParametersInfo), com o powercfg.exe e com o WUAPI —
+/// por isso é inteiramente específico de Windows (ver
 /// <see cref="SupportedOSPlatformAttribute"/> na classe).
 ///
 /// Todo ajuste aqui é pensado pra rodar na máquina-alvo no momento do Apply — inclusive
-/// atualizações e ponto de restauração, que não são ações "ao vivo" na máquina onde o perfil
+/// ajustes, que não são ações "ao vivo" na máquina onde o perfil
 /// foi montado, mas toggles do manifesto executados quando o perfil é de fato aplicado (botão
 /// "Aplicar agora" ou CLI /Provision), tipicamente numa máquina recém-formatada e diferente.
 ///
@@ -51,7 +50,7 @@ public record ProvisioningApplyResult(List<ProvisioningStepResult> Steps, bool R
 /// recebe o relatório completo em <see cref="ProvisioningApplyResult.Steps"/>.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public class ProvisioningService(RestorePointService restorePointService, ScheduledTempCleanerService? tempCleanerService = null)
+public class ProvisioningService
 {
     /// <summary>
     /// Estado de provisionamento "atual" desta sessão do app — guardado em memória, usado
@@ -87,6 +86,9 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
 
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     private const string ExplorerAdvancedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";
+    private const string DesktopAppearanceKey = @"Control Panel\Desktop";
+    private const string DwmKey = @"Software\Microsoft\Windows\DWM";
+    private const string ExplorerAccentKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent";
     private const string SearchKey = @"Software\Microsoft\Windows\CurrentVersion\Search";
     private const string DesktopKey = @"Control Panel\Desktop";
 
@@ -174,10 +176,28 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
             log?.Invoke($"[Provisionamento] {setting}: {(success ? "OK" : "FALHOU")} — {message}");
         }
 
-        if (manifest.Theme is { } theme && theme != SystemThemeMode.NaoDefinido)
+        bool hasSplitTheme = manifest.SystemTheme is not null || manifest.AppsTheme is not null;
+        if (hasSplitTheme)
         {
-            TryApply("Tema do sistema", ApplyTheme, theme, Report);
+            var systemTheme = manifest.SystemTheme is { } selectedSystemTheme
+                && selectedSystemTheme != SystemThemeMode.NaoDefinido
+                    ? selectedSystemTheme
+                    : manifest.Theme;
+            var appsTheme = manifest.AppsTheme is { } selectedAppsTheme
+                && selectedAppsTheme != SystemThemeMode.NaoDefinido
+                    ? selectedAppsTheme
+                    : manifest.Theme;
+
+            if (systemTheme is { } system && system != SystemThemeMode.NaoDefinido)
+                TryApply("Tema do Windows", ApplySystemTheme, system, Report);
+            if (appsTheme is { } apps && apps != SystemThemeMode.NaoDefinido)
+                TryApply("Tema dos aplicativos", ApplyAppsTheme, apps, Report);
         }
+        else if (manifest.Theme is { } legacyTheme && legacyTheme != SystemThemeMode.NaoDefinido)
+            TryApply("Tema do Windows e dos aplicativos", ApplyTheme, legacyTheme, Report);
+
+        if (manifest.AccentColorMode is { } accentMode && accentMode != AccentColorMode.NaoDefinido)
+            TryApply("Cor de destaque", ApplyAccentColor, (accentMode, manifest.AccentColor), Report);
 
         if (manifest.TaskbarAlignment is { } alignment && alignment != TaskbarAlignmentMode.NaoDefinido)
         {
@@ -211,6 +231,26 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
             Report("Tempo de tela e suspensão", timeoutsResult.Success, timeoutsResult.Message);
         }
 
+        if (manifest.EnableAutomaticTime == true || manifest.EnableAutomaticTimeZone == true)
+        {
+            var clockResult = await ApplyAutomaticClockSettingsAsync(
+                manifest.EnableAutomaticTime == true,
+                manifest.EnableAutomaticTimeZone == true,
+                ct);
+            string setting = manifest.EnableAutomaticTime == true && manifest.EnableAutomaticTimeZone == true
+                ? "Data, hora e fuso horário automáticos"
+                : manifest.EnableAutomaticTime == true ? "Data e hora automáticas" : "Fuso horário automático";
+            Report(setting, clockResult.Success, clockResult.Message);
+        }
+
+        if (manifest.ShowFileExtensions is not null
+            || manifest.ShowHiddenFiles is not null
+            || manifest.OpenExplorerToThisPc is not null)
+        {
+            TryApply("Preferências do Explorador de Arquivos", ApplyExplorerPreferences,
+                (manifest.ShowFileExtensions, manifest.ShowHiddenFiles, manifest.OpenExplorerToThisPc), Report);
+        }
+
         if (!string.IsNullOrWhiteSpace(manifest.MachineName))
         {
             var result = await ApplyMachineNameAsync(manifest.MachineName, ct);
@@ -223,44 +263,10 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
             TryApply("Papel de parede", ApplyWallpaper, (wallpaperBase64, manifest.WallpaperFileName), Report);
         }
 
-        if (!string.IsNullOrWhiteSpace(manifest.Region))
-        {
-            TryApply("Região", ApplyRegion, manifest.Region, Report);
-        }
-
         if (!string.IsNullOrWhiteSpace(manifest.Creator) || !string.IsNullOrWhiteSpace(manifest.Name))
         {
             var oemResult = await ApplyOemInformationAsync((manifest.Creator?.Trim(), manifest.Name?.Trim()), ct);
             Report("Informações OEM (Autor do setup)", oemResult.Success, oemResult.Message);
-        }
-
-        if (manifest.AutoCreateRestorePoint == true)
-        {
-            try
-            {
-                var (success, message) = await restorePointService.CreateAsync(
-                    manifest.Name is { } name ? $"WinProvision - {name}" : "WinProvision", ct);
-                Report("Ponto de restauração", success, message);
-            }
-            catch (Exception ex)
-            {
-                Report("Ponto de restauração", false, $"Erro: {ex.Message}");
-            }
-        }
-
-
-        if (manifest.AutoCleanTempOnLogon == true)
-        {
-            try
-            {
-                var cleaner = tempCleanerService ?? new ScheduledTempCleanerService();
-                var result = await cleaner.EnableAsync(ct);
-                Report("Limpeza de arquivos temporários ao Logon", result.Success, result.Success ? "Tarefa agendada para executar a cada Logon." : result.Output);
-            }
-            catch (Exception ex)
-            {
-                Report("Limpeza de arquivos temporários ao Logon", false, $"Erro: {ex.Message}");
-            }
         }
 
         // Só atualiza Current (e dispara o backup automático) se algo de fato foi
@@ -292,21 +298,77 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
     }
 
     /// <summary>
-    /// Grava AppsUseLightTheme + SystemUsesLightTheme (HKCU\...\Themes\Personalize) e avisa as
-    /// janelas abertas via WM_SETTINGCHANGE — sem o broadcast, apps já abertos (inclusive o
-    /// Explorer/barra de tarefas) só refletem a troca depois de reiniciados/relogados.
+    /// Mantém compatibilidade com perfis legados que aplicavam os dois temas em conjunto.
     /// </summary>
     private static (bool Success, string Message) ApplyTheme(SystemThemeMode theme)
+    {
+        var systemResult = ApplySystemTheme(theme);
+        var appsResult = ApplyAppsTheme(theme);
+        return (systemResult.Success && appsResult.Success,
+            theme == SystemThemeMode.Claro ? "Tema claro aplicado ao Windows e aos aplicativos."
+                : "Tema escuro aplicado ao Windows e aos aplicativos.");
+    }
+
+    private static (bool Success, string Message) ApplySystemTheme(SystemThemeMode theme)
+    {
+        int value = theme == SystemThemeMode.Claro ? 1 : 0;
+
+        using var key = OpenOrCreateKey(PersonalizeKey);
+        key.SetValue("SystemUsesLightTheme", value, RegistryValueKind.DWord);
+        NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
+
+        return (true, theme == SystemThemeMode.Claro ? "Tema claro do Windows aplicado." : "Tema escuro do Windows aplicado.");
+    }
+
+    private static (bool Success, string Message) ApplyAppsTheme(SystemThemeMode theme)
     {
         int value = theme == SystemThemeMode.Claro ? 1 : 0;
 
         using var key = OpenOrCreateKey(PersonalizeKey);
         key.SetValue("AppsUseLightTheme", value, RegistryValueKind.DWord);
-        key.SetValue("SystemUsesLightTheme", value, RegistryValueKind.DWord);
-
         NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
 
-        return (true, theme == SystemThemeMode.Claro ? "Tema claro aplicado." : "Tema escuro aplicado.");
+        return (true, theme == SystemThemeMode.Claro ? "Tema claro dos aplicativos aplicado." : "Tema escuro dos aplicativos aplicado.");
+    }
+
+    private static (bool Success, string Message) ApplyAccentColor((AccentColorMode Mode, string? Color) settings)
+    {
+        using var desktopKey = OpenOrCreateKey(DesktopAppearanceKey);
+        if (settings.Mode == AccentColorMode.Automatico)
+        {
+            desktopKey.SetValue("AutoColorization", 1, RegistryValueKind.DWord);
+            NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
+            return (true, "O Windows escolherá a cor de destaque com base no papel de parede.");
+        }
+
+        if (settings.Mode != AccentColorMode.Personalizado
+            || settings.Color is not { Length: 7 } color
+            || color[0] != '#'
+            || !uint.TryParse(color.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint rgb))
+        {
+            return (false, "Informe uma cor hexadecimal válida no formato #RRGGBB.");
+        }
+
+        byte red = (byte)(rgb >> 16);
+        byte green = (byte)(rgb >> 8);
+        byte blue = (byte)rgb;
+        uint windowsAccent = 0xFF000000 | ((uint)blue << 16) | ((uint)green << 8) | red;
+        uint dwmColorization = 0xC4000000 | (rgb & 0x00FFFFFF);
+
+        desktopKey.SetValue("AutoColorization", 0, RegistryValueKind.DWord);
+        using (var dwmKey = OpenOrCreateKey(DwmKey))
+        {
+            dwmKey.SetValue("AccentColor", windowsAccent, RegistryValueKind.DWord);
+            dwmKey.SetValue("ColorizationColor", dwmColorization, RegistryValueKind.DWord);
+        }
+        using (var accentKey = OpenOrCreateKey(ExplorerAccentKey))
+        {
+            accentKey.SetValue("AccentColorMenu", windowsAccent, RegistryValueKind.DWord);
+            accentKey.SetValue("StartColorMenu", windowsAccent, RegistryValueKind.DWord);
+        }
+
+        NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
+        return (true, $"Cor de destaque personalizada aplicada ({color.ToUpperInvariant()}).");
     }
 
     /// <summary>
@@ -487,6 +549,58 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
         return (true, $"Aplicados no plano ativo: {summary}.");
     }
 
+    private static async Task<(bool Success, string Message)> ApplyAutomaticClockSettingsAsync(
+        bool enableAutomaticTime,
+        bool enableAutomaticTimeZone,
+        CancellationToken ct)
+    {
+        var script = new StringBuilder("$ErrorActionPreference = 'Stop'; ");
+        if (enableAutomaticTime)
+        {
+            // Mantém a fonte NTP/domínio já configurada no computador. Não substitui políticas W32Time.
+            script.Append("Start-Service -Name W32Time; w32tm.exe /resync /rediscover; ")
+                .Append("if ($LASTEXITCODE -ne 0) { throw 'A sincronização de horário não foi concluída.' }; ");
+        }
+
+        if (enableAutomaticTimeZone)
+        {
+            // 3 = habilitado (início por gatilho); a permissão de localização do usuário é preservada.
+            script.Append(@"$tzKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\tzautoupdate'; ")
+                .Append("Set-ItemProperty -LiteralPath $tzKey -Name Start -Value 3; ")
+                .Append("Start-Service -Name tzautoupdate; ");
+        }
+
+        string encodedScript = Convert.ToBase64String(Encoding.Unicode.GetBytes(script.ToString()));
+        WingetExecutionResult result = await ElevatedProcessRunner.RunElevatedAsync(
+            "powershell.exe",
+            $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encodedScript}",
+            ct);
+        if (!result.Success)
+            return (false, $"Não foi possível habilitar a sincronização automática. {result.Output}".Trim());
+
+        string message = enableAutomaticTime && enableAutomaticTimeZone
+            ? "A sincronização do relógio foi solicitada à fonte já configurada e o fuso automático foi ativado. O Windows precisa de acesso à localização para ajustar o fuso."
+            : enableAutomaticTime
+                ? "A sincronização do relógio foi solicitada à fonte já configurada no Windows."
+                : "O fuso automático foi ativado. O Windows precisa de acesso à localização para ajustar o fuso.";
+        return (true, message);
+    }
+
+    private static (bool Success, string Message) ApplyExplorerPreferences(
+        (bool? ShowFileExtensions, bool? ShowHiddenFiles, bool? OpenExplorerToThisPc) settings)
+    {
+        using var key = OpenOrCreateKey(ExplorerAdvancedKey);
+        if (settings.ShowFileExtensions is { } showExtensions)
+            key.SetValue("HideFileExt", showExtensions ? 0 : 1, RegistryValueKind.DWord);
+        if (settings.ShowHiddenFiles is { } showHidden)
+            key.SetValue("Hidden", showHidden ? 1 : 2, RegistryValueKind.DWord);
+        if (settings.OpenExplorerToThisPc is { } openToThisPc)
+            key.SetValue("LaunchTo", openToThisPc ? 1 : 2, RegistryValueKind.DWord);
+
+        NativeMethods.BroadcastSettingChange("ShellState");
+        return (true, "Preferências do Explorador de Arquivos aplicadas.");
+    }
+
     /// <summary>
     /// Grava o novo nome pendente (NetBIOS + primeira label do nome DNS) via SetComputerNameEx.
     /// Renomear a máquina é a ÚNICA ação de Provisionamento que exige privilégio de
@@ -563,25 +677,6 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
         }
 
         return (true, $"Wallpaper aplicado a partir de '{imagePath}'.");
-    }
-
-    /// <summary>
-    /// SetUserGeoName grava a localização geográfica do usuário (chave GeoID no Registro) e
-    /// já é a API recomendada pela própria Microsoft desde o Windows 10 1709 — a antecessora
-    /// SetUserGeoID está descontinuada. Aceita o código ISO 3166-1 de duas letras direto,
-    /// sem precisar resolver GeoID numérico antes.
-    /// </summary>
-    private static (bool Success, string Message) ApplyRegion(string regionCode)
-    {
-        bool ok = NativeMethods.SetUserGeoName(regionCode);
-
-        if (!ok)
-        {
-            int error = Marshal.GetLastWin32Error();
-            return (false, $"SetUserGeoName falhou (código de erro do Windows: {error}).");
-        }
-
-        return (true, $"Região definida como \"{regionCode}\".");
     }
 
     /// <summary>
@@ -731,11 +826,6 @@ public class ProvisioningService(RestorePointService restorePointService, Schedu
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetComputerNameEx(int nameType, string lpBuffer);
-
-        /// <summary>Ver "SetUserGeoName function (winnls.h)" — Kernel32.dll, Windows 10 1709+.</summary>
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool SetUserGeoName(string geoName);
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]

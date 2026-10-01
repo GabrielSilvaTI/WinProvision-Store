@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -35,6 +36,7 @@ public partial class App : Application
     private const string AllowElevatedArgument = "--allow-elevated";
     private DispatcherTimer? _uiResponsivenessTimer;
     private Stopwatch? _uiResponsivenessStopwatch;
+    private static readonly ResourceManager WpfResources = new("WinProvision.Store.g", typeof(App).Assembly);
     private static readonly IHost _host = Host.CreateDefaultBuilder()
         .ConfigureServices((context, services) =>
         {
@@ -62,7 +64,7 @@ public partial class App : Application
 
             // Adições para Atualizações ->
             services.AddSingleton<IgnoredUpdatesService>();
-            services.AddSingleton<ScheduledTempCleanerService>();
+            services.AddSingleton<TemporaryFileCleanupService>();
 
             services.AddSingleton<OfficeDeploymentToolService>(serviceProvider =>
                 new OfficeDeploymentToolService(
@@ -84,7 +86,6 @@ public partial class App : Application
             services.AddSingleton<AutoInstallCliService>();
             services.AddSingleton<ProvisioningService>();
             services.AddSingleton<WindowsUpdateService>();
-            services.AddSingleton<RestorePointService>();
             services.AddSingleton<CliPresetsService>();
             services.AddSingleton<AppDetailsOverlayService>();
             services.AddSingleton<InstalledPackagesPage>();
@@ -97,6 +98,7 @@ public partial class App : Application
             services.AddSingleton<CloudBackupService>();
             services.AddSingleton<BackupAutoSyncService>();
             services.AddSingleton<AppUpdateService>();
+            services.AddSingleton<WindowsAppNotificationService>();
 
             // UI
             services.AddSingleton<MainWindow>();
@@ -199,6 +201,7 @@ public partial class App : Application
         ApplyThemePalette(
             ApplicationThemeManager.GetAppTheme(),
             ApplicationAccentColorManager.SystemAccent);
+        LoadUiAssetResources();
 
         if (isBackgroundUpdate)
         {
@@ -206,12 +209,15 @@ public partial class App : Application
             try
             {
                 await _host.StartAsync();
-                int exitCode = await RunStartupPackageUpdatesAsync();
+                _host.Services.GetRequiredService<WindowsAppNotificationService>().TryRegister();
+                int exitCode = await RunStartupPackageUpdatesAsync(showNotification: true);
                 Shutdown(exitCode);
             }
             catch (Exception ex)
             {
                 WinProvisionLog.Write($"BACKGROUND UPDATE fatal={ex}");
+                _host.Services.GetRequiredService<WindowsAppNotificationService>()
+                    .ShowBackgroundUpdateFailure();
                 Shutdown(1);
             }
             return;
@@ -367,26 +373,37 @@ public partial class App : Application
 
         try
         {
+            WinProvisionLog.Write("STARTUP interactive host start begin");
             await _host.StartAsync();
-            _ = _host.Services.GetRequiredService<OfficeCatalogService>().RefreshAsync();
+            WinProvisionLog.Write("STARTUP interactive host start complete");
+            _host.Services.GetRequiredService<WindowsAppNotificationService>()
+                .TryRegister(ActivateMainWindowFromNotification);
             OperationRunner.ConfigureInstallHandler(
                 _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
+            WinProvisionLog.Write("STARTUP interactive install handler configured");
             OperationRunner.ConfigureUpdateHandler(
                 _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
             WinProvisionLog.Write(
                 "INSTALL HANDLER CONFIGURED startupPath=interactive handler=WinGetService.InstallAsync");
             WinProvisionLog.Write(
                 "UPDATE HANDLER CONFIGURED startupPath=interactive handler=WinGetService.UpdateAsync");
+
+            // Exiba a janela antes de iniciar atualizações de catálogos e verificações
+            // de pacotes. Essas tarefas são de apoio e não devem deixar o processo
+            // aparentemente parado durante a abertura.
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            WinProvisionLog.Write("STARTUP interactive main window resolved");
+            SystemThemeWatcher.Watch(mainWindow);
+            mainWindow.Show();
+            WinProvisionLog.Write("STARTUP interactive main window shown");
+            StartUiResponsivenessMonitor();
+
+            _ = _host.Services.GetRequiredService<OfficeCatalogService>().RefreshAsync();
             if (isUpdateAtStartup)
                 _ = RunStartupPackageUpdatesAsync();
             else
                 _ = _host.Services.GetRequiredService<WinGetService>().PrepareAsync();
             _host.Services.GetRequiredService<BackupAutoSyncService>();
-
-            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
-            SystemThemeWatcher.Watch(mainWindow);
-            mainWindow.Show();
-            StartUiResponsivenessMonitor();
         }
         catch (Exception ex)
         {
@@ -400,6 +417,19 @@ public partial class App : Application
         }
     }
 
+    private void ActivateMainWindowFromNotification()
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            if (!mainWindow.IsVisible)
+                mainWindow.Show();
+            if (mainWindow.WindowState == WindowState.Minimized)
+                mainWindow.WindowState = WindowState.Normal;
+            mainWindow.Activate();
+        }, DispatcherPriority.Normal);
+    }
+
     private static void ApplicationThemeManager_Changed(ApplicationTheme theme, Color systemAccent)
     {
         ApplyThemePalette(theme, systemAccent);
@@ -409,27 +439,45 @@ public partial class App : Application
     {
         bool isLight = theme == ApplicationTheme.Light;
 
-        string emptyStateIcon = isLight ? "WinProvisionStore_Black.png" : "WinProvisionStore_White.png";
-        var emptyStateBitmap = new BitmapImage(new Uri(
-            $"pack://application:,,,/Assets/{emptyStateIcon}", UriKind.Absolute));
-        emptyStateBitmap.Freeze();
-        Current.Resources["EmptyStateBrandIcon"] = emptyStateBitmap;
+        string emptyStateIcon = isLight ? "winprovisionstore_black.png" : "winprovisionstore_white.png";
+        Current.Resources["EmptyStateBrandIcon"] = LoadAssetBitmap($"assets/{emptyStateIcon}");
 
         // Ícones de cabeçalho seguem o contraste pedido para cada tema.
         SetBrushColor("PageHeaderIconBrush", isLight ? "#FF000000" : "#FFFFFFFF");
 
         // Mantém os controles Primary do WPF-UI alinhados ao acento azul do app,
         // mesmo quando o Windows está configurado com outro acento (como rosa/roxo).
+        SetColor("SystemAccentColor", "#FF0078D4");
+        SetColor("SystemAccentColorPrimary", "#FF0078D4");
+        SetColor("SystemAccentColorSecondary", "#FF0078D4");
+        SetColor("SystemAccentColorTertiary", "#FF0078D4");
+        SetColor("TextOnAccentFillColorPrimary", "#FFFFFFFF");
+        SetColor("TextOnAccentFillColorSecondary", "#FFFFFFFF");
+        SetColor("AccentFillColorDefault", "#FF0078D4");
+        SetColor("AccentFillColorSecondary", "#FF0078D4");
+        SetColor("AccentFillColorTertiary", "#FF0078D4");
+        SetColor("AccentFillColorDisabled", "#660078D4");
         SetBrushColor("AccentFillColorDefaultBrush", "#FF0078D4");
-        SetBrushColor("AccentFillColorSecondaryBrush", "#CC0078D4");
-        SetBrushColor("AccentFillColorTertiaryBrush", "#660078D4");
+        SetBrushColor("AccentFillColorSecondaryBrush", "#FF0078D4");
+        SetBrushColor("AccentFillColorTertiaryBrush", "#FF0078D4");
         SetBrushColor("AccentFillColorDisabledBrush", "#660078D4");
+        SetBrushColor("SystemAccentColorPrimaryBrush", "#FF0078D4");
+        SetBrushColor("SystemAccentColorSecondaryBrush", "#FF0078D4");
+        SetBrushColor("SystemAccentColorTertiaryBrush", "#FF0078D4");
+        SetBrushColor("AccentButtonBackground", "#FF0078D4");
+        SetBrushColor("AccentButtonBackgroundPointerOver", "#FF0078D4");
+        SetBrushColor("AccentButtonBackgroundPressed", "#FF0078D4");
+        SetBrushColor("AccentButtonBackgroundDisabled", "#660078D4");
+        SetBrushColor("HyperlinkButtonForeground", "#FF0078D4");
+        SetBrushColor("HyperlinkButtonForegroundPointerOver", "#FF0078D4");
         SetBrushColor("InstallActionBrush", "#FF0078D4");
-        SetBrushColor("InstallActionHoverBrush", "#FF1688E8");
-        SetBrushColor("InstallActionPressedBrush", "#FF0067B8");
+        SetBrushColor("InstallActionHoverBrush", "#FF0078D4");
+        SetBrushColor("InstallActionPressedBrush", "#FF0078D4");
         SetBrushColor("AppAccentBrush", "#FF0078D4");
         SetBrushColor("AppAccentSoftBrush", "#3A0078D4");
         SetBrushColor("FluentAccentSoftBrush", "#3A0078D4");
+        SetBrushColor("RadioButtonOuterEllipseCheckedStroke", "#FF0078D4");
+        SetBrushColor("RadioButtonOuterEllipseCheckedStrokePointerOver", "#FF0078D4");
         SetBrushColor("AppWindowBackgroundBrush", isLight ? "#FFF7F9FC" : "#FF202020");
         SetBrushColor("ApplicationBackgroundBrush", isLight ? "#FFF7F9FC" : "#FF202020");
         SetBrushColor("LayerFillColorDefaultBrush", isLight ? "#FFF0F4F8" : "#FF252525");
@@ -476,17 +524,48 @@ public partial class App : Application
         SetBrushColor("AppOperationCanceledSurfaceBrush", isLight ? "#FFF0F3F6" : "#18C6D1E0");
         SetBrushColor("AppOperationComBrush", "#FFB991FF");
         SetBrushColor("AppOperationApiBrush", "#FFFF9A3D");
-        SetBrushColor("AppOperationWingetBrush", "#FF1688E8");
-        SetBrushColor("AppOperationDefaultBrush", "#FF1688E8");
+        SetBrushColor("AppOperationWingetBrush", "#FF0078D4");
+        SetBrushColor("AppOperationDefaultBrush", "#FF0078D4");
         SetBrushColor("AppProgressTrackBrush", isLight ? "#FFD7E0E8" : "#24FFFFFF");
         Current.Resources["AppPanelShadowColor"] = (Color)ColorConverter.ConvertFromString(
             isLight ? "#FF536273" : "#FF000000");
+    }
+
+    internal static BitmapImage LoadAssetBitmap(string resourceKey)
+    {
+        using Stream stream = WpfResources.GetStream(resourceKey)
+            ?? throw new FileNotFoundException($"O recurso WPF '{resourceKey}' não foi encontrado.");
+
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.StreamSource = stream;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static void LoadUiAssetResources()
+    {
+        Current.Resources["AppIconImage"] = LoadAssetBitmap("assets/app_icon_256.png");
+        Current.Resources["RecycleBinPreviewImage"] = LoadAssetBitmap("assets/desktop/recycle_bin.png");
+        Current.Resources["StartMenuPreviewImage"] = LoadAssetBitmap("assets/desktop/start.png");
+        Current.Resources["TaskbarSettingsPreviewImage"] = LoadAssetBitmap("assets/desktop/taskbar/settings.png");
+        Current.Resources["TaskbarExplorerPreviewImage"] = LoadAssetBitmap("assets/desktop/taskbar/explorer.png");
+        Current.Resources["TaskbarEdgePreviewImage"] = LoadAssetBitmap("assets/desktop/taskbar/edge.png");
+        Current.Resources["TaskbarStorePreviewImage"] = LoadAssetBitmap("assets/desktop/taskbar/store.png");
+        Current.Resources["TaskbarSpotifyPreviewImage"] = LoadAssetBitmap("assets/desktop/taskbar/spotify.png");
     }
 
     private static void SetBrushColor(string key, string hex)
     {
         Current.Resources[key] = new SolidColorBrush(
             (Color)ColorConverter.ConvertFromString(hex));
+    }
+
+    private static void SetColor(string key, string hex)
+    {
+        Current.Resources[key] = (Color)ColorConverter.ConvertFromString(hex);
     }
 
     private void StartUiResponsivenessMonitor()
@@ -515,7 +594,7 @@ public partial class App : Application
     private static bool HasAutoFlag(string[] args) =>
         args.Any(a => string.Equals(a, "/auto", StringComparison.OrdinalIgnoreCase));
 
-    private static async Task<int> RunStartupPackageUpdatesAsync()
+    private static async Task<int> RunStartupPackageUpdatesAsync(bool showNotification = false)
     {
         var winGetService = _host.Services.GetRequiredService<WinGetService>();
         var ignoredUpdates = _host.Services.GetRequiredService<IgnoredUpdatesService>();
@@ -530,6 +609,14 @@ public partial class App : Application
             .ToList();
 
         WinProvisionLog.Write($"BACKGROUND UPDATE discovered count={packages.Count}");
+        if (packages.Count == 0)
+        {
+            WinProvisionLog.Write("BACKGROUND UPDATE finished success=0 failed=0; nothing to update");
+            if (showNotification)
+                _host.Services.GetRequiredService<WindowsAppNotificationService>().ShowBackgroundUpdateSummary(0, 0);
+            return 0;
+        }
+
         int succeeded = 0;
         int failed = 0;
         foreach (var package in packages)
@@ -560,6 +647,8 @@ public partial class App : Application
         }
 
         WinProvisionLog.Write($"BACKGROUND UPDATE finished success={succeeded} failed={failed}");
+        if (showNotification)
+            _host.Services.GetRequiredService<WindowsAppNotificationService>().ShowBackgroundUpdateSummary(succeeded, failed);
         return failed == 0 ? 0 : 1;
     }
 
@@ -869,6 +958,7 @@ public partial class App : Application
     private async void OnExit(object sender, ExitEventArgs e)
     {
         _uiResponsivenessTimer?.Stop();
+        _host.Services.GetRequiredService<WindowsAppNotificationService>().Unregister();
         await _host.StopAsync();
         _host.Dispose();
     }
