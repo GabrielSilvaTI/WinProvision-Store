@@ -139,6 +139,10 @@ Sugestões, relatos de bugs e contribuições são bem-vindos. Antes de abrir um
 - [Abrir uma issue](https://github.com/GabrielSilvaTI/WinProvision-Store/issues)
 - [Ver versões e downloads](https://github.com/GabrielSilvaTI/WinProvision-Store/releases)
 
+## Desenvolvimento assistido por inteligência artificial
+
+O WinProvision Store foi desenvolvido com auxílio de ferramentas de inteligência artificial em atividades de implementação, análise, documentação e revisão. A IA apoiou o trabalho; as decisões sobre o produto, a integração e a validação permanecem sob responsabilidade do mantenedor do projeto.
+
 ## Licenças
 
 Consulte os arquivos de licença e avisos de terceiros incluídos no repositório. O WinProvision Store integra ferramentas, catálogos, imagens e pacotes mantidos por terceiros; suas marcas e condições de uso pertencem aos respectivos titulares.
