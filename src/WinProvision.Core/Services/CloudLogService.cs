@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace WinProvision.Core.Services;
 
@@ -33,6 +34,7 @@ public static class CloudLogService
         private readonly Task _sender;
         private int _dropped;
         private int _completed;
+        private int _batchSupport;
 
         internal CloudLogSession(string sessionId)
         {
@@ -70,58 +72,101 @@ public static class CloudLogService
 
         private async Task SendLoopAsync()
         {
-            bool endpointUnavailable = false;
-            await foreach (var entry in _channel.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var first in _channel.Reader.ReadAllAsync().ConfigureAwait(false))
             {
-                if (endpointUnavailable)
+                var batch = new List<LogEntry>(25) { first };
+                while (batch.Count < 25 && _channel.Reader.TryRead(out var next))
+                    batch.Add(next);
+
+                int sentCount;
+                if (Volatile.Read(ref _batchSupport) < 0)
                 {
-                    Interlocked.Increment(ref _dropped);
-                    continue;
+                    sentCount = await TrySendLegacyAsync(batch).ConfigureAwait(false);
                 }
-
-                bool sent = false;
-                for (int attempt = 1; attempt <= 3; attempt++)
+                else
                 {
-                    try
+                    var result = await TrySendBatchAsync(batch).ConfigureAwait(false);
+                    if (result.Success)
                     {
-                        string body = JsonSerializer.Serialize(new { message = entry.Message, percent = entry.Percent }, JsonOptions);
-                        using var content = new StringContent(body, Encoding.UTF8, "application/json");
-                        using var response = await Http.PostAsync(CloudLogSessionId.PushUrl(_sessionId), content).ConfigureAwait(false);
-                        if (response.IsSuccessStatusCode)
-                        {
-                            sent = true;
-                            break;
-                        }
-
-                        bool transient = response.StatusCode is HttpStatusCode.RequestTimeout
-                            or HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500;
-                        if (!transient)
-                        {
-                            endpointUnavailable = true;
-                            break;
-                        }
-                    }
-                    catch (HttpRequestException)
-                    {
-                        // Falhas de conexão podem ser temporárias durante o primeiro logon.
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        // Timeout da chamada: tentar novamente com backoff curto.
+                        Volatile.Write(ref _batchSupport, 1);
+                        continue;
                     }
 
-                    if (attempt < 3)
-                        await Task.Delay(TimeSpan.FromMilliseconds(300 * attempt)).ConfigureAwait(false);
+                    if (result.LegacyWorker)
+                    {
+                        Volatile.Write(ref _batchSupport, -1);
+                        sentCount = await TrySendLegacyAsync(batch).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        sentCount = 0;
+                    }
                 }
 
-                if (!sent)
-                {
-                    Interlocked.Increment(ref _dropped);
-                    endpointUnavailable = true;
-                }
+                if (sentCount < batch.Count)
+                    Interlocked.Add(ref _dropped, batch.Count - sentCount);
             }
+        }
+
+        private async Task<PostResult> TrySendBatchAsync(IReadOnlyList<LogEntry> batch)
+        {
+            var entries = new object[batch.Count];
+            for (int i = 0; i < batch.Count; i++)
+                entries[i] = new { id = batch[i].Id, message = batch[i].Message, percent = batch[i].Percent };
+
+            string body = JsonSerializer.Serialize(new { entries }, JsonOptions);
+            return await PostWithRetryAsync(body, allowLegacyFallback: true).ConfigureAwait(false);
+        }
+
+        private async Task<int> TrySendLegacyAsync(IReadOnlyList<LogEntry> batch)
+        {
+            int sent = 0;
+            foreach (var entry in batch)
+            {
+                string body = JsonSerializer.Serialize(new { message = entry.Message, percent = entry.Percent }, JsonOptions);
+                if ((await PostWithRetryAsync(body, allowLegacyFallback: false).ConfigureAwait(false)).Success)
+                    sent++;
+            }
+            return sent;
+        }
+
+        private async Task<PostResult> PostWithRetryAsync(string body, bool allowLegacyFallback)
+        {
+            for (int attempt = 1; attempt <= 4; attempt++)
+            {
+                try
+                {
+                    using var content = new StringContent(body, Encoding.UTF8, "application/json");
+                    using var response = await Http.PostAsync(CloudLogSessionId.PushUrl(_sessionId), content).ConfigureAwait(false);
+                    if (response.IsSuccessStatusCode) return new PostResult(true, false);
+                    if (allowLegacyFallback && response.StatusCode == HttpStatusCode.BadRequest)
+                        return new PostResult(false, true);
+
+                    bool transient = response.StatusCode is HttpStatusCode.RequestTimeout
+                        or HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500;
+                    if (!transient) return new PostResult(false, false);
+                }
+                catch (HttpRequestException)
+                {
+                    // Falhas de conexão podem ser temporárias durante o primeiro logon.
+                }
+                catch (TaskCanceledException)
+                {
+                    // Timeout da chamada: tentar novamente com backoff curto.
+                }
+
+                if (attempt < 4)
+                    await Task.Delay(TimeSpan.FromMilliseconds(300 * attempt)).ConfigureAwait(false);
+            }
+
+            return new PostResult(false, false);
         }
     }
 
-    private sealed record LogEntry(string Message, int Percent);
+    private readonly record struct PostResult(bool Success, bool LegacyWorker);
+
+    private sealed record LogEntry(string Id, string Message, int Percent)
+    {
+        public LogEntry(string message, int percent) : this(Guid.NewGuid().ToString("N"), message, percent) { }
+    }
 }

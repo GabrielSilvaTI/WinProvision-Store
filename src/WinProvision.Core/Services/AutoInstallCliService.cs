@@ -1078,6 +1078,23 @@ public class AutoInstallCliService
         label = appRef.Name ?? requestLabel;
         request = request! with { SourcePath = sourcePath };
 
+        var officeDetector = new OfficeInstalledProductsDetector();
+        Dictionary<string, string?> installedBefore;
+        bool baselineCaptured;
+        try
+        {
+            installedBefore = officeDetector.GetInstalledProducts().ToDictionary(
+                product => product.ProductId, product => product.VersionToReport,
+                StringComparer.OrdinalIgnoreCase);
+            baselineCaptured = true;
+        }
+        catch (Exception ex)
+        {
+            installedBefore = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            baselineCaptured = false;
+            _log($"[WinProvision] Não foi possível registrar o estado inicial do Office: {ex.Message}");
+        }
+
         _log($"[WinProvision] Instalando \"{label}\" (Office/ODT)…");
 
         bool success;
@@ -1090,8 +1107,22 @@ public class AutoInstallCliService
             success = result.Success;
             exitCode = result.ExitCode;
             installerStarted = result.ProcessStarted;
+            if (!success && result.ExitCode is 3010 or 1641)
+            {
+                success = true;
+                failureReason = "SuccessRebootRequired";
+                error = null;
+            }
+            else if (!success && !result.ElevationCanceled && result.ProcessStarted && baselineCaptured
+                && await OfficeInstallAppearedAsync(request, installedBefore, officeDetector, ct).ConfigureAwait(false))
+            {
+                success = true;
+                failureReason = "SuccessVerifiedFromSystemState";
+                error = null;
+                _log($"[WinProvision] \"{label}\": O ODT retornou código {result.ExitCode}, mas o produto solicitado apareceu no inventário Click-to-Run; instalação confirmada pelo estado do Windows.");
+            }
             failureReason = result.ElevationCanceled ? "ElevationCanceled"
-                : result.Success ? "Success"
+                : success ? failureReason is "SuccessVerifiedFromSystemState" or "SuccessRebootRequired" ? failureReason : "Success"
                 : ContainsPolicyBlock(result.Output) ? "BlockedByPolicy"
                 : WingetErrorTranslator.Classify(result.Output) is WingetFailureReason.ElevationRequired
                     ? "ElevationRequired" : "InstallError";
@@ -1120,6 +1151,43 @@ public class AutoInstallCliService
         progress?.Invoke(100);
         return new OfficeInstallResult(success, installTimer.Elapsed, success ? null : Truncate(error, 240),
             exitCode, installerStarted, failureReason);
+    }
+
+    private static async Task<bool> OfficeInstallAppearedAsync(OfficeInstallRequest request,
+        IReadOnlyDictionary<string, string?> installedBefore,
+        OfficeInstalledProductsDetector detector, CancellationToken ct)
+    {
+        string[] expectedIds = new[] { request.Plan }
+            .Concat(request.AdditionalProducts ?? [])
+            .Select(plan => plan.ProductId)
+            .ToArray();
+
+        // setup.exe can return before Click-to-Run publishes the final registry state.
+        // Poll briefly only after a non-zero result; successful installs pay no delay.
+        for (int attempt = 0; attempt < 6; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var current = detector.GetInstalledProducts().ToDictionary(
+                    product => product.ProductId, product => product.VersionToReport,
+                    StringComparer.OrdinalIgnoreCase);
+                bool changed = expectedIds.Any(id => current.TryGetValue(id, out var version)
+                    && (!installedBefore.TryGetValue(id, out var previousVersion)
+                        || !string.Equals(previousVersion, version, StringComparison.OrdinalIgnoreCase)));
+                if (changed) return true;
+            }
+            catch (Exception)
+            {
+                // Detection is only a confirmation path; retain the ODT's original result.
+                return false;
+            }
+
+            if (attempt < 5)
+                await Task.Delay(TimeSpan.FromSeconds(2), ct).ConfigureAwait(false);
+        }
+
+        return false;
     }
 
     private static bool TryCreateOfficeRequest(OfficeInstallOptions options,

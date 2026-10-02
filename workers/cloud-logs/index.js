@@ -803,30 +803,43 @@ export class SessionLog {
         return textResponse("JSON inválido", 400);
       }
 
-      if (typeof data?.message !== "string") {
-        return textResponse("Campo 'message' ausente", 400);
+      const incoming = Array.isArray(data?.entries)
+        ? data.entries
+        : typeof data?.message === "string" ? [data] : null;
+      if (!incoming || incoming.length === 0 || incoming.length > 50) {
+        return textResponse("Envie 'message' ou uma lista de até 50 'entries'.", 400);
       }
 
-      const entry = {
-        message: data.message.slice(0, 16_000),
-        percent: Number.isFinite(data.percent) ? Math.max(-1, Math.min(100, data.percent)) : -1,
-        ts: Date.now(),
-      };
+      const entries = incoming
+        .filter((item) => typeof item?.message === "string")
+        .map((item) => ({
+          id: typeof item.id === "string" ? item.id.slice(0, 64) : crypto.randomUUID(),
+          message: item.message.slice(0, 16_000),
+          percent: Number.isFinite(item.percent) ? Math.max(-1, Math.min(100, item.percent)) : -1,
+          ts: Number.isFinite(item.ts) ? item.ts : Date.now(),
+        }));
+      if (entries.length === 0) return textResponse("Nenhuma entrada válida.", 400);
 
-      this.logs.push(entry);
-      if (this.logs.length > MAX_LOGS_PER_SESSION) this.logs.shift();
+      const knownIds = new Set(this.logs.map((item) => item.id).filter(Boolean));
+      const accepted = entries.filter((item) => !knownIds.has(item.id));
+      this.logs.push(...accepted);
+      if (this.logs.length > MAX_LOGS_PER_SESSION) this.logs.splice(0, this.logs.length - MAX_LOGS_PER_SESSION);
       await this.state.storage.put("logs", this.logs);
 
-      const encoded = new TextEncoder().encode(`data: ${JSON.stringify(entry)}\n\n`);
-      for (const controller of this.clients) {
-        try {
-          controller.enqueue(encoded);
-        } catch {
-          this.clients.delete(controller);
+      for (const entry of accepted) {
+        const encoded = new TextEncoder().encode(`data: ${JSON.stringify(entry)}\n\n`);
+        for (const controller of this.clients) {
+          try {
+            controller.enqueue(encoded);
+          } catch {
+            this.clients.delete(controller);
+          }
         }
       }
 
-      return textResponse("OK");
+      return Response.json({ ok: true, accepted: accepted.length }, {
+        headers: { ...CORS_HEADERS, "Cache-Control": "no-store" },
+      });
     }
 
     if (url.pathname === "/stream" && request.method === "GET") {
