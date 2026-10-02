@@ -44,7 +44,7 @@
                         Padding="1"
                         Margin="0,0,0,24">
                     <Grid>
-                        <wv2:WebView2 x:Name="PagesBrowser" NavigationCompleted="PagesBrowser_NavigationCompleted" />
+                        <wv2:WebView2 x:Name="PagesBrowser" />
                         <Border x:Name="BrowserStatusPanel"
                                 Background="{DynamicResource ApplicationBackgroundBrush}"
                                 Opacity="0.96"

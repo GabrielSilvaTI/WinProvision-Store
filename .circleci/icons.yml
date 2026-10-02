@@ -16,9 +16,16 @@ jobs:
     resource_class: medium
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/icons.txt" }}
       - run:
           name: Instalar dependências dos ícones
           command: python3 -m pip install --disable-pip-version-check -r scripts/requirements/icons.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/icons.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Sincronizar ícones CDN do WinGet com o R2
           command: |

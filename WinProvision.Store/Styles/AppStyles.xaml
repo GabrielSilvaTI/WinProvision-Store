@@ -183,6 +183,45 @@
         <Setter Property="BorderBrush" Value="{DynamicResource AppBorderSubtleBrush}" />
     </Style>
 
+    <Style x:Key="PageEmptyStatePanelStyle" TargetType="StackPanel">
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="24" />
+        <Setter Property="MaxWidth" Value="520" />
+    </Style>
+
+    <Style x:Key="PageEmptyStateIconTileStyle" TargetType="Border">
+        <Setter Property="Width" Value="64" />
+        <Setter Property="Height" Value="64" />
+        <Setter Property="CornerRadius" Value="{StaticResource ControlCornerRadius}" />
+        <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <Style x:Key="PageEmptyStateTitleStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource FluentCardTitleStyle}">
+        <Setter Property="FontSize" Value="17" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+
+    <Style x:Key="PageEmptyStateMessageStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="MaxWidth" Value="440" />
+        <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="SettingsOptionCardStyle"
            TargetType="Border"
            BasedOn="{StaticResource StoreCardSurfaceStyle}">

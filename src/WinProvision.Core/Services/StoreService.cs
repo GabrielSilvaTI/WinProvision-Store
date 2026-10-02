@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
@@ -16,6 +17,10 @@ public class StoreService
     private readonly string _cacheDirectory;
     private readonly string _cacheFilePath;
     private readonly string _screenshotIndexCacheFilePath;
+    private readonly string _catalogEtagPath;
+    private readonly string _catalogLastModifiedPath;
+    private readonly string _screenshotIndexEtagPath;
+    private readonly string _screenshotIndexLastModifiedPath;
     private readonly HttpClient _httpClient;
     private readonly IconService _iconService;
 
@@ -55,6 +60,10 @@ public class StoreService
 
         _cacheFilePath = Path.Combine(_cacheDirectory, "apps.json");
         _screenshotIndexCacheFilePath = Path.Combine(_cacheDirectory, "screenshot-index.json");
+        _catalogEtagPath = _cacheFilePath + ".etag";
+        _catalogLastModifiedPath = _cacheFilePath + ".lastmodified";
+        _screenshotIndexEtagPath = _screenshotIndexCacheFilePath + ".etag";
+        _screenshotIndexLastModifiedPath = _screenshotIndexCacheFilePath + ".lastmodified";
     }
 
     public async Task<List<AppEntry>> LoadCatalogAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -63,7 +72,7 @@ public class StoreService
         try
         {
             if (forceRefresh)
-                return await RefreshCacheInBackgroundAsync(cancellationToken);
+                return await RefreshCacheInBackgroundAsync(cancellationToken, forceRefresh: true);
 
             if (_cachedCatalog.Count > 0)
             {
@@ -109,20 +118,61 @@ public class StoreService
     public DateTime? LastCatalogSyncUtc =>
         File.Exists(_cacheFilePath) ? File.GetLastWriteTimeUtc(_cacheFilePath) : null;
 
-    public IEnumerable<AppEntry> Search(string query)
+    public IEnumerable<AppEntry> Search(string query, int maxResults = int.MaxValue)
     {
         if (string.IsNullOrWhiteSpace(query))
             return _cachedCatalog;
 
+        if (maxResults <= 0)
+            return [];
+
         string cleanQuery = query.Replace("-", "").Replace(" ", "").Replace(".", "");
 
-        return _searchIndex
-            .Select(document => (Document: document, Score: ScoreMatch(document, query, cleanQuery)))
-            .Where(x => x.Score < int.MaxValue)
-            .OrderBy(x => x.Score)
-            .ThenBy(x => x.Document.Name.Length)
-            .ThenBy(x => x.Document.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => x.Document.App);
+        if (maxResults == int.MaxValue)
+        {
+            return _searchIndex
+                .Select(document => (Document: document, Score: ScoreMatch(document, query, cleanQuery)))
+                .Where(x => x.Score < int.MaxValue)
+                .OrderBy(x => x.Score)
+                .ThenBy(x => x.Document.Name.Length)
+                .ThenBy(x => x.Document.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(x => x.Document.App);
+        }
+
+        // A tela principal só precisa de candidatos suficientes para combinar
+        // resultados locais e ao vivo. Mantém os melhores N durante a varredura,
+        // evitando ordenar milhares de correspondências a cada busca.
+        var worstFirstComparer = Comparer<(int Score, int NameLength, string Name, int Index)>.Create((left, right) =>
+        {
+            int comparison = right.Score.CompareTo(left.Score);
+            if (comparison != 0) return comparison;
+            comparison = right.NameLength.CompareTo(left.NameLength);
+            if (comparison != 0) return comparison;
+            comparison = StringComparer.OrdinalIgnoreCase.Compare(right.Name, left.Name);
+            return comparison != 0 ? comparison : right.Index.CompareTo(left.Index);
+        });
+        var bestMatches = new PriorityQueue<SearchDocument, (int Score, int NameLength, string Name, int Index)>(worstFirstComparer);
+
+        for (int index = 0; index < _searchIndex.Length; index++)
+        {
+            SearchDocument document = _searchIndex[index];
+            int score = ScoreMatch(document, query, cleanQuery);
+            if (score == int.MaxValue)
+                continue;
+
+            var priority = (score, document.Name.Length, document.Name, index);
+            bestMatches.Enqueue(document, priority);
+            if (bestMatches.Count > maxResults)
+                bestMatches.Dequeue();
+        }
+
+        return bestMatches.UnorderedItems
+            .OrderBy(item => item.Priority.Score)
+            .ThenBy(item => item.Priority.NameLength)
+            .ThenBy(item => item.Priority.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Priority.Index)
+            .Select(item => item.Element.App)
+            .ToArray();
     }
 
     private static int ScoreMatch(SearchDocument document, string query, string cleanQuery)
@@ -142,8 +192,7 @@ public class StoreService
             id.StartsWith(query, StringComparison.OrdinalIgnoreCase))
             return 2;
 
-        if (document.NameTokens.Any(word => word.StartsWith(query, StringComparison.OrdinalIgnoreCase)) ||
-            document.IdTokens.Any(word => word.StartsWith(query, StringComparison.OrdinalIgnoreCase)))
+        if (HasTokenPrefix(document.Name, query) || HasTokenPrefix(document.Id, query))
             return 3;
 
         if (document.CleanName.StartsWith(cleanQuery, StringComparison.OrdinalIgnoreCase) ||
@@ -161,7 +210,7 @@ public class StoreService
         if (document.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase))
             return 7;
 
-        if (document.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase)))
+        if (document.App.Tags.Any(tag => tag.Contains(query, StringComparison.OrdinalIgnoreCase)))
             return 8;
 
         if (document.Description.Contains(query, StringComparison.OrdinalIgnoreCase))
@@ -175,18 +224,66 @@ public class StoreService
         return int.MaxValue;
     }
 
-    private async Task<List<AppEntry>> FetchAndSaveRemoteCatalogAsync(CancellationToken cancellationToken = default)
+    private static bool HasTokenPrefix(string text, string query)
+    {
+        ReadOnlySpan<char> value = text.AsSpan();
+        int tokenStart = 0;
+        for (int index = 0; index <= value.Length; index++)
+        {
+            if (index < value.Length && value[index] is not (' ' or '.' or '-'))
+                continue;
+
+            if (value[tokenStart..index].StartsWith(query, StringComparison.OrdinalIgnoreCase))
+                return true;
+            tokenStart = index + 1;
+        }
+
+        return false;
+    }
+
+    private async Task<List<AppEntry>> FetchAndSaveRemoteCatalogAsync(
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false)
     {
         int generation = Volatile.Read(ref _cacheGeneration);
         try
         {
-            Task<string> catalogDownload = _httpClient.GetStringAsync(DatabaseUrl, cancellationToken);
-            Task<ScreenshotIndexDocument?> screenshotIndexDownload = FetchScreenshotIndexAsync(cancellationToken);
+            Task<RemoteTextResult> catalogDownload = FetchTextWithCacheAsync(
+                DatabaseUrl, _cacheFilePath, _catalogEtagPath, _catalogLastModifiedPath, forceRefresh, cancellationToken);
+            Task<RemoteTextResult> screenshotIndexDownload = FetchTextWithCacheAsync(
+                ScreenshotIndexUrl, _screenshotIndexCacheFilePath, _screenshotIndexEtagPath,
+                _screenshotIndexLastModifiedPath, forceRefresh, cancellationToken);
             await Task.WhenAll(catalogDownload, screenshotIndexDownload);
 
-            string remoteJson = await catalogDownload;
+            RemoteTextResult catalogResult = await catalogDownload;
+            RemoteTextResult screenshotResult = await screenshotIndexDownload;
+            if (catalogResult.Content is null)
+                return _cachedCatalog;
+
+            string remoteJson = catalogResult.Content;
             var catalog = JsonSerializer.Deserialize<List<AppEntry>>(remoteJson, _jsonOptions) ?? [];
-            MergeScreenshotIndex(catalog, await screenshotIndexDownload);
+            ScreenshotIndexDocument? screenshotIndex = null;
+            bool screenshotIndexIsValid = false;
+            if (screenshotResult.Content is not null)
+            {
+                try
+                {
+                    screenshotIndex = JsonSerializer.Deserialize<ScreenshotIndexDocument>(screenshotResult.Content, _jsonOptions);
+                    if (screenshotIndex?.SchemaVersion != 1 || screenshotIndex.Packages is null)
+                        screenshotIndex = null;
+                    else
+                        screenshotIndexIsValid = true;
+                }
+                catch (JsonException)
+                {
+                    screenshotIndex = null;
+                }
+            }
+
+            if (screenshotIndex is null)
+                screenshotIndex = LoadCachedScreenshotIndex();
+
+            MergeScreenshotIndex(catalog, screenshotIndex);
 
             if (catalog.Count > 0)
             {
@@ -214,7 +311,9 @@ public class StoreService
                 PopulateIcons(_cachedCatalog);
 
                 Directory.CreateDirectory(_cacheDirectory);
-                await File.WriteAllTextAsync(_cacheFilePath, remoteJson, cancellationToken);
+                await CommitRemoteTextAsync(_cacheFilePath, catalogResult, cancellationToken);
+                if (screenshotIndexIsValid && screenshotResult.Content is not null)
+                    await CommitRemoteTextAsync(_screenshotIndexCacheFilePath, screenshotResult, cancellationToken);
 
                 CatalogUpdated?.Invoke(_cachedCatalog);
             }
@@ -255,6 +354,15 @@ public class StoreService
                 File.Delete(_cacheFilePath);
             if (File.Exists(_screenshotIndexCacheFilePath))
                 File.Delete(_screenshotIndexCacheFilePath);
+            foreach (string metadataPath in new[]
+                     {
+                         _catalogEtagPath, _catalogLastModifiedPath,
+                         _screenshotIndexEtagPath, _screenshotIndexLastModifiedPath
+                     })
+            {
+                if (File.Exists(metadataPath))
+                    File.Delete(metadataPath);
+            }
         }
         catch (Exception ex)
         {
@@ -278,9 +386,6 @@ public class StoreService
                 app.Publisher ?? string.Empty,
                 CleanSearchText(name, removeSpace: true, removeDot: true),
                 CleanSearchText(id, removeSpace: false, removeDot: true),
-                name.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries),
-                id.Split([' ', '.', '-'], StringSplitOptions.RemoveEmptyEntries),
-                app.Tags?.ToArray() ?? [],
                 app.Description ?? string.Empty,
                 app.Homepage ?? string.Empty,
                 app.PublisherUrl ?? string.Empty,
@@ -303,28 +408,60 @@ public class StoreService
         string Publisher,
         string CleanName,
         string CleanId,
-        string[] NameTokens,
-        string[] IdTokens,
-        string[] Tags,
         string Description,
         string Homepage,
         string PublisherUrl,
         string PackageUrl);
 
-    private async Task<ScreenshotIndexDocument?> FetchScreenshotIndexAsync(CancellationToken cancellationToken)
+    private async Task<RemoteTextResult> FetchTextWithCacheAsync(
+        string url,
+        string cachePath,
+        string etagPath,
+        string lastModifiedPath,
+        bool forceRefresh,
+        CancellationToken cancellationToken)
     {
+        string? cachedContent = null;
+        string? cachedEtag = null;
+        string? cachedLastModified = null;
         try
         {
-            string json = await _httpClient.GetStringAsync(ScreenshotIndexUrl, cancellationToken);
-            ScreenshotIndexDocument? document = JsonSerializer.Deserialize<ScreenshotIndexDocument>(json, _jsonOptions);
-            if (document?.SchemaVersion != 1 || document.Packages is null)
-                throw new JsonException("Índice de screenshots incompatível.");
+            if (File.Exists(cachePath))
+                cachedContent = await File.ReadAllTextAsync(cachePath, cancellationToken);
+            if (File.Exists(etagPath))
+                cachedEtag = await File.ReadAllTextAsync(etagPath, cancellationToken);
+            if (File.Exists(lastModifiedPath))
+                cachedLastModified = await File.ReadAllTextAsync(lastModifiedPath, cancellationToken);
 
-            Directory.CreateDirectory(_cacheDirectory);
-            string temporaryPath = _screenshotIndexCacheFilePath + ".tmp";
-            await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
-            File.Move(temporaryPath, _screenshotIndexCacheFilePath, overwrite: true);
-            return document;
+            if (!forceRefresh && cachedContent is not null && !IsFileStale(cachePath))
+                return new RemoteTextResult(cachedContent, cachedEtag, cachedLastModified, ShouldCommit: false);
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (!string.IsNullOrWhiteSpace(cachedEtag) && EntityTagHeaderValue.TryParse(cachedEtag, out var entityTag))
+                request.Headers.IfNoneMatch.Add(entityTag);
+            if (!string.IsNullOrWhiteSpace(cachedLastModified) &&
+                DateTimeOffset.TryParse(cachedLastModified, out DateTimeOffset modifiedSince))
+                request.Headers.IfModifiedSince = modifiedSince;
+
+            using HttpResponseMessage response = await _httpClient.SendAsync(
+                request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotModified && cachedContent is not null)
+            {
+                return new RemoteTextResult(
+                    cachedContent,
+                    response.Headers.ETag?.ToString() ?? cachedEtag,
+                    response.Content.Headers.LastModified?.ToString("R") ?? cachedLastModified,
+                    ShouldCommit: true,
+                    NotModified: true);
+            }
+
+            response.EnsureSuccessStatusCode();
+            string content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return new RemoteTextResult(
+                content,
+                response.Headers.ETag?.ToString(),
+                response.Content.Headers.LastModified?.ToString("R"),
+                ShouldCommit: true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -332,10 +469,58 @@ public class StoreService
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[StoreService] Índice remoto de screenshots indisponível; usando cache local: {ex.Message}");
-            return LoadCachedScreenshotIndex();
+            Debug.WriteLine($"[StoreService] Recurso remoto indisponível; usando cache local ({Path.GetFileName(cachePath)}): {ex.Message}");
+            return new RemoteTextResult(cachedContent, cachedEtag, cachedLastModified, ShouldCommit: false);
         }
     }
+
+    private async Task CommitRemoteTextAsync(string cachePath, RemoteTextResult result, CancellationToken cancellationToken)
+    {
+        if (!result.ShouldCommit)
+            return;
+
+        if (result.NotModified)
+        {
+            if (File.Exists(cachePath))
+                File.SetLastWriteTimeUtc(cachePath, DateTime.UtcNow);
+        }
+        else if (result.Content is not null)
+        {
+            string temporaryPath = cachePath + ".tmp";
+            await File.WriteAllTextAsync(temporaryPath, result.Content, cancellationToken);
+            File.Move(temporaryPath, cachePath, overwrite: true);
+        }
+
+        await WriteMetadataAsync(cachePath + ".etag", result.ETag, cancellationToken);
+        await WriteMetadataAsync(cachePath + ".lastmodified", result.LastModified, cancellationToken);
+    }
+
+    private static async Task WriteMetadataAsync(string path, string? value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { }
+            return;
+        }
+
+        string temporaryPath = path + ".tmp";
+        await File.WriteAllTextAsync(temporaryPath, value, cancellationToken);
+        File.Move(temporaryPath, path, overwrite: true);
+    }
+
+    private static bool IsFileStale(string path)
+    {
+        try
+        {
+            return !File.Exists(path) || DateTime.UtcNow - File.GetLastWriteTimeUtc(path) >= CatalogCacheTtl;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private sealed record RemoteTextResult(string? Content, string? ETag, string? LastModified, bool ShouldCommit, bool NotModified = false);
 
     private ScreenshotIndexDocument? LoadCachedScreenshotIndex()
     {
@@ -423,7 +608,7 @@ public class StoreService
         }
     }
 
-    private Task<List<AppEntry>> RefreshCacheInBackgroundAsync(CancellationToken cancellationToken = default)
+    private Task<List<AppEntry>> RefreshCacheInBackgroundAsync(CancellationToken cancellationToken = default, bool forceRefresh = false)
     {
         lock (_refreshSync)
         {
@@ -433,7 +618,7 @@ public class StoreService
             _refreshCts?.Dispose();
             _refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             CancellationToken token = _refreshCts.Token;
-            Task<List<AppEntry>> task = FetchAndSaveRemoteCatalogAsync(token);
+            Task<List<AppEntry>> task = FetchAndSaveRemoteCatalogAsync(token, forceRefresh);
             _refreshTask = task;
 
             _ = task.ContinueWith(_ =>

@@ -15,6 +15,7 @@ import os
 import re
 import sys
 import threading
+import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime, timedelta
@@ -203,6 +204,7 @@ def sync_one(
 
 
 def main() -> int:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, help="JSON limpo do UniGetUI")
     parser.add_argument("catalog", type=Path, help="apps.json gerado pelo Indexer")
@@ -337,6 +339,7 @@ def main() -> int:
     report = {
         "schemaVersion": 1,
         "generatedAt": datetime.now(UTC).isoformat(),
+        "durationSeconds": round(time.perf_counter() - started, 2),
         "sourceRecords": len(source["icons_and_screenshots"]),
         "matchedPackages": len(matched),
         "uniqueSourceImages": len(unique_pairs),

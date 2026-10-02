@@ -455,6 +455,7 @@
                                    FontSize="12"
                                    FontWeight="SemiBold"
                                    TextAlignment="Center"
+                                   ToolTip="{Binding Name}"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"
                                    MaxHeight="36" />
@@ -1190,16 +1191,21 @@
                         </StackPanel>
 
                         <!--  Estado Vazio  -->
-                        <StackPanel HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
+                        <StackPanel Style="{StaticResource PageEmptyStatePanelStyle}"
                                     Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <ui:SymbolIcon Symbol="Box24"
-                                           FontSize="44"
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                            <TextBlock Text="Nenhum pacote instalado encontrado com os filtros atuais."
-                                       Margin="0,12,0,0"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <Border Style="{StaticResource PageEmptyStateIconTileStyle}">
+                                <Image Source="{DynamicResource EmptyStateBrandIcon}"
+                                       Width="40"
+                                       Height="40"
+                                       Stretch="Uniform"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       AutomationProperties.Name="Ícone do WinProvision" />
+                            </Border>
+                            <TextBlock Text="Nenhum pacote instalado encontrado"
+                                       Style="{StaticResource PageEmptyStateTitleStyle}" />
+                            <TextBlock Text="Tente ajustar os filtros ou atualizar a lista de aplicativos instalados."
+                                       Style="{StaticResource PageEmptyStateMessageStyle}" />
                         </StackPanel>
 
                     </Grid>
@@ -1361,7 +1367,11 @@
                                                            Content="Restaurar"
                                                            FontSize="11"
                                                            Padding="8,4"
-                                                           Click="RestoreIgnoredUpdate_Click" />
+                                                           Click="RestoreIgnoredUpdate_Click">
+                                                    <ui:Button.Icon>
+                                                        <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" />
+                                                    </ui:Button.Icon>
+                                                </ui:Button>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -1381,7 +1391,11 @@
                         <ui:Button Content="Restaurar todas"
                                    Appearance="Secondary"
                                    HorizontalAlignment="Left"
-                                   Click="RestoreAllIgnored_Click" />
+                                   Click="RestoreAllIgnored_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
                         <ui:Button Content="Fechar"
                                    Appearance="Primary"
                                    HorizontalAlignment="Right"

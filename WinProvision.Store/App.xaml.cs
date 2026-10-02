@@ -250,12 +250,15 @@ public partial class App : Application
                 var autoWinGetService = _host.Services.GetRequiredService<WinGetService>();
                 OperationRunner.ConfigureInstallHandler(
                     (packageId, log, cancellationToken, installLocation, progress, source) =>
-                        autoWinGetService.InstallApiFirstAsync(packageId, log, cancellationToken,
+                        autoWinGetService.InstallAsync(packageId, log, cancellationToken,
                             installLocation, progress, source));
+                OperationRunner.ConfigureInstallWarmupHandler(
+                    (includeStoreCatalog, log, cancellationToken) =>
+                        autoWinGetService.PrepareAsync(cancellationToken, includeStoreCatalog, log));
                 OperationRunner.ConfigureUpdateHandler(
                     _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
                 WinProvisionLog.Write(
-                    "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallApiFirstAsync");
+                    "INSTALL HANDLER CONFIGURED startupPath=auto handler=WinGetService.InstallAsync chain=WingetProvision>COM>WinProvisionAPI>WingetCLI comBypass=known-elevation-failure-only");
                 WinProvisionLog.Write(
                     "UPDATE HANDLER CONFIGURED startupPath=auto handler=WinGetService.UpdateAsync");
                 // O catálogo Office não é necessário: os planos já vêm no perfil.
@@ -325,8 +328,8 @@ public partial class App : Application
 
                     var cliService = _host.Services.GetRequiredService<AutoInstallCliService>();
                     exitCode = autoWindow is not null
-                        ? await autoWindow.RunAsync(autoInstallProfilePath, logDelegate)
-                        : await cliService.RunAsync(autoInstallProfilePath, logDelegate);
+                        ? await autoWindow.RunAsync(autoInstallProfilePath, logDelegate, logPath: logPath)
+                        : await cliService.RunAsync(autoInstallProfilePath, logDelegate, logPath: logPath);
 
                 }
                 catch (OperationCanceledException)

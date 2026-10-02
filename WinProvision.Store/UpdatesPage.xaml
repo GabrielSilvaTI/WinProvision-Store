@@ -438,6 +438,7 @@
                                        FontSize="13.5"
                                        FontWeight="SemiBold"
                                        TextAlignment="Center"
+                                       ToolTip="{Binding Name}"
                                        TextTrimming="CharacterEllipsis" />
                             <Border Background="{DynamicResource AppBorderSubtleBrush}"
                                     CornerRadius="{StaticResource ControlCornerRadius}"
@@ -537,6 +538,7 @@
                                    FontSize="12"
                                    FontWeight="SemiBold"
                                    TextAlignment="Center"
+                                   ToolTip="{Binding Name}"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"
                                    MaxHeight="36" />
@@ -794,7 +796,7 @@
                                ToolTip="Exportar lista de atualizações para arquivo CSV"
                                Click="ExportCsvButton_Click">
                         <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowExport24"
+                            <ui:SymbolIcon Symbol="ArrowExportLtr24"
                                            FontSize="16"
                                            Margin="0,0,6,0" />
                             <TextBlock Text="Exportar para CSV" VerticalAlignment="Center" />
@@ -1239,16 +1241,11 @@
                                 VerticalAlignment="Center"
                                 HorizontalAlignment="Center"
                                 Visibility="Collapsed">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Border Width="72"
-                                        Height="72"
-                                        CornerRadius="{StaticResource ControlCornerRadius}"
-                                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        HorizontalAlignment="Center"
-                                        Margin="0,0,0,12">
+                            <StackPanel Style="{StaticResource PageEmptyStatePanelStyle}">
+                                <Border Style="{StaticResource PageEmptyStateIconTileStyle}">
                                     <Image Source="{DynamicResource EmptyStateBrandIcon}"
-                                           Width="48"
-                                           Height="48"
+                                           Width="40"
+                                           Height="40"
                                            Stretch="Uniform"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"
@@ -1256,18 +1253,10 @@
                                 </Border>
                                 <TextBlock x:Name="EmptyStateTitle"
                                            Text="Tudo atualizado"
-                                           FontSize="18"
-                                           FontWeight="SemiBold"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,0,0,4" />
+                                           Style="{StaticResource PageEmptyStateTitleStyle}" />
                                 <TextBlock x:Name="EmptyStateText"
                                            Text="Nenhuma atualização pendente encontrada para seus aplicativos."
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           FontSize="12"
-                                           HorizontalAlignment="Center"
-                                           TextAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           MaxWidth="420" />
+                                           Style="{StaticResource PageEmptyStateMessageStyle}" />
                             </StackPanel>
                         </Border>
 
@@ -1532,7 +1521,11 @@
                                                            Content="Restaurar"
                                                            FontSize="11"
                                                            Padding="8,4"
-                                                           Click="RestoreIgnoredUpdate_Click" />
+                                                           Click="RestoreIgnoredUpdate_Click">
+                                                    <ui:Button.Icon>
+                                                        <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" />
+                                                    </ui:Button.Icon>
+                                                </ui:Button>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -1548,7 +1541,11 @@
                         <ui:Button Content="Restaurar todas"
                                    Appearance="Secondary"
                                    Margin="0,0,8,0"
-                                   Click="RestoreAllIgnored_Click" />
+                                   Click="RestoreAllIgnored_Click">
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" />
+                            </ui:Button.Icon>
+                        </ui:Button>
                         <ui:Button Content="Fechar"
                                    Appearance="Primary"
                                    Click="CloseIgnoredOverlay_Click" />

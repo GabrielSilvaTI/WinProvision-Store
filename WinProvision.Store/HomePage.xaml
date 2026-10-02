@@ -57,6 +57,7 @@
                     <TextBlock Text="{Binding Name}"
                                FontSize="11"
                                TextAlignment="Center"
+                               ToolTip="{Binding Name}"
                                TextTrimming="CharacterEllipsis"
                                TextWrapping="Wrap"
                                MaxHeight="30"
@@ -83,6 +84,7 @@
                     <TextBlock Text="{Binding Name}"
                                FontSize="13"
                                FontWeight="SemiBold"
+                               ToolTip="{Binding Name}"
                                Foreground="White"
                                TextWrapping="Wrap"
                                VerticalAlignment="Bottom"
@@ -115,6 +117,7 @@
                         <TextBlock Text="{Binding Name}"
                                    FontSize="13"
                                    FontWeight="SemiBold"
+                                   ToolTip="{Binding Name}"
                                    TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Publisher}"
@@ -895,12 +898,9 @@
                                 <StackPanel HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             MaxWidth="360">
-                                    <Border Width="48"
-                                            Height="48"
-                                            Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                            CornerRadius="{StaticResource ControlCornerRadius}"
-                                            HorizontalAlignment="Center"
-                                            Margin="0,0,0,12">
+                                    <Border Style="{StaticResource PageEmptyStateIconTileStyle}"
+                                            Width="48"
+                                            Height="48">
                                         <ui:SymbolIcon Symbol="Search24"
                                                        FontSize="24"
                                                        Foreground="{DynamicResource TextFillColorSecondaryBrush}"
@@ -908,12 +908,9 @@
                                                        VerticalAlignment="Center" />
                                     </Border>
                                     <TextBlock Text="Nenhum aplicativo encontrado"
-                                               Style="{StaticResource FluentCardTitleStyle}"
-                                               TextAlignment="Center" />
+                                               Style="{StaticResource PageEmptyStateTitleStyle}" />
                                     <TextBlock Text="Tente pesquisar pelo nome do aplicativo, pelo publicador ou pelo ID do pacote."
-                                               Style="{StaticResource StoreCardSubtitleStyle}"
-                                               TextAlignment="Center"
-                                               Margin="0,6,0,0" />
+                                               Style="{StaticResource PageEmptyStateMessageStyle}" />
                                 </StackPanel>
                             </Border>
                         </Grid>

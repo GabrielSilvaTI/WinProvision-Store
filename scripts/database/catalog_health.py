@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
@@ -175,6 +176,7 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
 
 
 def main() -> int:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-dir", type=Path, default=Path("catalog-health-report"))
     parser.add_argument("--workers", type=int, default=24)
@@ -245,6 +247,7 @@ def main() -> int:
     report = {
         "schemaVersion": 1,
         "generatedAt": datetime.now(UTC).isoformat(),
+        "durationSeconds": round(time.perf_counter() - started, 2),
         "catalogs": {
             name: {"items": len(value) if isinstance(value, (list, dict)) else None} for name, value in payloads.items()
         },

@@ -395,7 +395,9 @@ public record OfficeInstallRequest(
     string? ChannelOverride = null,
     /// <summary>Gera o elemento &lt;Updates Enabled="TRUE|FALSE"/&gt; do ODT, controlando a política de atualização automática do Office nesta máquina.</summary>
     bool AutoUpdatesEnabled = true,
-    IReadOnlyList<OfficePlan>? AdditionalProducts = null);
+    IReadOnlyList<OfficePlan>? AdditionalProducts = null,
+    /// <summary>Origem local opcional para reutilizar conteúdo já baixado pelo ODT.</summary>
+    string? SourcePath = null);
 
 /// <summary>
 /// Um produto Click-to-Run detectado no registro (ver Configuration\ProductReleaseIds),

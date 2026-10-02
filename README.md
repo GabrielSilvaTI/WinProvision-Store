@@ -93,6 +93,8 @@ A pré-visualização da área de trabalho é ilustrativa. As opções disponív
 
 O Orchestrator aplica um perfil JSON em uma execução guiada. Ele pode instalar os pacotes e aplicar as configurações selecionadas, com acompanhamento do progresso e registro da execução.
 
+O modo `/auto` também valida o perfil antes dos downloads, registra checkpoints para retomar sem repetir instalações concluídas e informa o contexto de permissões, fases reais e diagnósticos no log. Consulte [Retomada e diagnóstico do Orchestrator](docs/AUTO-RESILIENCIA.md) para entender como itens interrompidos e resultados incertos são tratados.
+
 - Use a interface visual ou o modo de terminal, conforme o fluxo iniciado.
 - Consulte logs locais ou acompanhe a execução pelo recurso de logs na nuvem, quando configurado.
 - Use o QR Code exibido para abrir o acompanhamento da execução em outro dispositivo.

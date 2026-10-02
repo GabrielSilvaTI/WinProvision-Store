@@ -362,7 +362,7 @@
                                                Style="{StaticResource StoreActionButtonStyle}"
                                                Click="CheckUpdateButton_Click">
                                         <ui:Button.Icon>
-                                            <ui:SymbolIcon Symbol="ArrowClockwise24" />
+                                            <ui:SymbolIcon Symbol="ArrowSync24" />
                                         </ui:Button.Icon>
                                     </ui:Button>
                                 </Grid>
@@ -420,7 +420,7 @@
                                            Margin="0,0,8,8"
                                            Click="ExportSettingsButton_Click">
                                     <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="ArrowExport24" />
+                                        <ui:SymbolIcon Symbol="ArrowExportLtr24" />
                                     </ui:Button.Icon>
                                 </ui:Button>
                                 <ui:Button Content="Importar configurações"
@@ -447,7 +447,7 @@
                                            Margin="0,0,0,8"
                                            Click="ResetPreferencesButton_Click">
                                     <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="ArrowReset24" />
+                                        <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" />
                                     </ui:Button.Icon>
                                 </ui:Button>
                             </WrapPanel>
@@ -624,7 +624,7 @@
                                            Style="{StaticResource StoreActionButtonStyle}"
                                            Click="ImportBackup_Click">
                                     <ui:Button.Icon>
-                                        <ui:SymbolIcon Symbol="ArrowImport24" />
+                                        <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24" />
                                     </ui:Button.Icon>
                                 </ui:Button>
                             </Grid>

@@ -309,7 +309,7 @@
                                            Style="{StaticResource StoreActionButtonStyle}"
                                            Margin="0,0,8,8">
                                     <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="ArrowDownload24"
+                                        <ui:SymbolIcon Symbol="ArrowRotateCounterclockwise24"
                                                        FontSize="16"
                                                        Margin="0,0,8,0" />
                                         <TextBlock Text="Restaurar da nuvem" VerticalAlignment="Center" />
@@ -338,7 +338,7 @@
                                            PressedForeground="White"
                                            Margin="0,0,0,8">
                                     <StackPanel Orientation="Horizontal">
-                                        <ui:SymbolIcon Symbol="DocumentArrowRight24"
+                                        <ui:SymbolIcon Symbol="ArrowExportLtr24"
                                                        FontSize="16"
                                                        Margin="0,0,8,0" />
                                         <TextBlock Text="Exportar JSON" VerticalAlignment="Center" />

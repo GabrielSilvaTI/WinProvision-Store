@@ -19,6 +19,11 @@ jobs:
     steps:
       - name: Baixar e extrair ODT
         shell: pwsh
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
         run: |
           $destinationDir = "C:\ODT"
           $exePath = Join-Path -Path $destinationDir -ChildPath "officedeploymenttool.exe"
@@ -33,6 +38,27 @@ jobs:
 
           if (-not $downloadUrl) {
             $downloadUrl = "https://download.microsoft.com/download/2/7/A/27AFA36C-86A2-435F-B21D-C43444747BFE/officedeploymenttool_17328-20162.exe"
+          }
+
+          $sourceEtag = $null
+          try {
+            $headResponse = Invoke-WebRequest -Uri $downloadUrl -Method Head -MaximumRedirection 5 -UseBasicParsing
+            $sourceEtag = ([string]$headResponse.Headers['ETag']).Trim().Trim('"')
+          } catch {
+            Write-Warning "Não foi possível consultar o ETag do ODT; seguirei com a verificação completa."
+          }
+          if ($sourceEtag) {
+            $remote = aws s3api head-object --bucket $env:R2_BUCKET --key Office/Instalador/setup.exe `
+              --endpoint-url $env:R2_ENDPOINT --region auto --output json 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              $publishedEtag = ($remote | ConvertFrom-Json).Metadata.'source-etag'
+              if ($publishedEtag -eq $sourceEtag) {
+                "ODT_UNCHANGED=true" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+                Write-Host "ODT sem alterações (ETag $sourceEtag); download, extração e upload ignorados."
+                exit 0
+              }
+            }
+            "ODT_SOURCE_ETAG=$sourceEtag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           }
 
           New-Item -ItemType Directory -Path $destinationDir -Force | Out-Null
@@ -52,6 +78,7 @@ jobs:
           Remove-Item -Path $exePath -Force
 
       - name: Verificar setup.exe extraído
+        if: env.ODT_UNCHANGED != 'true'
         shell: pwsh
         run: |
           if (-not (Test-Path "C:\ODT\setup.exe")) {
@@ -64,6 +91,7 @@ jobs:
           }
 
       - name: Enviar setup.exe ao Cloudflare R2
+        if: env.ODT_UNCHANGED != 'true'
         shell: pwsh
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -71,5 +99,6 @@ jobs:
           R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
           R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
         run: |
-          aws s3 cp C:\ODT\setup.exe "s3://$env:R2_BUCKET/Office/Instalador/setup.exe" `
-            --endpoint-url $env:R2_ENDPOINT
+          $awsArgs = @('s3', 'cp', 'C:\ODT\setup.exe', "s3://$env:R2_BUCKET/Office/Instalador/setup.exe", '--endpoint-url', $env:R2_ENDPOINT, '--region', 'auto')
+          if ($env:ODT_SOURCE_ETAG) { $awsArgs += @('--metadata', "source-etag=$env:ODT_SOURCE_ETAG") }
+          aws @awsArgs

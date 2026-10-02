@@ -151,16 +151,16 @@ public partial class SettingsPage : Page
         _searchEntries.AddRange(
         [
             new("Método de instalação preferencial", "Escolha o método automático, WinGet COM, WinProvision API ou WinGet CLI.", "Preferências gerais", "General", "método instalar instalação pacote automático api com winget cli rota", "Settings24", InstallMethodCard),
-            new("Verificação de atualizações", "Procure uma versão mais recente do WinProvision Store.", "Preferências gerais", "General", "atualização atualizar versão github verificar update", "ArrowClockwise24", AppUpdateCard),
-            new("Exportar configurações", "Salve as preferências atuais em um arquivo JSON.", "Preferências gerais", "General", "exportar salvar configurações json", "ArrowExport24", PrivacyCard),
+            new("Verificação de atualizações", "Procure uma versão mais recente do WinProvision Store.", "Preferências gerais", "General", "atualização atualizar versão github verificar update", "ArrowSync24", AppUpdateCard),
+            new("Exportar configurações", "Salve as preferências atuais em um arquivo JSON.", "Preferências gerais", "General", "exportar salvar configurações json", "ArrowExportLtr24", PrivacyCard),
             new("Importar configurações", "Carregue preferências de um arquivo JSON.", "Preferências gerais", "General", "importar carregar configurações json", "ArrowImport24", PrivacyCard),
             new("Abrir pasta de logs", "Acesse os arquivos de log do aplicativo.", "Preferências gerais", "General", "log logs pasta diagnóstico arquivos", "DocumentText24", PrivacyCard),
-            new("Restaurar padrões", "Volte às preferências originais do aplicativo.", "Preferências gerais", "General", "restaurar padrões redefinir reset configurações", "ArrowReset24", PrivacyCard),
+            new("Restaurar padrões", "Volte às preferências originais do aplicativo.", "Preferências gerais", "General", "restaurar padrões redefinir reset configurações", "ArrowRotateCounterclockwise24", PrivacyCard),
             new("Tema do aplicativo", "Alterne entre os temas claro, escuro e do sistema.", "Interface e inicialização", "Interface", "tema aparência claro escuro sistema cor", "Color24", ThemeCard),
             new("Iniciar com o Windows", "Abra o WinProvision automaticamente ao entrar nesta conta.", "Interface e inicialização", "Interface", "inicialização iniciar login windows automático", "Power24", StartupCard),
             new("Limpar cache local de instaladores", "Remova os instaladores temporários para liberar espaço em disco.", "Armazenamento e cache", "Operations", "cache armazenamento espaço disco temporários instaladores limpar", "Broom24", CacheCard),
             new("Exportar backup local", "Salve a lista de aplicativos instalados em um arquivo JSON.", "Backup e restauração", "Backup", "backup exportar salvar aplicativos instalados lista json", "Save24", BackupExportCard),
-            new("Restaurar de arquivo JSON", "Selecione um arquivo de backup para usar na Coleção de Pacotes.", "Backup e restauração", "Backup", "backup restaurar importar arquivo json coleção reinstalar", "ArrowImport24", BackupRestoreCard)
+            new("Restaurar de arquivo JSON", "Selecione um arquivo de backup para usar na Coleção de Pacotes.", "Backup e restauração", "Backup", "backup restaurar importar arquivo json coleção reinstalar", "ArrowRotateCounterclockwise24", BackupRestoreCard)
         ]);
     }
 

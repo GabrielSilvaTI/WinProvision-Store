@@ -12,6 +12,7 @@ import sys
 
 import boto3
 from botocore.config import Config
+from r2_upload import object_matches, sha256_file
 from validate_catalog import validate_catalog
 
 ACCOUNT_ID = os.environ["R2_ACCOUNT_ID"]
@@ -48,6 +49,11 @@ def main():
         config=Config(retries={"max_attempts": 5, "mode": "standard"}),
         region_name="auto",
     )
+    digest = sha256_file(SOURCE_FILE)
+    if object_matches(s3, BUCKET, DEST_KEY, digest):
+        print(f"Sem alterações: {DEST_KEY} já contém SHA-256 {digest}; upload ignorado.")
+        return 0
+
     s3.upload_file(
         SOURCE_FILE,
         BUCKET,
@@ -55,6 +61,7 @@ def main():
         ExtraArgs={
             "ContentType": "application/json",
             "CacheControl": "public, max-age=60, s-maxage=60, must-revalidate",
+            "Metadata": {"sha256": digest},
         },
     )
     print(f"Enviado: {SOURCE_FILE} -> {BUCKET}/{DEST_KEY}")

@@ -26,9 +26,8 @@ namespace WinProvision.Core.Services;
 /// <c>tabs[].apps</c>), e o app relatava "nada a fazer" mesmo com apps configurados.
 ///
 /// Quando o JSON é um <see cref="ProfileBackupSet"/>, todas as guias são achatadas numa lista
-/// só de apps — Ids duplicados entre guias mantêm apenas a primeira ocorrência, mesma regra já
-/// usada por Configurações → Backup → "Exportar perfil completo" (ver
-/// SettingsPage.ExportAllButton_Click) — e o provisionamento de nível raiz é reaproveitado do
+/// só de apps — por padrão, referências repetidas mantêm apenas a primeira ocorrência; o modo
+/// /auto pode pedir que elas sejam preservadas para apontá-las no pré-check — e o provisionamento de nível raiz é reaproveitado do
 /// mesmo jeito, sem exigir nenhuma mudança de quem chama <see cref="Parse"/>.
 /// </summary>
 public static class ProfileManifestParser
@@ -43,7 +42,7 @@ public static class ProfileManifestParser
     /// guia (não há um único nome de perfil nesse caso) — normalmente o nome do arquivo/URL de
     /// origem. Com exatamente uma guia, o nome dela prevalece.
     /// </param>
-    public static ProfileManifest? Parse(string json, string? fallbackName = null)
+    public static ProfileManifest? Parse(string json, string? fallbackName = null, bool preserveDuplicateApps = false)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -63,11 +62,11 @@ public static class ProfileManifestParser
             return null;
         }
 
-        var mergedApps = backupSet.Tabs
-            .SelectMany(tab => tab.Apps)
-            .GroupBy(app => app.Id, System.StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .ToList();
+        var flattenedApps = backupSet.Tabs.SelectMany(tab => tab.Apps).ToList();
+        var mergedApps = preserveDuplicateApps
+            ? flattenedApps
+            : flattenedApps.GroupBy(app => app.Id, System.StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First()).ToList();
 
         return new ProfileManifest
         {

@@ -841,7 +841,7 @@ public partial class HomePage : Page
         // quantidade. A API da Store pode retornar correspondências aproximadas; sem
         // um ranking comum, elas podiam ocupar as primeiras posições e esconder um
         // resultado exato como WhatsApp quando pesquisado pelo nome.
-        List<AppEntry> localResults = _storeService.Search(query).ToList();
+        List<AppEntry> localResults = _storeService.Search(query, maxResults: 256).ToList();
         IEnumerable<AppEntry> liveResults = string.Equals(_liveSearchQuery, query, StringComparison.OrdinalIgnoreCase)
             ? _liveSearchResults
             : [];

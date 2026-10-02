@@ -21,6 +21,7 @@ public partial class AutoWindow : FluentWindow
     private bool _globalProgressShimmerRunning;
     private double _globalProgressShimmerTrackWidth;
     private AutoInstallExitCode? _exitCode;
+    private bool _isCompactLayout;
 
     public int CurrentProgress => (int)_viewModel.GlobalProgress;
 
@@ -39,6 +40,8 @@ public partial class AutoWindow : FluentWindow
         InitializeComponent();
         WindowState = WindowState.Maximized;
         Loaded += AutoWindow_Loaded;
+        SizeChanged += AutoWindow_SizeChanged;
+        WorkspaceScrollViewer.SizeChanged += WorkspaceScrollViewer_SizeChanged;
         GlobalProgressTrack.SizeChanged += GlobalProgressTrack_SizeChanged;
         _viewModel.PropertyChanged += ViewModel_PropertyChanged;
 
@@ -52,7 +55,8 @@ public partial class AutoWindow : FluentWindow
         };
     }
 
-    public async Task<AutoInstallExitCode> RunAsync(string profileSource, Action<string>? log = null, CancellationToken ct = default)
+    public async Task<AutoInstallExitCode> RunAsync(string profileSource, Action<string>? log = null,
+        CancellationToken ct = default, string? logPath = null)
     {
         ProfileManifest manifest;
         var progress = new Progress<AutoInstallStageEvent>(_viewModel.ApplyEvent);
@@ -79,7 +83,7 @@ public partial class AutoWindow : FluentWindow
         AutoInstallExitCode exitCode;
         try
         {
-            exitCode = await _cliService.RunManifestAsync(manifest, profileSource, log, progress, ct);
+            exitCode = await _cliService.RunManifestAsync(manifest, profileSource, log, progress, ct, logPath);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -100,7 +104,70 @@ public partial class AutoWindow : FluentWindow
     public Task WaitForCloseAsync() => _closedTcs.Task;
 
     private void AutoWindow_Loaded(object sender, RoutedEventArgs e)
-        => UpdateGlobalProgressShimmer(restart: true);
+    {
+        UpdateResponsiveLayout();
+        UpdateGlobalProgressShimmer(restart: true);
+    }
+
+    private void AutoWindow_SizeChanged(object sender, SizeChangedEventArgs e)
+        => UpdateResponsiveLayout();
+
+    private void WorkspaceScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+        => UpdateResponsiveLayout();
+
+    private void UpdateResponsiveLayout()
+    {
+        if (!IsInitialized || WorkspaceScrollViewer.ActualWidth <= 0 || WorkspaceScrollViewer.ActualHeight <= 0)
+            return;
+
+        // Em resoluções compactas ou com escala alta, empilhamos os painéis e
+        // permitimos rolagem vertical. Em telas largas, mantemos o painel lateral.
+        bool compact = ActualWidth < 1180 || ActualHeight < 740;
+        WorkspaceScrollViewer.VerticalScrollBarVisibility = compact
+            ? System.Windows.Controls.ScrollBarVisibility.Auto
+            : System.Windows.Controls.ScrollBarVisibility.Disabled;
+
+        if (compact == _isCompactLayout)
+        {
+            WorkspaceGrid.Height = compact ? double.NaN : WorkspaceScrollViewer.ViewportHeight;
+            return;
+        }
+
+        _isCompactLayout = compact;
+        WorkspaceGrid.ColumnDefinitions.Clear();
+        WorkspaceGrid.RowDefinitions.Clear();
+
+        if (compact)
+        {
+            WorkspaceGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            WorkspaceGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+            WorkspaceGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+            WorkspaceGrid.Height = double.NaN;
+            System.Windows.Controls.Grid.SetRow(PrimaryWorkspace, 0);
+            System.Windows.Controls.Grid.SetColumn(PrimaryWorkspace, 0);
+            System.Windows.Controls.Grid.SetColumnSpan(PrimaryWorkspace, 1);
+            System.Windows.Controls.Grid.SetRow(RightInformationRail, 1);
+            System.Windows.Controls.Grid.SetColumn(RightInformationRail, 0);
+            PrimaryWorkspace.Margin = new Thickness(0, 0, 0, 12);
+            if (RightInformationRail.RowDefinitions.Count > 6)
+                RightInformationRail.RowDefinitions[6].Height = GridLength.Auto;
+        }
+        else
+        {
+            WorkspaceGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(3, GridUnitType.Star) });
+            WorkspaceGrid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1.15, GridUnitType.Star) });
+            WorkspaceGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            WorkspaceGrid.Height = WorkspaceScrollViewer.ViewportHeight;
+            System.Windows.Controls.Grid.SetRow(PrimaryWorkspace, 0);
+            System.Windows.Controls.Grid.SetColumn(PrimaryWorkspace, 0);
+            System.Windows.Controls.Grid.SetColumnSpan(PrimaryWorkspace, 1);
+            System.Windows.Controls.Grid.SetRow(RightInformationRail, 0);
+            System.Windows.Controls.Grid.SetColumn(RightInformationRail, 1);
+            PrimaryWorkspace.Margin = new Thickness(0, 0, 16, 0);
+            if (RightInformationRail.RowDefinitions.Count > 6)
+                RightInformationRail.RowDefinitions[6].Height = new GridLength(1, GridUnitType.Star);
+        }
+    }
 
     private void GlobalProgressTrack_SizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -237,6 +304,8 @@ public partial class AutoWindow : FluentWindow
     protected override void OnClosed(EventArgs e)
     {
         Loaded -= AutoWindow_Loaded;
+        SizeChanged -= AutoWindow_SizeChanged;
+        WorkspaceScrollViewer.SizeChanged -= WorkspaceScrollViewer_SizeChanged;
         GlobalProgressTrack.SizeChanged -= GlobalProgressTrack_SizeChanged;
         _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
         StopGlobalProgressShimmer();

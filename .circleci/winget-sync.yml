@@ -13,6 +13,9 @@ jobs:
     resource_class: large
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
       - run:
           name: Preparar Python e .NET 10
           command: |
@@ -22,6 +25,10 @@ jobs:
             bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /home/circleci/.dotnet
             echo 'export DOTNET_ROOT=/home/circleci/.dotnet' >> "$BASH_ENV"
             echo 'export PATH=/home/circleci/.dotnet:$PATH' >> "$BASH_ENV"
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Baixar manifests oficiais do WinGet
           command: |
@@ -89,11 +96,18 @@ jobs:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
           name: Preparar Python para o índice de screenshots
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Preparar a pasta do índice
           command: |

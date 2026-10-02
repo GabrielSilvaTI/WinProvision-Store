@@ -18,6 +18,7 @@ from urllib.parse import quote
 
 import boto3
 from botocore.config import Config
+from r2_upload import object_matches
 
 MAX_WORKERS = 32
 CACHE_CONTROL = "public, max-age=60, s-maxage=60, must-revalidate"
@@ -128,11 +129,12 @@ def validate_api(local_dir: str):
 
 def upload_single_file(client, local_path: str, bucket: str, r2_key: str) -> bool:
     try:
+        digest = sha256_of(local_path)
         client.upload_file(
             local_path,
             bucket,
             r2_key,
-            ExtraArgs={"ContentType": "application/json", "CacheControl": CACHE_CONTROL},
+            ExtraArgs={"ContentType": "application/json", "CacheControl": CACHE_CONTROL, "Metadata": {"sha256": digest}},
         )
         return True
     except Exception as exc:  # noqa: BLE001 - coleta falhas para não ativar uma publicação parcial.
@@ -253,13 +255,26 @@ def main() -> int:
         json.dump(published_index, stream, ensure_ascii=False, separators=(",", ":"))
         stream.write("\n")
 
+    index_key = f"{r2_prefix}/index.json"
+    index_digest = sha256_of(publish_path)
+    semantic_index = {key: value for key, value in published_index.items() if key != "generatedAt"}
+    semantic_digest = hashlib.sha256(
+        json.dumps(semantic_index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
     try:
-        client.upload_file(
-            publish_path,
-            bucket,
-            f"{r2_prefix}/index.json",
-            ExtraArgs={"ContentType": "application/json", "CacheControl": CACHE_CONTROL},
-        )
+        if object_matches(client, bucket, index_key, semantic_digest, metadata_key="semantic-sha256"):
+            print("index.json sem alterações nos pacotes; upload ignorado.")
+        else:
+            client.upload_file(
+                publish_path,
+                bucket,
+                index_key,
+                ExtraArgs={
+                    "ContentType": "application/json",
+                    "CacheControl": CACHE_CONTROL,
+                    "Metadata": {"sha256": index_digest, "semantic-sha256": semantic_digest},
+                },
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"Falha ao ativar o index.json; a execução seguinte poderá repetir com segurança: {exc}", file=sys.stderr)
         return 1
@@ -270,13 +285,22 @@ def main() -> int:
     state_local_path = os.path.join(local_dir, "_package-hashes.v2.json")
     with open(state_local_path, "w", encoding="utf-8", newline="\n") as stream:
         json.dump(new_state, stream, separators=(",", ":"))
+    state_key = f"{r2_prefix}/_state/package-hashes.json"
+    state_digest = sha256_of(state_local_path)
     try:
-        client.upload_file(
-            state_local_path,
-            bucket,
-            f"{r2_prefix}/_state/package-hashes.json",
-            ExtraArgs={"ContentType": "application/json", "CacheControl": "no-cache"},
-        )
+        if object_matches(client, bucket, state_key, state_digest):
+            print("Estado de pacotes sem alterações; upload ignorado.")
+        else:
+            client.upload_file(
+                state_local_path,
+                bucket,
+                state_key,
+                ExtraArgs={
+                    "ContentType": "application/json",
+                    "CacheControl": "no-cache",
+                    "Metadata": {"sha256": state_digest},
+                },
+            )
     except Exception as exc:  # noqa: BLE001 - o índice está íntegro; repetir publicação é seguro.
         print(
             f"Aviso: índice publicado; estado não atualizado e será reconstruído na próxima execução: {exc}",

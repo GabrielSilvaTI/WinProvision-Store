@@ -4,8 +4,8 @@ parameters:
   run_screenshot_index:
     type: boolean
     default: false
-  # Compatibilidade com gatilhos existentes. Esses parâmetros agora acionam
-  # somente a reindexação de objetos já armazenados; não há rastreamento de sites.
+  # Compatibilidade com gatilhos existentes. Este pipeline só reindexa objetos
+  # já armazenados; o pipeline do catálogo WinGet já reindexa ao concluir.
   run_homepage_screenshot_sync:
     type: boolean
     default: false
@@ -32,11 +32,18 @@ jobs:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
           name: Preparar Python para o índice de screenshots
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Preparar a pasta do índice
           command: mkdir -p screenshot-index-output

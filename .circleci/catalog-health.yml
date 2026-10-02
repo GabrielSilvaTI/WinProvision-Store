@@ -6,7 +6,7 @@ parameters:
     default: false
   max_media_urls:
     type: integer
-    default: 0
+    default: 500
 
 jobs:
   check_public_catalog_health:
@@ -16,11 +16,18 @@ jobs:
     resource_class: large
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
       - run:
           name: Instalar dependências do verificador
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/screenshots.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Validar catálogos públicos e links de mídia
           command: |

@@ -467,9 +467,7 @@
 
                             <TextBlock x:Name="NoInstalledProductsText"
                                        Text="Nenhuma instalação do Office foi encontrada."
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       FontFamily="Segoe UI Variable Text"
-                                       TextWrapping="Wrap"
+                                       Style="{StaticResource PageEmptyStateMessageStyle}"
                                        Visibility="Collapsed"
                                        Margin="0,8,0,0" />
                         </StackPanel>

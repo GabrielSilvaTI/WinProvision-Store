@@ -255,6 +255,7 @@
                         <TextBlock Text="{Binding Name}"
                                    FontWeight="SemiBold"
                                    FontSize="13"
+                                   ToolTip="{Binding Name}"
                                    TextTrimming="CharacterEllipsis"
                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                         <TextBlock Text="{Binding Publisher}"
@@ -419,6 +420,7 @@
                                    FontWeight="SemiBold"
                                    FontSize="13"
                                    TextAlignment="Center"
+                                   ToolTip="{Binding Name}"
                                    TextTrimming="CharacterEllipsis"
                                    MaxWidth="190" />
 
@@ -507,6 +509,7 @@
                         <TextBlock Text="{Binding Name}"
                                    FontSize="11"
                                    TextAlignment="Center"
+                                   ToolTip="{Binding Name}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="Wrap"
                                    MaxHeight="30"
@@ -1095,21 +1098,12 @@
                     <!--  ESTADO VAZIO (EMPTY STATE)  -->
                     <StackPanel x:Name="EmptyCollectionPanel"
                                 Grid.Row="1"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Visibility="Collapsed"
-                                Margin="32">
-                        <Border Width="72"
-                                Height="72"
-                                CornerRadius="{StaticResource StoreRadius_16}"
-                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                BorderThickness="1"
-                                HorizontalAlignment="Center"
-                                Margin="0,0,0,16">
+                                Style="{StaticResource PageEmptyStatePanelStyle}"
+                                Visibility="Collapsed">
+                        <Border Style="{StaticResource PageEmptyStateIconTileStyle}">
                             <Image Source="{DynamicResource EmptyStateBrandIcon}"
-                                   Width="48"
-                                   Height="48"
+                                   Width="40"
+                                   Height="40"
                                    Stretch="Uniform"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
@@ -1117,26 +1111,18 @@
                         </Border>
 
                         <TextBlock Text="Sua coleção de pacotes está vazia"
-                                   FontSize="17"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                   Style="{StaticResource PageEmptyStateTitleStyle}" />
 
                         <TextBlock Text="Adicione aplicativos a partir da Visão Geral ou abra um arquivo de coleção JSON (.json)."
-                                   FontSize="13"
-                                   HorizontalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                   Margin="0,6,0,16"
-                                   TextAlignment="Center"
-                                   MaxWidth="440"
-                                   TextWrapping="Wrap" />
+                                   Style="{StaticResource PageEmptyStateMessageStyle}"
+                                   Margin="0,4,0,16" />
 
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <WrapPanel HorizontalAlignment="Center">
                             <ui:Button Appearance="Primary"
                                        Content="Abrir arquivo de coleção"
                                        Icon="{ui:SymbolIcon FolderOpen24}"
                                        Padding="16,8"
-                                       Margin="0,0,8,0"
+                                       Margin="0,0,8,8"
                                        CornerRadius="{StaticResource ControlCornerRadius}"
                                        Background="{DynamicResource InstallActionBrush}"
                                        Foreground="White"
@@ -1145,9 +1131,10 @@
                                        Content="Criar novo perfil"
                                        Icon="{ui:SymbolIcon Add24}"
                                        Padding="16,8"
+                                       Margin="0,0,0,8"
                                        CornerRadius="{StaticResource ControlCornerRadius}"
                                        Click="NewTabButton_Click" />
-                        </StackPanel>
+                        </WrapPanel>
                     </StackPanel>
 
                 </Grid>

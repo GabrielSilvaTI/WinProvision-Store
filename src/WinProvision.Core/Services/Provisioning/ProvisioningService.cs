@@ -14,7 +14,7 @@ using WinProvision.Core.Services;
 namespace WinProvision.Core.Services.Provisioning;
 
 /// <summary>Resultado da aplicação de um único ajuste do perfil — usado para montar o log/relatório.</summary>
-public record ProvisioningStepResult(string Setting, bool Success, string Message);
+public record ProvisioningStepResult(string Setting, bool Success, string Message, TimeSpan Elapsed = default);
 
 /// <summary>
 /// Resultado consolidado de <see cref="ProvisioningService.ApplyAsync"/>. RestartRequired fica
@@ -163,17 +163,27 @@ public class ProvisioningService
         Action<string>? log = null,
         CancellationToken ct = default,
         Action<ProvisioningStepResult>? stepProgress = null,
-        bool updateCurrent = true)
+        bool updateCurrent = true,
+        Action<string>? stepStarting = null)
     {
         var steps = new List<ProvisioningStepResult>();
         bool restartRequired = false;
+        Stopwatch? currentStepTimer = null;
 
         void Report(string setting, bool success, string message)
         {
-            var step = new ProvisioningStepResult(setting, success, message);
+            var elapsed = currentStepTimer?.Elapsed ?? TimeSpan.Zero;
+            currentStepTimer?.Stop();
+            var step = new ProvisioningStepResult(setting, success, message, elapsed);
             steps.Add(step);
             stepProgress?.Invoke(step);
             log?.Invoke($"[Provisionamento] {setting}: {(success ? "OK" : "FALHOU")} — {message}");
+        }
+
+        void Start(string setting)
+        {
+            currentStepTimer = Stopwatch.StartNew();
+            stepStarting?.Invoke(setting);
         }
 
         bool hasSplitTheme = manifest.SystemTheme is not null || manifest.AppsTheme is not null;
@@ -189,33 +199,49 @@ public class ProvisioningService
                     : manifest.Theme;
 
             if (systemTheme is { } system && system != SystemThemeMode.NaoDefinido)
+            {
+                Start("Tema do Windows");
                 TryApply("Tema do Windows", ApplySystemTheme, system, Report);
+            }
             if (appsTheme is { } apps && apps != SystemThemeMode.NaoDefinido)
+            {
+                Start("Tema dos aplicativos");
                 TryApply("Tema dos aplicativos", ApplyAppsTheme, apps, Report);
+            }
         }
         else if (manifest.Theme is { } legacyTheme && legacyTheme != SystemThemeMode.NaoDefinido)
+        {
+            Start("Tema do Windows e dos aplicativos");
             TryApply("Tema do Windows e dos aplicativos", ApplyTheme, legacyTheme, Report);
+        }
 
         if (manifest.AccentColorMode is { } accentMode && accentMode != AccentColorMode.NaoDefinido)
+        {
+            Start("Cor de destaque");
             TryApply("Cor de destaque", ApplyAccentColor, (accentMode, manifest.AccentColor), Report);
+        }
 
         if (manifest.TaskbarAlignment is { } alignment && alignment != TaskbarAlignmentMode.NaoDefinido)
         {
+            Start("Alinhamento da barra de tarefas");
             TryApply("Alinhamento da barra de tarefas", ApplyTaskbarAlignment, alignment, Report);
         }
 
         if (manifest.TaskbarAutoHide is { } autoHide)
         {
+            Start("Ocultar automaticamente a barra de tarefas");
             TryApply("Ocultar automaticamente a barra de tarefas", ApplyTaskbarAutoHide, autoHide, Report);
         }
 
         if (manifest.TaskbarSearchBox is { } searchBox && searchBox != TaskbarSearchBoxMode.NaoDefinido)
         {
+            Start("Caixa de pesquisa da barra de tarefas");
             TryApply("Caixa de pesquisa da barra de tarefas", ApplyTaskbarSearchBox, searchBox, Report);
         }
 
         if (manifest.PowerPlan is { } powerPlan && powerPlan != PowerPlanMode.NaoDefinido)
         {
+            Start("Plano de energia");
             var result = await ApplyPowerPlanAsync(powerPlan, ct);
             Report("Plano de energia", result.Success, result.Message);
         }
@@ -223,6 +249,7 @@ public class ProvisioningService
         if (manifest.DisplayTimeoutOnAc is not null || manifest.DisplayTimeoutOnDc is not null
             || manifest.StandbyTimeoutOnAc is not null || manifest.StandbyTimeoutOnDc is not null)
         {
+            Start("Tempo de tela e suspensão");
             var timeoutsResult = await ApplyPowerTimeoutsAsync(new PowerTimeoutsInput(
                 DisplayTimeoutOnAc: manifest.DisplayTimeoutOnAc,
                 DisplayTimeoutOnDc: manifest.DisplayTimeoutOnDc,
@@ -233,6 +260,10 @@ public class ProvisioningService
 
         if (manifest.EnableAutomaticTime == true || manifest.EnableAutomaticTimeZone == true)
         {
+            string clockSetting = manifest.EnableAutomaticTime == true && manifest.EnableAutomaticTimeZone == true
+                ? "Data, hora e fuso horário automáticos"
+                : manifest.EnableAutomaticTime == true ? "Data e hora automáticas" : "Fuso horário automático";
+            Start(clockSetting);
             var clockResult = await ApplyAutomaticClockSettingsAsync(
                 manifest.EnableAutomaticTime == true,
                 manifest.EnableAutomaticTimeZone == true,
@@ -247,12 +278,14 @@ public class ProvisioningService
             || manifest.ShowHiddenFiles is not null
             || manifest.OpenExplorerToThisPc is not null)
         {
+            Start("Preferências do Explorador de Arquivos");
             TryApply("Preferências do Explorador de Arquivos", ApplyExplorerPreferences,
                 (manifest.ShowFileExtensions, manifest.ShowHiddenFiles, manifest.OpenExplorerToThisPc), Report);
         }
 
         if (!string.IsNullOrWhiteSpace(manifest.MachineName))
         {
+            Start("Nome da máquina");
             var result = await ApplyMachineNameAsync(manifest.MachineName, ct);
             Report("Nome da máquina", result.Success, result.Message);
             if (result.Success) restartRequired = true;
@@ -260,11 +293,13 @@ public class ProvisioningService
 
         if (manifest.WallpaperImageBase64 is { } wallpaperBase64 && !string.IsNullOrWhiteSpace(wallpaperBase64))
         {
+            Start("Papel de parede");
             TryApply("Papel de parede", ApplyWallpaper, (wallpaperBase64, manifest.WallpaperFileName), Report);
         }
 
         if (!string.IsNullOrWhiteSpace(manifest.Creator) || !string.IsNullOrWhiteSpace(manifest.Name))
         {
+            Start("Informações OEM (Autor do setup)");
             var oemResult = await ApplyOemInformationAsync((manifest.Creator?.Trim(), manifest.Name?.Trim()), ct);
             Report("Informações OEM (Autor do setup)", oemResult.Success, oemResult.Message);
         }
@@ -312,33 +347,35 @@ public class ProvisioningService
     private static (bool Success, string Message) ApplySystemTheme(SystemThemeMode theme)
     {
         int value = theme == SystemThemeMode.Claro ? 1 : 0;
-
-        using var key = OpenOrCreateKey(PersonalizeKey);
-        key.SetValue("SystemUsesLightTheme", value, RegistryValueKind.DWord);
+        var applied = ApplyUserRegistrySettings(
+            new UserRegistrySetting(PersonalizeKey, "SystemUsesLightTheme", value, RegistryValueKind.DWord));
+        if (!applied.Success) return applied;
         NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
 
-        return (true, theme == SystemThemeMode.Claro ? "Tema claro do Windows aplicado." : "Tema escuro do Windows aplicado.");
+        return (true, $"{(theme == SystemThemeMode.Claro ? "Tema claro do Windows aplicado." : "Tema escuro do Windows aplicado.")} {applied.Message}");
     }
 
     private static (bool Success, string Message) ApplyAppsTheme(SystemThemeMode theme)
     {
         int value = theme == SystemThemeMode.Claro ? 1 : 0;
 
-        using var key = OpenOrCreateKey(PersonalizeKey);
-        key.SetValue("AppsUseLightTheme", value, RegistryValueKind.DWord);
+        var applied = ApplyUserRegistrySettings(
+            new UserRegistrySetting(PersonalizeKey, "AppsUseLightTheme", value, RegistryValueKind.DWord));
+        if (!applied.Success) return applied;
         NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
 
-        return (true, theme == SystemThemeMode.Claro ? "Tema claro dos aplicativos aplicado." : "Tema escuro dos aplicativos aplicado.");
+        return (true, $"{(theme == SystemThemeMode.Claro ? "Tema claro dos aplicativos aplicado." : "Tema escuro dos aplicativos aplicado.")} {applied.Message}");
     }
 
     private static (bool Success, string Message) ApplyAccentColor((AccentColorMode Mode, string? Color) settings)
     {
-        using var desktopKey = OpenOrCreateKey(DesktopAppearanceKey);
         if (settings.Mode == AccentColorMode.Automatico)
         {
-            desktopKey.SetValue("AutoColorization", 1, RegistryValueKind.DWord);
+            var automatic = ApplyUserRegistrySettings(
+                new UserRegistrySetting(DesktopAppearanceKey, "AutoColorization", 1, RegistryValueKind.DWord));
+            if (!automatic.Success) return automatic;
             NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
-            return (true, "O Windows escolherá a cor de destaque com base no papel de parede.");
+            return (true, $"O Windows escolherá a cor de destaque com base no papel de parede. {automatic.Message}");
         }
 
         if (settings.Mode != AccentColorMode.Personalizado
@@ -355,20 +392,16 @@ public class ProvisioningService
         uint windowsAccent = 0xFF000000 | ((uint)blue << 16) | ((uint)green << 8) | red;
         uint dwmColorization = 0xC4000000 | (rgb & 0x00FFFFFF);
 
-        desktopKey.SetValue("AutoColorization", 0, RegistryValueKind.DWord);
-        using (var dwmKey = OpenOrCreateKey(DwmKey))
-        {
-            dwmKey.SetValue("AccentColor", windowsAccent, RegistryValueKind.DWord);
-            dwmKey.SetValue("ColorizationColor", dwmColorization, RegistryValueKind.DWord);
-        }
-        using (var accentKey = OpenOrCreateKey(ExplorerAccentKey))
-        {
-            accentKey.SetValue("AccentColorMenu", windowsAccent, RegistryValueKind.DWord);
-            accentKey.SetValue("StartColorMenu", windowsAccent, RegistryValueKind.DWord);
-        }
+        var applied = ApplyUserRegistrySettings(
+            new UserRegistrySetting(DesktopAppearanceKey, "AutoColorization", 0, RegistryValueKind.DWord),
+            new UserRegistrySetting(DwmKey, "AccentColor", windowsAccent, RegistryValueKind.DWord),
+            new UserRegistrySetting(DwmKey, "ColorizationColor", dwmColorization, RegistryValueKind.DWord),
+            new UserRegistrySetting(ExplorerAccentKey, "AccentColorMenu", windowsAccent, RegistryValueKind.DWord),
+            new UserRegistrySetting(ExplorerAccentKey, "StartColorMenu", windowsAccent, RegistryValueKind.DWord));
+        if (!applied.Success) return applied;
 
         NativeMethods.BroadcastSettingChange("ImmersiveColorSet");
-        return (true, $"Cor de destaque personalizada aplicada ({color.ToUpperInvariant()}).");
+        return (true, $"Cor de destaque personalizada aplicada ({color.ToUpperInvariant()}). {applied.Message}");
     }
 
     /// <summary>
@@ -379,10 +412,12 @@ public class ProvisioningService
     {
         int value = alignment == TaskbarAlignmentMode.Centro ? 1 : 0;
 
-        using var key = OpenOrCreateKey(ExplorerAdvancedKey);
-        key.SetValue("TaskbarAl", value, RegistryValueKind.DWord);
+        var applied = ApplyUserRegistrySettings(
+            new UserRegistrySetting(ExplorerAdvancedKey, "TaskbarAl", value, RegistryValueKind.DWord));
+        if (!applied.Success) return applied;
+        NativeMethods.BroadcastSettingChange("TraySettings");
 
-        return (true, $"Definido como {(alignment == TaskbarAlignmentMode.Centro ? "centralizado" : "à esquerda")} " +
+        return (true, $"Definido como {(alignment == TaskbarAlignmentMode.Centro ? "centralizado" : "à esquerda")} {applied.Message} " +
                        "(só tem efeito no Windows 11; reinicie o Explorer ou faça logoff para ver a mudança).");
     }
 
@@ -405,9 +440,27 @@ public class ProvisioningService
             lParam = autoHide ? NativeMethods.AbsAutoHide : NativeMethods.AbsAlwaysOnTop
         };
 
-        NativeMethods.SHAppBarMessage(NativeMethods.AbmSetState, ref data);
+        _ = NativeMethods.SHAppBarMessage(NativeMethods.AbmSetState, ref data);
+        if (IsTaskbarAutoHideState(autoHide))
+            return (true, autoHide ? "Ocultação automática ativada via SHAppBarMessage." : "Ocultação automática desativada via SHAppBarMessage.");
 
-        return (true, autoHide ? "Ocultação automática ativada." : "Ocultação automática desativada.");
+        // Alguns shells ignoram a primeira mensagem durante inicialização ou reinício do
+        // Explorer. Atualiza o estado e tenta novamente antes de declarar falha.
+        NativeMethods.BroadcastSettingChange("TraySettings");
+        _ = NativeMethods.SHAppBarMessage(NativeMethods.AbmSetState, ref data);
+        return IsTaskbarAutoHideState(autoHide)
+            ? (true, autoHide ? "Ocultação automática ativada após nova tentativa da API do Shell." : "Ocultação automática desativada após nova tentativa da API do Shell.")
+            : (false, "O Shell não confirmou o estado solicitado após duas chamadas SHAppBarMessage. O estado gerenciado por política do Windows não será sobrescrito por edição de chave interna do Explorer.");
+    }
+
+    private static bool IsTaskbarAutoHideState(bool expected)
+    {
+        var query = new NativeMethods.APPBARDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<NativeMethods.APPBARDATA>()
+        };
+        uint state = NativeMethods.SHAppBarMessage(NativeMethods.AbmGetState, ref query);
+        return ((state & NativeMethods.AbsAutoHide) != 0) == expected;
     }
 
     private static (bool Success, string Message) ApplyTaskbarSearchBox(TaskbarSearchBoxMode mode)
@@ -420,10 +473,102 @@ public class ProvisioningService
             _ => 2
         };
 
-        using var key = OpenOrCreateKey(SearchKey);
-        key.SetValue("SearchboxTaskbarMode", value, RegistryValueKind.DWord);
+        var applied = ApplyUserRegistrySettings(
+            new UserRegistrySetting(SearchKey, "SearchboxTaskbarMode", value, RegistryValueKind.DWord));
+        if (!applied.Success) return applied;
+        NativeMethods.BroadcastSettingChange("TraySettings");
 
-        return (true, $"Modo da caixa de pesquisa definido como {mode}.");
+        return (true, $"Modo da caixa de pesquisa definido como {mode}. {applied.Message}");
+    }
+
+    private sealed record UserRegistrySetting(string Key, string Name, object Value, RegistryValueKind Kind);
+
+    /// <summary>
+    /// Persiste cada preferência pelo Registry API, confirma a leitura e usa reg.exe como
+    /// transporte alternativo. reg.exe não executa PowerShell e respeita o mesmo usuário.
+    /// </summary>
+    private static (bool Success, string Message) ApplyUserRegistrySettings(params UserRegistrySetting[] settings)
+    {
+        var methods = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var setting in settings)
+        {
+            string? apiError = null;
+            try
+            {
+                using var key = OpenOrCreateKey(setting.Key);
+                key.SetValue(setting.Name, setting.Value, setting.Kind);
+                key.Flush();
+                if (RegistryValueMatches(key.GetValue(setting.Name), setting.Value, setting.Kind))
+                {
+                    methods.Add("API de Registro");
+                    continue;
+                }
+                apiError = "a leitura de confirmação não correspondeu ao valor gravado";
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                apiError = ex.Message;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "reg.exe",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                };
+                startInfo.ArgumentList.Add("add");
+                startInfo.ArgumentList.Add($"HKCU\\{setting.Key}");
+                startInfo.ArgumentList.Add("/v");
+                startInfo.ArgumentList.Add(setting.Name);
+                startInfo.ArgumentList.Add("/t");
+                startInfo.ArgumentList.Add(setting.Kind == RegistryValueKind.DWord ? "REG_DWORD" : "REG_SZ");
+                startInfo.ArgumentList.Add("/d");
+                startInfo.ArgumentList.Add(Convert.ToString(setting.Value, CultureInfo.InvariantCulture) ?? string.Empty);
+                startInfo.ArgumentList.Add("/f");
+                using var process = Process.Start(startInfo)
+                    ?? throw new InvalidOperationException("Não foi possível iniciar reg.exe.");
+                string stdout = process.StandardOutput.ReadToEnd();
+                string stderr = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+                if (process.ExitCode == 0)
+                {
+                    using var verifyKey = Registry.CurrentUser.OpenSubKey(setting.Key, writable: false);
+                    if (verifyKey is not null && RegistryValueMatches(verifyKey.GetValue(setting.Name), setting.Value, setting.Kind))
+                    {
+                        methods.Add("reg.exe (fallback)");
+                        continue;
+                    }
+                    stderr = $"{stderr} leitura de confirmação não correspondeu ao valor gravado.";
+                }
+                return (false, $"Falha ao gravar HKCU\\{setting.Key}\\{setting.Name}. API de Registro: {apiError}. reg.exe ({process.ExitCode}): {stderr} {stdout}".Trim());
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return (false, $"Falha ao gravar HKCU\\{setting.Key}\\{setting.Name}. API de Registro: {apiError}. Fallback reg.exe: {ex.Message}");
+            }
+        }
+
+        return (true, $"Método(s): {string.Join(" + ", methods)}.");
+    }
+
+    private static bool RegistryValueMatches(object? actual, object expected, RegistryValueKind kind)
+    {
+        if (actual is null) return false;
+        if (kind == RegistryValueKind.DWord)
+        {
+            uint actualDword = actual is int signedValue
+                ? unchecked((uint)signedValue)
+                : Convert.ToUInt32(actual, CultureInfo.InvariantCulture);
+            uint expectedDword = Convert.ToUInt32(expected, CultureInfo.InvariantCulture);
+            return actualDword == expectedDword;
+        }
+
+        return string.Equals(Convert.ToString(actual, CultureInfo.InvariantCulture),
+                Convert.ToString(expected, CultureInfo.InvariantCulture), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -449,11 +594,53 @@ public class ProvisioningService
             PowerPlanMode.AltoDesempenho => PowerSchemeHighPerformance,
             _ => PowerSchemeBalanced
         };
+        string alias = plan switch
+        {
+            PowerPlanMode.Economia => "SCHEME_MIN",
+            PowerPlanMode.Equilibrado => "SCHEME_BALANCED",
+            PowerPlanMode.AltoDesempenho => "SCHEME_MAX",
+            _ => "SCHEME_BALANCED"
+        };
 
+        var attempts = new List<string>();
+        foreach (string target in new[] { guid, alias })
+        {
+            try
+            {
+                var result = await RunPowerCfgAsync($"/setactive {target}", ct);
+                if (result.ExitCode == 0)
+                    return (true, $"Plano \"{plan}\" ativado via powercfg ({target}).");
+                attempts.Add($"powercfg {target}: código {result.ExitCode} {result.Output}".Trim());
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                attempts.Add($"powercfg {target}: {ex.Message}");
+            }
+        }
+
+        try
+        {
+            Guid scheme = Guid.Parse(guid);
+            uint result = NativeMethods.PowerSetActiveScheme(nint.Zero, ref scheme);
+            if (result == 0)
+                return (true, $"Plano \"{plan}\" ativado pela API nativa de energia após falha do powercfg.");
+            attempts.Add($"PowerSetActiveScheme: código do Windows {result}.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            attempts.Add($"API nativa de energia: {ex.Message}");
+        }
+
+        return (false, $"Não foi possível ativar o plano \"{plan}\". Tentativas: {string.Join(" | ", attempts)} " +
+            "O plano pode não estar disponível nesta edição ou política do Windows.");
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunPowerCfgAsync(string arguments, CancellationToken ct)
+    {
         var startInfo = new ProcessStartInfo
         {
             FileName = "powercfg.exe",
-            Arguments = $"/setactive {guid}",
+            Arguments = arguments,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -461,22 +648,17 @@ public class ProvisioningService
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
-
         using var process = new Process { StartInfo = startInfo };
         var output = new StringBuilder();
-
         process.OutputDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
         process.ErrorDataReceived += (_, e) => { if (e.Data != null) output.AppendLine(e.Data); };
-
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        await process.WaitForExitAsync(ct);
-
-        return process.ExitCode == 0
-            ? (true, $"Plano \"{plan}\" ativado.")
-            : (false, $"powercfg retornou código {process.ExitCode}. {output}".Trim());
+        await process.WaitForExitAsync(ct).ConfigureAwait(false);
+        return (process.ExitCode, output.ToString().Trim());
     }
+
 
     /// <summary>
     /// Value-tuple forte (via record) para carregar os 4 possíveis timeouts de energia
@@ -520,33 +702,78 @@ public class ProvisioningService
 
         var summary = string.Join(", ", commands.Select(c => $"{c.Name}={FriendlyMinutes(c.Minutes)}"));
 
+        string? powerCfgFailure = null;
         foreach (var (settingName, minutes) in commands)
         {
-            var psi = new ProcessStartInfo
+            try
             {
-                FileName = "powercfg.exe",
-                Arguments = $"/change {settingName} {minutes}",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
-            using var proc = new Process { StartInfo = psi };
-            var outB = new StringBuilder();
-            proc.OutputDataReceived += (_, e) => { if (e.Data != null) outB.AppendLine(e.Data); };
-            proc.ErrorDataReceived += (_, e) => { if (e.Data != null) outB.AppendLine(e.Data); };
-            proc.Start();
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
-            await proc.WaitForExitAsync(ct);
-
-            if (proc.ExitCode != 0)
-                return (false, $"Erro em {settingName}={minutes}: powercfg ExitCode={proc.ExitCode}. {outB}".Trim());
+                var result = await RunPowerCfgAsync($"/change {settingName} {minutes}", ct);
+                if (result.ExitCode != 0)
+                {
+                    powerCfgFailure = $"powercfg {settingName}: código {result.ExitCode} {result.Output}".Trim();
+                    break;
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                powerCfgFailure = $"powercfg {settingName}: {ex.Message}";
+                break;
+            }
         }
 
-        return (true, $"Aplicados no plano ativo: {summary}.");
+        if (powerCfgFailure is null)
+            return (true, $"Aplicados no plano ativo via powercfg: {summary}.");
+
+        try
+        {
+            string apiMessage = ApplyPowerTimeoutsNative(input);
+            return (true, $"Aplicados no plano ativo pela API nativa de energia após falha do powercfg: {summary}. {apiMessage}");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return (false, $"Falharam powercfg e a API nativa. powercfg: {powerCfgFailure} API: {ex.Message}");
+        }
+    }
+
+    private static string ApplyPowerTimeoutsNative(PowerTimeoutsInput input)
+    {
+        uint getResult = NativeMethods.PowerGetActiveScheme(nint.Zero, out nint activeSchemePointer);
+        if (getResult != 0 || activeSchemePointer == nint.Zero)
+            throw new InvalidOperationException($"PowerGetActiveScheme retornou {getResult}.");
+
+        Guid activeScheme;
+        try { activeScheme = Marshal.PtrToStructure<Guid>(activeSchemePointer); }
+        finally { NativeMethods.LocalFree(activeSchemePointer); }
+
+        Guid videoSubgroup = Guid.Parse("7516b95f-f776-4464-8c53-06167f40cc99");
+        Guid videoIdle = Guid.Parse("3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e");
+        Guid sleepSubgroup = Guid.Parse("238c9fa8-0aad-41ed-83f4-97be242c8f20");
+        Guid standbyIdle = Guid.Parse("29f6c1db-86da-48c5-9fdb-f2b67b1f44da");
+        var errors = new List<string>();
+
+        void Write(string label, Guid subgroup, Guid setting, int? minutes, bool ac)
+        {
+            if (minutes is not { } value || value < 0) return;
+            uint seconds;
+            try { seconds = checked((uint)value * 60u); }
+            catch (OverflowException) { errors.Add($"{label}: o valor excede o limite."); return; }
+            uint result = ac
+                ? NativeMethods.PowerWriteACValueIndex(nint.Zero, ref activeScheme, ref subgroup, ref setting, seconds)
+                : NativeMethods.PowerWriteDCValueIndex(nint.Zero, ref activeScheme, ref subgroup, ref setting, seconds);
+            if (result != 0) errors.Add($"{label}: código do Windows {result}.");
+        }
+
+        Write("tela na tomada", videoSubgroup, videoIdle, input.DisplayTimeoutOnAc, ac: true);
+        Write("tela na bateria", videoSubgroup, videoIdle, input.DisplayTimeoutOnDc, ac: false);
+        Write("suspensão na tomada", sleepSubgroup, standbyIdle, input.StandbyTimeoutOnAc, ac: true);
+        Write("suspensão na bateria", sleepSubgroup, standbyIdle, input.StandbyTimeoutOnDc, ac: false);
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", errors));
+
+        uint applyResult = NativeMethods.PowerSetActiveScheme(nint.Zero, ref activeScheme);
+        if (applyResult != 0)
+            throw new InvalidOperationException($"PowerSetActiveScheme retornou {applyResult}.");
+        return "As alterações foram gravadas e reaplicadas ao plano ativo.";
     }
 
     private static async Task<(bool Success, string Message)> ApplyAutomaticClockSettingsAsync(
@@ -589,16 +816,19 @@ public class ProvisioningService
     private static (bool Success, string Message) ApplyExplorerPreferences(
         (bool? ShowFileExtensions, bool? ShowHiddenFiles, bool? OpenExplorerToThisPc) settings)
     {
-        using var key = OpenOrCreateKey(ExplorerAdvancedKey);
+        var writes = new List<UserRegistrySetting>();
         if (settings.ShowFileExtensions is { } showExtensions)
-            key.SetValue("HideFileExt", showExtensions ? 0 : 1, RegistryValueKind.DWord);
+            writes.Add(new UserRegistrySetting(ExplorerAdvancedKey, "HideFileExt", showExtensions ? 0 : 1, RegistryValueKind.DWord));
         if (settings.ShowHiddenFiles is { } showHidden)
-            key.SetValue("Hidden", showHidden ? 1 : 2, RegistryValueKind.DWord);
+            writes.Add(new UserRegistrySetting(ExplorerAdvancedKey, "Hidden", showHidden ? 1 : 2, RegistryValueKind.DWord));
         if (settings.OpenExplorerToThisPc is { } openToThisPc)
-            key.SetValue("LaunchTo", openToThisPc ? 1 : 2, RegistryValueKind.DWord);
+            writes.Add(new UserRegistrySetting(ExplorerAdvancedKey, "LaunchTo", openToThisPc ? 1 : 2, RegistryValueKind.DWord));
+
+        var applied = ApplyUserRegistrySettings(writes.ToArray());
+        if (!applied.Success) return applied;
 
         NativeMethods.BroadcastSettingChange("ShellState");
-        return (true, "Preferências do Explorador de Arquivos aplicadas.");
+        return (true, $"Preferências do Explorador de Arquivos aplicadas. {applied.Message}");
     }
 
     /// <summary>
@@ -660,23 +890,34 @@ public class ProvisioningService
         string imagePath = Path.Combine(folder, $"wallpaper{extension}");
         File.WriteAllBytes(imagePath, bytes);
 
-        using (var key = OpenOrCreateKey(DesktopKey))
-        {
-            key.SetValue("WallpaperStyle", "10", RegistryValueKind.String); // 10 = preencher (Windows 7+)
-            key.SetValue("TileWallpaper", "0", RegistryValueKind.String);
-        }
+        var registryResult = ApplyUserRegistrySettings(
+            new UserRegistrySetting(DesktopKey, "Wallpaper", imagePath, RegistryValueKind.String),
+            new UserRegistrySetting(DesktopKey, "WallpaperStyle", "10", RegistryValueKind.String), // 10 = preencher (Windows 7+)
+            new UserRegistrySetting(DesktopKey, "TileWallpaper", "0", RegistryValueKind.String));
+        if (!registryResult.Success)
+            return (false, $"A imagem foi salva em '{imagePath}', mas não foi possível persistir as preferências do papel de parede. {registryResult.Message}");
 
         bool ok = NativeMethods.SystemParametersInfo(
             NativeMethods.SpiSetDeskWallpaper, 0, imagePath,
             NativeMethods.SpifUpdateIniFile | NativeMethods.SpifSendChange);
 
-        if (!ok)
+        if (ok)
+            return (true, $"Wallpaper aplicado via SystemParametersInfo. {registryResult.Message}");
+
+        int firstError = Marshal.GetLastWin32Error();
+        // O primeiro SPI_SETDESKWALLPAPER atualiza a configuração e transmite a mudança.
+        // Tenta novamente pela mesma API sem a transmissão embutida e publica a alteração
+        // explicitamente; isso contorna falhas transitórias do broadcast do Shell.
+        bool retryOk = NativeMethods.SystemParametersInfo(
+            NativeMethods.SpiSetDeskWallpaper, 0, imagePath, NativeMethods.SpifUpdateIniFile);
+        if (retryOk)
         {
-            int error = Marshal.GetLastWin32Error();
-            return (false, $"SystemParametersInfo falhou (código de erro do Windows: {error}). Imagem salva em '{imagePath}'.");
+            NativeMethods.BroadcastSettingChange("Control Panel\\Desktop");
+            return (true, $"Wallpaper aplicado na segunda tentativa de SystemParametersInfo. {registryResult.Message}");
         }
 
-        return (true, $"Wallpaper aplicado a partir de '{imagePath}'.");
+        int secondError = Marshal.GetLastWin32Error();
+        return (false, $"SystemParametersInfo falhou nas duas tentativas (códigos {firstError}/{secondError}). As preferências foram salvas no Registro, mas o Shell não confirmou a aplicação; imagem em '{imagePath}'.");
     }
 
     /// <summary>
@@ -790,6 +1031,7 @@ public class ProvisioningService
     [SupportedOSPlatform("windows")]
     private static class NativeMethods
     {
+        public const uint AbmGetState = 0x00000004;
         public const uint AbmSetState = 0x0000000A;
         public const int AbsAutoHide = 0x00000001;
         public const int AbsAlwaysOnTop = 0x00000002;
@@ -830,6 +1072,23 @@ public class ProvisioningService
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, string pvParam, uint fWinIni);
+
+        [DllImport("powrprof.dll")]
+        public static extern uint PowerSetActiveScheme(nint userRootPowerKey, ref Guid schemeGuid);
+
+        [DllImport("powrprof.dll")]
+        public static extern uint PowerGetActiveScheme(nint userRootPowerKey, out nint activePolicyGuid);
+
+        [DllImport("powrprof.dll")]
+        public static extern uint PowerWriteACValueIndex(nint rootPowerKey, ref Guid schemeGuid,
+            ref Guid subgroupGuid, ref Guid settingGuid, uint valueIndex);
+
+        [DllImport("powrprof.dll")]
+        public static extern uint PowerWriteDCValueIndex(nint rootPowerKey, ref Guid schemeGuid,
+            ref Guid subgroupGuid, ref Guid settingGuid, uint valueIndex);
+
+        [DllImport("kernel32.dll")]
+        public static extern nint LocalFree(nint memory);
 
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern nint SendMessageTimeout(
