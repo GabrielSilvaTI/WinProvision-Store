@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using WinProvision.Core.Models;
 
@@ -11,8 +12,10 @@ namespace WinProvision.Core.Services;
 public class StoreService
 {
     private const string DatabaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json";
+    private const string ScreenshotIndexUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/screenshot-index.json";
     private readonly string _cacheDirectory;
     private readonly string _cacheFilePath;
+    private readonly string _screenshotIndexCacheFilePath;
     private readonly HttpClient _httpClient;
     private readonly IconService _iconService;
 
@@ -51,6 +54,7 @@ public class StoreService
         );
 
         _cacheFilePath = Path.Combine(_cacheDirectory, "apps.json");
+        _screenshotIndexCacheFilePath = Path.Combine(_cacheDirectory, "screenshot-index.json");
     }
 
     public async Task<List<AppEntry>> LoadCatalogAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
@@ -75,6 +79,7 @@ public class StoreService
                 {
                     string localJson = await File.ReadAllTextAsync(_cacheFilePath, cancellationToken);
                     SetCachedCatalog(JsonSerializer.Deserialize<List<AppEntry>>(localJson, _jsonOptions) ?? []);
+                    MergeScreenshotIndex(_cachedCatalog, LoadCachedScreenshotIndex());
                     await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
                     PopulateIcons(_cachedCatalog);
 
@@ -175,8 +180,13 @@ public class StoreService
         int generation = Volatile.Read(ref _cacheGeneration);
         try
         {
-            string remoteJson = await _httpClient.GetStringAsync(DatabaseUrl, cancellationToken);
+            Task<string> catalogDownload = _httpClient.GetStringAsync(DatabaseUrl, cancellationToken);
+            Task<ScreenshotIndexDocument?> screenshotIndexDownload = FetchScreenshotIndexAsync(cancellationToken);
+            await Task.WhenAll(catalogDownload, screenshotIndexDownload);
+
+            string remoteJson = await catalogDownload;
             var catalog = JsonSerializer.Deserialize<List<AppEntry>>(remoteJson, _jsonOptions) ?? [];
+            MergeScreenshotIndex(catalog, await screenshotIndexDownload);
 
             if (catalog.Count > 0)
             {
@@ -243,6 +253,8 @@ public class StoreService
         {
             if (File.Exists(_cacheFilePath))
                 File.Delete(_cacheFilePath);
+            if (File.Exists(_screenshotIndexCacheFilePath))
+                File.Delete(_screenshotIndexCacheFilePath);
         }
         catch (Exception ex)
         {
@@ -299,11 +311,111 @@ public class StoreService
         string PublisherUrl,
         string PackageUrl);
 
+    private async Task<ScreenshotIndexDocument?> FetchScreenshotIndexAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            string json = await _httpClient.GetStringAsync(ScreenshotIndexUrl, cancellationToken);
+            ScreenshotIndexDocument? document = JsonSerializer.Deserialize<ScreenshotIndexDocument>(json, _jsonOptions);
+            if (document?.SchemaVersion != 1 || document.Packages is null)
+                throw new JsonException("Índice de screenshots incompatível.");
+
+            Directory.CreateDirectory(_cacheDirectory);
+            string temporaryPath = _screenshotIndexCacheFilePath + ".tmp";
+            await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
+            File.Move(temporaryPath, _screenshotIndexCacheFilePath, overwrite: true);
+            return document;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Índice remoto de screenshots indisponível; usando cache local: {ex.Message}");
+            return LoadCachedScreenshotIndex();
+        }
+    }
+
+    private ScreenshotIndexDocument? LoadCachedScreenshotIndex()
+    {
+        try
+        {
+            if (!File.Exists(_screenshotIndexCacheFilePath))
+                return null;
+
+            ScreenshotIndexDocument? document = JsonSerializer.Deserialize<ScreenshotIndexDocument>(
+                File.ReadAllText(_screenshotIndexCacheFilePath), _jsonOptions);
+            return document?.SchemaVersion == 1 ? document : null;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Cache local do índice de screenshots inválido: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static void MergeScreenshotIndex(List<AppEntry> catalog, ScreenshotIndexDocument? document)
+    {
+        if (document?.Packages is not { Count: > 0 })
+            return;
+
+        var packages = new Dictionary<string, ScreenshotIndexPackage>(document.Packages, StringComparer.OrdinalIgnoreCase);
+        foreach (AppEntry app in catalog)
+        {
+            if (!packages.TryGetValue(app.Id, out ScreenshotIndexPackage? entry))
+                continue;
+
+            if (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase))
+                app.StoreScreenshotUrls = MergeScreenshotUrls(app.StoreScreenshotUrls, entry.Homepage);
+            else
+                app.ScreenshotUrls = MergeScreenshotUrls(
+                    MergeScreenshotUrls(app.ScreenshotUrls, entry.WinGet), entry.Homepage);
+        }
+    }
+
+    private static List<string>? MergeScreenshotUrls(List<string>? current, List<string>? indexed)
+    {
+        if (indexed is not { Count: > 0 })
+            return current;
+
+        var merged = new List<string>(Math.Min(MAX_SCREENSHOT_URLS, (current?.Count ?? 0) + indexed.Count));
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string url in (current ?? []).Concat(indexed))
+        {
+            if (merged.Count >= MAX_SCREENSHOT_URLS)
+                break;
+            if (Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) && uri.Scheme == Uri.UriSchemeHttps && seen.Add(url))
+                merged.Add(url);
+        }
+        return merged;
+    }
+
+    private const int MAX_SCREENSHOT_URLS = 12;
+
+    private sealed class ScreenshotIndexDocument
+    {
+        public int SchemaVersion { get; set; }
+        public Dictionary<string, ScreenshotIndexPackage>? Packages { get; set; }
+    }
+
+    private sealed class ScreenshotIndexPackage
+    {
+        [JsonPropertyName("winget")]
+        public List<string>? WinGet { get; set; }
+
+        [JsonPropertyName("homepage")]
+        public List<string>? Homepage { get; set; }
+    }
+
     private bool IsCacheStale()
     {
         try
         {
-            return !File.Exists(_cacheFilePath) || DateTime.UtcNow - File.GetLastWriteTimeUtc(_cacheFilePath) >= CatalogCacheTtl;
+            return !File.Exists(_cacheFilePath) ||
+                   !File.Exists(_screenshotIndexCacheFilePath) ||
+                   DateTime.UtcNow - File.GetLastWriteTimeUtc(_cacheFilePath) >= CatalogCacheTtl ||
+                   DateTime.UtcNow - File.GetLastWriteTimeUtc(_screenshotIndexCacheFilePath) >= CatalogCacheTtl;
         }
         catch
         {

@@ -1,10 +1,14 @@
 version: 2.1
 
 parameters:
+  run_screenshot_index:
+    type: boolean
+    default: false
+  # Compatibilidade com gatilhos existentes. Esses parâmetros agora acionam
+  # somente a reindexação de objetos já armazenados; não há rastreamento de sites.
   run_homepage_screenshot_sync:
     type: boolean
     default: false
-  # Compatibilidade com o nome configurado no agendamento existente do CircleCI.
   run_screenshot_sync:
     type: boolean
     default: false
@@ -19,73 +23,48 @@ parameters:
     default: ""
 
 jobs:
-  sync_homepage_screenshots:
+  publish_screenshot_index:
     docker:
       - image: cimg/python:3.12
     working_directory: ~/project
-    resource_class: medium
+    resource_class: small
     environment:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
-      HOMEPAGE_SCREENSHOT_PACKAGE_ID: << pipeline.parameters.homepage_screenshot_package_id >>
-      HOMEPAGE_SCREENSHOT_URL: << pipeline.parameters.homepage_screenshot_url >>
     steps:
       - checkout
       - run:
-          name: Instalar dependências
+          name: Preparar Python para o índice de screenshots
           command: |
             python3 -m venv /tmp/ci-venv
-            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/screenshots.txt
+            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
       - run:
-          name: Restaurar catálogo e estado do crawler do R2
-          command: |
-            mkdir -p homepage-screenshot-output
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Store/Database/apps.json "$PWD/homepage-screenshot-output/apps.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Store/Database/homepage-screenshot-state.json "$PWD/homepage-screenshot-output/state.json"
-            test -s homepage-screenshot-output/apps.json || {
-              echo "Catálogo Store/Database/apps.json não encontrado no R2."
-              exit 1
-            }
-            cp homepage-screenshot-output/apps.json homepage-screenshot-output/apps.previous.json
+          name: Preparar a pasta do índice
+          command: mkdir -p screenshot-index-output
       - run:
-          name: Procurar e publicar capturas nas páginas oficiais
+          name: Indexar somente screenshots já armazenadas no R2
           command: |
-            args=()
-            if [[ -n "$HOMEPAGE_SCREENSHOT_PACKAGE_ID" ]]; then
-              args+=(--package-id "$HOMEPAGE_SCREENSHOT_PACKAGE_ID")
-            fi
-            if [[ -n "$HOMEPAGE_SCREENSHOT_URL" ]]; then
-              args+=(--homepage-url "$HOMEPAGE_SCREENSHOT_URL")
-            fi
-            /tmp/ci-venv/bin/python scripts/database/sync_homepage_screenshots.py \
-              homepage-screenshot-output/apps.json homepage-screenshot-output/state.json \
-              --report homepage-screenshot-output/report.json \
-              --batch-size << pipeline.parameters.homepage_screenshot_batch_size >> "${args[@]}"
-          no_output_timeout: 30m
+            /tmp/ci-venv/bin/python scripts/database/index_r2_screenshots.py \
+              screenshot-index-output/screenshot-index.json \
+              --report screenshot-index-output/report.json
       - store_artifacts:
-          path: homepage-screenshot-output/report.json
-          destination: homepage-screenshot-report.json
+          path: screenshot-index-output/report.json
+          destination: screenshot-index-report.json
       - run:
-          name: Validar e publicar catálogo e estado
+          name: Publicar o índice compacto de screenshots
           command: |
-            /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
-              homepage-screenshot-output/apps.json \
-              --previous homepage-screenshot-output/apps.previous.json \
-              --min-count 5000 --min-retention 0.70
             /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/homepage-screenshot-output/apps.json" Store/Database/apps.json
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/homepage-screenshot-output/state.json" Store/Database/homepage-screenshot-state.json
+              "$PWD/screenshot-index-output/screenshot-index.json" \
+              Store/Database/screenshot-index.json
 
 workflows:
-  homepage_screenshots:
+  screenshot_index:
     when:
       or:
+        - << pipeline.parameters.run_screenshot_index >>
         - << pipeline.parameters.run_homepage_screenshot_sync >>
         - << pipeline.parameters.run_screenshot_sync >>
     jobs:
-      - sync_homepage_screenshots:
+      - publish_screenshot_index:
           context: r2-publishing
           filters:
             branches:
