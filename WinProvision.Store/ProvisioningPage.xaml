@@ -984,9 +984,16 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                 <TextBlock Text="Informação OEM" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Texto de identificação exibido nas informações do Windows." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" />
+                                                <TextBlock Text="Texto de identificação exibido nas informações do Windows."
+                                                           Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                           TextWrapping="Wrap" />
                                             </StackPanel>
-                                            <ui:TextBox x:Name="ProfileNameTextBox" Grid.Column="1" VerticalAlignment="Center" MaxLength="14" PlaceholderText="Sem nome" TextChanged="Field_Changed" />
+                                            <ui:TextBox x:Name="ProfileNameTextBox"
+                                                        Grid.Column="1"
+                                                        VerticalAlignment="Center"
+                                                        MaxLength="14"
+                                                        PlaceholderText="Sem nome"
+                                                        TextChanged="Field_Changed" />
                                         </Grid>
                                     </Border>
 
@@ -999,9 +1006,16 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Data e hora automáticas" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Sincroniza usando a fonte de horário já configurada no Windows, preservando políticas de domínio." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" />
+                                                    <TextBlock Text="Sincroniza usando a fonte de horário já configurada no Windows, preservando políticas de domínio."
+                                                               Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                               TextWrapping="Wrap" />
                                                 </StackPanel>
-                                                <CheckBox x:Name="AutomaticTimeCheckBox" Grid.Column="1" VerticalAlignment="Center" Content="Ativar" Checked="Field_Changed" Unchecked="Field_Changed" />
+                                                <CheckBox x:Name="AutomaticTimeCheckBox"
+                                                          Grid.Column="1"
+                                                          VerticalAlignment="Center"
+                                                          Content="Ativar"
+                                                          Checked="Field_Changed"
+                                                          Unchecked="Field_Changed" />
                                             </Grid>
                                             <Rectangle Height="1" Fill="{DynamicResource StoreBrush_0DFFFFFF}" />
                                             <Grid Margin="24,16">
@@ -1011,9 +1025,16 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
                                                     <TextBlock Text="Fuso horário automático" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock Text="Ajusta o fuso conforme a localização do sistema. A permissão de localização do Windows precisa estar ativa." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" />
+                                                    <TextBlock Text="Ajusta o fuso conforme a localização do sistema. A permissão de localização do Windows precisa estar ativa."
+                                                               Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                               TextWrapping="Wrap" />
                                                 </StackPanel>
-                                                <CheckBox x:Name="AutomaticTimeZoneCheckBox" Grid.Column="1" VerticalAlignment="Center" Content="Ativar" Checked="Field_Changed" Unchecked="Field_Changed" />
+                                                <CheckBox x:Name="AutomaticTimeZoneCheckBox"
+                                                          Grid.Column="1"
+                                                          VerticalAlignment="Center"
+                                                          Content="Ativar"
+                                                          Checked="Field_Changed"
+                                                          Unchecked="Field_Changed" />
                                             </Grid>
                                         </StackPanel>
                                     </Border>
@@ -1218,7 +1239,10 @@
                                         <StackPanel>
                                             <StackPanel Margin="24,16,24,12">
                                                 <TextBlock Text="Limpeza de arquivos temporários" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                <TextBlock Text="Analisa antes de excluir. Itens em uso e links para outras pastas são ignorados." Style="{StaticResource SettingsRowSubtitleStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                                                <TextBlock Text="Analisa antes de excluir. Itens em uso e links para outras pastas são ignorados."
+                                                           Style="{StaticResource SettingsRowSubtitleStyle}"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,4,0,0" />
                                             </StackPanel>
                                             <Grid Margin="24,0,24,12">
                                                 <Grid.ColumnDefinitions>
@@ -1227,7 +1251,9 @@
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="Idade mínima dos arquivos" Style="{StaticResource SettingsRowTitleStyle}" />
-                                                    <TextBlock x:Name="CleanTempAgeHintText" Text="Serão considerados arquivos com mais de 7 dias." Style="{StaticResource SettingsRowSubtitleStyle}" />
+                                                    <TextBlock x:Name="CleanTempAgeHintText"
+                                                               Text="Serão considerados arquivos com mais de 7 dias."
+                                                               Style="{StaticResource SettingsRowSubtitleStyle}" />
                                                 </StackPanel>
                                                 <ui:NumberBox x:Name="TempFileMinimumAgeDaysNumberBox"
                                                               Style="{StaticResource StoreNumberBoxStyle}"
@@ -1277,7 +1303,9 @@
                                                            HorizontalAlignment="Left"
                                                            CornerRadius="{StaticResource ControlCornerRadius}"
                                                            Click="AnalyzeTempFilesButton_Click">
-                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Search24" /></ui:Button.Icon>
+                                                    <ui:Button.Icon>
+                                                        <ui:SymbolIcon Symbol="Search24" />
+                                                    </ui:Button.Icon>
                                                 </ui:Button>
                                                 <ui:Button x:Name="CleanTempFilesButton"
                                                            Grid.Column="1"
@@ -1285,7 +1313,9 @@
                                                            Appearance="Primary"
                                                            CornerRadius="{StaticResource ControlCornerRadius}"
                                                            Click="CleanTempFilesButton_Click">
-                                                    <ui:Button.Icon><ui:SymbolIcon Symbol="Delete24" /></ui:Button.Icon>
+                                                    <ui:Button.Icon>
+                                                        <ui:SymbolIcon Symbol="Delete24" />
+                                                    </ui:Button.Icon>
                                                 </ui:Button>
                                             </Grid>
 

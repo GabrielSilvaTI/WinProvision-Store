@@ -15,7 +15,6 @@ import sys
 import time
 import unicodedata
 from collections import defaultdict
-from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -90,11 +89,7 @@ def build_index(client, bucket: str, prefix: str, public_base: str) -> dict:
             object_folders.add((source_kind, package_id))
 
     packages = {
-        package_id: {
-            source: urls
-            for source, urls in sorted(sources.items())
-            if urls
-        }
+        package_id: {source: urls for source, urls in sorted(sources.items()) if urls}
         for package_id, sources in sorted(grouped.items())
         if any(sources.values())
     }

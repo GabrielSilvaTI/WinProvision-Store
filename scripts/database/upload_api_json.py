@@ -134,7 +134,11 @@ def upload_single_file(client, local_path: str, bucket: str, r2_key: str) -> boo
             local_path,
             bucket,
             r2_key,
-            ExtraArgs={"ContentType": "application/json", "CacheControl": CACHE_CONTROL, "Metadata": {"sha256": digest}},
+            ExtraArgs={
+                "ContentType": "application/json",
+                "CacheControl": CACHE_CONTROL,
+                "Metadata": {"sha256": digest},
+            },
         )
         return True
     except Exception as exc:  # noqa: BLE001 - coleta falhas para não ativar uma publicação parcial.

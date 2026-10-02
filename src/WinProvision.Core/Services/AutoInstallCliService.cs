@@ -436,8 +436,10 @@ public class AutoInstallCliService
                         checkpoint.SetItemAsync(settingKey, new AutoCheckpointEntry
                         {
                             Status = step.Success ? "Completed" : "Failed",
-                            Message = step.Message, Method = "Windows API/fallback",
-                            DurationMilliseconds = (long)step.Elapsed.TotalMilliseconds, LogPath = logPath,
+                            Message = step.Message,
+                            Method = "Windows API/fallback",
+                            DurationMilliseconds = (long)step.Elapsed.TotalMilliseconds,
+                            LogPath = logPath,
                         }, CancellationToken.None).GetAwaiter().GetResult();
                         done++;
                         StageProgress(stage, total == 0 ? 100 : done * 100d / total, step.Setting);
@@ -450,7 +452,9 @@ public class AutoInstallCliService
                             _log($"[WinProvision] Ajuste '{setting}' foi interrompido; repetição segura por ser uma configuração idempotente.");
                         checkpoint.SetItemAsync(settingKey, new AutoCheckpointEntry
                         {
-                            Status = "Running", Method = "Provisioning API/fallback", LogPath = logPath,
+                            Status = "Running",
+                            Method = "Provisioning API/fallback",
+                            LogPath = logPath,
                         }, CancellationToken.None).GetAwaiter().GetResult();
                     });
 
@@ -629,10 +633,13 @@ public class AutoInstallCliService
                                 string verifiedMessage = "Encontrado no inventário do WinGet durante a retomada.";
                                 await checkpoint.SetItemAsync(checkpointKey, new AutoCheckpointEntry
                                 {
-                                    Status = "Completed", InstallerStarted = true,
+                                    Status = "Completed",
+                                    InstallerStarted = true,
                                     Method = saved.Method ?? "verificação do WinGet",
-                                    ExitCode = saved.ExitCode, DurationMilliseconds = saved.DurationMilliseconds,
-                                    Message = verifiedMessage, LogPath = logPath,
+                                    ExitCode = saved.ExitCode,
+                                    DurationMilliseconds = saved.DurationMilliseconds,
+                                    Message = verifiedMessage,
+                                    LogPath = logPath,
                                 }, CancellationToken.None);
                                 packageResults[index] = new AutoItemResult(label, appRef.Id, ResolvePackageSource(appRef),
                                     saved.Method ?? "verificação do WinGet", true,
@@ -661,8 +668,12 @@ public class AutoInstallCliService
                         _log($"[WinProvision] {label}: {interrupted}");
                         await checkpoint.SetItemAsync(checkpointKey, new AutoCheckpointEntry
                         {
-                            Status = "InterruptedUnknown", InstallerStarted = true,
-                            Method = saved.Method, ExitCode = saved.ExitCode, Message = interrupted, LogPath = logPath,
+                            Status = "InterruptedUnknown",
+                            InstallerStarted = true,
+                            Method = saved.Method,
+                            ExitCode = saved.ExitCode,
+                            Message = interrupted,
+                            LogPath = logPath,
                         }, CancellationToken.None);
                         packageResults[index] = new AutoItemResult(label, appRef.Id, ResolvePackageSource(appRef),
                             saved.Method ?? "desconhecido", false, null, interrupted, saved.ExitCode, true, "Resultado desconhecido");
@@ -718,7 +729,10 @@ public class AutoInstallCliService
                             packageProgress.Average(), $"Instalando {label}…", WingetMethod.Unknown);
                     await checkpoint.SetItemAsync(checkpointKey, new AutoCheckpointEntry
                     {
-                        Status = "Running", InstallerStarted = false, Method = "Preparando", LogPath = logPath,
+                        Status = "Running",
+                        InstallerStarted = false,
+                        Method = "Preparando",
+                        LogPath = logPath,
                     }, ct).ConfigureAwait(false);
                     var installResult = await InstallWingetAsync(appRef, ct, ReportPackageProgress)
                         .ConfigureAwait(false);
@@ -746,9 +760,12 @@ public class AutoInstallCliService
                     await checkpoint.SetItemAsync(checkpointKey, new AutoCheckpointEntry
                     {
                         Status = ok ? "Completed" : installResult.InstallerStarted ? "FailedAfterStart" : "FailedBeforeStart",
-                        Method = installResult.Method, ExitCode = installResult.ExitCode,
+                        Method = installResult.Method,
+                        ExitCode = installResult.ExitCode,
                         DurationMilliseconds = (long)installResult.Elapsed.TotalMilliseconds,
-                        InstallerStarted = installResult.InstallerStarted, Message = installResult.Error, LogPath = logPath,
+                        InstallerStarted = installResult.InstallerStarted,
+                        Message = installResult.Error,
+                        LogPath = logPath,
                     }, CancellationToken.None).ConfigureAwait(false);
                     if (ok)
                         Interlocked.Increment(ref succeeded);
@@ -786,7 +803,8 @@ public class AutoInstallCliService
                 allSucceeded ? null : "Um ou mais pacotes falharam; consulte o diagnóstico detalhado no log.");
             await checkpoint.SetStageAsync(AutoInstallStage.PackagesAndApps.ToString(), new AutoCheckpointEntry
             {
-                Status = allSucceeded ? "Completed" : "CompletedWithWarnings", LogPath = logPath,
+                Status = allSucceeded ? "Completed" : "CompletedWithWarnings",
+                LogPath = logPath,
             }, CancellationToken.None);
             _log($"[WinProvision] Etapa de pacotes concluída em {FormatElapsed(packageStageTimer.Elapsed)}.");
         }
@@ -828,8 +846,12 @@ public class AutoInstallCliService
                         : "O ODT anterior iniciou e retornou falha; não será repetido automaticamente. Verifique o Office antes de executar novamente.";
                     await checkpoint.SetItemAsync(officeKey, new AutoCheckpointEntry
                     {
-                        Status = "InterruptedUnknown", InstallerStarted = true,
-                        Method = "ODT", ExitCode = savedOffice.ExitCode, Message = interruptedOffice, LogPath = logPath,
+                        Status = "InterruptedUnknown",
+                        InstallerStarted = true,
+                        Method = "ODT",
+                        ExitCode = savedOffice.ExitCode,
+                        Message = interruptedOffice,
+                        LogPath = logPath,
                         DurationMilliseconds = savedOffice.DurationMilliseconds,
                     }, CancellationToken.None);
                     itemResults.Add(new AutoItemResult(label, appRef.OfficeOptions!.ProductId, "Office", "ODT",
@@ -848,7 +870,10 @@ public class AutoInstallCliService
                         : $"Instalando {label} pela CDN da Microsoft…");
                 await checkpoint.SetItemAsync(officeKey, new AutoCheckpointEntry
                 {
-                    Status = "Running", InstallerStarted = false, Method = "ODT", LogPath = logPath,
+                    Status = "Running",
+                    InstallerStarted = false,
+                    Method = "ODT",
+                    LogPath = logPath,
                 }, ct);
                 var officeResult = await InstallOfficeAsync(appRef, appRef.OfficeOptions!, ct,
                     progress: percent => StageProgress(AutoInstallStage.MicrosoftOffice, installBase,
@@ -862,10 +887,13 @@ public class AutoInstallCliService
                     officeResult.InstallerStarted, officeResult.FailureReason));
                 await checkpoint.SetItemAsync(officeKey, new AutoCheckpointEntry
                 {
-                    Status = ok ? "Completed" : "FailedAfterStart", Method = "ODT",
-                    ExitCode = officeResult.ExitCode, InstallerStarted = officeResult.InstallerStarted,
+                    Status = ok ? "Completed" : "FailedAfterStart",
+                    Method = "ODT",
+                    ExitCode = officeResult.ExitCode,
+                    InstallerStarted = officeResult.InstallerStarted,
                     DurationMilliseconds = (long)officeResult.Elapsed.TotalMilliseconds,
-                    Message = officeResult.Error, LogPath = logPath,
+                    Message = officeResult.Error,
+                    LogPath = logPath,
                 }, CancellationToken.None);
                 allSucceeded &= ok;
                 if (ok) succeeded++; else failed++;
@@ -876,7 +904,8 @@ public class AutoInstallCliService
                 allSucceeded ? null : "A instalação do Office falhou; consulte o diagnóstico detalhado no log.");
             await checkpoint.SetStageAsync(AutoInstallStage.MicrosoftOffice.ToString(), new AutoCheckpointEntry
             {
-                Status = allSucceeded ? "Completed" : "CompletedWithWarnings", LogPath = logPath,
+                Status = allSucceeded ? "Completed" : "CompletedWithWarnings",
+                LogPath = logPath,
             }, CancellationToken.None);
             _log($"[WinProvision] Etapa Office concluída em {FormatElapsed(officeStageTimer.Elapsed)}.");
         }

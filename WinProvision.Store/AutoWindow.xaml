@@ -13,7 +13,7 @@
                  MinHeight="480"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
-             Icon="{DynamicResource AppIconImage}"
+                 Icon="{DynamicResource AppIconImage}"
                  FontFamily="{StaticResource StoreFontFamily}"
                  TextElement.FontFamily="{StaticResource StoreFontFamily}"
                  TextOptions.TextRenderingMode="ClearType"
@@ -74,439 +74,439 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           PanningMode="VerticalOnly">
-            <Grid x:Name="WorkspaceGrid">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*" />
-                    <ColumnDefinition Width="1.15*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-
-                <!--  Primary workspace  -->
-                <Border x:Name="PrimaryWorkspace"
-                        Grid.Column="0"
-                        Style="{StaticResource StoreCardSurfaceStyle}"
-                        Margin="0,0,16,0"
-                        Padding="24">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-
-                        <Grid Grid.Row="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="WinProvision " Style="{StaticResource OrchestratorTitleStyle}" />
-                                    <TextBlock Text="Orchestrator"
-                                               Style="{StaticResource OrchestratorTitleStyle}"
-                                               Foreground="{StaticResource OrchestratorTitleBrush}" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding ProfileName}"
-                                           Style="{StaticResource StoreSubtitleStyle}"
-                                           Margin="0,4,0,0"
-                                           TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1"
-                                        Orientation="Horizontal"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="{Binding GlobalProgressText}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                                <TextBlock Text=" concluído"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           Margin="5,2,0,0" />
-                            </StackPanel>
-                        </Grid>
-
-                        <!--  Global progress  -->
-                        <Grid x:Name="GlobalProgressTrack"
-                              Grid.Row="1"
-                              Height="8"
-                              Margin="0,20,0,20"
-                              ClipToBounds="True">
-                            <Border Background="{DynamicResource ControlFillColorTertiaryBrush}" CornerRadius="{StaticResource CompactCornerRadius}" />
-                            <Border Background="{Binding GlobalMethod, Converter={StaticResource WingetMethodBrushConverter}}"
-                                    CornerRadius="{StaticResource CompactCornerRadius}"
-                                    HorizontalAlignment="Stretch"
-                                    RenderTransformOrigin="0,0.5"
-                                    conv:AnimatedProgress.Percent="{Binding GlobalProgress}">
-                                <Border.RenderTransform>
-                                    <ScaleTransform ScaleX="0" />
-                                </Border.RenderTransform>
-                            </Border>
-                            <Border x:Name="GlobalProgressShimmer"
-                                    Width="92"
-                                    CornerRadius="{StaticResource CompactCornerRadius}"
-                                    Background="{DynamicResource AccentFillColorTertiaryBrush}"
-                                    Opacity="0.18"
-                                    HorizontalAlignment="Left">
-                                <Border.RenderTransform>
-                                    <TranslateTransform x:Name="GlobalProgressShimmerTransform" X="-92" />
-                                </Border.RenderTransform>
-                            </Border>
-                        </Grid>
-
-                        <!--  Dynamic stage collection. The JSON decides which cards exist.  -->
-                        <ScrollViewer Grid.Row="2"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      Padding="0,0,2,0">
-                            <ItemsControl ItemsSource="{Binding Stages}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <controls:StageItemControl Margin="0,0,0,10" />
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
-
-                <!--  Right information rail  -->
-                <Grid x:Name="RightInformationRail" Grid.Column="1">
+                <Grid x:Name="WorkspaceGrid">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="1.15*" />
+                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="32" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="12" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="0"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center">
-                        <ui:SymbolIcon Symbol="Info24"
-                                       FontSize="16"
-                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
-                                       Margin="0,0,8,0" />
-                        <TextBlock Text="Estado: "
-                                   FontSize="12"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        <TextBlock Text="{Binding StatusText}"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                    </StackPanel>
-
-                    <!--  Purpose  -->
-                    <Border Grid.Row="2"
+                    <!--  Primary workspace  -->
+                    <Border x:Name="PrimaryWorkspace"
+                            Grid.Column="0"
                             Style="{StaticResource StoreCardSurfaceStyle}"
-                            Margin="0"
-                            Padding="20">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="40" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Border Width="40"
-                                    Height="40"
-                                    CornerRadius="{StaticResource ControlCornerRadius}"
-                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                    BorderBrush="{DynamicResource AppCardBorderBrush}"
-                                    BorderThickness="1"
-                                    HorizontalAlignment="Left">
-                                <Image Source="{DynamicResource AppIconImage}"
-                                       Width="24"
-                                       Height="24"
-                                       Stretch="Uniform"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                            </Border>
-                            <TextBlock Grid.Row="1"
-                                       Margin="0,13,0,0"
-                                       Text="Seu computador, pronto para usar."
-                                       FontSize="16"
-                                       LineHeight="22"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                       TextWrapping="Wrap" />
-                            <TextBlock Grid.Row="2"
-                                       Margin="0,9,0,0"
-                                       Text="WinProvision Store"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                        </Grid>
-                    </Border>
-
-                    <!--  System information  -->
-                    <Border Grid.Row="4"
-                            Style="{StaticResource StoreCardSurfaceStyle}"
-                            Margin="0"
-                            Padding="20">
+                            Margin="0,0,16,0"
+                            Padding="24">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="1" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="1" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="1" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="1" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="1" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <Grid Grid.Row="0" Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="40" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        Style="{StaticResource PageHeaderIconTileStyle}"
-                                        Margin="0">
-                                    <ui:SymbolIcon Symbol="Desktop24"
-                                                   Style="{StaticResource PageHeaderSymbolIconStyle}"
-                                                   FontSize="19" />
-                                </Border>
-                                <TextBlock Grid.Column="1"
-                                           Margin="9,0,0,0"
-                                           Text="Informações do sistema"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-
-                            <Border Grid.Row="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                            <Grid Grid.Row="2" Margin="0,7,0,7">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Windows"
-                                           FontSize="11.5"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SysInfo.WindowsVersion}"
-                                           FontSize="11.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           TextAlignment="Right" />
-                            </Grid>
-                            <Border Grid.Row="3" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                            <Grid Grid.Row="4" Margin="0,7,0,7">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Arquitetura"
-                                           FontSize="11.5"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SysInfo.Architecture}"
-                                           FontSize="11.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </Grid>
-                            <Border Grid.Row="5" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                            <Grid Grid.Row="6" Margin="0,7,0,7">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Processador"
-                                           FontSize="11.5"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           VerticalAlignment="Center" />
-                                <TextBlock Grid.Column="2"
-                                           Text="{Binding SysInfo.ProcessorName}"
-                                           FontSize="11.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           TextAlignment="Right"
-                                           TextWrapping="NoWrap"
-                                           TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding SysInfo.ProcessorName}" />
-                            </Grid>
-                            <Border Grid.Row="7" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                            <Grid Grid.Row="8" Margin="0,7,0,7">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Memória RAM"
-                                           FontSize="11.5"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SysInfo.RamSize}"
-                                           FontSize="11.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            </Grid>
-                            <Border Grid.Row="9" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
-
-                            <Grid Grid.Row="10" Margin="0,7,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="Disco"
-                                           FontSize="11.5"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding SysInfo.DiskSpace}"
-                                           FontSize="11.5"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           TextAlignment="Right"
-                                           TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding SysInfo.DiskSpace}" />
-                            </Grid>
-                        </Grid>
-                    </Border>
-
-                    <!--  Philosophy  -->
-                    <Border x:Name="PurposePanel"
-                            Grid.Row="6"
-                            Style="{StaticResource StoreCardSurfaceStyle}"
-                            Margin="0"
-                            Padding="20,18">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <ui:SymbolIcon Symbol="Flash24"
-                                               FontSize="18"
-                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
-                                <TextBlock Text="Nosso propósito"
-                                           Margin="10,0,0,0"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock Margin="0,17,0,0"
-                                       Text="Preparamos o Windows para você começar a usar."
-                                       FontSize="12.5"
-                                       LineHeight="18"
-                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                       TextWrapping="Wrap" />
-                            <TextBlock Margin="0,11,0,0"
-                                       Text="WinProvision Store"
-                                       FontSize="12.5"
-                                       FontStyle="Italic"
-                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <TextBlock Margin="0,6,0,0"
-                                       Text="— WinProvision"
-                                       FontSize="10.5"
-                                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                        </StackPanel>
-                    </Border>
-                    <Border x:Name="CloudTrackingPanel"
-                            Grid.Row="6"
-                            Style="{StaticResource StoreCardSurfaceStyle}"
-                            Margin="0"
-                            Padding="16"
-                            Visibility="Collapsed">
-                        <Grid>
-                            <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <Border Width="40"
-                                        Height="40"
-                                        Style="{StaticResource PageHeaderIconTileStyle}"
-                                        Margin="0">
-                                    <ui:SymbolIcon Symbol="Cloud24"
-                                                   Style="{StaticResource PageHeaderSymbolIconStyle}"
-                                                   FontSize="19" />
-                                </Border>
-                                <TextBlock Text="Acompanhe esta execução"
-                                           Margin="12,0,0,0"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                            <Grid Grid.Row="1">
+
+                            <Grid Grid.Row="0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="140"
-                                        Height="140"
-                                        Padding="3"
-                                        Background="White"
-                                        BorderBrush="{DynamicResource AppBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="{StaticResource ControlCornerRadius}"
-                                        ClipToBounds="True"
-                                        VerticalAlignment="Center"
-                                        ToolTip="QR Code para acompanhar os logs desta execução">
-                                    <Image x:Name="CloudTrackingQrImage"
-                                           Stretch="Uniform"
-                                           SnapsToDevicePixels="True"
-                                           RenderOptions.EdgeMode="Aliased" />
-                                </Border>
+                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="WinProvision " Style="{StaticResource OrchestratorTitleStyle}" />
+                                        <TextBlock Text="Orchestrator"
+                                                   Style="{StaticResource OrchestratorTitleStyle}"
+                                                   Foreground="{StaticResource OrchestratorTitleBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ProfileName}"
+                                               Style="{StaticResource StoreSubtitleStyle}"
+                                               Margin="0,4,0,0"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
                                 <StackPanel Grid.Column="1"
-                                            Margin="14,0,0,0"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
                                             VerticalAlignment="Center">
-                                    <TextBlock Text="Leia o código com a câmera para acompanhar os logs."
-                                               FontSize="11.5"
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               TextWrapping="Wrap" />
-                                    <TextBlock Text="LINK DA EXECUÇÃO"
-                                               Margin="0,12,0,5"
-                                               FontSize="10"
+                                    <TextBlock Text="{Binding GlobalProgressText}"
+                                               FontSize="16"
                                                FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
-                                    <ui:TextBox x:Name="CloudTrackingUrlTextBox"
-                                                Height="34"
-                                                Padding="9,4"
-                                                FontSize="10.5"
-                                                IsReadOnly="True"
-                                                TextWrapping="NoWrap"
-                                                MaxLines="1"
-                                                Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                                BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                                BorderThickness="1"
-                                                ToolTip="Link completo dos logs desta execução"
-                                                Cursor="IBeam" />
-                                    <WrapPanel Margin="0,10,0,0">
-                                        <ui:Button Content="Abrir logs"
-                                                   Style="{StaticResource StoreActionButtonStyle}"
-                                                   Appearance="Primary"
-                                                   Click="OpenCloudTrackingUrl_Click"
-                                                   Margin="0,0,8,0" />
-                                        <ui:Button Content="Copiar link"
-                                                   Style="{StaticResource StoreActionButtonStyle}"
-                                                   Click="CopyCloudTrackingUrl_Click"
-                                                   ToolTip="Copiar o link completo para a área de transferência" />
-                                    </WrapPanel>
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <TextBlock Text=" concluído"
+                                               FontSize="12"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               Margin="5,2,0,0" />
                                 </StackPanel>
                             </Grid>
+
+                            <!--  Global progress  -->
+                            <Grid x:Name="GlobalProgressTrack"
+                                  Grid.Row="1"
+                                  Height="8"
+                                  Margin="0,20,0,20"
+                                  ClipToBounds="True">
+                                <Border Background="{DynamicResource ControlFillColorTertiaryBrush}" CornerRadius="{StaticResource CompactCornerRadius}" />
+                                <Border Background="{Binding GlobalMethod, Converter={StaticResource WingetMethodBrushConverter}}"
+                                        CornerRadius="{StaticResource CompactCornerRadius}"
+                                        HorizontalAlignment="Stretch"
+                                        RenderTransformOrigin="0,0.5"
+                                        conv:AnimatedProgress.Percent="{Binding GlobalProgress}">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="0" />
+                                    </Border.RenderTransform>
+                                </Border>
+                                <Border x:Name="GlobalProgressShimmer"
+                                        Width="92"
+                                        CornerRadius="{StaticResource CompactCornerRadius}"
+                                        Background="{DynamicResource AccentFillColorTertiaryBrush}"
+                                        Opacity="0.18"
+                                        HorizontalAlignment="Left">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="GlobalProgressShimmerTransform" X="-92" />
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Grid>
+
+                            <!--  Dynamic stage collection. The JSON decides which cards exist.  -->
+                            <ScrollViewer Grid.Row="2"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="0,0,2,0">
+                                <ItemsControl ItemsSource="{Binding Stages}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <controls:StageItemControl Margin="0,0,0,10" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
                         </Grid>
                     </Border>
+
+                    <!--  Right information rail  -->
+                    <Grid x:Name="RightInformationRail" Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="32" />
+                            <RowDefinition Height="12" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="12" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="12" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Info24"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="Estado: "
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <TextBlock Text="{Binding StatusText}"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                        </StackPanel>
+
+                        <!--  Purpose  -->
+                        <Border Grid.Row="2"
+                                Style="{StaticResource StoreCardSurfaceStyle}"
+                                Margin="0"
+                                Padding="20">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="40" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Border Width="40"
+                                        Height="40"
+                                        CornerRadius="{StaticResource ControlCornerRadius}"
+                                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource AppCardBorderBrush}"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Left">
+                                    <Image Source="{DynamicResource AppIconImage}"
+                                           Width="24"
+                                           Height="24"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Row="1"
+                                           Margin="0,13,0,0"
+                                           Text="Seu computador, pronto para usar."
+                                           FontSize="16"
+                                           LineHeight="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="2"
+                                           Margin="0,9,0,0"
+                                           Text="WinProvision Store"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            </Grid>
+                        </Border>
+
+                        <!--  System information  -->
+                        <Border Grid.Row="4"
+                                Style="{StaticResource StoreCardSurfaceStyle}"
+                                Margin="0"
+                                Padding="20">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="1" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0" Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="40" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40"
+                                            Height="40"
+                                            Style="{StaticResource PageHeaderIconTileStyle}"
+                                            Margin="0">
+                                        <ui:SymbolIcon Symbol="Desktop24"
+                                                       Style="{StaticResource PageHeaderSymbolIconStyle}"
+                                                       FontSize="19" />
+                                    </Border>
+                                    <TextBlock Grid.Column="1"
+                                               Margin="9,0,0,0"
+                                               Text="Informações do sistema"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Border Grid.Row="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                <Grid Grid.Row="2" Margin="0,7,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Windows"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding SysInfo.WindowsVersion}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               TextAlignment="Right" />
+                                </Grid>
+                                <Border Grid.Row="3" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                <Grid Grid.Row="4" Margin="0,7,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Arquitetura"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding SysInfo.Architecture}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Grid>
+                                <Border Grid.Row="5" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                <Grid Grid.Row="6" Margin="0,7,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Processador"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding SysInfo.ProcessorName}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               TextAlignment="Right"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding SysInfo.ProcessorName}" />
+                                </Grid>
+                                <Border Grid.Row="7" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                <Grid Grid.Row="8" Margin="0,7,0,7">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Memória RAM"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding SysInfo.RamSize}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                </Grid>
+                                <Border Grid.Row="9" Background="{DynamicResource DividerStrokeColorDefaultBrush}" />
+
+                                <Grid Grid.Row="10" Margin="0,7,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Disco"
+                                               FontSize="11.5"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding SysInfo.DiskSpace}"
+                                               FontSize="11.5"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               TextAlignment="Right"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding SysInfo.DiskSpace}" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <!--  Philosophy  -->
+                        <Border x:Name="PurposePanel"
+                                Grid.Row="6"
+                                Style="{StaticResource StoreCardSurfaceStyle}"
+                                Margin="0"
+                                Padding="20,18">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Flash24"
+                                                   FontSize="18"
+                                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                                    <TextBlock Text="Nosso propósito"
+                                               Margin="10,0,0,0"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <TextBlock Margin="0,17,0,0"
+                                           Text="Preparamos o Windows para você começar a usar."
+                                           FontSize="12.5"
+                                           LineHeight="18"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,11,0,0"
+                                           Text="WinProvision Store"
+                                           FontSize="12.5"
+                                           FontStyle="Italic"
+                                           Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="— WinProvision"
+                                           FontSize="10.5"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                            </StackPanel>
+                        </Border>
+                        <Border x:Name="CloudTrackingPanel"
+                                Grid.Row="6"
+                                Style="{StaticResource StoreCardSurfaceStyle}"
+                                Margin="0"
+                                Padding="16"
+                                Visibility="Collapsed">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <Border Width="40"
+                                            Height="40"
+                                            Style="{StaticResource PageHeaderIconTileStyle}"
+                                            Margin="0">
+                                        <ui:SymbolIcon Symbol="Cloud24"
+                                                       Style="{StaticResource PageHeaderSymbolIconStyle}"
+                                                       FontSize="19" />
+                                    </Border>
+                                    <TextBlock Text="Acompanhe esta execução"
+                                               Margin="12,0,0,0"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="140"
+                                            Height="140"
+                                            Padding="3"
+                                            Background="White"
+                                            BorderBrush="{DynamicResource AppBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="{StaticResource ControlCornerRadius}"
+                                            ClipToBounds="True"
+                                            VerticalAlignment="Center"
+                                            ToolTip="QR Code para acompanhar os logs desta execução">
+                                        <Image x:Name="CloudTrackingQrImage"
+                                               Stretch="Uniform"
+                                               SnapsToDevicePixels="True"
+                                               RenderOptions.EdgeMode="Aliased" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="14,0,0,0"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Leia o código com a câmera para acompanhar os logs."
+                                                   FontSize="11.5"
+                                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="LINK DA EXECUÇÃO"
+                                                   Margin="0,12,0,5"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+                                        <ui:TextBox x:Name="CloudTrackingUrlTextBox"
+                                                    Height="34"
+                                                    Padding="9,4"
+                                                    FontSize="10.5"
+                                                    IsReadOnly="True"
+                                                    TextWrapping="NoWrap"
+                                                    MaxLines="1"
+                                                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                                    BorderThickness="1"
+                                                    ToolTip="Link completo dos logs desta execução"
+                                                    Cursor="IBeam" />
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <ui:Button Content="Abrir logs"
+                                                       Style="{StaticResource StoreActionButtonStyle}"
+                                                       Appearance="Primary"
+                                                       Click="OpenCloudTrackingUrl_Click"
+                                                       Margin="0,0,8,0" />
+                                            <ui:Button Content="Copiar link"
+                                                       Style="{StaticResource StoreActionButtonStyle}"
+                                                       Click="CopyCloudTrackingUrl_Click"
+                                                       ToolTip="Copiar o link completo para a área de transferência" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
-            </Grid>
             </ScrollViewer>
 
             <!--  Footer  -->

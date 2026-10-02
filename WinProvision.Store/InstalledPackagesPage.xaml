@@ -1191,8 +1191,7 @@
                         </StackPanel>
 
                         <!--  Estado Vazio  -->
-                        <StackPanel Style="{StaticResource PageEmptyStatePanelStyle}"
-                                    Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <StackPanel Style="{StaticResource PageEmptyStatePanelStyle}" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Border Style="{StaticResource PageEmptyStateIconTileStyle}">
                                 <Image Source="{DynamicResource EmptyStateBrandIcon}"
                                        Width="40"
@@ -1202,10 +1201,8 @@
                                        VerticalAlignment="Center"
                                        AutomationProperties.Name="Ícone do WinProvision" />
                             </Border>
-                            <TextBlock Text="Nenhum pacote instalado encontrado"
-                                       Style="{StaticResource PageEmptyStateTitleStyle}" />
-                            <TextBlock Text="Tente ajustar os filtros ou atualizar a lista de aplicativos instalados."
-                                       Style="{StaticResource PageEmptyStateMessageStyle}" />
+                            <TextBlock Text="Nenhum pacote instalado encontrado" Style="{StaticResource PageEmptyStateTitleStyle}" />
+                            <TextBlock Text="Tente ajustar os filtros ou atualizar a lista de aplicativos instalados." Style="{StaticResource PageEmptyStateMessageStyle}" />
                         </StackPanel>
 
                     </Grid>

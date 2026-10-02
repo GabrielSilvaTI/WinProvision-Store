@@ -907,10 +907,8 @@
                                                        HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" />
                                     </Border>
-                                    <TextBlock Text="Nenhum aplicativo encontrado"
-                                               Style="{StaticResource PageEmptyStateTitleStyle}" />
-                                    <TextBlock Text="Tente pesquisar pelo nome do aplicativo, pelo publicador ou pelo ID do pacote."
-                                               Style="{StaticResource PageEmptyStateMessageStyle}" />
+                                    <TextBlock Text="Nenhum aplicativo encontrado" Style="{StaticResource PageEmptyStateTitleStyle}" />
+                                    <TextBlock Text="Tente pesquisar pelo nome do aplicativo, pelo publicador ou pelo ID do pacote." Style="{StaticResource PageEmptyStateMessageStyle}" />
                                 </StackPanel>
                             </Border>
                         </Grid>
