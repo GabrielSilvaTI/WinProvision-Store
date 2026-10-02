@@ -74,11 +74,45 @@ jobs:
               "$PWD/catalog-output/api" \
               "$PWD/catalog-output/api-previous/package-hashes.json" \
               Store/Api/v1
+            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              "$PWD/catalog-output/metrics-cache.json" Store/Database/metrics-cache.json
             APPS_JSON_SOURCE="$PWD/catalog-output/apps.json" \
             PREVIOUS_APPS_JSON_PATH="$PWD/catalog-output/apps.previous.json" \
               /tmp/ci-venv/bin/python scripts/database/upload_apps_json.py
+
+  publish_screenshot_index:
+    docker:
+      - image: cimg/python:3.12
+    working_directory: ~/project
+    resource_class: small
+    environment:
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+    steps:
+      - checkout
+      - run:
+          name: Preparar Python para o índice de screenshots
+          command: |
+            python3 -m venv /tmp/ci-venv
+            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - run:
+          name: Preparar a pasta do índice
+          command: |
+            mkdir -p screenshot-index-output
+      - run:
+          name: Indexar somente screenshots já armazenadas no R2
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/index_r2_screenshots.py \
+              screenshot-index-output/screenshot-index.json \
+              --report screenshot-index-output/report.json
+      - store_artifacts:
+          path: screenshot-index-output/report.json
+          destination: screenshot-index-report.json
+      - run:
+          name: Publicar o índice compacto de screenshots
+          command: |
             /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/catalog-output/metrics-cache.json" Store/Database/metrics-cache.json
+              "$PWD/screenshot-index-output/screenshot-index.json" \
+              Store/Database/screenshot-index.json
 
 workflows:
   winget_catalog:
@@ -86,6 +120,13 @@ workflows:
     jobs:
       - publish_winget_catalog:
           context: r2-publishing
+          filters:
+            branches:
+              only: main
+      - publish_screenshot_index:
+          context: r2-publishing
+          requires:
+            - publish_winget_catalog
           filters:
             branches:
               only: main

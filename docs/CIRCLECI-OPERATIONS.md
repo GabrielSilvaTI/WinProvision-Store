@@ -6,14 +6,14 @@ Os pipelines abaixo usam YAMLs independentes. Cadastre cada caminho em **Project
 |---|---|---|
 | Saúde dos catálogos | `.circleci/catalog-health.yml` | Agende com `run_catalog_health=true`. `max_media_urls=0` verifica todas as mídias; um número positivo roda uma amostra semanal rotativa. Não precisa de credenciais. |
 | Snapshots/recuperação | `.circleci/catalog-recovery.yml` | Agende `run_catalog_snapshot=true` diariamente. Para restaurar, rode manualmente com `restore_catalog_snapshot=true` e `catalog_snapshot_id=AAAAMMDDTHHMMSSZ`. |
-| Screenshots WinGet | `.circleci/screenshots.yml` | Agende `run_screenshot_sync=true` depois da atualização do catálogo WinGet. Requer o contexto `r2-publishing`. |
-| Capturas das páginas oficiais | `.circleci/homepage-screenshots.yml` | Agende `run_homepage_screenshot_sync=true`. `homepage_screenshot_batch_size` define o lote (padrão: 100). Para um caso específico, use `homepage_screenshot_package_id` ou `homepage_screenshot_url`. O nome antigo `run_screenshot_sync` é aceito temporariamente para não quebrar agendamentos existentes. Requer `r2-publishing`. |
+| Ingestão de screenshots curados | `.circleci/screenshots.yml` | Use `run_screenshot_sync=true` para adicionar conteúdo novo à base de imagens. Requer o contexto `r2-publishing`. |
+| Índice de screenshots existentes | `.circleci/homepage-screenshots.yml` | Agendamentos antigos continuam funcionando; para novos gatilhos, use `run_screenshot_index=true`. Essa rotina apenas lista objetos já existentes no R2 e publica `Store/Database/screenshot-index.json`. Requer `r2-publishing`. |
 | Verificação do atualizador | `.circleci/updater-verification.yml` | Agende ou execute manualmente com `run_updater_verification=true`. Compila, abre a janela WPF e exercita o atualizador em uma VM descartável. Requer WinGet disponível na imagem Windows. |
 | Validação do Release | `.circleci/release-validation.yml` | Associado à publicação de tags estáveis/pré-lançamentos `vX.Y.Z`; confere os assets publicados, instala e desinstala o pacote. |
 
-As duas rotinas de screenshots têm finalidades diferentes: `screenshots.yml` associa imagens curadas do banco UniGetUI aos IDs WinGet; `homepage-screenshots.yml` procura capturas nas páginas oficiais dos aplicativos. O crawler respeita `robots.txt`, processa lotes e publica no catálogo apenas imagens encontradas e validadas. Nem toda página oferece capturas em um formato que o crawler consiga identificar.
+O pipeline WinGet executa a atualização do índice de screenshots em seguida à publicação do catálogo e do cache/API. O índice é separado do `apps.json` e contém somente os IDs com arquivos encontrados em `Store/Screenshot_Database/`. A leitura usa paginação S3 do R2 (aproximadamente uma chamada por mil objetos), sem buscar páginas dos aplicativos e sem baixar as imagens outra vez. A rotina `.circleci/homepage-screenshots.yml` é uma recuperação manual/agendada compatível que reconstrói o mesmo índice.
 
-Ao regenerar o catálogo WinGet, `winget-sync.yml` preserva as URLs do catálogo anterior e também reconstrói `screenshotUrls` a partir de `Store/Database/screenshot-assets.json`. Assim, a atualização dos manifests não remove capturas já armazenadas no R2.
+Ao regenerar o catálogo WinGet, `winget-sync.yml` preserva os campos antigos como compatibilidade e publica o índice compacto separadamente. O cliente combina as URLs do índice com os apps por ID, sem aumentar ou regravar os 16 mil registros do catálogo.
 
 ## Snapshot e restauração
 
