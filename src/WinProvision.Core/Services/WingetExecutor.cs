@@ -18,6 +18,8 @@ public class WingetExecutionResult
     public string Output { get; set; } = string.Empty;
     public bool WasElevated { get; set; }
     public bool WingetUnavailable { get; set; }
+    /// <summary>Indica que o instalador iniciou ou que o estado ficou incerto; evita repetir a operação automaticamente.</summary>
+    public bool InstallerStarted { get; set; }
 
     /// <summary>
     /// Motivo canônico da falha (ver <see cref="WingetErrorTranslator"/>), já classificado a
@@ -119,7 +121,8 @@ public class WingetExecutor
         args += " --accept-source-agreements --accept-package-agreements";
         var result = await ExecuteInstallWithRecoveryAsync(
             args, onLogReceived, cancellationToken, normalizedScope, normalizedArchitecture,
-            requiresElevation && !elevationProhibited);
+            requiresElevation && !elevationProhibited,
+            preserveScopeOnRetry: WinProvisionApiService.IsRunningAsSystem());
 
         return NormalizeInstallOutcome(result, isUpgrade: false);
     }
@@ -448,7 +451,8 @@ public class WingetExecutor
         if (normalizedArchitecture is not null) args += $" --architecture {normalizedArchitecture}";
         var result = await ExecuteInstallWithRecoveryAsync(
             args, onLogReceived, cancellationToken, normalizedScope, normalizedArchitecture,
-            requiresElevation && !elevationProhibited);
+            requiresElevation && !elevationProhibited,
+            preserveScopeOnRetry: WinProvisionApiService.IsRunningAsSystem());
 
         return NormalizeInstallOutcome(result, isUpgrade: true);
     }
@@ -504,20 +508,26 @@ public class WingetExecutor
         CancellationToken cancellationToken,
         string? scope,
         string? architecture,
-        bool forceElevation)
+        bool forceElevation,
+        bool preserveScopeOnRetry = false)
     {
         string effectiveArguments = arguments;
         var result = await ExecuteWithElevationFallbackAsync(
             effectiveArguments, onLogReceived, cancellationToken, forceElevation);
 
+        bool canRelaxScope = scope is not null && !preserveScopeOnRetry;
         if (!result.Success && result.FailureReason == WingetFailureReason.NoApplicableInstallers
             && !result.WasElevated && !forceElevation
-            && (scope is not null || architecture is not null))
+            && (canRelaxScope || architecture is not null))
         {
-            onLogReceived?.Invoke("O escopo ou a arquitetura escolhidos não se aplicam; tentando a seleção automática do WinGet...");
-            effectiveArguments = arguments
-                .Replace($" --scope {scope}", string.Empty, StringComparison.Ordinal)
-                .Replace($" --architecture {architecture}", string.Empty, StringComparison.Ordinal);
+            onLogReceived?.Invoke(preserveScopeOnRetry
+                ? "A arquitetura escolhida não se aplica; tentando outra seleção sem alterar o escopo de máquina..."
+                : "O escopo ou a arquitetura escolhidos não se aplicam; tentando a seleção automática do WinGet...");
+            effectiveArguments = arguments;
+            if (canRelaxScope)
+                effectiveArguments = effectiveArguments.Replace($" --scope {scope}", string.Empty, StringComparison.Ordinal);
+            if (architecture is not null)
+                effectiveArguments = effectiveArguments.Replace($" --architecture {architecture}", string.Empty, StringComparison.Ordinal);
             result = await ExecuteWithElevationFallbackAsync(
                 effectiveArguments, onLogReceived, cancellationToken, forceElevation);
         }

@@ -18,6 +18,7 @@ namespace WinProvision.Core.Services;
 public static partial class OperationRunner
 {
     private static Func<string, Action<string>?, CancellationToken, string?, Action<InstallProgressUpdate>?, string, Task<WingetExecutionResult>>? _installHandler;
+    private static Func<bool, Action<string>?, CancellationToken, Task>? _installWarmupHandler;
     private static Func<string, Action<string>?, CancellationToken, string, Action<InstallProgressUpdate>?, Task<WingetExecutionResult>>? _updateHandler;
 
     public static void ConfigureInstallHandler(
@@ -25,6 +26,20 @@ public static partial class OperationRunner
     {
         _installHandler = installHandler ?? throw new ArgumentNullException(nameof(installHandler));
     }
+
+    public static void ConfigureInstallWarmupHandler(
+        Func<bool, Action<string>?, CancellationToken, Task> warmupHandler)
+    {
+        _installWarmupHandler = warmupHandler ?? throw new ArgumentNullException(nameof(warmupHandler));
+    }
+
+    public static Task WarmupConfiguredInstallHandlerAsync(
+        bool includeMicrosoftStoreCatalog,
+        Action<string>? onLogReceived,
+        CancellationToken cancellationToken)
+        => _installWarmupHandler is null
+            ? Task.CompletedTask
+            : _installWarmupHandler(includeMicrosoftStoreCatalog, onLogReceived, cancellationToken);
 
     /// <summary>
     /// Configura o handler de atualização (API COM/CLI do WinGet, com fallback interno para a

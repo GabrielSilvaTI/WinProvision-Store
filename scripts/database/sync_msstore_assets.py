@@ -14,7 +14,7 @@ import os
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -210,7 +210,7 @@ def main() -> int:
                 "sourceUrl": source_url,
                 "publicUrl": public_url,
                 "contentSha256": content_hash,
-                "updatedUtc": datetime.now(timezone.utc).isoformat(),
+                "updatedUtc": datetime.now(UTC).isoformat(),
             }
             url_results[source_url] = public_url
             with counter_lock:
@@ -265,7 +265,9 @@ def main() -> int:
                 or (index < len(prior) and keep_previous(prior[index]))
             ]
         elif isinstance(previous_screenshots, list):
-            app["storeScreenshotUrls"] = [url for prior_url in previous_screenshots if (url := keep_previous(prior_url))]
+            app["storeScreenshotUrls"] = [
+                url for prior_url in previous_screenshots if (url := keep_previous(prior_url))
+            ]
 
     attempted = len(source_urls) - reused
     failure_rate = failed / attempted if attempted else 0.0

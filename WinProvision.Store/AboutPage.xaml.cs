@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Web.WebView2.Core;
@@ -8,6 +10,9 @@ namespace WinProvision.Store;
 public partial class AboutPage : Page
 {
     private const string GitHubPagesUrl = "https://gabrielsilvati.github.io/WinProvision-Store/";
+    private bool _initializationInProgress;
+    private bool _navigationStarted;
+    private bool _coreEventsAttached;
 
     public AboutPage()
     {
@@ -17,23 +22,51 @@ public partial class AboutPage : Page
 
     private async void AboutPage_Loaded(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            await PagesBrowser.EnsureCoreWebView2Async();
-            PagesBrowser.CoreWebView2.NavigationCompleted += CoreWebView2_NavigationCompleted;
-            PagesBrowser.Source = new Uri(GitHubPagesUrl);
-        }
-        catch
-        {
-            ShowBrowserError("Não foi possível abrir esta página. Verifique sua conexão.");
-        }
+        await InitializeBrowserAsync(retry: false);
     }
 
-    private void PagesBrowser_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    private async Task InitializeBrowserAsync(bool retry)
     {
-        if (!e.IsSuccess)
+        if (_initializationInProgress || (!retry && _navigationStarted))
+            return;
+
+        _initializationInProgress = true;
+        BrowserStatusPanel.Visibility = Visibility.Visible;
+        BrowserStatusText.Text = retry
+            ? "Tentando carregar o GitHub Pages…"
+            : "Conectando ao GitHub Pages…";
+
+        try
         {
-            ShowBrowserError("Não foi possível carregar a página. Verifique sua conexão e tente novamente.");
+            if (PagesBrowser.CoreWebView2 is null)
+                await PagesBrowser.EnsureCoreWebView2Async();
+
+            CoreWebView2 core = PagesBrowser.CoreWebView2
+                ?? throw new InvalidOperationException("O WebView2 não disponibilizou o navegador interno.");
+
+            if (!_coreEventsAttached)
+            {
+                core.NavigationCompleted += CoreWebView2_NavigationCompleted;
+                _coreEventsAttached = true;
+            }
+
+            if (retry && _navigationStarted)
+                core.Reload();
+            else
+            {
+                _navigationStarted = true;
+                core.Navigate(GitHubPagesUrl);
+            }
+        }
+        catch (Exception ex)
+        {
+            _navigationStarted = false;
+            Debug.WriteLine($"[AboutPage] Falha ao inicializar/navegar no WebView2: {ex}");
+            ShowBrowserError("Não foi possível iniciar o navegador interno. Verifique o Microsoft Edge WebView2 Runtime e tente novamente.");
+        }
+        finally
+        {
+            _initializationInProgress = false;
         }
     }
 
@@ -41,19 +74,15 @@ public partial class AboutPage : Page
     {
         if (!e.IsSuccess)
         {
-            ShowBrowserError($"A página retornou o erro {e.WebErrorStatus}.");
+            ShowBrowserError($"Não foi possível carregar o GitHub Pages ({e.WebErrorStatus}). Verifique sua conexão e tente novamente.");
+            return;
         }
-        else
-        {
-            BrowserStatusPanel.Visibility = Visibility.Collapsed;
-        }
+
+        BrowserStatusPanel.Visibility = Visibility.Collapsed;
     }
 
-    private void RetryButton_Click(object sender, RoutedEventArgs e)
-    {
-        BrowserStatusPanel.Visibility = Visibility.Collapsed;
-        PagesBrowser.Reload();
-    }
+    private async void RetryButton_Click(object sender, RoutedEventArgs e)
+        => await InitializeBrowserAsync(retry: true);
 
     private void ShowBrowserError(string message)
     {

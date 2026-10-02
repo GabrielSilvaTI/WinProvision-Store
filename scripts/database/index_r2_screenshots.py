@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import time
 import unicodedata
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -106,7 +107,6 @@ def build_index(client, bucket: str, prefix: str, public_base: str) -> dict:
     return {
         "document": {
             "schemaVersion": 1,
-            "generatedUtc": datetime.now(UTC).isoformat(),
             "packageCount": len(packages),
             "screenshotCount": screenshot_count,
             "packages": packages,
@@ -130,6 +130,7 @@ def write_json_atomic(path: Path, value: dict) -> None:
 
 
 def main() -> int:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="arquivo de índice de screenshots separado")
     parser.add_argument("--report", type=Path, required=True)
@@ -147,6 +148,7 @@ def main() -> int:
             args.prefix,
             args.public_base,
         )
+        indexed["report"]["durationSeconds"] = round(time.perf_counter() - started, 2)
         write_json_atomic(args.output, indexed["document"])
         write_json_atomic(args.report, indexed["report"])
         print(json.dumps(indexed["report"], ensure_ascii=False))

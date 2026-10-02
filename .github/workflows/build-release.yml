@@ -5,6 +5,10 @@ on:
     tags: ["v*"] # só tag de release de verdade — commit solto na main não builda mais sozinho
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "Docs/**"
   workflow_dispatch: {}
 
 permissions:

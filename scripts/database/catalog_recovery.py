@@ -9,7 +9,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import boto3
@@ -35,7 +35,8 @@ SNAPSHOT_ID_RE = re.compile(r"^\d{8}T\d{6}Z$")
 def client():
     account = os.environ["R2_ACCOUNT_ID"]
     return boto3.client(
-        "s3", endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
+        "s3",
+        endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
         aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
         aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
         config=Config(signature_version="s3v4", retries={"max_attempts": 5, "mode": "standard"}),
@@ -61,8 +62,13 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
     seen = set()
     sources = {"winget": 0, "msstore": 0}
     for index, item in enumerate(apps):
-        if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not item["id"].strip() \
-                or not isinstance(item.get("name"), str) or not item["name"].strip():
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("id"), str)
+            or not item["id"].strip()
+            or not isinstance(item.get("name"), str)
+            or not item["name"].strip()
+        ):
             raise ValueError(f"apps.json[{index}] sem ID/nome válido")
         folded = item["id"].casefold()
         if folded in seen:
@@ -79,23 +85,36 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
     if not isinstance(msstore, list) or len(msstore) < 20:
         raise ValueError("msstore-catalog.json inválido ou com menos de 20 aplicativos")
     office = decode_json(documents["Office/Database/catalog.json"], "Office catalog")
-    if not isinstance(office, dict) or office.get("schemaVersion") not in (1, 2) \
-            or not isinstance(office.get("products"), list) or not office["products"] \
-            or not isinstance(office.get("storeOffers", []), list):
+    if (
+        not isinstance(office, dict)
+        or office.get("schemaVersion") not in (1, 2)
+        or not isinstance(office.get("products"), list)
+        or not office["products"]
+        or not isinstance(office.get("storeOffers", []), list)
+    ):
         raise ValueError("catálogo Office inválido")
-    for key in ("Store/Database/screenshot-assets.json", "Store/Database/msstore-assets-map.json",
-                "Office/Database/office-assets-map.json"):
+    for key in (
+        "Store/Database/screenshot-assets.json",
+        "Store/Database/msstore-assets-map.json",
+        "Office/Database/office-assets-map.json",
+    ):
         value = decode_json(documents[key], key)
         if not isinstance(value, dict):
             raise ValueError(f"{key} precisa ser um objeto JSON")
     manifest = decode_json(documents["Store/icon-manifest.json"], "icon-manifest.json")
-    if not isinstance(manifest, dict) or len(manifest) < 100 \
-            or any(not isinstance(url, str) or not url.startswith("https://") for url in manifest.values()):
+    if (
+        not isinstance(manifest, dict)
+        or len(manifest) < 100
+        or any(not isinstance(url, str) or not url.startswith("https://") for url in manifest.values())
+    ):
         raise ValueError("manifesto de ícones inválido ou incompleto")
     api_index = decode_json(documents["Store/Api/v1/index.json"], "installer API index")
-    if not isinstance(api_index, dict) or api_index.get("schema") != 1 \
-            or not isinstance(api_index.get("packages"), list) \
-            or api_index.get("count") != len(api_index.get("packages", [])):
+    if (
+        not isinstance(api_index, dict)
+        or api_index.get("schema") != 1
+        or not isinstance(api_index.get("packages"), list)
+        or api_index.get("count") != len(api_index.get("packages", []))
+    ):
         raise ValueError("index.json da API de instaladores inválido")
     for key in ("Store/Database/metrics-cache.json", "Store/Api/v1/_state/package-hashes.json"):
         if not isinstance(decode_json(documents[key], key), dict):
@@ -104,7 +123,7 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
 
 def snapshot(snapshot_id: str | None) -> str:
     if snapshot_id is None:
-        snapshot_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        snapshot_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     if not SNAPSHOT_ID_RE.fullmatch(snapshot_id):
         raise ValueError("ID de snapshot inválido; use o formato UTC AAAAMMDDTHHMMSSZ")
     s3 = client()
@@ -129,19 +148,23 @@ def snapshot(snapshot_id: str | None) -> str:
     manifest = {
         "schemaVersion": 1,
         "snapshotId": snapshot_id,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "createdAt": datetime.now(UTC).isoformat(),
         "bucket": bucket,
-        "files": {key: {"sha256": hashlib.sha256(body).hexdigest(), "size": len(body)}
-                  for key, body in bodies.items()},
+        "files": {key: {"sha256": hashlib.sha256(body).hexdigest(), "size": len(body)} for key, body in bodies.items()},
     }
     prefix = f"{SNAPSHOT_PREFIX}/{snapshot_id}"
     for key, body in bodies.items():
-        s3.put_object(Bucket=bucket, Key=f"{prefix}/{key}", Body=body,
-                      ContentType="application/json", CacheControl="no-cache")
+        s3.put_object(
+            Bucket=bucket, Key=f"{prefix}/{key}", Body=body, ContentType="application/json", CacheControl="no-cache"
+        )
     # The manifest is the commit marker; incomplete snapshots are never restorable.
-    s3.put_object(Bucket=bucket, Key=f"{prefix}/manifest.json",
-                  Body=json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
-                  ContentType="application/json", CacheControl="no-cache")
+    s3.put_object(
+        Bucket=bucket,
+        Key=f"{prefix}/manifest.json",
+        Body=json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
+        ContentType="application/json",
+        CacheControl="no-cache",
+    )
     print(f"Snapshot válido publicado: {snapshot_id} ({len(bodies)} arquivos)")
     return snapshot_id
 
@@ -155,9 +178,14 @@ def restore(snapshot_id: str) -> None:
     manifest_body = s3.get_object(Bucket=bucket, Key=f"{prefix}/manifest.json")["Body"].read()
     manifest = decode_json(manifest_body, "snapshot manifest")
     files = manifest.get("files") if isinstance(manifest, dict) else None
-    if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 1 or manifest.get("snapshotId") != snapshot_id \
-            or manifest.get("bucket") != bucket or not isinstance(files, dict) \
-            or set(files) != set(TARGETS):
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schemaVersion") != 1
+        or manifest.get("snapshotId") != snapshot_id
+        or manifest.get("bucket") != bucket
+        or not isinstance(files, dict)
+        or set(files) != set(TARGETS)
+    ):
         raise ValueError("Manifesto ausente, incompleto ou incompatível; nada foi restaurado")
 
     bodies = {}
@@ -174,8 +202,7 @@ def restore(snapshot_id: str) -> None:
     # Validate every file before mutating any live object. Catalog references are
     # uploaded last so media maps/indexes exist before clients observe the catalogs.
     for key in TARGETS:
-        s3.put_object(Bucket=bucket, Key=key, Body=bodies[key],
-                      ContentType="application/json", CacheControl="no-cache")
+        s3.put_object(Bucket=bucket, Key=key, Body=bodies[key], ContentType="application/json", CacheControl="no-cache")
         print(f"Restaurado: {key}")
     print(f"Restauração concluída a partir do snapshot {snapshot_id}.")
 
@@ -191,16 +218,25 @@ def main() -> int:
     try:
         if args.command == "snapshot":
             snapshot_id = snapshot(args.id)
-            report = {"operation": "snapshot", "snapshotId": snapshot_id,
-                      "createdAt": datetime.now(timezone.utc).isoformat(), "files": len(TARGETS)}
+            report = {
+                "operation": "snapshot",
+                "snapshotId": snapshot_id,
+                "createdAt": datetime.now(UTC).isoformat(),
+                "files": len(TARGETS),
+            }
         else:
             restore(args.snapshot_id)
-            report = {"operation": "restore", "snapshotId": args.snapshot_id,
-                      "completedAt": datetime.now(timezone.utc).isoformat(), "files": len(TARGETS)}
+            report = {
+                "operation": "restore",
+                "snapshotId": args.snapshot_id,
+                "completedAt": datetime.now(UTC).isoformat(),
+                "files": len(TARGETS),
+            }
         Path("catalog-recovery-report.json").write_text(
-            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         return 0
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - fronteira da CLI registra falhas imprevistas e retorna erro legível.
         print(f"Operação de recuperação abortada: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 

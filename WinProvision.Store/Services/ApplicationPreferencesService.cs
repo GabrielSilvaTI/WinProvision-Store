@@ -17,6 +17,7 @@ public sealed class ApplicationPreferencesService
 {
     private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string StartupValueName = "WinProvisionStore";
+    private const string BackgroundUpdateValueName = "WinProvisionStore.BackgroundUpdate";
     private readonly string _filePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WinProvisionStore", "app-preferences.json");
@@ -45,16 +46,31 @@ public sealed class ApplicationPreferencesService
 
     private void LoadStartupOptions()
     {
+        bool migrateLegacyRegistration = false;
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath);
-            string? command = key?.GetValue(StartupValueName) as string;
-            LaunchAtStartup = !string.IsNullOrWhiteSpace(command)
-                && !command.Contains("--background-update", StringComparison.OrdinalIgnoreCase);
-            AutoUpdateAtStartup = command?.Contains("--background-update", StringComparison.OrdinalIgnoreCase) == true
-                || command?.Contains("--update-at-startup", StringComparison.OrdinalIgnoreCase) == true;
+            string? appCommand = key?.GetValue(StartupValueName) as string;
+            string? updateCommand = key?.GetValue(BackgroundUpdateValueName) as string;
+            bool legacyBackgroundOnly = HasArgument(appCommand, "--background-update");
+            bool legacyCombined = HasArgument(appCommand, "--update-at-startup");
+
+            LaunchAtStartup = !string.IsNullOrWhiteSpace(appCommand) && !legacyBackgroundOnly;
+            AutoUpdateAtStartup = !string.IsNullOrWhiteSpace(updateCommand)
+                || legacyBackgroundOnly
+                || legacyCombined;
+            migrateLegacyRegistration = legacyBackgroundOnly || legacyCombined;
         }
         catch { LaunchAtStartup = false; AutoUpdateAtStartup = false; }
+
+        // Versões anteriores combinavam a inicialização do app e do atualizador em um único
+        // comando. Se ambas as opções estavam ligadas, isso abria a interface em vez de rodar
+        // apenas o processo de atualização. Migra para duas entradas independentes no Run.
+        if (migrateLegacyRegistration)
+        {
+            try { UpdateStartupRegistration(); }
+            catch { /* A tela de Atualizações ainda permite corrigir o registro manualmente. */ }
+        }
     }
 
     public void SetTheme(AppThemePreference theme)
@@ -81,19 +97,22 @@ public sealed class ApplicationPreferencesService
     {
         using var key = Registry.CurrentUser.CreateSubKey(StartupRegistryPath, writable: true)
             ?? throw new InvalidOperationException("Não foi possível abrir a configuração de inicialização do usuário.");
-        if (!LaunchAtStartup && !AutoUpdateAtStartup)
-        {
-            key.DeleteValue(StartupValueName, throwOnMissingValue: false);
-            return;
-        }
-
         string executable = Environment.ProcessPath
             ?? throw new InvalidOperationException("Não foi possível localizar o executável do WinProvision.");
-        string arguments = LaunchAtStartup
-            ? AutoUpdateAtStartup ? " --update-at-startup" : string.Empty
-            : " --background-update";
-        key.SetValue(StartupValueName, $"\"{executable}\"{arguments}", RegistryValueKind.String);
+
+        if (LaunchAtStartup)
+            key.SetValue(StartupValueName, $"\"{executable}\"", RegistryValueKind.String);
+        else
+            key.DeleteValue(StartupValueName, throwOnMissingValue: false);
+
+        if (AutoUpdateAtStartup)
+            key.SetValue(BackgroundUpdateValueName, $"\"{executable}\" --background-update", RegistryValueKind.String);
+        else
+            key.DeleteValue(BackgroundUpdateValueName, throwOnMissingValue: false);
     }
+
+    private static bool HasArgument(string? command, string argument) =>
+        command?.Contains(argument, StringComparison.OrdinalIgnoreCase) == true;
 
     public static void ApplyTheme(AppThemePreference theme)
     {

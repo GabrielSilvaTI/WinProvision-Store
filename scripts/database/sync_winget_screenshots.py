@@ -15,9 +15,10 @@ import os
 import re
 import sys
 import threading
+import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -106,9 +107,14 @@ def _session() -> requests.Session:
     session = getattr(_thread_local, "session", None)
     if session is None:
         session = requests.Session()
-        retry = Retry(total=3, connect=3, read=2, backoff_factor=0.4,
-                      status_forcelist=(429, 500, 502, 503, 504),
-                      allowed_methods=frozenset({"GET"}))
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=2,
+            backoff_factor=0.4,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET"}),
+        )
         adapter = HTTPAdapter(max_retries=retry, pool_connections=MAX_WORKERS, pool_maxsize=MAX_WORKERS)
         session.mount("https://", adapter)
         session.headers.update({"User-Agent": "WinProvisionStore-ScreenshotSync/1.0"})
@@ -149,9 +155,10 @@ def download_image(url: str) -> tuple[bytes, str]:
     return bytes(body), extension
 
 
-def sync_one(client, public_base: str, package_id: str, url: str, previous: dict,
-             recheck_days: int) -> tuple[str, dict | None, str | None]:
-    now = datetime.now(timezone.utc)
+def sync_one(
+    client, public_base: str, package_id: str, url: str, previous: dict, recheck_days: int
+) -> tuple[str, dict | None, str | None]:
+    now = datetime.now(UTC)
     old = previous.get(url)
     if isinstance(old, dict) and old.get("publicUrl") and old.get("sha256"):
         try:
@@ -168,14 +175,27 @@ def sync_one(client, public_base: str, package_id: str, url: str, previous: dict
             refreshed = {**old, "checkedAt": now.isoformat()}
             return url, refreshed, None
         object_key = public_key_for(package_id, digest, extension)
-        content_type = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp",
-                        "gif": "image/gif", "bmp": "image/bmp"}[extension]
-        client.put_object(Bucket=os.environ.get("R2_BUCKET") or "winprovision", Key=object_key,
-                          Body=body, ContentType=content_type,
-                          CacheControl="public, max-age=31536000, immutable",
-                          Metadata={"sha256": digest, "source-url-sha256": hashlib.sha256(url.encode()).hexdigest()})
-        asset = {"publicUrl": f"{public_base}/{object_key}", "sha256": digest,
-                 "checkedAt": now.isoformat(), "packageId": normalized_id(package_id)}
+        content_type = {
+            "png": "image/png",
+            "jpg": "image/jpeg",
+            "webp": "image/webp",
+            "gif": "image/gif",
+            "bmp": "image/bmp",
+        }[extension]
+        client.put_object(
+            Bucket=os.environ.get("R2_BUCKET") or "winprovision",
+            Key=object_key,
+            Body=body,
+            ContentType=content_type,
+            CacheControl="public, max-age=31536000, immutable",
+            Metadata={"sha256": digest, "source-url-sha256": hashlib.sha256(url.encode()).hexdigest()},
+        )
+        asset = {
+            "publicUrl": f"{public_base}/{object_key}",
+            "sha256": digest,
+            "checkedAt": now.isoformat(),
+            "packageId": normalized_id(package_id),
+        }
         return url, asset, None
     except (requests.RequestException, BotoCoreError, ClientError, OSError, ValueError) as exc:
         if isinstance(old, dict) and old.get("publicUrl"):
@@ -184,6 +204,7 @@ def sync_one(client, public_base: str, package_id: str, url: str, previous: dict
 
 
 def main() -> int:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, help="JSON limpo do UniGetUI")
     parser.add_argument("catalog", type=Path, help="apps.json gerado pelo Indexer")
@@ -221,11 +242,17 @@ def main() -> int:
             match_results.append({"sourceKey": source_key, "status": "ignored"})
             continue
         images = record.get("images")
-        urls = list(dict.fromkeys(
-            value.strip() for value in images
-            if isinstance(images, list) and isinstance(value, str)
-            and value.strip().startswith("https://")
-        )) if isinstance(images, list) else []
+        urls = (
+            list(
+                dict.fromkeys(
+                    value.strip()
+                    for value in images
+                    if isinstance(images, list) and isinstance(value, str) and value.strip().startswith("https://")
+                )
+            )
+            if isinstance(images, list)
+            else []
+        )
         if not urls:
             match_results.append({"sourceKey": source_key, "status": "no-valid-images"})
             continue
@@ -239,22 +266,45 @@ def main() -> int:
         for url in urls:
             if url not in package_urls and len(package_urls) < MAX_SCREENSHOTS_PER_APP:
                 package_urls.append(url)
-        match_results.append({"sourceKey": source_key, "packageId": normalized_id(package_id),
-                              "status": "matched", "match": match_status, "images": len(urls[:MAX_SCREENSHOTS_PER_APP])})
+        match_results.append(
+            {
+                "sourceKey": source_key,
+                "packageId": normalized_id(package_id),
+                "status": "matched",
+                "match": match_status,
+                "images": len(urls[:MAX_SCREENSHOTS_PER_APP]),
+            }
+        )
 
     unique_pairs = sorted((package_id, url) for package_id, urls in matched.items() for url in urls)
     cache_keys = [(package_id, url, f"{package_id}|{url}") for package_id, url in unique_pairs]
-    if unique_pairs and all(os.environ.get(name) for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")):
+    if unique_pairs and all(
+        os.environ.get(name) for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
+    ):
         client = boto3.client(
-            "s3", endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
-            aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"], aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-            config=Config(signature_version="s3v4", max_pool_connections=args.workers,
-                          retries={"max_attempts": 4, "mode": "standard"}), region_name="auto")
+            "s3",
+            endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+            aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+            aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+            config=Config(
+                signature_version="s3v4",
+                max_pool_connections=args.workers,
+                retries={"max_attempts": 4, "mode": "standard"},
+            ),
+            region_name="auto",
+        )
         resolved: dict[str, dict] = {}
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             futures = {
-                executor.submit(sync_one, client, args.public_base, package_id, url,
-                                {url: prior_assets.get(cache_key)}, args.recheck_days): cache_key
+                executor.submit(
+                    sync_one,
+                    client,
+                    args.public_base,
+                    package_id,
+                    url,
+                    {url: prior_assets.get(cache_key)},
+                    args.recheck_days,
+                ): cache_key
                 for package_id, url, cache_key in cache_keys
             }
             for future in as_completed(futures):
@@ -266,15 +316,21 @@ def main() -> int:
     else:
         if unique_pairs:
             print("R2 credentials ausentes: execução de análise, sem baixar nem publicar imagens.", file=sys.stderr)
-        resolved = {cache_key: prior_assets[cache_key] for _, _, cache_key in cache_keys
-                    if isinstance(prior_assets.get(cache_key), dict) and prior_assets[cache_key].get("publicUrl")}
+        resolved = {
+            cache_key: prior_assets[cache_key]
+            for _, _, cache_key in cache_keys
+            if isinstance(prior_assets.get(cache_key), dict) and prior_assets[cache_key].get("publicUrl")
+        }
 
     for app in catalog:
         if not isinstance(app, dict) or not isinstance(app.get("id"), str):
             continue
         urls = matched.get(normalized_id(app["id"]), [])
-        public_urls = [resolved[f"{normalized_id(app['id'])}|{url}"]["publicUrl"]
-                       for url in urls if f"{normalized_id(app['id'])}|{url}" in resolved]
+        public_urls = [
+            resolved[f"{normalized_id(app['id'])}|{url}"]["publicUrl"]
+            for url in urls
+            if f"{normalized_id(app['id'])}|{url}" in resolved
+        ]
         if public_urls:
             app["screenshotUrls"] = public_urls
         else:
@@ -282,7 +338,8 @@ def main() -> int:
 
     report = {
         "schemaVersion": 1,
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "generatedAt": datetime.now(UTC).isoformat(),
+        "durationSeconds": round(time.perf_counter() - started, 2),
         "sourceRecords": len(source["icons_and_screenshots"]),
         "matchedPackages": len(matched),
         "uniqueSourceImages": len(unique_pairs),
@@ -295,8 +352,10 @@ def main() -> int:
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     if source["icons_and_screenshots"] and not matched:
-        print("Nenhuma chave do banco de screenshots correspondeu a um pacote WinGet; catálogo não atualizado.",
-              file=sys.stderr)
+        print(
+            "Nenhuma chave do banco de screenshots correspondeu a um pacote WinGet; catálogo não atualizado.",
+            file=sys.stderr,
+        )
         return 1
     failure_rate = (len(unique_pairs) - len(resolved)) / len(unique_pairs) if unique_pairs else 0.0
     if failure_rate > args.max_failure_rate:
@@ -312,10 +371,15 @@ def main() -> int:
     args.state.parent.mkdir(parents=True, exist_ok=True)
     args.state.write_text(json.dumps(asset_state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
-    print(f"Screenshots: {len(matched)} pacote(s) associados, {len(unique_pairs)} imagem(ns) por pacote, "
-          f"{len(resolved)} disponível(is) no R2, {report['ambiguous']} ambíguo(s), {report['unmatched']} sem associação.")
+    print(
+        f"Screenshots: {len(matched)} pacote(s) associados, {len(unique_pairs)} imagem(ns) por pacote, "
+        f"{len(resolved)} disponível(is) no R2, {report['ambiguous']} ambíguo(s), {report['unmatched']} sem associação."
+    )
     if failures:
-        print(f"{len(failures)} imagem(ns) falharam; consulte o relatório. Cache anterior foi preservado quando disponível.", file=sys.stderr)
+        print(
+            f"{len(failures)} imagem(ns) falharam; consulte o relatório. Cache anterior foi preservado quando disponível.",
+            file=sys.stderr,
+        )
     return 0
 
 

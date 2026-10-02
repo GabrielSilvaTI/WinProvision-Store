@@ -1,8 +1,6 @@
 name: "Manutenção | Backup do repositório"
 
 on:
-  push:
-    branches: [main]
   schedule:
     - cron: "0 8 * * 0" # domingo ~05h Brasília (UTC-3)
   workflow_dispatch: {}
@@ -10,7 +8,7 @@ on:
 permissions:
   contents: read
 
-# Se chegarem vários commits em sequência, só o último precisa virar backup.
+# Execuções manuais e semanais não devem disputar o mesmo bundle no R2.
 concurrency:
   group: repo-backup
   cancel-in-progress: true
@@ -63,21 +61,18 @@ jobs:
       - name: Instalar dependências Python compartilhadas
         run: python -m pip install -r scripts/requirements/base.txt
 
-      # Sobrescreve sempre a mesma chave: é o "estado mais recente do código".
-      - name: Enviar backup mais recente (a cada commit)
+      # Atualiza o backup "latest" na mesma frequência das cópias datadas.
+      - name: Enviar backup mais recente
         run: >
           python scripts/database/r2_upload.py
           WinProvision-Store.bundle
           Backups/Repo/WinProvision-Store-latest.bundle
 
-      # Cópia datada só no cron semanal / execução manual, pra ter pontos no tempo
-      # (o "latest" sozinho não protege de um commit ruim que sobrescreva o bom).
-      - name: Enviar cópia semanal datada
-        if: ${{ github.event_name != 'push' }}
+      # Cópia datada preserva pontos de recuperação anteriores ao estado mais recente.
+      - name: Enviar cópia datada
         run: |
           key="Backups/Repo/weekly/WinProvision-Store-$(date -u +%F).bundle"
           python scripts/database/r2_upload.py WinProvision-Store.bundle "$key"
 
-      - name: Manter só as 8 cópias semanais mais recentes
-        if: ${{ github.event_name != 'push' }}
+      - name: Manter só as 8 cópias datadas mais recentes
         run: python scripts/backup/r2_prune.py Backups/Repo/weekly/ 8

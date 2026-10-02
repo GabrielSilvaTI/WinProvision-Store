@@ -173,10 +173,16 @@ public partial class UpdatesPage : Page
 
     private async Task CheckUpdatesAsync()
     {
+        bool isInitialCheck = !_lastVerificationTime.HasValue;
         _lastCheckFailed = false;
         ReloadButton.IsEnabled = false;
         UpdateSelectedButton.IsEnabled = false;
         TopProgressBar.Visibility = Visibility.Visible;
+        if (isInitialCheck)
+        {
+            WinProvision.Store.Behaviors.StateTransition.SetVisibility(EmptyStatePanel, Visibility.Collapsed);
+            WinProvision.Store.Behaviors.StateTransition.SetVisibility(InitialLoadingPanel, Visibility.Visible);
+        }
         StatusText.Text = "Procurando atualizações disponíveis...";
         SubtitleText.Text = "Procurando atualizações disponíveis...";
 
@@ -238,6 +244,8 @@ public partial class UpdatesPage : Page
             ReloadButton.IsEnabled = true;
             UpdateSelectedButton.IsEnabled = true;
             TopProgressBar.Visibility = Visibility.Collapsed;
+            if (isInitialCheck)
+                WinProvision.Store.Behaviors.StateTransition.SetVisibility(InitialLoadingPanel, Visibility.Collapsed);
         }
     }
 
@@ -278,6 +286,7 @@ public partial class UpdatesPage : Page
 
     private void ApplyFilters()
     {
+        UpdateFilterButtonState();
         string query = SearchBox.Text?.Trim() ?? string.Empty;
         bool filterWinget = SourceWingetCheck.IsChecked == true;
         bool filterMsStore = SourceMsStoreCheck.IsChecked == true;
@@ -381,13 +390,34 @@ public partial class UpdatesPage : Page
                 EmptyStateText.Text = "Revise as fontes selecionadas e os filtros para exibir mais resultados.";
             }
         }
-        EmptyStatePanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
-        TableHeaderBar.Visibility = !isEmpty && ViewModeListRadio.IsChecked == true
+        WinProvision.Store.Behaviors.StateTransition.SetVisibility(
+            EmptyStatePanel,
+            isEmpty ? Visibility.Visible : Visibility.Collapsed);
+        WinProvision.Store.Behaviors.StateTransition.SetVisibility(
+            TableHeaderBar,
+            !isEmpty && ViewModeListRadio.IsChecked == true
             ? Visibility.Visible
-            : Visibility.Collapsed;
-        TableScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeListRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
-        GridViewScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeGridRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
-        IconsViewScrollViewer.Visibility = isEmpty ? Visibility.Collapsed : (ViewModeIconsRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed);
+            : Visibility.Collapsed);
+        WinProvision.Store.Behaviors.StateTransition.SetVisibility(
+            TableScrollViewer,
+            isEmpty ? Visibility.Collapsed : (ViewModeListRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed));
+        WinProvision.Store.Behaviors.StateTransition.SetVisibility(
+            GridViewScrollViewer,
+            isEmpty ? Visibility.Collapsed : (ViewModeGridRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed));
+        WinProvision.Store.Behaviors.StateTransition.SetVisibility(
+            IconsViewScrollViewer,
+            isEmpty ? Visibility.Collapsed : (ViewModeIconsRadio.IsChecked == true ? Visibility.Visible : Visibility.Collapsed));
+    }
+
+    private void UpdateFilterButtonState()
+    {
+        if (ToggleFiltersButton is null)
+            return;
+
+        bool allSourcesSelected = SourceWingetCheck?.IsChecked == true
+            && SourceMsStoreCheck?.IsChecked == true
+            && SourceOtherCheck?.IsChecked == true;
+        ToggleFiltersButton.Tag = !allSourcesSelected || HideSameVersionCheck?.IsChecked != true;
     }
 
     private void UpdateSubtitleAndCounters()
@@ -405,7 +435,6 @@ public partial class UpdatesPage : Page
 
         bool hasSelection = selected > 0;
         UpdateSelectedButton.IsEnabled = hasSelection;
-        UninstallSelectedButton.IsEnabled = hasSelection;
         IgnoreSelectedButton.IsEnabled = hasSelection;
         PackageDetailsToolbarButton.IsEnabled = _filteredPackages.Count > 0;
 
@@ -727,9 +756,6 @@ public partial class UpdatesPage : Page
         _ = RunUpdateOnPackagesAsync(_filteredPackages.Where(p => p.IsSelectedForUpdate).ToList());
     }
 
-    private void UninstallSelectedButton_Click(object sender, RoutedEventArgs e) =>
-        _ = UninstallSelectedPackagesAsync();
-
     private void UpdateVariant_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not MenuItem { Tag: string variant })
@@ -758,7 +784,6 @@ public partial class UpdatesPage : Page
         }
 
         UpdateSelectedButton.IsEnabled = false;
-        UninstallSelectedButton.IsEnabled = false;
         ToggleSelectAllToolbarButton.IsEnabled = false;
         ReloadButton.IsEnabled = false;
         StatusText.Text = $"Iniciando atualização de {selected.Count} aplicativo(s)...";
@@ -817,40 +842,6 @@ public partial class UpdatesPage : Page
 
         ApplyFilters();
         ReloadButton.IsEnabled = true;
-    }
-
-    private async Task UninstallSelectedPackagesAsync()
-    {
-        var selected = _filteredPackages.Where(p => p.IsSelectedForUpdate).ToList();
-        if (selected.Count == 0) return;
-
-        var confirm = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = "Desinstalar Pacotes",
-            Content = $"Deseja desinstalar os {selected.Count} pacote(s) selecionado(s)?",
-            PrimaryButtonText = "Desinstalar",
-            CloseButtonText = "Cancelar"
-        };
-
-        StoreDialogStyles.Apply(confirm);
-        if (await confirm.ShowDialogAsync() != Wpf.Ui.Controls.MessageBoxResult.Primary)
-            return;
-
-        foreach (var package in selected)
-        {
-            try
-            {
-                var result = await _wingetExecutor.UninstallAppAsync(package.Id, installedVersion: package.CurrentVersion);
-                if (result.Success)
-                {
-                    _rawPackages.Remove(package);
-                    _filteredPackages.Remove(package);
-                }
-            }
-            catch { }
-        }
-
-        ApplyFilters();
     }
 
     // ----------------------------------------------------------------

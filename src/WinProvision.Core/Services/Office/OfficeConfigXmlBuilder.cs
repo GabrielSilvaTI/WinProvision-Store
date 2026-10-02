@@ -28,6 +28,9 @@ public static class OfficeConfigXmlBuilder
                 ? product
                 : BuildProduct(p, request)));
 
+        if (!string.IsNullOrWhiteSpace(request.SourcePath))
+            add.Add(new XAttribute("SourcePath", request.SourcePath));
+
         if (request.ChannelOverride is { Length: > 0 } channelOverride)
         {
             add.Add(new XAttribute("Channel", channelOverride));

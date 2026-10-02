@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Linq;
 using WinProvision.Core.Models.Office;
 using WinProvision.Core.Services;
 
@@ -16,6 +18,8 @@ public class OfficeDeploymentToolService : IDisposable
 {
     private const string OdtWingetPackageId = "Microsoft.OfficeDeploymentTool";
     private const string OdtDownloadUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Instalador/setup.exe";
+    private const long OfficeCacheLimitBytes = 8L * 1024 * 1024 * 1024;
+    private static readonly TimeSpan OfficeCacheRetention = TimeSpan.FromDays(30);
 
     /// <summary>
     /// Mesmo executável e argumento que o botão nativo "Atualizar agora" usa dentro de
@@ -214,6 +218,25 @@ public class OfficeDeploymentToolService : IDisposable
     /// </summary>
     public async Task<bool> RunConfigureAsync(OfficeInstallRequest request, Action<string>? onStatus = null, CancellationToken cancellationToken = default)
     {
+        try
+        {
+            var result = await RunConfigureDetailedAsync(request, onStatus, cancellationToken).ConfigureAwait(false);
+            return result.Success;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Executa a configuração do Office e preserva código de saída, cancelamento UAC e início do processo.</summary>
+    public async Task<OdtProcessResult> RunConfigureDetailedAsync(OfficeInstallRequest request,
+        Action<string>? onStatus = null, CancellationToken cancellationToken = default)
+    {
         string setupPath = await EnsureSetupExeAsync(onStatus, cancellationToken);
         string configPath = await OfficeConfigXmlBuilder.WriteToFolderAsync(request, _workRoot, cancellationToken);
 
@@ -226,7 +249,7 @@ public class OfficeDeploymentToolService : IDisposable
             if (result.ElevationCanceled)
             {
                 onStatus?.Invoke("Instalação cancelada pelo usuário (UAC).");
-                return false;
+                return result;
             }
 
             bool success = result.Success;
@@ -240,13 +263,148 @@ public class OfficeDeploymentToolService : IDisposable
                 onStatus?.Invoke($"Saída: {result.Output}");
             }
 
-            return success;
+            return result;
         }
         catch (Exception ex)
         {
             onStatus?.Invoke($"Erro ao executar setup.exe: {ex.Message}");
-            return false;
+            throw;
         }
+    }
+
+    /// <summary>
+    /// Baixa os arquivos de instalação ODT para um cache local reutilizável. Retorna
+    /// null quando a preparação não pode ser concluída; nesse caso, o ODT instala
+    /// diretamente da CDN oficial, sem bloquear o provisionamento.
+    /// </summary>
+    public async Task<string?> PrepareInstallSourceAsync(
+        OfficeInstallRequest request, Action<string>? onStatus = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        string cacheRoot = Path.Combine(_workRoot, "PayloadCache");
+        string cachePath = GetPayloadCachePath(request);
+
+        try
+        {
+            Directory.CreateDirectory(cacheRoot);
+            PruneExpiredOfficeCaches(cacheRoot);
+
+            if (Directory.Exists(cachePath) && GetDirectorySize(cachePath) > OfficeCacheLimitBytes)
+            {
+                onStatus?.Invoke("Cache do Office excede o limite local; a instalação usará a CDN da Microsoft.");
+                return null;
+            }
+
+            string volumePath = Path.GetPathRoot(cacheRoot) ?? cacheRoot;
+            if (new DriveInfo(volumePath).AvailableFreeSpace < 3L * 1024 * 1024 * 1024)
+            {
+                onStatus?.Invoke("Espaço livre insuficiente para preparar o cache do Office; a instalação usará a CDN da Microsoft.");
+                return null;
+            }
+
+            // A ferramenta é pequena; para não disputar a instalação de pacotes WinGet
+            // em paralelo, o pré-download obtém o ODT pelo endpoint próprio do app.
+            string setupPath = KnownInstallPaths().FirstOrDefault(File.Exists)
+                ?? await DownloadFromR2Async(onStatus, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Não foi possível obter setup.exe para preparar o cache.");
+
+            Directory.CreateDirectory(cachePath);
+            string configPath = Path.Combine(cachePath, "download-configuration.xml");
+            var downloadRequest = request with { SourcePath = cachePath };
+            var document = OfficeConfigXmlBuilder.Build(downloadRequest);
+            await using (var stream = File.Create(configPath))
+                await document.SaveAsync(stream, SaveOptions.None, cancellationToken).ConfigureAwait(false);
+
+            onStatus?.Invoke("Baixando os arquivos do Office para o cache local (ODT)…");
+            int exitCode = await OdtProcessRunner.RunDownloadAsync(setupPath, configPath,
+                onStatus, cancellationToken).ConfigureAwait(false);
+
+            if (exitCode != 0 || !HasOfficePayload(cachePath))
+            {
+                onStatus?.Invoke($"Pré-download do Office não foi concluído (código {exitCode}); a instalação usará a CDN da Microsoft.");
+                return null;
+            }
+
+            long cacheSize = GetDirectorySize(cachePath);
+            long totalCacheSize = GetDirectorySize(cacheRoot);
+            if (totalCacheSize > OfficeCacheLimitBytes)
+            {
+                TryDeleteDirectory(cachePath);
+                onStatus?.Invoke("O cache do Office atingiria o limite de 8 GB; a instalação usará a CDN da Microsoft.");
+                return null;
+            }
+
+            Directory.SetLastWriteTimeUtc(cachePath, DateTime.UtcNow);
+            onStatus?.Invoke($"Cache do Office pronto ({FormatSize(cacheSize)}); instalação local preparada.");
+            return cachePath;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            onStatus?.Invoke($"Não foi possível preparar o cache do Office: {ex.Message}. A instalação usará a CDN da Microsoft.");
+            return null;
+        }
+    }
+
+    public string GetPayloadCachePath(OfficeInstallRequest request) =>
+        Path.Combine(_workRoot, "PayloadCache", GetPayloadCacheKey(request));
+
+    private static string GetPayloadCacheKey(OfficeInstallRequest request)
+    {
+        XElement add = OfficeConfigXmlBuilder.Build(request with { SourcePath = null })
+            .Root?.Element("Add") ?? throw new InvalidOperationException("Configuração ODT sem elemento Add.");
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(add.ToString(SaveOptions.DisableFormatting)));
+        return Convert.ToHexString(hash).ToLowerInvariant();
+    }
+
+    private static bool HasOfficePayload(string cachePath)
+    {
+        string dataPath = Path.Combine(cachePath, "Office", "Data");
+        return Directory.Exists(dataPath) && Directory.EnumerateFiles(dataPath, "*", SearchOption.AllDirectories).Any();
+    }
+
+    private static void PruneExpiredOfficeCaches(string cacheRoot)
+    {
+        DateTime cutoff = DateTime.UtcNow - OfficeCacheRetention;
+        foreach (string directory in Directory.EnumerateDirectories(cacheRoot))
+        {
+            try
+            {
+                if (Directory.GetLastWriteTimeUtc(directory) < cutoff)
+                    Directory.Delete(directory, recursive: true);
+            }
+            catch
+            {
+                // Cache ocupado ou sem acesso: preserva e deixa o ODT/CDN seguir.
+            }
+        }
+    }
+
+    private static long GetDirectorySize(string path)
+    {
+        if (!Directory.Exists(path)) return 0;
+        long total = 0;
+        foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            try { total = checked(total + new FileInfo(file).Length); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+            catch (OverflowException) { return long.MaxValue; }
+        }
+        return total;
+    }
+
+    private static string FormatSize(long bytes) =>
+        bytes >= 1024L * 1024 * 1024 ? $"{bytes / (1024d * 1024 * 1024):0.0} GB" : $"{bytes / (1024d * 1024):0} MB";
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+        catch { /* Cache excedente pode permanecer e será reavaliado na próxima execução. */ }
     }
 
     /// <summary>

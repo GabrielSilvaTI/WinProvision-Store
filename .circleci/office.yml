@@ -15,11 +15,18 @@ jobs:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/msstore.txt" }}
       - run:
           name: Preparar Python
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/msstore.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/msstore.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Restaurar mapa de imagens Office do R2
           command: |

@@ -311,12 +311,18 @@ public static class WinGetFactoryHelper
     /// Aquece o servidor COM (a primeira ativação é a mais lenta) e deixa no log, logo no início,
     /// se a COM está saudável ou por que não está.
     /// </summary>
-    public static Task ProbeAsync(CancellationToken cancellationToken = default) =>
+    public static Task ProbeAsync(
+        CancellationToken cancellationToken = default,
+        bool includeMicrosoftStoreCatalog = false,
+        Action<string>? onLogReceived = null) =>
         // Task.Run: a ativação (CoCreateInstance) pode levar segundos e não deve rodar na thread da UI
         // (App.OnStartup chama isto sem await); também mantém o mesmo apartamento (MTA) do fluxo de instalação.
-        Task.Run(() => ProbeCoreAsync(cancellationToken), cancellationToken);
+        Task.Run(() => ProbeCoreAsync(cancellationToken, includeMicrosoftStoreCatalog, onLogReceived), cancellationToken);
 
-    private static async Task ProbeCoreAsync(CancellationToken cancellationToken)
+    private static async Task ProbeCoreAsync(
+        CancellationToken cancellationToken,
+        bool includeMicrosoftStoreCatalog,
+        Action<string>? onLogReceived)
     {
         var stopwatch = Stopwatch.StartNew();
         while (true)
@@ -338,13 +344,50 @@ public static class WinGetFactoryHelper
                 WinProvisionLog.Write(
                     $"COM PROBE status={connect.Status} strategy={CurrentStrategy} " +
                     $"elapsed={stopwatch.Elapsed} mode={_mode}");
+                onLogReceived?.Invoke($"[WinProvision] Conexão com catálogo WinGet: {connect.Status} ({stopwatch.Elapsed.TotalSeconds:0.0}s).");
                 if (connect.Status == ConnectResultStatus.Ok)
                 {
                     ReportComSuccess();
                 }
 
+                if (includeMicrosoftStoreCatalog)
+                {
+                    var storeWatch = Stopwatch.StartNew();
+                    try
+                    {
+                        var storeReference = packageManager.GetPredefinedPackageCatalog(
+                            PredefinedPackageCatalog.MicrosoftStore);
+                        storeReference.AcceptSourceAgreements = true;
+                        using var storeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        storeTimeout.CancelAfter(TimeSpan.FromSeconds(90));
+                        var storeConnect = await storeReference.ConnectAsync()
+                            .AsTask(storeTimeout.Token).ConfigureAwait(false);
+                        WinProvisionLog.Write(
+                            $"COM PROBE store-catalog status={storeConnect.Status} elapsed={storeWatch.Elapsed}");
+                        onLogReceived?.Invoke(
+                            $"[WinProvision] Conexão com catálogo Microsoft Store: {storeConnect.Status} ({storeWatch.Elapsed.TotalSeconds:0.0}s).");
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        // O catálogo da Store é opcional para pacotes WinGet comuns; uma
+                        // falha aqui não invalida a conexão COM principal.
+                        WinProvisionLog.Write(
+                            $"COM PROBE store-catalog falhou {ex.GetType().Name} 0x{ex.HResult:X8}: {ex.Message}");
+                        onLogReceived?.Invoke(
+                            $"[WinProvision] Catálogo Microsoft Store não aquecido; ele será tentado durante a instalação ({ex.Message}).");
+                    }
+                }
+
                 WinProvisionLog.WriteComServerInfo();
                 return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex) when (ex is not OperationCanceledException && TryAdvanceStrategy(ex))
             {

@@ -89,7 +89,8 @@ public class ProfileService
     /// atualizado) — ver <see cref="ProfileManifestParser"/> para os detalhes de como os dois
     /// são tratados como equivalentes.
     /// </summary>
-    public async Task<ProfileManifest> ImportAsync(string filePath, CancellationToken ct = default)
+    public async Task<ProfileManifest> ImportAsync(string filePath, CancellationToken ct = default,
+        bool preserveDuplicateApps = false)
     {
         try
         {
@@ -100,7 +101,8 @@ public class ProfileService
                     validation.Path is { Length: > 0 }
                         ? $"{validation.Message} Campo: {validation.Path}"
                         : validation.Message);
-            var profile = ProfileManifestParser.Parse(json, Path.GetFileNameWithoutExtension(filePath));
+            var profile = ProfileManifestParser.Parse(json,
+                Path.GetFileNameWithoutExtension(filePath), preserveDuplicateApps);
 
             if (profile is null)
                 throw new InvalidDataException($"Não foi possível interpretar o perfil em '{filePath}'.");

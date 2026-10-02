@@ -10,8 +10,9 @@ Seguir a linguagem visual da Microsoft Store do Windows 11 com WPF-UI 4.3.0 e Co
 - Cartões: `#FF303030`; superfície elevada: `#FF383838`; bordas discretas: `#FF454545`.
 - Texto primário: `#F5F5F5`; secundário: `#D0D0D0`; terciário: `#A8A8A8`.
 - Acento de ação: azul Microsoft `#0078D4`, aplicado a seleção, foco e ação principal.
+- Botões primários, diálogos, hiperlinks e estados selecionados consomem os tokens globais de acento `#0078D4`, inclusive em hover e pressionamento.
 - Estados de sucesso, atenção e erro usam cores semânticas próprias; não substituem o azul de navegação e ação.
-- Barras de progresso por método têm cores fixas: API COM roxa (#B991FF), WinProvision API laranja (#FF9A3D) e WinGet CLI azul (#1688E8). Operações ainda não identificadas usam azul.
+- Barras de progresso por método têm cores fixas: API COM roxa (#B991FF), WinProvision API laranja (#FF9A3D) e WinGet CLI azul Microsoft (#0078D4). Operações ainda não identificadas usam o mesmo azul.
 - Use os brushes dinâmicos do tema para texto, controles e estados. Evite cores hexadecimais em páginas.
 
 ## Tipografia

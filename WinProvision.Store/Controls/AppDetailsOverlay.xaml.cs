@@ -40,6 +40,7 @@ public partial class AppDetailsOverlay : UserControl
     private CancellationTokenSource? _screenshotLoadCts;
     private string[] _screenshots = [];
     private int _screenshotIndex;
+    private int _lightboxLoadGeneration;
 
     private sealed class ExtendedPackageInfo
     {
@@ -90,6 +91,8 @@ public partial class AppDetailsOverlay : UserControl
         _detailsCts = new CancellationTokenSource();
         _screenshotLoadCts?.Cancel();
         _screenshotLoadCts = new CancellationTokenSource();
+        _lightboxLoadGeneration++;
+        ScreenshotLightboxImage.Source = null;
 
         if (_app is not null)
         {
@@ -482,7 +485,13 @@ public partial class AppDetailsOverlay : UserControl
     {
         _detailsCts?.Cancel();
         _screenshotLoadCts?.Cancel();
+        _lightboxLoadGeneration++;
         ScreenshotLightbox.Visibility = Visibility.Collapsed;
+        ScreenshotImage.Source = null;
+        ScreenshotLightboxImage.Source = null;
+        AsyncImage.SetSourceUrl(AppIcon, null);
+        TagsList.ItemsSource = null;
+        _screenshots = [];
         if (_app is not null)
         {
             _app.PropertyChanged -= AppOnPropertyChanged;
@@ -550,7 +559,7 @@ public partial class AppDetailsOverlay : UserControl
         if (e.Key == Key.Escape)
         {
             if (ScreenshotLightbox.Visibility == Visibility.Visible)
-                ScreenshotLightbox.Visibility = Visibility.Collapsed;
+                CloseScreenshotLightbox();
             else
                 Close();
             e.Handled = true;
@@ -588,13 +597,16 @@ public partial class AppDetailsOverlay : UserControl
 
         int requestedIndex = _screenshotIndex;
         string url = _screenshots[requestedIndex];
+        int lightboxGeneration = ++_lightboxLoadGeneration;
         ScreenshotImage.Source = null;
         ScreenshotLightboxImage.Source = null;
         ScreenshotsEmptyText.Visibility = Visibility.Collapsed;
         ScreenshotLoadingBar.Visibility = Visibility.Visible;
         ScreenshotCounterText.Text = $"{requestedIndex + 1} / {_screenshots.Length}";
 
-        BitmapSource? bitmap = await AsyncImage.LoadBitmapAsync(url);
+        // O painel de detalhes só tem 220 px de altura; guardar a captura inteira
+        // decodificada para essa prévia multiplicava o pico de RAM sem ganho visual.
+        BitmapSource? bitmap = await AsyncImage.LoadBitmapAsync(url, decodePixelWidth: 720);
         if (cancellationToken.IsCancellationRequested || !ReferenceEquals(_app, app) || requestedIndex != _screenshotIndex)
             return;
 
@@ -608,7 +620,20 @@ public partial class AppDetailsOverlay : UserControl
 
         ScreenshotImage.Source = bitmap;
         if (ScreenshotLightbox.Visibility == Visibility.Visible)
-            ScreenshotLightboxImage.Source = bitmap;
+            _ = LoadLightboxScreenshotAsync(app, requestedIndex, url, lightboxGeneration);
+    }
+
+    private async Task LoadLightboxScreenshotAsync(AppEntry app, int requestedIndex, string url, int generation)
+    {
+        BitmapSource? bitmap = await AsyncImage.LoadBitmapAsync(url, decodePixelWidth: 1600);
+        if (bitmap is null
+            || generation != _lightboxLoadGeneration
+            || !ReferenceEquals(_app, app)
+            || requestedIndex != _screenshotIndex
+            || ScreenshotLightbox.Visibility != Visibility.Visible)
+            return;
+
+        ScreenshotLightboxImage.Source = bitmap;
     }
 
     private void PreviousScreenshotButton_Click(object sender, RoutedEventArgs e) => MoveScreenshot(-1);
@@ -623,25 +648,34 @@ public partial class AppDetailsOverlay : UserControl
         _ = LoadCurrentScreenshotAsync(_app, _screenshotLoadCts.Token);
     }
 
-    private void ScreenshotImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    private async void ScreenshotImage_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (ScreenshotImage.Source is null) return;
+        if (ScreenshotImage.Source is null || _app is null || _screenshots.Length == 0) return;
+        int generation = ++_lightboxLoadGeneration;
         ScreenshotLightboxImage.Source = ScreenshotImage.Source;
         ScreenshotLightbox.Visibility = Visibility.Visible;
         e.Handled = true;
+        await LoadLightboxScreenshotAsync(_app, _screenshotIndex, _screenshots[_screenshotIndex], generation);
     }
 
     private void CloseScreenshotLightboxButton_Click(object sender, RoutedEventArgs e)
     {
-        ScreenshotLightbox.Visibility = Visibility.Collapsed;
+        CloseScreenshotLightbox();
         e.Handled = true;
     }
 
     private void ScreenshotLightbox_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
         if (ReferenceEquals(e.OriginalSource, ScreenshotLightbox))
-            ScreenshotLightbox.Visibility = Visibility.Collapsed;
+            CloseScreenshotLightbox();
         e.Handled = true;
+    }
+
+    private void CloseScreenshotLightbox()
+    {
+        ScreenshotLightbox.Visibility = Visibility.Collapsed;
+        ScreenshotLightboxImage.Source = null;
+        _lightboxLoadGeneration++;
     }
     private void OptionsHeader_Click(object sender, MouseButtonEventArgs e)
     {
@@ -835,18 +869,12 @@ public partial class AppDetailsOverlay : UserControl
     {
         if (_app is null) return;
 
-        var confirmDialog = new Wpf.Ui.Controls.MessageBox
-        {
-            Title = "Desinstalar aplicativo",
-            Content = $"Desinstalar {_app.Name}?",
-            PrimaryButtonText = "Desinstalar",
-            CloseButtonText = "Cancelar"
-        };
-
-        confirmDialog.Resources[typeof(Wpf.Ui.Controls.Button)] = StoreDialogStyles.CreatePrimaryActionButtonStyle();
-
-        var confirmResult = await confirmDialog.ShowDialogAsync();
-        if (confirmResult != Wpf.Ui.Controls.MessageBoxResult.Primary)
+        var confirmResult = await StoreConfirmationDialog.ShowAsync(
+            "Desinstalar aplicativo",
+            $"Desinstalar {_app.Name}?",
+            "Desinstalar",
+            "Cancelar");
+        if (confirmResult != Wpf.Ui.Controls.ContentDialogResult.Primary)
             return;
 
         if (_app is null) return;

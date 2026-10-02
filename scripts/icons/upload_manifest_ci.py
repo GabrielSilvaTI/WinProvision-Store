@@ -5,6 +5,8 @@ pro bucket R2. Credenciais vem de variaveis de ambiente.
 """
 
 import os
+import sys
+from pathlib import Path
 
 import boto3
 
@@ -19,6 +21,9 @@ ENDPOINT_URL = f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 
 def main():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "database"))
+    from r2_upload import object_matches, sha256_file
+
     s3 = boto3.client(
         "s3",
         endpoint_url=ENDPOINT_URL,
@@ -26,11 +31,19 @@ def main():
         aws_secret_access_key=SECRET_ACCESS_KEY,
         region_name="auto",
     )
+    digest = sha256_file("icon-manifest.json")
+    if object_matches(s3, BUCKET, DEST_KEY, digest):
+        print(f"Sem alterações: {BUCKET}/{DEST_KEY} já contém SHA-256 {digest}; upload ignorado.")
+        return
     s3.upload_file(
         "icon-manifest.json",
         BUCKET,
         DEST_KEY,
-        ExtraArgs={"ContentType": "application/json", "CacheControl": "no-cache"},
+        ExtraArgs={
+            "ContentType": "application/json",
+            "CacheControl": "no-cache",
+            "Metadata": {"sha256": digest},
+        },
     )
     print(f"Enviado: icon-manifest.json -> {BUCKET}/{DEST_KEY}")
 

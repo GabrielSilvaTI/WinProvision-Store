@@ -19,11 +19,18 @@ jobs:
     resource_class: medium
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
           name: Preparar acesso ao R2
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Criar snapshot dos catálogos validados
           command: /tmp/ci-venv/bin/python scripts/database/catalog_recovery.py snapshot
@@ -40,11 +47,18 @@ jobs:
       CATALOG_SNAPSHOT_ID: << pipeline.parameters.catalog_snapshot_id >>
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
           name: Preparar acesso ao R2
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Validar integridade e restaurar snapshot escolhido
           command: /tmp/ci-venv/bin/python scripts/database/catalog_recovery.py restore "$CATALOG_SNAPSHOT_ID"

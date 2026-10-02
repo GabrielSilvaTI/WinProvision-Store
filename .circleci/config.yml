@@ -15,6 +15,9 @@ jobs:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/msstore.txt" }}
       - run:
           name: Preparar Python e .NET 10
           command: |
@@ -24,6 +27,10 @@ jobs:
             bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /home/circleci/.dotnet
             echo 'export DOTNET_ROOT=/home/circleci/.dotnet' >> "$BASH_ENV"
             echo 'export PATH=/home/circleci/.dotnet:$PATH' >> "$BASH_ENV"
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/msstore.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Restaurar caches e catálogo anterior do R2
           command: |

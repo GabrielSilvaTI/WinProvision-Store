@@ -35,4 +35,7 @@ public enum AutoInstallExitCode
     /// provisionamento, ela ainda foi aplicada normalmente (não depende do winget).
     /// </summary>
     WingetUnavailable = 6,
+
+    /// <summary>Perfil rejeitado na pré-validação; nenhum download ou ajuste foi iniciado.</summary>
+    PreflightFailed = 7,
 }

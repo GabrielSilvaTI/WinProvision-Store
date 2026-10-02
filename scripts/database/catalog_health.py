@@ -7,8 +7,9 @@ import argparse
 import json
 import sys
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunsplit
 
@@ -23,8 +24,15 @@ CATALOGS = {
     "icon_manifest": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/icon-manifest.json",
 }
 MEDIA_KEYS = {
-    "iconurl", "storeiconurl", "bannerurl", "storebannerurl", "screenshoturls",
-    "storescreenshoturls", "screenshots", "screenshoturl", "iconurls",
+    "iconurl",
+    "storeiconurl",
+    "bannerurl",
+    "storebannerurl",
+    "screenshoturls",
+    "storescreenshoturls",
+    "screenshots",
+    "screenshoturl",
+    "iconurls",
 }
 MAX_JSON_BYTES = 256 * 1024 * 1024
 _local = threading.local()
@@ -34,9 +42,15 @@ def session() -> requests.Session:
     value = getattr(_local, "session", None)
     if value is None:
         value = requests.Session()
-        retry = Retry(total=3, connect=3, read=2, backoff_factor=0.5,
-                      status_forcelist=(408, 429, 500, 502, 503, 504),
-                      allowed_methods=frozenset({"GET"}), respect_retry_after_header=True)
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=2,
+            backoff_factor=0.5,
+            status_forcelist=(408, 429, 500, 502, 503, 504),
+            allowed_methods=frozenset({"GET"}),
+            respect_retry_after_header=True,
+        )
         value.mount("https://", HTTPAdapter(max_retries=retry, pool_connections=24, pool_maxsize=24))
         value.headers["User-Agent"] = "WinProvision-CatalogHealth/1.0"
         _local.session = value
@@ -129,7 +143,9 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
             else:
                 errors.append(f"Origem inválida no apps.json para {app_id}: {source!r}")
         if sources["winget"] < minimums["winget"] or sources["msstore"] < minimums["microsoft_store"]:
-            errors.append(f"Contagem por origem abaixo do mínimo: winget={sources['winget']}, msstore={sources['msstore']}")
+            errors.append(
+                f"Contagem por origem abaixo do mínimo: winget={sources['winget']}, msstore={sources['msstore']}"
+            )
 
     msstore = payloads.get("microsoft_store")
     if not isinstance(msstore, list) or len(msstore) < minimums["microsoft_store"]:
@@ -160,10 +176,16 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
 
 
 def main() -> int:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--report-dir", type=Path, default=Path("catalog-health-report"))
     parser.add_argument("--workers", type=int, default=24)
-    parser.add_argument("--max-media-urls", type=int, default=0, help="0 verifica todas as URLs; valor positivo seleciona uma amostra rotativa")
+    parser.add_argument(
+        "--max-media-urls",
+        type=int,
+        default=0,
+        help="0 verifica todas as URLs; valor positivo seleciona uma amostra rotativa",
+    )
     parser.add_argument("--max-failure-rate", type=float, default=0.01)
     args = parser.parse_args()
     if args.workers < 1 or args.max_media_urls < 0 or not 0 <= args.max_failure_rate <= 1:
@@ -178,9 +200,14 @@ def main() -> int:
             catalog_errors.append(f"{name}: {type(exc).__name__}: {exc}")
             print(f"JSON ERRO: {name}: {exc}", file=sys.stderr)
 
-    errors = catalog_errors + validate_payloads(payloads, {
-        "winget": 5000, "microsoft_store": 20, "icon_manifest": 100,
-    })
+    errors = catalog_errors + validate_payloads(
+        payloads,
+        {
+            "winget": 5000,
+            "microsoft_store": 20,
+            "icon_manifest": 100,
+        },
+    )
     media_map: dict[str, list[str]] = {}
     for name, payload in payloads.items():
         if name == "icon_manifest":
@@ -196,9 +223,9 @@ def main() -> int:
     urls = sorted(media_map)
     if args.max_media_urls and len(urls) > args.max_media_urls:
         # Rotate the deterministic sample weekly to eventually cover the entire set.
-        week = datetime.now(timezone.utc).isocalendar().week
+        week = datetime.now(UTC).isocalendar().week
         start = (week * args.max_media_urls) % len(urls)
-        urls = (urls + urls)[start:start + args.max_media_urls]
+        urls = (urls + urls)[start : start + args.max_media_urls]
 
     media_results = []
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
@@ -213,28 +240,57 @@ def main() -> int:
     failures = [item for item in media_results if item["error"]]
     failure_rate = len(failures) / len(media_results) if media_results else 0.0
     if media_results and failure_rate > args.max_failure_rate:
-        errors.append(f"Mídias indisponíveis: {len(failures)}/{len(media_results)} ({failure_rate:.2%}), limite {args.max_failure_rate:.2%}")
+        errors.append(
+            f"Mídias indisponíveis: {len(failures)}/{len(media_results)} ({failure_rate:.2%}), limite {args.max_failure_rate:.2%}"
+        )
 
     report = {
         "schemaVersion": 1,
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
-        "catalogs": {name: {"items": len(value) if isinstance(value, (list, dict)) else None}
-                     for name, value in payloads.items()},
-        "media": {"checked": len(media_results), "failed": len(failures), "failureRate": failure_rate,
-                  "sampleLimit": args.max_media_urls, "failures": failures},
+        "generatedAt": datetime.now(UTC).isoformat(),
+        "durationSeconds": round(time.perf_counter() - started, 2),
+        "catalogs": {
+            name: {"items": len(value) if isinstance(value, (list, dict)) else None} for name, value in payloads.items()
+        },
+        "media": {
+            "checked": len(media_results),
+            "failed": len(failures),
+            "failureRate": failure_rate,
+            "sampleLimit": args.max_media_urls,
+            "failures": failures,
+        },
         "errors": errors,
     }
     args.report_dir.mkdir(parents=True, exist_ok=True)
     (args.report_dir / "health.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    lines = ["# Saúde dos catálogos WinProvision", "", f"Gerado em: {report['generatedAt']}", "",
-             "## Catálogos", "", "| Fonte | Entradas |", "|---|---:|"]
-    lines.extend(f"| {name} | {details['items'] if details['items'] is not None else 'inválido'} |"
-                 for name, details in report["catalogs"].items())
-    lines.extend(["", "## Mídias", "", f"URLs verificadas: {len(media_results)}",
-                  f"Falhas: {len(failures)} ({failure_rate:.2%})", ""])
+    lines = [
+        "# Saúde dos catálogos WinProvision",
+        "",
+        f"Gerado em: {report['generatedAt']}",
+        "",
+        "## Catálogos",
+        "",
+        "| Fonte | Entradas |",
+        "|---|---:|",
+    ]
+    lines.extend(
+        f"| {name} | {details['items'] if details['items'] is not None else 'inválido'} |"
+        for name, details in report["catalogs"].items()
+    )
+    lines.extend(
+        [
+            "",
+            "## Mídias",
+            "",
+            f"URLs verificadas: {len(media_results)}",
+            f"Falhas: {len(failures)} ({failure_rate:.2%})",
+            "",
+        ]
+    )
     if failures:
         lines.extend(["| URL | Motivo | Referências |", "|---|---|---|"])
-        lines.extend(f"| {item['url']} | {item['error']} | {', '.join(item['sources'][:3])} |" for item in failures[:500])
+        lines.extend(
+            f"| {item['url']} | {item['error']} | {', '.join(item['sources'][:3])} |" for item in failures[:500]
+        )
     if errors:
         lines.extend(["", "## Erros", "", *[f"- {error}" for error in errors]])
     (args.report_dir / "health.md").write_text("\n".join(lines) + "\n", encoding="utf-8")

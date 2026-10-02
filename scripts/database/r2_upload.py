@@ -11,12 +11,32 @@ Env vars esperadas (as mesmas já usadas pelo upload_apps_json.py):
 Se o arquivo local não existir, o script falha para evitar falso sucesso.
 """
 
+import hashlib
 import mimetypes
 import os
 import sys
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
+
+
+def sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def object_matches(client, bucket: str, key: str, digest: str, metadata_key: str = "sha256") -> bool:
+    try:
+        response = client.head_object(Bucket=bucket, Key=key)
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+            return False
+        raise
+    return response.get("Metadata", {}).get(metadata_key.casefold()) == digest
 
 
 def main() -> int:
@@ -45,11 +65,16 @@ def main() -> int:
     )
 
     content_type = mimetypes.guess_type(r2_key)[0] or "application/octet-stream"
+    digest = sha256_file(local_path)
+    if object_matches(client, bucket, r2_key, digest):
+        print(f"Sem alterações: '{r2_key}' já contém SHA-256 {digest}; upload ignorado.")
+        return 0
+
     client.upload_file(
         local_path,
         bucket,
         r2_key,
-        ExtraArgs={"ContentType": content_type, "CacheControl": "no-cache"},
+        ExtraArgs={"ContentType": content_type, "CacheControl": "no-cache", "Metadata": {"sha256": digest}},
     )
     print(f"OK: subido '{local_path}' -> '{r2_key}'")
     return 0

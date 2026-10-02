@@ -15,9 +15,16 @@ jobs:
       R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Icon_Database
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
           name: Instalar dependências do manifesto
           command: python3 -m pip install --disable-pip-version-check -r scripts/requirements/base.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
       - run:
           name: Gerar e publicar manifesto dos ícones
           command: |

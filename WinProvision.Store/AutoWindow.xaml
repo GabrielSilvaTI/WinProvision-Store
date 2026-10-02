@@ -8,10 +8,12 @@
                  WindowState="Maximized"
                  WindowStartupLocation="CenterScreen"
                  WindowStyle="None"
-                 ResizeMode="NoResize"
+                 ResizeMode="CanResize"
+                 MinWidth="640"
+                 MinHeight="480"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
-                 Icon="pack://application:,,,/Assets/app.ico"
+             Icon="{DynamicResource AppIconImage}"
                  FontFamily="{StaticResource StoreFontFamily}"
                  TextElement.FontFamily="{StaticResource StoreFontFamily}"
                  TextOptions.TextRenderingMode="ClearType"
@@ -54,7 +56,7 @@
                      VerticalAlignment="Top"
                      ShowMinimize="True"
                      ShowMaximize="True"
-                     CanMaximize="False"
+                     CanMaximize="True"
                      Background="Transparent" />
 
         <!--
@@ -67,14 +69,23 @@
                 <RowDefinition Height="52" />
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0">
+            <ScrollViewer x:Name="WorkspaceScrollViewer"
+                          Grid.Row="0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          PanningMode="VerticalOnly">
+            <Grid x:Name="WorkspaceGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*" />
                     <ColumnDefinition Width="1.15*" />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
                 <!--  Primary workspace  -->
-                <Border Grid.Column="0"
+                <Border x:Name="PrimaryWorkspace"
+                        Grid.Column="0"
                         Style="{StaticResource StoreCardSurfaceStyle}"
                         Margin="0,0,16,0"
                         Padding="24">
@@ -93,7 +104,8 @@
                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="WinProvision " Style="{StaticResource OrchestratorTitleStyle}" />
-                                    <TextBlock Text="Orchestrator" Style="{StaticResource OrchestratorTitleStyle}"
+                                    <TextBlock Text="Orchestrator"
+                                               Style="{StaticResource OrchestratorTitleStyle}"
                                                Foreground="{StaticResource OrchestratorTitleBrush}" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding ProfileName}"
@@ -101,8 +113,10 @@
                                            Margin="0,4,0,0"
                                            TextTrimming="CharacterEllipsis" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal"
-                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
                                 <TextBlock Text="{Binding GlobalProgressText}"
                                            FontSize="16"
                                            FontWeight="SemiBold"
@@ -164,14 +178,14 @@
                 </Border>
 
                 <!--  Right information rail  -->
-                <Grid Grid.Column="1">
+                <Grid x:Name="RightInformationRail" Grid.Column="1">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="32" />
                         <RowDefinition Height="12" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="12" />
                         <RowDefinition Height="Auto" />
-                    <RowDefinition Height="12" />
+                        <RowDefinition Height="12" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -199,7 +213,7 @@
                             Padding="20">
                         <Grid>
                             <Grid.RowDefinitions>
-                            <RowDefinition Height="40" />
+                                <RowDefinition Height="40" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
@@ -210,7 +224,7 @@
                                     BorderBrush="{DynamicResource AppCardBorderBrush}"
                                     BorderThickness="1"
                                     HorizontalAlignment="Left">
-                                <Image Source="pack://application:,,,/Assets/app_icon_256.png"
+                                <Image Source="{DynamicResource AppIconImage}"
                                        Width="24"
                                        Height="24"
                                        Stretch="Uniform"
@@ -260,7 +274,8 @@
                                     <ColumnDefinition Width="40" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Border Width="40" Height="40"
+                                <Border Width="40"
+                                        Height="40"
                                         Style="{StaticResource PageHeaderIconTileStyle}"
                                         Margin="0">
                                     <ui:SymbolIcon Symbol="Desktop24"
@@ -416,7 +431,8 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <Border Width="40" Height="40"
+                                <Border Width="40"
+                                        Height="40"
                                         Style="{StaticResource PageHeaderIconTileStyle}"
                                         Margin="0">
                                     <ui:SymbolIcon Symbol="Cloud24"
@@ -491,6 +507,7 @@
                     </Border>
                 </Grid>
             </Grid>
+            </ScrollViewer>
 
             <!--  Footer  -->
             <Border Grid.Row="1"

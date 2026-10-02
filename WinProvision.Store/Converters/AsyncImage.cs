@@ -19,15 +19,19 @@ namespace WinProvision.Store.Converters;
 /// </summary>
 public static class AsyncImage
 {
-    private const int MaxMemoryEntries = 384;
+    private static readonly TimeSpan NegativeCacheTtl = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan DiskCacheTtl = TimeSpan.FromDays(14);
+    private const long MaxDiskCacheBytes = 512L * 1024 * 1024;
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(10) };
-    private static readonly ConcurrentDictionary<string, BitmapImage> MemoryCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly MemoryBitmapCache MemoryCache = new(48L * 1024 * 1024);
+    private static readonly ConcurrentDictionary<string, DateTime> NegativeCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, Task<BitmapImage?>> InFlight = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly object CacheTrimLock = new();
+    private static readonly SemaphoreSlim DiskCacheTrimLock = new(1, 1);
     private static readonly string DiskCacheFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WinProvisionStore", "Cache", "RenderedIcons");
+    private static long _nextDiskTrimUtcTicks;
+    private static int _diskTrimScheduled;
 
     public static readonly DependencyProperty SourceUrlProperty =
         DependencyProperty.RegisterAttached(
@@ -72,7 +76,9 @@ public static class AsyncImage
     public static void ClearCache()
     {
         MemoryCache.Clear();
+        NegativeCache.Clear();
         InFlight.Clear();
+        Interlocked.Exchange(ref _nextDiskTrimUtcTicks, 0);
         try
         {
             if (Directory.Exists(DiskCacheFolder))
@@ -91,14 +97,69 @@ public static class AsyncImage
     /// a imagem não existir (404) ou não decodificar (formato ruim) — o chamador deve
     /// manter o fallback nesse caso.
     /// </summary>
-    public static Task<BitmapImage?> LoadBitmapAsync(string url) => LoadAsync(url, 0);
+    public static Task<BitmapImage?> LoadBitmapAsync(string url) => LoadBitmapAsync(url, 0);
+
+    public static async Task<BitmapImage?> LoadBitmapAsync(string url, int decodePixelWidth)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
+
+        decodePixelWidth = Math.Max(0, decodePixelWidth);
+        string requestKey = GetRequestKey(url, decodePixelWidth);
+        if (MemoryCache.TryGet(requestKey, out BitmapImage? cached))
+            return cached;
+
+        if (IsNegativeCached(requestKey))
+            return null;
+
+        try
+        {
+            BitmapImage? bitmap = await InFlight.GetOrAdd(requestKey, _ => LoadAsync(url, decodePixelWidth));
+            if (bitmap is null)
+            {
+                RememberFailure(requestKey);
+                return null;
+            }
+
+            MemoryCache.Set(requestKey, bitmap);
+            return bitmap;
+        }
+        catch
+        {
+            RememberFailure(requestKey);
+            return null;
+        }
+        finally
+        {
+            InFlight.TryRemove(requestKey, out _);
+        }
+    }
 
     private static void OnSourceUrlChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not Image image)
             return;
 
+        image.Loaded -= Image_Loaded;
+        image.Unloaded -= Image_Unloaded;
+        image.Loaded += Image_Loaded;
+        image.Unloaded += Image_Unloaded;
         BeginLoad(image, e.NewValue as string, GetDecodePixelWidth(image));
+    }
+
+    private static void Image_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is Image image && image.Source is null)
+            BeginLoad(image, GetSourceUrl(image), GetDecodePixelWidth(image));
+    }
+
+    private static void Image_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Image image)
+            return;
+
+        image.Source = null;
+        SetHasContent(image, false);
     }
 
     private static void OnDecodePixelWidthChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -128,12 +189,17 @@ public static class AsyncImage
         }
 
         string requestKey = GetRequestKey(url, decodePixelWidth);
-        if (MemoryCache.TryGetValue(requestKey, out BitmapImage? cached))
+        ScheduleDiskCacheTrim();
+
+        if (MemoryCache.TryGet(requestKey, out BitmapImage? cached))
         {
             image.Source = cached;
             SetHasContent(image, true);
             return;
         }
+
+        if (IsNegativeCached(requestKey))
+            return;
 
         try
         {
@@ -145,14 +211,18 @@ public static class AsyncImage
             // não decodificou como imagem. Fica sem bitmap — o SymbolIcon genérico
             // assume via HasContent=false, em vez de mostrar um PNG de fallback.
             if (bitmap is null)
+            {
+                RememberFailure(requestKey);
                 return;
+            }
 
-            MemoryCache[requestKey] = bitmap;
-            TrimMemoryCache();
+            NegativeCache.TryRemove(requestKey, out _);
+            MemoryCache.Set(requestKey, bitmap);
 
             // A lista pode ter reciclado o Image enquanto o download ocorria.
             if (string.Equals(GetSourceUrl(image), url, StringComparison.OrdinalIgnoreCase)
-                && GetDecodePixelWidth(image) == decodePixelWidth)
+                && GetDecodePixelWidth(image) == decodePixelWidth
+                && image.IsLoaded)
             {
                 image.Source = bitmap;
                 SetHasContent(image, true);
@@ -161,6 +231,7 @@ public static class AsyncImage
         catch
         {
             // Mesmo tratamento de falha acima: mantém HasContent=false.
+            RememberFailure(requestKey);
         }
         finally
         {
@@ -178,6 +249,7 @@ public static class AsyncImage
             if (File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) < DiskCacheTtl)
             {
                 byte[] cachedBytes = await File.ReadAllBytesAsync(path);
+                TouchDiskCacheEntry(path);
                 BitmapImage? cachedBitmap = await Task.Run(() => DecodeToBitmap(cachedBytes, decodePixelWidth));
                 if (cachedBitmap is not null)
                     return cachedBitmap;
@@ -217,6 +289,7 @@ public static class AsyncImage
             try
             {
                 await File.WriteAllBytesAsync(path, bytes);
+                ScheduleDiskCacheTrim();
             }
             catch
             {
@@ -240,19 +313,184 @@ public static class AsyncImage
     private static string GetRequestKey(string url, int decodePixelWidth) =>
         $"{url}|width={decodePixelWidth}";
 
-    private static void TrimMemoryCache()
+    private static bool IsNegativeCached(string requestKey)
     {
-        if (MemoryCache.Count <= MaxMemoryEntries)
+        if (!NegativeCache.TryGetValue(requestKey, out DateTime retryAfterUtc))
+            return false;
+        if (retryAfterUtc > DateTime.UtcNow)
+            return true;
+        NegativeCache.TryRemove(requestKey, out _);
+        return false;
+    }
+
+    private static void RememberFailure(string requestKey)
+    {
+        if (NegativeCache.Count >= 2048)
+        {
+            DateTime now = DateTime.UtcNow;
+            foreach (var item in NegativeCache.Where(item => item.Value <= now).Take(512))
+                NegativeCache.TryRemove(item.Key, out _);
+            foreach (string key in NegativeCache.Keys.Take(Math.Max(0, NegativeCache.Count - 1536)))
+                NegativeCache.TryRemove(key, out _);
+        }
+
+        NegativeCache[requestKey] = DateTime.UtcNow + NegativeCacheTtl;
+    }
+
+    private static void ScheduleDiskCacheTrim()
+    {
+        long nowTicks = DateTime.UtcNow.Ticks;
+        if (nowTicks < Volatile.Read(ref _nextDiskTrimUtcTicks) ||
+            Interlocked.Exchange(ref _diskTrimScheduled, 1) != 0)
             return;
 
-        lock (CacheTrimLock)
+        _ = Task.Run(async () =>
         {
-            if (MemoryCache.Count <= MaxMemoryEntries)
+            try
+            {
+                await DiskCacheTrimLock.WaitAsync();
+                try
+                {
+                    TrimDiskCache();
+                    Interlocked.Exchange(ref _nextDiskTrimUtcTicks, DateTime.UtcNow.AddHours(1).Ticks);
+                }
+                finally
+                {
+                    DiskCacheTrimLock.Release();
+                }
+            }
+            catch
+            {
+                Interlocked.Exchange(ref _nextDiskTrimUtcTicks, DateTime.UtcNow.AddMinutes(5).Ticks);
+            }
+            finally
+            {
+                Volatile.Write(ref _diskTrimScheduled, 0);
+            }
+        });
+    }
+
+    private static void TrimDiskCache()
+    {
+        if (!Directory.Exists(DiskCacheFolder))
+            return;
+
+        DateTime expirationUtc = DateTime.UtcNow - DiskCacheTtl;
+        var entries = new List<FileInfo>();
+        long totalBytes = 0;
+        foreach (string filePath in Directory.EnumerateFiles(DiskCacheFolder, "*.img", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                var file = new FileInfo(filePath);
+                if (file.LastWriteTimeUtc < expirationUtc)
+                {
+                    file.Delete();
+                    continue;
+                }
+
+                entries.Add(file);
+                totalBytes += file.Length;
+            }
+            catch
+            {
+                // Arquivos bloqueados ou removidos por outro processo serão revistos depois.
+            }
+        }
+
+        foreach (FileInfo file in entries.OrderBy(entry => entry.LastAccessTimeUtc))
+        {
+            if (totalBytes <= MaxDiskCacheBytes)
+                break;
+
+            try
+            {
+                long size = file.Length;
+                file.Delete();
+                totalBytes -= size;
+            }
+            catch
+            {
+                // Mantém a entrada e tenta novamente na próxima coleta.
+            }
+        }
+    }
+
+    private static void TouchDiskCacheEntry(string path)
+    {
+        try
+        {
+            var file = new FileInfo(path);
+            if (DateTime.UtcNow - file.LastAccessTimeUtc > TimeSpan.FromHours(1))
+                file.LastAccessTimeUtc = DateTime.UtcNow;
+        }
+        catch
+        {
+        }
+    }
+
+    private sealed class MemoryBitmapCache(long maxBytes)
+    {
+        private readonly object _gate = new();
+        private readonly Dictionary<string, LinkedListNode<Entry>> _entries = new(StringComparer.OrdinalIgnoreCase);
+        private readonly LinkedList<Entry> _leastRecentlyUsed = new();
+        private long _currentBytes;
+
+        public bool TryGet(string key, out BitmapImage? bitmap)
+        {
+            lock (_gate)
+            {
+                if (_entries.TryGetValue(key, out LinkedListNode<Entry>? node))
+                {
+                    _leastRecentlyUsed.Remove(node);
+                    _leastRecentlyUsed.AddFirst(node);
+                    bitmap = node.Value.Bitmap;
+                    return true;
+                }
+            }
+
+            bitmap = null;
+            return false;
+        }
+
+        public void Set(string key, BitmapImage bitmap)
+        {
+            long sizeBytes = Math.Max(1L, (long)bitmap.PixelWidth * bitmap.PixelHeight * 4);
+            if (sizeBytes > maxBytes)
                 return;
 
-            foreach (string key in MemoryCache.Keys.Take(Math.Max(32, MemoryCache.Count - MaxMemoryEntries)))
-                MemoryCache.TryRemove(key, out _);
+            lock (_gate)
+            {
+                if (_entries.Remove(key, out LinkedListNode<Entry>? existing))
+                {
+                    _leastRecentlyUsed.Remove(existing);
+                    _currentBytes -= existing.Value.SizeBytes;
+                }
+
+                var entry = new Entry(key, bitmap, sizeBytes);
+                _entries[key] = _leastRecentlyUsed.AddFirst(entry);
+                _currentBytes += sizeBytes;
+
+                while (_currentBytes > maxBytes && _leastRecentlyUsed.Last is { } last)
+                {
+                    _leastRecentlyUsed.RemoveLast();
+                    _entries.Remove(last.Value.Key);
+                    _currentBytes -= last.Value.SizeBytes;
+                }
+            }
         }
+
+        public void Clear()
+        {
+            lock (_gate)
+            {
+                _entries.Clear();
+                _leastRecentlyUsed.Clear();
+                _currentBytes = 0;
+            }
+        }
+
+        private sealed record Entry(string Key, BitmapImage Bitmap, long SizeBytes);
     }
 
     /// <summary>

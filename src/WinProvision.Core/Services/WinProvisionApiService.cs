@@ -118,7 +118,8 @@ public enum WinProvisionInstallOutcome
 public sealed record WinProvisionInstallResult(
     WinProvisionInstallOutcome Outcome,
     int? ExitCode = null,
-    string? Message = null);
+    string? Message = null,
+    bool InstallerStarted = false);
 
 public sealed record WinProvisionInstallerCommand(string FileName, string Arguments);
 
@@ -169,6 +170,9 @@ public sealed class WinProvisionApiService
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(12);
     private const int MaxRequestAttempts = 4;
     private const long MaxInstallerBytes = 4L * 1024 * 1024 * 1024;
+    private const long MaxInstallerCacheBytes = 2L * 1024 * 1024 * 1024;
+    private static readonly TimeSpan InstallerCacheRetention = TimeSpan.FromDays(30);
+    private static readonly SemaphoreSlim InstallerCacheGate = new(1, 1);
 
     private sealed class RetryableDownloadException(string message, HttpStatusCode statusCode, TimeSpan retryDelay)
         : HttpRequestException(message, null, statusCode)
@@ -204,10 +208,11 @@ public sealed class WinProvisionApiService
     }
 
     /// <summary>
-    /// Decide, antes de qualquer tentativa, se o caminho COM do winget deve nem ser tentado.
-    /// Use no início do fluxo de instalação (tanto UI quanto /auto).
+    /// Compatibilidade com consumidores antigos. O contexto SYSTEM, por si só, não impede
+    /// que a API COM do WinGet funcione; o serviço de instalação decide pelo resultado real.
     /// </summary>
-    public static bool ShouldSkipWingetCom() => IsRunningAsSystem();
+    [Obsolete("SYSTEM não desativa automaticamente a API COM do WinGet.")]
+    public static bool ShouldSkipWingetCom() => false;
 
     public async Task<PackageIndex> GetIndexAsync(bool forceRefresh = false, CancellationToken ct = default)
     {
@@ -519,7 +524,7 @@ public sealed class WinProvisionApiService
 
     /// <summary>
     /// Baixa e instala silenciosamente. Ponto de entrada único a ser chamado
-    /// pelos três gatilhos: falha da COM, falha de reelevação, execução em SYSTEM.
+    /// pelas falhas reais da COM, pelo contexto de elevação ou pela ausência do pacote.
     /// </summary>
     public async Task<WinProvisionInstallResult> TryInstallAsync(
         string packageId,
@@ -569,10 +574,16 @@ public sealed class WinProvisionApiService
             "arm" => Architecture.Arm,
             _ => (Architecture?)null
         };
-        var installer = PickInstaller(manifest, requestedArchitecture, preferredScope);
+        bool isSystem = IsRunningAsSystem();
+        string? effectiveScope = isSystem ? "machine" : preferredScope;
+        var installer = PickInstaller(manifest, requestedArchitecture, effectiveScope);
         if (installer is null)
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.NoCompatibleInstaller,
                 Message: $"Nenhum installer compatível para '{packageId}'.");
+
+        if (isSystem && string.Equals(installer.Scope, "user", StringComparison.OrdinalIgnoreCase))
+            return new WinProvisionInstallResult(WinProvisionInstallOutcome.NoCompatibleInstaller,
+                Message: $"'{packageId}' só possui instalador de escopo de usuário. O processo está como SYSTEM e não deve instalar no perfil LocalSystem.");
 
         if (!Uri.TryCreate(installer.Url, UriKind.Absolute, out var installerUri)
             || installerUri.Scheme != Uri.UriSchemeHttps)
@@ -599,28 +610,44 @@ public sealed class WinProvisionApiService
         var tempFile = Path.Combine(workingDirectory, SanitizeFileName(packageId) + extension);
         // Só usado quando o instalador vem dentro de um zip (extraído aqui, apagado no final).
         string? extractDir = null;
+        bool installerStarted = false;
 
         try
         {
-            onLog?.Report($"[WinProvisionAPI] Baixando {installer.Url}...");
-            await DownloadFileWithRetryAsync(installer.Url, tempFile, onLog, onProgress, ct);
+            string? cachedInstaller = await FindVerifiedInstallerCacheAsync(installer.Sha256, extension, ct)
+                .ConfigureAwait(false);
+            if (cachedInstaller is not null)
+            {
+                File.Copy(cachedInstaller, tempFile, overwrite: true);
+                onLog?.Report("[WinProvisionAPI] Instalador reutilizado do cache local após validação SHA-256.");
+                onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.OwnApi));
+            }
+            else
+            {
+                onLog?.Report($"[WinProvisionAPI] Baixando {installer.Url}...");
+                await DownloadFileWithRetryAsync(installer.Url, tempFile, onLog, onProgress, ct);
 
-            onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.OwnApi));
-            onLog?.Report("[WinProvisionAPI] Verificando SHA-256...");
-            if (!await VerifySha256Async(tempFile, installer.Sha256, ct))
-                return new WinProvisionInstallResult(WinProvisionInstallOutcome.HashMismatch,
-                    Message: "Hash do instalador baixado não confere com o manifest.");
+                onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Preparing, Method: WingetMethod.OwnApi));
+                onLog?.Report("[WinProvisionAPI] Verificando SHA-256...");
+                if (!await VerifySha256Async(tempFile, installer.Sha256, ct))
+                    return new WinProvisionInstallResult(WinProvisionInstallOutcome.HashMismatch,
+                        Message: "Hash do instalador baixado não confere com o manifest.");
+
+                await SaveVerifiedInstallerCacheAsync(tempFile, installer.Sha256, extension, onLog, ct)
+                    .ConfigureAwait(false);
+            }
 
             if (installer.IsPortable)
             {
                 onLog?.Report("[WinProvisionAPI] Instalando aplicativo portátil e criando atalho na Área de Trabalho...");
                 onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Installing, Method: WingetMethod.OwnApi));
+                installerStarted = true;
                 try
                 {
                     var portableResult = await InstallPortablePackageAsync(tempFile, packageId, installer, ct).ConfigureAwait(false);
                     if (portableResult.Outcome == WinProvisionInstallOutcome.Success)
                         await RememberApiInstallAsync(packageId, isPortable: true, CancellationToken.None).ConfigureAwait(false);
-                    return portableResult;
+                    return portableResult with { InstallerStarted = installerStarted };
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
                 {
@@ -629,7 +656,7 @@ public sealed class WinProvisionApiService
                 catch (Exception ex)
                 {
                     return new WinProvisionInstallResult(WinProvisionInstallOutcome.InstallProcessFailed,
-                        ex.HResult, $"Não foi possível instalar o aplicativo portátil: {ex.Message}");
+                        ex.HResult, $"Não foi possível instalar o aplicativo portátil: {ex.Message}", InstallerStarted: installerStarted);
                 }
             }
 
@@ -663,7 +690,8 @@ public sealed class WinProvisionApiService
 
             onLog?.Report($"[WinProvisionAPI] Instalando formato {effectiveType} (silent: {installer.SilentArgs})...");
             onProgress?.Invoke(new InstallProgressUpdate(InstallProgressPhase.Installing, Method: WingetMethod.OwnApi));
-            var exitCode = await RunInstallerAsync(runnablePath, effectiveType, installer.SilentArgs, installer.Scope, ct);
+            var exitCode = await RunInstallerAsync(runnablePath, effectiveType, installer.SilentArgs, installer.Scope, ct,
+                () => installerStarted = true);
 
             // Códigos padrão do Windows Installer/Burn mais os códigos de sucesso
             // adicionais declarados no manifesto WinGet.
@@ -673,11 +701,12 @@ public sealed class WinProvisionApiService
             return ok
                 ? new WinProvisionInstallResult(WinProvisionInstallOutcome.Success, exitCode)
                 : new WinProvisionInstallResult(WinProvisionInstallOutcome.InstallProcessFailed, exitCode,
-                    $"Instalador retornou código {exitCode}.");
+                    $"Instalador retornou código {exitCode}.", InstallerStarted: installerStarted);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
         {
-            return new WinProvisionInstallResult(WinProvisionInstallOutcome.DownloadFailed, Message: ex.Message);
+            return new WinProvisionInstallResult(WinProvisionInstallOutcome.DownloadFailed, Message: ex.Message,
+                InstallerStarted: installerStarted);
         }
         catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
@@ -687,17 +716,19 @@ public sealed class WinProvisionApiService
         catch (System.ComponentModel.Win32Exception ex)
         {
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.InstallProcessFailed,
-                ex.NativeErrorCode, $"Não foi possível iniciar o instalador: {ex.Message}");
+                ex.NativeErrorCode, $"Não foi possível iniciar o instalador: {ex.Message}", InstallerStarted: installerStarted);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            return new WinProvisionInstallResult(WinProvisionInstallOutcome.DownloadFailed,
-                Message: "A operação excedeu o tempo limite.");
+            return new WinProvisionInstallResult(installerStarted
+                    ? WinProvisionInstallOutcome.InstallProcessFailed
+                    : WinProvisionInstallOutcome.DownloadFailed,
+                Message: "A operação excedeu o tempo limite.", InstallerStarted: installerStarted);
         }
         catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or UnauthorizedAccessException)
         {
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.InstallProcessFailed,
-                ex.HResult, $"Não foi possível executar o instalador: {ex.Message}");
+                ex.HResult, $"Não foi possível executar o instalador: {ex.Message}", InstallerStarted: installerStarted);
         }
         finally
         {
@@ -1150,6 +1181,95 @@ public sealed class WinProvisionApiService
         }
     }
 
+    private static string GetInstallerCacheDirectory() => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "WinProvision", "InstallerCache");
+
+    private static string GetInstallerCachePath(string sha256, string extension) => Path.Combine(
+        GetInstallerCacheDirectory(), sha256.ToLowerInvariant() + extension.ToLowerInvariant());
+
+    private static async Task<string?> FindVerifiedInstallerCacheAsync(
+        string sha256, string extension, CancellationToken ct)
+    {
+        string path = GetInstallerCachePath(sha256, extension);
+        await InstallerCacheGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (!File.Exists(path)) return null;
+            if (DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > InstallerCacheRetention
+                || !await VerifySha256Async(path, sha256, ct).ConfigureAwait(false))
+            {
+                TryDeleteFile(path);
+                return null;
+            }
+
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow);
+            return path;
+        }
+        catch (IOException)
+        {
+            TryDeleteFile(path);
+            return null;
+        }
+        finally
+        {
+            InstallerCacheGate.Release();
+        }
+    }
+
+    private static async Task SaveVerifiedInstallerCacheAsync(
+        string sourcePath, string sha256, string extension, IProgress<string>? onLog, CancellationToken ct)
+    {
+        var fileInfo = new FileInfo(sourcePath);
+        if (!fileInfo.Exists || fileInfo.Length <= 0 || fileInfo.Length > MaxInstallerCacheBytes)
+        {
+            onLog?.Report("[WinProvisionAPI] Instalador fora do limite do cache; será removido ao fim desta instalação.");
+            return;
+        }
+
+        string directory = GetInstallerCacheDirectory();
+        string destination = GetInstallerCachePath(sha256, extension);
+        string temporaryPath = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        await InstallerCacheGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.Copy(sourcePath, temporaryPath, overwrite: false);
+            File.Move(temporaryPath, destination, overwrite: true);
+            File.SetLastWriteTimeUtc(destination, DateTime.UtcNow);
+
+            var files = new DirectoryInfo(directory).EnumerateFiles()
+                .Where(file => !file.Name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(file => file.LastWriteTimeUtc)
+                .ToList();
+            long totalBytes = files.Sum(file => file.Length);
+            DateTime expiry = DateTime.UtcNow - InstallerCacheRetention;
+            foreach (var cachedFile in files)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (cachedFile.FullName.Equals(destination, StringComparison.OrdinalIgnoreCase)) continue;
+                if (cachedFile.LastWriteTimeUtc >= expiry && totalBytes <= MaxInstallerCacheBytes) continue;
+                try
+                {
+                    long length = cachedFile.Length;
+                    cachedFile.Delete();
+                    totalBytes -= length;
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            onLog?.Report($"[WinProvisionAPI] Cache do instalador indisponível; seguindo com a instalação: {ex.Message}");
+        }
+        finally
+        {
+            TryDeleteFile(temporaryPath);
+            InstallerCacheGate.Release();
+        }
+    }
+
     private static async Task<bool> VerifySha256Async(string filePath, string expectedHex, CancellationToken ct)
     {
         await using var stream = File.OpenRead(filePath);
@@ -1159,7 +1279,8 @@ public sealed class WinProvisionApiService
     }
 
     private static async Task<int> RunInstallerAsync(
-        string filePath, string installerType, string silentArgs, string scope, CancellationToken ct)
+        string filePath, string installerType, string silentArgs, string scope, CancellationToken ct,
+        Action? onStarted = null)
     {
         ct.ThrowIfCancellationRequested();
         var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1184,6 +1305,7 @@ public sealed class WinProvisionApiService
         };
 
         process.Start();
+        onStarted?.Invoke();
         using var registration = ct.Register(() =>
         {
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); }

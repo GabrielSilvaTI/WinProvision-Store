@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Collections.Specialized;
 using WinProvision.Core.Models;
 
 namespace WinProvision.Core.Services;
@@ -22,14 +23,7 @@ public class OperationsQueueService : INotifyPropertyChanged
     public OperationsQueueService(OperationHistoryService? historyService = null)
     {
         _historyService = historyService;
-        Operations.CollectionChanged += (_, _) =>
-        {
-            OnPropertyChanged(nameof(TotalCount));
-            OnPropertyChanged(nameof(CompletedCount));
-            OnPropertyChanged(nameof(HasOperations));
-            OnPropertyChanged(nameof(HeaderText));
-            OnPropertyChanged(nameof(HasFailedOperations));
-        };
+        Operations.CollectionChanged += Operations_CollectionChanged;
     }
 
     public int TotalCount => Operations.Count;
@@ -39,6 +33,20 @@ public class OperationsQueueService : INotifyPropertyChanged
     public bool HasOperations => Operations.Count > 0;
 
     public bool HasFailedOperations => Operations.Any(o => o.State == OperationState.Failed);
+
+    /// <summary>Progresso agregado da fila, contando operações concluídas como 100%.</summary>
+    public double OverallProgress => TotalCount == 0
+        ? 0
+        : Operations.Sum(operation => operation.IsFinished
+            ? 100
+            : operation.State == OperationState.Running && !operation.IsIndeterminate
+                ? Math.Clamp(operation.Progress, 0, 100)
+                : 0) / TotalCount;
+
+    /// <summary>Indica que ainda não há progresso percentual confiável para a fila ativa.</summary>
+    public bool IsProgressIndeterminate => HasOperations
+        && CompletedCount < TotalCount
+        && !Operations.Any(operation => operation.State == OperationState.Running && !operation.IsIndeterminate);
 
     public string HeaderText
     {
@@ -53,7 +61,6 @@ public class OperationsQueueService : INotifyPropertyChanged
     public OperationItem Enqueue(string appName, OperationKind kind, string? iconUrl = null)
     {
         var item = new OperationItem(appName, kind, iconUrl);
-        item.PropertyChanged += Item_PropertyChanged;
         item.DismissRequested += Item_DismissRequested;
         Operations.Add(item);
         return item;
@@ -63,7 +70,6 @@ public class OperationsQueueService : INotifyPropertyChanged
 
     public void Remove(OperationItem item)
     {
-        item.PropertyChanged -= Item_PropertyChanged;
         item.DismissRequested -= Item_DismissRequested;
         Operations.Remove(item);
         item.Dispose();
@@ -76,6 +82,15 @@ public class OperationsQueueService : INotifyPropertyChanged
 
     private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(OperationItem.Progress)
+            or nameof(OperationItem.IsIndeterminate)
+            or nameof(OperationItem.State)
+            or nameof(OperationItem.IsFinished))
+        {
+            OnPropertyChanged(nameof(OverallProgress));
+            OnPropertyChanged(nameof(IsProgressIndeterminate));
+        }
+
         if (e.PropertyName == nameof(OperationItem.IsFinished) && sender is OperationItem item)
         {
             OnPropertyChanged(nameof(CompletedCount));
@@ -87,6 +102,25 @@ public class OperationsQueueService : INotifyPropertyChanged
         {
             OnPropertyChanged(nameof(HasFailedOperations));
         }
+    }
+
+    private void Operations_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+            foreach (OperationItem item in e.OldItems)
+                item.PropertyChanged -= Item_PropertyChanged;
+
+        if (e.NewItems is not null)
+            foreach (OperationItem item in e.NewItems)
+                item.PropertyChanged += Item_PropertyChanged;
+
+        OnPropertyChanged(nameof(TotalCount));
+        OnPropertyChanged(nameof(CompletedCount));
+        OnPropertyChanged(nameof(HasOperations));
+        OnPropertyChanged(nameof(HeaderText));
+        OnPropertyChanged(nameof(HasFailedOperations));
+        OnPropertyChanged(nameof(OverallProgress));
+        OnPropertyChanged(nameof(IsProgressIndeterminate));
     }
 
     /// <summary>Remove da lista as operações já finalizadas (concluídas, com falha ou canceladas).</summary>
