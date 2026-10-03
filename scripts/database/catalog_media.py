@@ -230,11 +230,19 @@ def main() -> int:
         extension = validate_image(body, args.type)
         jobs.append((args.package_id.strip(), body, extension, source, ""))
     elif args.type == "screenshot":
-        candidates = [row for row in index if isinstance(row, dict) and row.get("id") and row.get("homepage") and (args.package_id or not normalize_media(row.get("media")).get("screenshots"))]
+        requested_homepage = args.homepage_url.strip()
+        candidates = [
+            row
+            for row in index
+            if isinstance(row, dict)
+            and row.get("id")
+            and (row.get("homepage") or requested_homepage)
+            and (args.package_id or requested_homepage or not normalize_media(row.get("media")).get("screenshots"))
+        ]
         if args.package_id:
             candidates = [row for row in candidates if str(row["id"]).casefold() == args.package_id.casefold()]
-        elif args.homepage_url:
-            candidates = [row for row in candidates if str(row.get("homepage", "")).casefold() == args.homepage_url.casefold()]
+        elif requested_homepage:
+            candidates = [row for row in candidates if str(row.get("homepage", "")).casefold() == requested_homepage.casefold()]
         else:
             cursor = int(media_index.get(scan_cursor_key, 0)) % max(1, len(candidates))
             candidates = candidates[cursor:] + candidates[:cursor]
@@ -242,7 +250,8 @@ def main() -> int:
             candidates = candidates[:selected_count]
         for row in candidates:
             try:
-                body, extension, source = download_image(str(row.get("homepage") or args.homepage_url), homepage=True)
+                page_url = requested_homepage or str(row.get("homepage") or "")
+                body, extension, source = download_image(page_url, homepage=True)
                 jobs.append((str(row["id"]), body, extension, source, str(row.get("name") or "screenshot")))
             except Exception as exc:  # Per-app automatic failures are isolated.
                 print(f"{row.get('id')}: {type(exc).__name__}: {exc}", file=sys.stderr)
