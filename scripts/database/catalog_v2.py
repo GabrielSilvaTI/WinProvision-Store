@@ -37,6 +37,12 @@ def _detail_path(package_id: str) -> str:
     return "/".join(["apps", _prefix(package_id), *safe_parts, "app.json"])
 
 
+def _detail_url_path(package_id: str) -> str:
+    # detailPath é usado diretamente como sufixo de URL; escapar novamente o
+    # caminho preserva no URL os percentuais literais usados nas chaves do R2.
+    return quote(_detail_path(package_id), safe="/")
+
+
 def _write_json(path: Path, value) -> bytes:
     payload = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -115,7 +121,7 @@ def build_catalog_v2(source_file: str | Path, output_dir: str | Path) -> dict:
                     "regionTags": app.get("regionTags", []),
                     "gitHubStars": app.get("gitHubStars"),
                     "installerSizeBytes": app.get("installerSizeBytes"),
-                    "detailPath": relative,
+                    "detailPath": _detail_url_path(package_id),
                 }
             )
             prefix = _prefix(package_id)
@@ -182,7 +188,7 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
         package_id, detail_path = row.get("id"), row.get("detailPath")
         if not isinstance(package_id, str) or not package_id.strip():
             raise ValueError("entrada do índice sem ID")
-        if not isinstance(detail_path, str) or detail_path != _detail_path(package_id):
+        if not isinstance(detail_path, str) or detail_path != _detail_url_path(package_id):
             raise ValueError(f"hierarquia de pastas incompatível com PackageIdentifier: {package_id}")
         key = package_id.casefold()
         if key in seen or detail_path in detail_paths:
@@ -190,7 +196,7 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
         seen.add(key)
         detail_paths.add(detail_path)
 
-        detail_file = root.joinpath(*detail_path.split("/"))
+        detail_file = root.joinpath(*_detail_path(package_id).split("/"))
         if not detail_file.is_file():
             raise ValueError(f"detalhe ausente para {package_id}: {detail_path}")
         detail_bytes = detail_file.read_bytes()
@@ -224,7 +230,7 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
         if any(row.get(field) != detail.get(field, defaults.get(field)) for field in comparable_fields):
             raise ValueError(f"resumo diverge dos detalhes para {package_id}")
 
-        digest.update(detail_path.encode("utf-8"))
+        digest.update(_detail_path(package_id).encode("utf-8"))
         digest.update(b"\0")
         digest.update(hashlib.sha256(detail_bytes).digest())
         prefix = _prefix(package_id)
