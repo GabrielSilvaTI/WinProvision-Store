@@ -22,7 +22,6 @@ def _is_safe_package_id(package_id: str) -> bool:
     )
 
 
-
 def _prefix(package_id: str) -> str:
     first = package_id[0].lower()
     return first if first in "0123456789abcdefghijklmnopqrstuvwxyz" else "_"
