@@ -22,9 +22,15 @@ parameters:
   homepage_url:
     type: string
     default: ""
+  scan_prefix:
+    type: string
+    default: ""
   batch_size:
     type: integer
     default: 20
+  publish_batch_size:
+    type: integer
+    default: 200
 
 jobs:
   sync_catalog_media:
@@ -55,6 +61,8 @@ jobs:
             args=(--mode "<< pipeline.parameters.media_mode >>" \
               --type "<< pipeline.parameters.asset_type >>" \
               --batch-size "<< pipeline.parameters.batch_size >>" \
+              --publish-batch-size "<< pipeline.parameters.publish_batch_size >>" \
+              --scan-prefix "<< pipeline.parameters.scan_prefix >>" \
               --out catalog-media-report.json)
             if [ -n "<< pipeline.parameters.package_id >>" ]; then
               args+=(--package-id "<< pipeline.parameters.package_id >>")
@@ -69,7 +77,7 @@ jobs:
               args+=(--homepage-url "<< pipeline.parameters.homepage_url >>")
             fi
             python3 scripts/database/catalog_media.py "${args[@]}"
-          no_output_timeout: 30m
+          no_output_timeout: 1h
       - store_artifacts:
           path: catalog-media-report.json
           destination: catalog-media-report.json

@@ -162,7 +162,6 @@ def screenshot_public_urls(client, detail_path: str, screenshot_paths: list[str]
     app_directory = unquote(detail_path).rsplit("/", 1)[0]
     urls = []
     for path in screenshot_paths:
-        filename = path.rsplit("/", 1)[-1]
         key = media_key_from_detail(detail_path, path)
         url = f"{PUBLIC_BASE}/{quote(app_directory + '/' + path, safe='/')}"
         digest = object_sha256(client, key)
@@ -177,6 +176,28 @@ def media_key_from_detail(detail_path: str, media_path: str) -> str:
     return f"Store/Catalog/{app_directory}/{media_path}"
 
 
+def publish_catalog_checkpoint(client, manifest: dict, index: list[dict], media_index: dict, *, update_search_index: bool) -> None:
+    media_index["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    media_index_bytes = put_json(client, MEDIA_INDEX_KEY, media_index)
+    manifest["mediaIndexSha256"] = hashlib.sha256(media_index_bytes).hexdigest()
+
+    if update_search_index:
+        index_bytes = json.dumps(index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        digest_builder = hashlib.sha256()
+        for entry in index:
+            raw_path = unquote(str(entry["detailPath"]))
+            digest_builder.update(raw_path.encode("utf-8"))
+            digest_builder.update(b"\0")
+            digest_builder.update(bytes.fromhex(entry["recordSha256"]))
+        digest_builder.update(hashlib.sha256(index_bytes).digest())
+        manifest["indexSha256"] = hashlib.sha256(index_bytes).hexdigest()
+        manifest["catalogSha256"] = digest_builder.hexdigest()
+        manifest["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        client.put_object(Bucket=BUCKET, Key=SEARCH_KEY, Body=index_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": manifest["indexSha256"]})
+
+    put_json(client, MANIFEST_KEY, manifest)
+
+
 def rotate_after_id(rows: list[dict], package_id: str | None) -> list[dict]:
     if not rows or not package_id:
         return rows
@@ -188,6 +209,37 @@ def rotate_after_id(rows: list[dict], package_id: str | None) -> list[dict]:
         return rows
     start = (cursor + 1) % len(rows)
     return rows[start:] + rows[:start]
+
+
+def row_matches_prefix(row: dict, scan_prefix: str) -> bool:
+    if not scan_prefix:
+        return True
+    package_id = str(row.get("id", ""))
+    first = package_id[:1].casefold()
+    return first.isdigit() if scan_prefix == "0-9" else first == scan_prefix
+
+
+def store_scan_cursor(media_index: dict, kind: str, scan_prefix: str, package_id: str) -> None:
+    if scan_prefix:
+        cursors = media_index.setdefault("scanCursors", {})
+        if not isinstance(cursors, dict):
+            cursors = media_index["scanCursors"] = {}
+        kind_cursors = cursors.setdefault(kind, {})
+        if not isinstance(kind_cursors, dict):
+            kind_cursors = cursors[kind] = {}
+        kind_cursors[scan_prefix] = package_id
+    else:
+        media_index["iconCursorId" if kind == "icon" else "screenshotCursorId"] = package_id
+
+
+def get_scan_cursor(media_index: dict, kind: str, scan_prefix: str) -> str | None:
+    if scan_prefix:
+        cursors = media_index.get("scanCursors", {})
+        kind_cursors = cursors.get(kind, {}) if isinstance(cursors, dict) else {}
+        return kind_cursors.get(scan_prefix) if isinstance(kind_cursors, dict) else None
+    legacy_key = "iconCursorId" if kind == "icon" else "screenshotCursorId"
+    value = media_index.get(legacy_key)
+    return str(value) if isinstance(value, str) else None
 
 
 def parse_manual_urls(value: str, parameter_name: str) -> list[str]:
@@ -224,10 +276,18 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
     normalized_id = package_id.casefold()
     registry = media_index["apps"].setdefault(normalized_id, {"icon": None, "screenshots": []})
     media = normalize_media(registry)
+    detail_media = normalize_media(detail.get("media", {})) if detail is not None else normalize_media({})
+    if not media["icon"] and detail_media["icon"]:
+        media["icon"] = detail_media["icon"]
+    if not media["iconSha256"] and detail_media["iconSha256"]:
+        media["iconSha256"] = detail_media["iconSha256"]
+    media["screenshots"] = list(dict.fromkeys(media["screenshots"] + detail_media["screenshots"]))
+    original_media = normalize_media(registry)
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     label = slug(name or Path(urlparse(source_url).path).stem or kind)
     digest = hashlib.sha256(data).hexdigest()
     old_object_keys_to_delete: list[str] = []
+    upload_asset = True
     if kind == "icon":
         with Image.open(io.BytesIO(data)) as image:
             converted = io.BytesIO()
@@ -237,6 +297,9 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         digest = hashlib.sha256(data).hexdigest()
         filename = "icon.png"
         relative = f"media/{filename}"
+        old_icon_path = media["icon"]
+        if old_icon_path and old_icon_path != relative and old_icon_path.startswith("media/"):
+            old_object_keys_to_delete.append(media_key(package_id, "icon", old_icon_path.rsplit("/", 1)[-1]))
         media["icon"] = relative
     else:
         old_paths = media["screenshots"]
@@ -254,15 +317,10 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
             relative = f"media/screenshots/{filename}"
             existing_key = media_key(package_id, "screenshot", existing_path.rsplit("/", 1)[-1])
             if object_sha256(client, existing_key) == digest:
-                return {
-                    "id": package_id,
-                    "type": kind,
-                    "path": existing_key.removeprefix("Store/Catalog/"),
-                    "sha256": digest,
-                    "status": "unchanged",
-                }
+                upload_asset = False
             if existing_path != relative:
                 old_object_keys_to_delete.append(existing_key)
+                upload_asset = True
             media["screenshots"] = list(dict.fromkeys(relative if path == existing_path else path for path in old_paths))
         else:
             # Avoid another entry if the same screenshot is already associated
@@ -272,41 +330,36 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
                     continue
                 existing_key = media_key(package_id, "screenshot", existing_path.rsplit("/", 1)[-1])
                 if object_sha256(client, existing_key) == digest:
-                    return {
-                        "id": package_id,
-                        "type": kind,
-                        "path": existing_key.removeprefix("Store/Catalog/"),
-                        "sha256": digest,
-                        "status": "unchanged",
-                    }
-            next_number = max((int(match.group(1)) for path in old_paths if (match := re.match(r"media/screenshots/(\d+)-", path))), default=0) + 1
-            filename = f"{next_number:02d}-{label}.{extension}"
-            relative = f"media/screenshots/{filename}"
-            old_paths.append(relative)
+                    filename = existing_path.rsplit("/", 1)[-1]
+                    relative = existing_path
+                    upload_asset = False
+                    break
+            else:
+                next_number = max((int(match.group(1)) for path in old_paths if (match := re.match(r"media/screenshots/(\d+)-", path))), default=0) + 1
+                filename = f"{next_number:02d}-{label}.{extension}"
+                relative = f"media/screenshots/{filename}"
+                old_paths.append(relative)
         media["screenshots"] = old_paths
 
     object_key = media_key(package_id, kind, filename)
     if kind == "icon":
         existing_digest = object_sha256(client, object_key)
-        if existing_digest == digest:
-            return {
-                "id": package_id,
-                "type": kind,
-                "path": object_key.removeprefix("Store/Catalog/"),
-                "sha256": digest,
-                "status": "unchanged",
-            }
         media["iconSha256"] = digest
+        upload_asset = existing_digest != digest
     # Keep stable normalized object paths. Catalog URLs carry the content hash
     # separately so an intentional replacement bypasses old immutable caches.
-    client.put_object(Bucket=BUCKET, Key=object_key, Body=data, ContentType=CONTENT_TYPES[extension], CacheControl="public, max-age=31536000, immutable", Metadata={"sha256": digest})
+    if upload_asset:
+        client.put_object(Bucket=BUCKET, Key=object_key, Body=data, ContentType=CONTENT_TYPES[extension], CacheControl="public, max-age=31536000, immutable", Metadata={"sha256": digest})
     detail_bytes = None
+    detail_changed = False
     if detail is not None:
         detail["media"] = media
         if kind == "screenshot":
             detail["screenshotUrls"] = screenshot_public_urls(client, detail_rel, media["screenshots"])
         detail_bytes = json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        client.put_object(Bucket=BUCKET, Key=detail_key, Body=detail_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()})
+        detail_changed = detail_bytes != current_detail_bytes
+        if detail_changed:
+            client.put_object(Bucket=BUCKET, Key=detail_key, Body=detail_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()})
 
     for old_object_key in old_object_keys_to_delete:
         try:
@@ -316,12 +369,21 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
 
     media_index["generatedUtc"] = now
     media_index["apps"][normalized_id] = media
+    row_changed = False
     if row is not None:
+        row_changed = row.get("media") != media
         row["media"] = media
         if kind == "screenshot":
+            row_changed = row_changed or row.get("screenshotUrls") != detail["screenshotUrls"]
             row["screenshotUrls"] = detail["screenshotUrls"]
-        row["recordSha256"] = hashlib.sha256(detail_bytes or b"").hexdigest()
-    return {"id": package_id, "type": kind, "path": object_key.removeprefix("Store/Catalog/"), "sha256": digest, "status": "published" if row else "queued-until-catalog-sync"}
+        record_digest = hashlib.sha256(detail_bytes or b"").hexdigest()
+        row_changed = row_changed or row.get("recordSha256") != record_digest
+        row["recordSha256"] = record_digest
+    if row is not None:
+        status = "published" if upload_asset or detail_changed or row_changed else "unchanged"
+    else:
+        status = "queued-until-catalog-sync" if upload_asset or media != original_media else "unchanged"
+    return {"id": package_id, "type": kind, "path": object_key.removeprefix("Store/Catalog/"), "sha256": digest, "status": status}
 
 
 def main() -> int:
@@ -332,10 +394,19 @@ def main() -> int:
     parser.add_argument("--url", default="", help="URL direta da imagem (modo manual)")
     parser.add_argument("--urls-text", default="", help="URLs diretas adicionais por linha ou em array JSON (modo manual)")
     parser.add_argument("--homepage-url", default="", help="homepage a percorrer (modo automático screenshot)")
+    parser.add_argument("--scan-prefix", default="", help="prefixo inicial dos IDs no modo automático: 0-9 ou uma letra a-z")
     parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument("--publish-batch-size", type=int, default=200, help="apps por lote publicado no modo automático de ícones")
     parser.add_argument("--out", type=Path, default=Path("catalog-media-report.json"))
     parser.add_argument("--dry-run", action="store_true", help="resolve and validate assets without publishing")
     args = parser.parse_args()
+    args.scan_prefix = args.scan_prefix.strip().casefold()
+    if args.scan_prefix and args.scan_prefix != "0-9" and not re.fullmatch(r"[a-z]", args.scan_prefix):
+        parser.error("scan-prefix precisa ser 0-9 ou uma letra de a-z")
+    if args.mode == "manual" and args.scan_prefix:
+        parser.error("scan-prefix só pode ser usado no modo automático")
+    if args.publish_batch_size < 1:
+        parser.error("publish-batch-size precisa ser positivo")
     try:
         urls_from_url = parse_manual_urls(args.url, "media_url")
         urls_from_text = parse_manual_urls(args.urls_text, "media_urls")
@@ -346,7 +417,7 @@ def main() -> int:
         parser.error("modo manual exige --package-id e pelo menos uma URL em --url ou --urls-text")
     if args.mode == "manual" and args.type == "icon" and len(manual_urls) > 1:
         parser.error("modo manual de ícone aceita uma URL; use a captura automática para processar vários ícones")
-    if args.mode == "auto" and args.type == "screenshot" and not args.homepage_url and args.batch_size < 1:
+    if args.mode == "auto" and args.batch_size < 1:
         parser.error("batch-size precisa ser positivo")
     if args.mode == "auto" and args.type == "icon" and args.package_id:
         parser.error("modo automático de ícones processa a cobertura; não aceite um ID manual")
@@ -354,9 +425,9 @@ def main() -> int:
     client = r2_client()
     manifest, index, media_index = load_catalog(client)
     jobs = []
-    scan_cursor_key = "iconCursorId" if args.type == "icon" else "screenshotCursorId"
     selected_count = 0
     next_cursor_id = None
+    auto_icons_checkpointed = False
     results = []
     if args.mode == "manual":
         for url in manual_urls:
@@ -375,12 +446,14 @@ def main() -> int:
     elif args.type == "screenshot":
         requested_homepage = args.homepage_url.strip()
         catalog_rows = [row for row in index if isinstance(row, dict) and row.get("id")]
+        if args.scan_prefix:
+            catalog_rows = [row for row in catalog_rows if row_matches_prefix(row, args.scan_prefix)]
         if args.package_id:
             candidates = [row for row in catalog_rows if str(row["id"]).casefold() == args.package_id.casefold() and (row.get("homepage") or requested_homepage)]
         elif requested_homepage:
             candidates = [row for row in catalog_rows if str(row.get("homepage", "")).casefold() == requested_homepage.casefold()]
         else:
-            rotated_rows = rotate_after_id(catalog_rows, media_index.get(scan_cursor_key))
+            rotated_rows = rotate_after_id(catalog_rows, get_scan_cursor(media_index, args.type, args.scan_prefix))
             candidates = [
                 row for row in rotated_rows
                 if row.get("homepage") and not normalize_media(row.get("media")).get("screenshots")
@@ -404,7 +477,9 @@ def main() -> int:
                 })
     else:
         catalog_rows = [row for row in index if isinstance(row, dict) and row.get("id")]
-        rotated_rows = rotate_after_id(catalog_rows, media_index.get(scan_cursor_key))
+        if args.scan_prefix:
+            catalog_rows = [row for row in catalog_rows if row_matches_prefix(row, args.scan_prefix)]
+        rotated_rows = rotate_after_id(catalog_rows, get_scan_cursor(media_index, args.type, args.scan_prefix))
         pending = [
             str(row["id"]) for row in rotated_rows
             if not normalize_media(row.get("media")).get("icon")
@@ -414,24 +489,60 @@ def main() -> int:
             next_cursor_id = pending[-1]
             out = Path("catalog-icon-cdn-cache")
             out.mkdir(parents=True, exist_ok=True)
+            print("Ícones: baixando o índice atualizado da CDN do WinGet...", flush=True)
             db_path = icon_probe.fetch_index(f"{icon_probe.DEFAULT_CDN}/source2.msix", out)
             try:
                 packages = icon_probe.read_packages(db_path, out / "schema.txt")
             finally:
                 db_path.unlink(missing_ok=True)
+            print(f"Ícones: índice carregado; {len(packages):,} pacotes disponíveis na CDN.", flush=True)
         else:
             packages = []
         package_map = {icon_sync.norm_id(item["id"]): item for item in packages}
-        for package_id in pending:
-            package = package_map.get(icon_sync.norm_id(package_id))
-            if not package:
-                results.append({"id": package_id, "type": args.type, "status": "not-found", "error": "ID não encontrado no índice da CDN de ícones."})
-                continue
-            result = icon_sync.resolve_icon(package, icon_probe.DEFAULT_CDN)
-            if result.get("status") == "ok":
-                jobs.append((package_id, result["data"], result["ext"], result["url"], "cdn"))
-            else:
-                results.append({"id": package_id, "type": args.type, "status": "not-found", "error": str(result.get("status", "ícone indisponível na CDN"))})
+        processed = 0
+        for offset in range(0, len(pending), args.publish_batch_size):
+            batch_ids = pending[offset : offset + args.publish_batch_size]
+            batch_jobs = []
+            for package_id in batch_ids:
+                processed += 1
+                package = package_map.get(icon_sync.norm_id(package_id))
+                if not package:
+                    results.append({"id": package_id, "type": args.type, "status": "not-found", "error": "ID não encontrado no índice da CDN de ícones."})
+                else:
+                    try:
+                        result = icon_sync.resolve_icon(package, icon_probe.DEFAULT_CDN)
+                        if result.get("status") == "ok":
+                            batch_jobs.append((package_id, result["data"], result["ext"], result["url"], "cdn"))
+                        else:
+                            results.append({"id": package_id, "type": args.type, "status": "not-found", "error": str(result.get("status", "ícone indisponível na CDN"))})
+                    except Exception as exc:
+                        results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
+
+                if processed % 25 == 0 or processed == selected_count:
+                    prefix_label = "0-9" if package_id[:1].isdigit() else package_id[:1].casefold()
+                    print(f"Ícones: prefixo {prefix_label}; {processed:,}/{selected_count:,} apps analisados; último ID: {package_id}", flush=True)
+
+            for position, (package_id, body, extension, source, label) in enumerate(batch_jobs, start=1):
+                try:
+                    if args.dry_run:
+                        results.append({"id": package_id, "type": args.type, "status": "dry-run", "sourceUrl": source, "sha256": hashlib.sha256(body).hexdigest()})
+                    else:
+                        results.append(publish_one(client, manifest, index, media_index, package_id, args.type, body, extension, source, label))
+                except Exception as exc:
+                    results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
+                if position % 25 == 0 or position == len(batch_jobs):
+                    print(f"Ícones: lote {offset // args.publish_batch_size + 1}; {position:,}/{len(batch_jobs):,} imagens publicadas", flush=True)
+
+            if not args.dry_run:
+                store_scan_cursor(media_index, args.type, args.scan_prefix, batch_ids[-1])
+                batch_published = any(
+                    result.get("id") in batch_ids and result.get("status") == "published"
+                    for result in results
+                )
+                publish_catalog_checkpoint(client, manifest, index, media_index, update_search_index=batch_published)
+                prefix_label = "0-9" if batch_ids[-1][:1].isdigit() else batch_ids[-1][:1].casefold()
+                print(f"Ícones: lote {offset // args.publish_batch_size + 1} confirmado; prefixo {prefix_label}, cursor {batch_ids[-1]}", flush=True)
+        auto_icons_checkpointed = not args.dry_run
 
     for package_id, body, extension, source, label in jobs:
         try:
@@ -443,12 +554,15 @@ def main() -> int:
             results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
     media_changed = any(item.get("status") in {"published", "queued-until-catalog-sync"} for item in results)
     index_changed = any(item.get("status") == "published" for item in results)
+    if auto_icons_checkpointed:
+        media_changed = False
+        index_changed = False
     for item in results:
         if item.get("status") == "error":
             print(json.dumps(item, ensure_ascii=False), file=sys.stderr)
     if not args.dry_run:
-        if args.mode == "auto" and selected_count:
-            media_index[scan_cursor_key] = next_cursor_id
+        if args.mode == "auto" and selected_count and not auto_icons_checkpointed:
+            store_scan_cursor(media_index, args.type, args.scan_prefix, next_cursor_id)
             media_changed = True
         if media_changed:
             media_index["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
