@@ -94,6 +94,10 @@ def build_catalog_v2(
             raise ValueError("entrada do apps.json sem ID ou nome válido")
         if not _is_safe_package_id(package_id):
             raise ValueError(f"ID não pode ser representado com segurança na hierarquia de pastas: {package_id!r}")
+        # Apps WinGet passam a obter screenshots somente da mídia associada na V2.
+        # Não carregue referências do Screenshot_Database legado para o novo catálogo.
+        if str(app.get("source", "winget")).casefold() != "msstore":
+            app.pop("screenshotUrls", None)
         key = package_id.casefold()
         if key in seen:
             raise ValueError(f"ID duplicado no apps.json: {package_id}")
