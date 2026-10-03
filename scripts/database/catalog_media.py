@@ -142,6 +142,19 @@ def normalize_media(media: dict) -> dict:
     return {"icon": icon, "screenshots": screenshots}
 
 
+def rotate_after_id(rows: list[dict], package_id: str | None) -> list[dict]:
+    if not rows or not package_id:
+        return rows
+    cursor = next(
+        (index for index, row in enumerate(rows) if str(row.get("id", "")).casefold() == package_id.casefold()),
+        None,
+    )
+    if cursor is None:
+        return rows
+    start = (cursor + 1) % len(rows)
+    return rows[start:] + rows[:start]
+
+
 def publish_one(client, manifest: dict, index: list[dict], media_index: dict, package_id: str, kind: str, data: bytes, extension: str, source_url: str, name: str = "") -> dict:
     row = next((entry for entry in index if str(entry.get("id", "")).casefold() == package_id.casefold()), None)
     detail_rel = row.get("detailPath") if row else quote(_detail_path(package_id), safe="/")
@@ -242,8 +255,9 @@ def main() -> int:
     client = r2_client()
     manifest, index, media_index = load_catalog(client)
     jobs = []
-    scan_cursor_key = "iconCursor" if args.type == "icon" else "screenshotCursor"
+    scan_cursor_key = "iconCursorId" if args.type == "icon" else "screenshotCursorId"
     selected_count = 0
+    next_cursor_id = None
     results = []
     if args.mode == "manual":
         for url in manual_urls:
@@ -261,23 +275,20 @@ def main() -> int:
                 })
     elif args.type == "screenshot":
         requested_homepage = args.homepage_url.strip()
-        candidates = [
-            row
-            for row in index
-            if isinstance(row, dict)
-            and row.get("id")
-            and (row.get("homepage") or requested_homepage)
-            and (args.package_id or requested_homepage or not normalize_media(row.get("media")).get("screenshots"))
-        ]
+        catalog_rows = [row for row in index if isinstance(row, dict) and row.get("id")]
         if args.package_id:
-            candidates = [row for row in candidates if str(row["id"]).casefold() == args.package_id.casefold()]
+            candidates = [row for row in catalog_rows if str(row["id"]).casefold() == args.package_id.casefold() and (row.get("homepage") or requested_homepage)]
         elif requested_homepage:
-            candidates = [row for row in candidates if str(row.get("homepage", "")).casefold() == requested_homepage.casefold()]
+            candidates = [row for row in catalog_rows if str(row.get("homepage", "")).casefold() == requested_homepage.casefold()]
         else:
-            cursor = int(media_index.get(scan_cursor_key, 0)) % max(1, len(candidates))
-            candidates = candidates[cursor:] + candidates[:cursor]
-            selected_count = min(args.batch_size, len(candidates))
-            candidates = candidates[:selected_count]
+            rotated_rows = rotate_after_id(catalog_rows, media_index.get(scan_cursor_key))
+            candidates = [
+                row for row in rotated_rows
+                if row.get("homepage") and not normalize_media(row.get("media")).get("screenshots")
+            ][:args.batch_size]
+            selected_count = len(candidates)
+            if candidates:
+                next_cursor_id = str(candidates[-1]["id"])
         for row in candidates:
             try:
                 page_url = requested_homepage or str(row.get("homepage") or "")
@@ -285,27 +296,43 @@ def main() -> int:
                 jobs.append((str(row["id"]), body, extension, source, str(row.get("name") or "screenshot")))
             except Exception as exc:  # Per-app automatic failures are isolated.
                 print(f"{row.get('id')}: {type(exc).__name__}: {exc}", file=sys.stderr)
+                status = "not-found" if isinstance(exc, ValueError) and "Nenhuma imagem identificada" in str(exc) else "error"
+                results.append({
+                    "id": str(row["id"]),
+                    "type": args.type,
+                    "status": status,
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
     else:
-        pending = [str(row["id"]) for row in index if isinstance(row, dict) and row.get("id") and not normalize_media(row.get("media")).get("icon")]
-        out = Path("catalog-icon-cdn-cache")
-        out.mkdir(parents=True, exist_ok=True)
-        db_path = icon_probe.fetch_index(f"{icon_probe.DEFAULT_CDN}/source2.msix", out)
-        try:
-            packages = icon_probe.read_packages(db_path, out / "schema.txt")
-        finally:
-            db_path.unlink(missing_ok=True)
+        catalog_rows = [row for row in index if isinstance(row, dict) and row.get("id")]
+        rotated_rows = rotate_after_id(catalog_rows, media_index.get(scan_cursor_key))
+        pending = [
+            str(row["id"]) for row in rotated_rows
+            if not normalize_media(row.get("media")).get("icon")
+        ][:args.batch_size]
+        selected_count = len(pending)
+        if pending:
+            next_cursor_id = pending[-1]
+            out = Path("catalog-icon-cdn-cache")
+            out.mkdir(parents=True, exist_ok=True)
+            db_path = icon_probe.fetch_index(f"{icon_probe.DEFAULT_CDN}/source2.msix", out)
+            try:
+                packages = icon_probe.read_packages(db_path, out / "schema.txt")
+            finally:
+                db_path.unlink(missing_ok=True)
+        else:
+            packages = []
         package_map = {icon_sync.norm_id(item["id"]): item for item in packages}
-        cursor = int(media_index.get(scan_cursor_key, 0)) % max(1, len(pending))
-        pending = pending[cursor:] + pending[:cursor]
-        selected_count = min(args.batch_size, len(pending))
-        pending = pending[:selected_count]
         for package_id in pending:
             package = package_map.get(icon_sync.norm_id(package_id))
             if not package:
+                results.append({"id": package_id, "type": args.type, "status": "not-found", "error": "ID não encontrado no índice da CDN de ícones."})
                 continue
             result = icon_sync.resolve_icon(package, icon_probe.DEFAULT_CDN)
             if result.get("status") == "ok":
                 jobs.append((package_id, result["data"], result["ext"], result["url"], "cdn"))
+            else:
+                results.append({"id": package_id, "type": args.type, "status": "not-found", "error": str(result.get("status", "ícone indisponível na CDN"))})
 
     for package_id, body, extension, source, label in jobs:
         try:
@@ -322,7 +349,7 @@ def main() -> int:
             print(json.dumps(item, ensure_ascii=False), file=sys.stderr)
     if not args.dry_run:
         if args.mode == "auto" and selected_count:
-            media_index[scan_cursor_key] = int(media_index.get(scan_cursor_key, 0)) + selected_count
+            media_index[scan_cursor_key] = next_cursor_id
             media_changed = True
         if media_changed:
             media_index["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -346,7 +373,12 @@ def main() -> int:
         put_json(client, MANIFEST_KEY, manifest)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({"mode": args.mode, "type": args.type, "processed": len(results), "results": results}, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"Mídia: {len(results)} processada(s); {sum(item['status'] == 'published' for item in results)} publicada(s); {sum(item['status'] == 'queued-until-catalog-sync' for item in results)} pendente(s).")
+    print(
+        f"Mídia: {len(results)} processada(s); "
+        f"{sum(item['status'] == 'published' for item in results)} publicada(s); "
+        f"{sum(item['status'] == 'queued-until-catalog-sync' for item in results)} pendente(s); "
+        f"{sum(item['status'] == 'not-found' for item in results)} sem correspondência."
+    )
     return 1 if any(item["status"] == "error" for item in results) else 0
 
 
