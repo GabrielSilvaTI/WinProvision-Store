@@ -5,14 +5,21 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import shutil
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-PACKAGE_ID_PATTERN = re.compile(r"^[^\W_][\w.+-]{0,127}$")
+
+def _is_safe_package_id(package_id: str) -> bool:
+    return (
+        bool(package_id)
+        and len(package_id) <= 128
+        and package_id[0].isalnum()
+        and all(character.isprintable() and not character.isspace() and character not in "/\\" for character in package_id)
+        and all(part not in {"", ".", ".."} for part in package_id.split("."))
+    )
 
 
 def _prefix(package_id: str) -> str:
@@ -54,7 +61,7 @@ def build_catalog_v2(source_file: str | Path, output_dir: str | Path) -> dict:
         if not isinstance(package_id, str) or not package_id.strip() or not isinstance(name, str) or not name.strip():
             raise ValueError("entrada do apps.json sem ID ou nome válido")
         parts = package_id.split(".")
-        if not PACKAGE_ID_PATTERN.fullmatch(package_id) or any(part in {"", ".", ".."} for part in parts):
+        if not _is_safe_package_id(package_id):
             raise ValueError(f"ID não pode ser representado com segurança na hierarquia de pastas: {package_id!r}")
         key = package_id.casefold()
         if key in seen:
