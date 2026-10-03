@@ -2,7 +2,7 @@
 """Baixa da CDN oficial do winget os ícones que faltam no R2 e sobe para o bucket.
 
 Fluxo:
-  1. lê o apps.json do catálogo e lista o que já existe em Store/Icon_Database/;
+  1. lê o índice leve do catálogo v2 e lista o que já existe em Store/Icon_Database/;
   2. separa os apps sem ícone, pulando os que já foram testados sem sucesso
      nos últimos --recheck-days dias (Store/Icon_Database/icon-sync-state.json);
   3. para cada um, refaz o caminho do winget (index.db -> versionData ->
@@ -45,7 +45,7 @@ CONTENT_TYPES = {
     "bmp": "image/bmp",
     "tif": "image/tiff",
 }
-DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
+DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json"
 DEFAULT_PREFIX = "Store/Icon_Database/"
 DEFAULT_STATE_KEY = "Store/Icon_Database/icon-sync-state.json"
 
@@ -150,13 +150,13 @@ def dotless(key: str) -> str:
 
 
 def load_catalog(apps_url: str) -> list[str]:
-    status, data, err = probe.http_get(apps_url, timeout=90)
-    if data is None:
-        raise SystemExit(f"Não consegui baixar o apps.json ({err}).")
-    ids = probe.dedupe(probe.ids_from_json(json.loads(data.decode("utf-8-sig"))))
+    payload, err = probe.fetch_catalog_payload(apps_url, timeout=90)
+    if payload is None:
+        raise SystemExit(f"Não consegui carregar o catálogo v2 ({err}).")
+    ids = probe.dedupe(str(row["id"]) for row in payload if isinstance(row, dict) and row.get("id"))
     ids = [i for i in ids if "/" not in i and "\\" not in i]
     if not ids:
-        raise SystemExit("Nenhum PackageIdentifier reconhecido no apps.json.")
+        raise SystemExit("Nenhum ID reconhecido no índice do catálogo.")
     return ids
 
 
@@ -293,7 +293,7 @@ def write_report(out: Path, meta, results, still_missing):
             "|---|---|---|",
         ]
         lines += [f"| {r['id']} | {r['status']} | {r['detail'].replace('|', '/')} |" for r in errors[:20]]
-    lines += ["", f"## Ainda sem ícone: {len(still_missing)} (primeiros 40 na ordem do apps.json)", ""]
+    lines += ["", f"## Ainda sem ícone: {len(still_missing)} (primeiros 40 na ordem do índice)", ""]
     lines += [f"- {i}" for i in still_missing[:40]]
     text = "\n".join(lines) + "\n"
     (out / "summary.md").write_text(text, encoding="utf-8")

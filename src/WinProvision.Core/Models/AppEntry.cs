@@ -7,7 +7,7 @@ using WinProvision.Core.Models.Office;
 namespace WinProvision.Core.Models;
 
 /// <summary>
-/// Modelo do aplicativo listado no apps.json da loja.
+/// Modelo do aplicativo no catálogo da loja.
 /// Campos vêm do manifesto do winget-pkgs (locale/instalador) e são
 /// enriquecidos pela engine de indexação (Score, RegionTags, GitHubStars).
 /// </summary>
@@ -15,6 +15,10 @@ public class AppEntry : INotifyPropertyChanged
 {
     [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
+
+    /// <summary>Caminho relativo do registro completo, presente no índice de busca v2.</summary>
+    [JsonPropertyName("detailPath")]
+    public string? CatalogDetailPath { get; set; }
 
     /// <summary>
     /// Origem do pacote para fins de instalação: "winget" (padrão, veio de um manifesto

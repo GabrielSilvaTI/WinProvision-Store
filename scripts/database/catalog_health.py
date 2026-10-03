@@ -18,7 +18,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 CATALOGS = {
-    "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json",
+    "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json",
     "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json",
     "office": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Database/catalog.json",
     "icon_manifest": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/icon-manifest.json",
@@ -122,26 +122,26 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
     errors: list[str] = []
     apps = payloads.get("winget")
     if not isinstance(apps, list) or len(apps) < minimums["winget"]:
-        errors.append(f"WinGet apps.json: esperada lista com ao menos {minimums['winget']} itens")
+        errors.append(f"Índice de busca WinGet: esperada lista com ao menos {minimums['winget']} itens")
     else:
         seen: set[str] = set()
         sources = {"winget": 0, "msstore": 0}
         for index, item in enumerate(apps):
             if not isinstance(item, dict):
-                errors.append(f"apps.json[{index}] não é objeto")
+                errors.append(f"search-index[{index}] não é objeto")
                 continue
             app_id, name, source = item.get("id"), item.get("name"), item.get("source")
             if not isinstance(app_id, str) or not app_id.strip() or not isinstance(name, str) or not name.strip():
-                errors.append(f"apps.json[{index}] sem ID ou nome válido")
+                errors.append(f"search-index[{index}] sem ID ou nome válido")
                 continue
             key = app_id.casefold()
             if key in seen:
-                errors.append(f"ID duplicado no apps.json: {app_id}")
+                errors.append(f"ID duplicado no search-index: {app_id}")
             seen.add(key)
             if source in sources:
                 sources[source] += 1
             else:
-                errors.append(f"Origem inválida no apps.json para {app_id}: {source!r}")
+                errors.append(f"Origem inválida no search-index para {app_id}: {source!r}")
         if sources["winget"] < minimums["winget"] or sources["msstore"] < minimums["microsoft_store"]:
             errors.append(
                 f"Contagem por origem abaixo do mínimo: winget={sources['winget']}, msstore={sources['msstore']}"
@@ -199,6 +199,46 @@ def main() -> int:
         except (requests.RequestException, UnicodeError, json.JSONDecodeError, ValueError) as exc:
             catalog_errors.append(f"{name}: {type(exc).__name__}: {exc}")
             print(f"JSON ERRO: {name}: {exc}", file=sys.stderr)
+
+    manifest = payloads.get("winget")
+    if isinstance(manifest, dict):
+        digest = manifest.get("catalogSha256")
+        base_path = manifest.get("basePath")
+        if (
+            manifest.get("schemaVersion") != 2
+            or not isinstance(digest, str)
+            or len(digest) != 64
+            or base_path != f"releases/{digest}"
+        ):
+            catalog_errors.append("Manifesto do catálogo WinGet inválido")
+        else:
+            base = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2"
+            try:
+                search_index = get_json("winget search-index", f"{base}/{base_path}/search-index.json")
+                if not isinstance(search_index, list) or len(search_index) != manifest.get("appCount"):
+                    raise ValueError("contagem do índice não corresponde ao manifesto")
+                payloads["winget"] = search_index
+                details = []
+                for row in search_index[: min(24, len(search_index))]:
+                    detail_path = row.get("detailPath") if isinstance(row, dict) else None
+                    if (
+                        not isinstance(detail_path, str)
+                        or not detail_path.startswith("apps/")
+                        or any(segment in ("", ".", "..") for segment in detail_path.split("/"))
+                    ):
+                        raise ValueError("caminho de detalhe inválido no índice")
+                    detail = get_json("winget detail", f"{base}/{base_path}/{detail_path}")
+                    if (
+                        not isinstance(detail, dict)
+                        or str(detail.get("id", "")).casefold() != str(row.get("id", "")).casefold()
+                    ):
+                        raise ValueError(f"detalhe não corresponde ao resumo: {row.get('id')}")
+                    details.append(detail)
+                payloads["winget_details_sample"] = details
+                print(f"JSON OK: winget search-index ({len(search_index)} apps; {len(details)} detalhes amostrados)")
+            except (requests.RequestException, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+                catalog_errors.append(f"Catálogo WinGet v2: {type(exc).__name__}: {exc}")
+                print(f"JSON ERRO: catálogo WinGet v2: {exc}", file=sys.stderr)
 
     errors = catalog_errors + validate_payloads(
         payloads,

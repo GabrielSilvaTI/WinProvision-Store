@@ -42,7 +42,7 @@ from urllib.parse import quote, urlparse
 import yaml
 
 DEFAULT_CDN = "https://cdn.winget.microsoft.com/cache"
-DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json"
+DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json"
 UA = "WinProvisionStore-IconProbe/1.0"
 MAX_ICON_BYTES = 2 * 1024 * 1024
 PNG_MAX_SIDE = 256
@@ -100,6 +100,48 @@ def http_get(url, timeout=60, retries=3, max_bytes=None):
             if attempt < retries - 1:
                 time.sleep(2**attempt + random.random())
     return 0, None, last
+
+
+def fetch_catalog_payload(url: str, timeout: int = 60):
+    """Baixa o índice v2 a partir do manifesto; aceita lista legada durante a transição."""
+    parsed_url = urlparse(url)
+    if parsed_url.scheme != "https" or parsed_url.hostname != "pub-166b41912a994dbe86583ba10596d673.r2.dev":
+        return None, "URL de catálogo não permitida"
+    status, data, err = http_get(url, timeout=timeout)
+    if data is None:
+        return None, err
+    try:
+        payload = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        return None, f"JSON inválido: {exc}"
+    if isinstance(payload, list):
+        return payload, ""
+    if not isinstance(payload, dict) or payload.get("schemaVersion") != 2:
+        return None, "manifesto v2 inválido"
+    digest, base_path, count = payload.get("catalogSha256"), payload.get("basePath"), payload.get("appCount")
+    if (
+        not isinstance(digest, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        or base_path != f"releases/{digest}"
+        or not isinstance(count, int)
+        or count < 1
+    ):
+        return None, "campos do manifesto v2 inválidos"
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path.rsplit('/', 1)[0]}"
+    status, data, err = http_get(f"{base_url}/{base_path}/search-index.json", timeout=timeout)
+    if data is None:
+        return None, f"índice de busca indisponível: {err}"
+    try:
+        index = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        return None, f"índice de busca inválido: {exc}"
+    if (
+        not isinstance(index, list)
+        or len(index) != count
+        or any(not isinstance(row, dict) or not isinstance(row.get("id"), str) for row in index)
+    ):
+        return None, "contagem do índice de busca diverge do manifesto"
+    return index, ""
 
 
 # ---------------------------------------------------------------- decodificação
@@ -317,19 +359,19 @@ def load_wanted_ids(args):
             [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
         ), f"arquivo {path.name}"
     if args.apps_url:
-        status, data, err = http_get(args.apps_url, timeout=60)
-        if data is None:
-            print(f"AVISO: não consegui baixar {args.apps_url} ({err}); usando amostra do índice.", flush=True)
-            return [], f"amostra aleatória do índice (apps.json falhou: {err})"
+        payload, err = fetch_catalog_payload(args.apps_url, timeout=60)
+        if payload is None:
+            print(f"AVISO: não consegui carregar o catálogo ({err}); usando amostra do índice.", flush=True)
+            return [], f"amostra aleatória do índice (catálogo falhou: {err})"
         try:
-            ids = dedupe(ids_from_json(json.loads(data.decode("utf-8-sig"))))
-        except json.JSONDecodeError as exc:
-            print(f"AVISO: apps.json inválido ({exc}); usando amostra do índice.", flush=True)
-            return [], "amostra aleatória do índice (apps.json inválido)"
+            ids = dedupe(str(row["id"]) for row in payload if isinstance(row, dict) and row.get("id"))
+        except (TypeError, KeyError) as exc:
+            print(f"AVISO: índice do catálogo inválido ({exc}); usando amostra do índice.", flush=True)
+            return [], "amostra aleatória do índice (catálogo inválido)"
         if not ids:
-            print("AVISO: nenhum PackageIdentifier reconhecido no apps.json; usando amostra do índice.", flush=True)
-            return [], "amostra aleatória do índice (apps.json sem ids reconhecidos)"
-        return ids, "apps.json do catálogo"
+            print("AVISO: nenhum ID reconhecido no catálogo; usando amostra aleatória do índice.", flush=True)
+            return [], "amostra aleatória do índice (catálogo sem IDs)"
+        return ids, "índice do catálogo v2"
     return [], "amostra aleatória do índice"
 
 
@@ -564,7 +606,7 @@ def main(argv=None) -> int:
     ap.add_argument(
         "--apps-url",
         default=DEFAULT_APPS_URL,
-        help="URL do apps.json do catálogo (vazio = amostra aleatória do índice)",
+        help="URL do manifesto v2 do catálogo (também aceita uma lista JSON legada)",
     )
     ap.add_argument("--cdn", default=os.environ.get("WINGET_CDN", DEFAULT_CDN))
     ap.add_argument("--msix-url", default="", help="padrão: <cdn>/source2.msix")

@@ -8,10 +8,8 @@ namespace WinProvision.Core.Services.Indexing;
 /// Os arquivos gerados são artefatos de pipeline e não devem ser versionados
 /// neste repositório.
 ///
-/// Usa as mesmas <see cref="WinProvisionJsonOptions"/> centralizadas que
-/// <see cref="StoreService"/> usa para LER o apps.json de volta — gerador e
-/// consumidor do mesmo arquivo precisam concordar na mesma política de
-/// serialização (antes cada lado definia seu próprio JsonSerializerOptions).
+/// Usa as opções centralizadas de JSON ao gerar o arquivo intermediário que o
+/// publicador Python organiza no catálogo hierárquico consumido pelo cliente.
 /// </summary>
 public class CatalogExporter
 {
