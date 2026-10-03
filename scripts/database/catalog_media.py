@@ -155,6 +155,24 @@ def rotate_after_id(rows: list[dict], package_id: str | None) -> list[dict]:
     return rows[start:] + rows[:start]
 
 
+def parse_manual_urls(value: str, parameter_name: str) -> list[str]:
+    """Accept a URL, whitespace-separated URLs, or a JSON array from CI inputs."""
+    value = value.strip()
+    if not value:
+        return []
+    if value.startswith("["):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{parameter_name} precisa ser uma lista JSON válida ou URLs separadas por espaços: {exc}") from exc
+        if not isinstance(parsed, list) or any(not isinstance(url, str) for url in parsed):
+            raise ValueError(f"{parameter_name} em formato JSON deve conter somente URLs em texto")
+        return [url.strip() for url in parsed if url.strip()]
+    # CircleCI pode achatar quebras de linha em espaços ao receber parâmetros
+    # de pipeline. URLs não podem conter espaços literais; use %20 se necessário.
+    return value.split()
+
+
 def publish_one(client, manifest: dict, index: list[dict], media_index: dict, package_id: str, kind: str, data: bytes, extension: str, source_url: str, name: str = "") -> dict:
     row = next((entry for entry in index if str(entry.get("id", "")).casefold() == package_id.casefold()), None)
     detail_rel = row.get("detailPath") if row else quote(_detail_path(package_id), safe="/")
@@ -227,22 +245,12 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=Path("catalog-media-report.json"))
     parser.add_argument("--dry-run", action="store_true", help="resolve and validate assets without publishing")
     args = parser.parse_args()
-    urls_text = args.urls_text.strip()
-    if urls_text.startswith("["):
-        try:
-            parsed_urls = json.loads(urls_text)
-        except json.JSONDecodeError as exc:
-            parser.error(f"media_urls precisa ser uma lista JSON válida ou URLs separadas por linha: {exc}")
-        if not isinstance(parsed_urls, list) or any(not isinstance(url, str) for url in parsed_urls):
-            parser.error("a lista JSON de media_urls deve conter somente URLs em texto")
-        urls_from_text = parsed_urls
-    else:
-        urls_from_text = urls_text.splitlines()
-    manual_urls = list(dict.fromkeys(
-        url.strip()
-        for url in ([args.url] + urls_from_text)
-        if url.strip()
-    ))
+    try:
+        urls_from_url = parse_manual_urls(args.url, "media_url")
+        urls_from_text = parse_manual_urls(args.urls_text, "media_urls")
+    except ValueError as exc:
+        parser.error(str(exc))
+    manual_urls = list(dict.fromkeys(urls_from_url + urls_from_text))
     if args.mode == "manual" and (not args.package_id.strip() or not manual_urls):
         parser.error("modo manual exige --package-id e pelo menos uma URL em --url ou --urls-text")
     if args.mode == "manual" and args.type == "icon" and len(manual_urls) > 1:
