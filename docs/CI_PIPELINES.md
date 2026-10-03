@@ -6,8 +6,8 @@ Os trabalhos de publicação no R2 têm uma área por função. Cada workflow do
 | --- | --- | --- | --- |
 | Catálogo Microsoft Store | `.circleci/config.yml` | `run_msstore_catalog=true` | `Store/Database/msstore-catalog.json` e assets |
 | Assets e ofertas Office | `.circleci/office.yml` | `run_office_assets=true` | `Office/Database/` e assets |
-| Catálogo WinGet e API | `.circleci/winget-sync.yml` | `run_winget_catalog=true` | `Store/Database/apps.json` e `Store/Api/v1/` |
-| Ingestão de screenshots curados do WinGet | `.circleci/screenshots.yml` | `run_screenshot_sync=true` | `Store/Screenshot_Database/` |
+| Catálogo WinGet e API | `.circleci/winget-sync.yml` | `run_winget_catalog=true` | `Store/Catalog/v2/` e `Store/Api/v1/` (mantém `Store/Database/apps.json` durante a transição) |
+| Ingestão de screenshots curados do WinGet | `.circleci/screenshots.yml` | `run_screenshot_sync=true` | `Store/Screenshot_Database/` e catálogo v2 atualizado |
 | Ícones da CDN WinGet | `.circleci/icons.yml` | `run_icon_sync=true`; `publish_icons=true` para publicar | `Store/Icon_Database/` |
 | Manifesto de ícones | `.circleci/icon-manifest.yml` | `run_icon_manifest=true` | `Store/icon-manifest.json` |
 | Índice de screenshots já armazenadas | `.circleci/homepage-screenshots.yml` | `run_screenshot_index=true` (os gatilhos antigos continuam aceitos) | `Store/Database/screenshot-index.json` |
@@ -33,6 +33,10 @@ O contexto `r2-publishing` precisa conter `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e 
 
 O catálogo anterior no R2 permanece disponível quando uma geração falha antes da publicação. O WinGet pode usar o último catálogo Microsoft Store válido mesmo se a atualização semanal falhar. Microsoft Store, Office e WinGet têm pipelines separados; seus resultados aparecem independentemente no CircleCI.
 
-Após publicar catálogo e cache/API, o pipeline WinGet executa um segundo job que lista os objetos existentes em `Store/Screenshot_Database/` com paginação do R2 e gera `screenshot-index.json`, contendo apenas IDs com imagens. O app baixa esse índice compacto e o combina com `apps.json` em memória/cache local. Essa etapa não visita homepages, não baixa novamente as imagens e não atualiza milhares de registros individualmente; o número de chamadas ao R2 depende das páginas de listagem, não da quantidade de apps.
+O cliente da loja baixa `Store/Catalog/v2/manifest.json`, segue o `basePath` com conteúdo versionado e carrega o `search-index.json` leve. O índice contém os campos de busca e o caminho de cada detalhe em `apps/{0-9|a-z}/{Publisher}/{Produto}/app.json`; o cliente baixa os detalhes sob demanda ao abrir um app. O publicador envia primeiro todos os arquivos imutáveis e o manifesto por último.
+
+Após publicar catálogo e cache/API, o pipeline WinGet executa um segundo job que lista os objetos existentes em `Store/Screenshot_Database/` com paginação do R2 e gera `screenshot-index.json`, contendo apenas IDs com imagens. O app combina esse índice com o índice de busca em memória/cache local. Essa etapa não visita homepages, não baixa novamente as imagens e não atualiza milhares de registros individualmente; o número de chamadas ao R2 depende das páginas de listagem, não da quantidade de apps. O fluxo curado de screenshots também reconstrói o catálogo v2 para incluir os metadados de imagens atualizados.
+
+Durante a transição, `Store/Database/apps.json` continua sendo publicado para ferramentas antigas e rotinas de recuperação. A loja usa o catálogo v2 como fonte primária. O índice de busca evita carregar milhares de campos de detalhe no primeiro plano; o detalhe completo fica em um JSON por aplicativo.
 
 O pipeline legado `.circleci/homepage-screenshots.yml` também foi convertido para reindexar as imagens já armazenadas. `run_homepage_screenshot_sync`, `run_screenshot_sync`, `homepage_screenshot_batch_size`, `homepage_screenshot_package_id` e `homepage_screenshot_url` continuam aceitos por compatibilidade com gatilhos existentes; os parâmetros de lote/URL não são usados nessa reindexação. Não agende essa reconstrução junto com o catálogo WinGet: o próprio pipeline WinGet atualiza o índice ao concluir. Para descobrir novas imagens em páginas oficiais, esse trabalho deve permanecer separado e pontual, fora da sincronização diária do catálogo.

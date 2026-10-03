@@ -6,27 +6,30 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using System.Collections.Concurrent;
 using WinProvision.Core.Models;
 
 namespace WinProvision.Core.Services;
 
 public class StoreService
 {
-    private const string DatabaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/apps.json";
+    private const string CatalogV2BaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2";
+    private const string CatalogManifestUrl = CatalogV2BaseUrl + "/manifest.json";
     private const string ScreenshotIndexUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/screenshot-index.json";
     private readonly string _cacheDirectory;
-    private readonly string _cacheFilePath;
+    private readonly string _legacyCacheFilePath;
+    private readonly string _catalogManifestCacheFilePath;
+    private readonly string _catalogManifestEtagPath;
+    private readonly string _catalogManifestLastModifiedPath;
+    private readonly string _catalogDetailsCacheDirectory;
     private readonly string _screenshotIndexCacheFilePath;
-    private readonly string _catalogEtagPath;
-    private readonly string _catalogLastModifiedPath;
     private readonly string _screenshotIndexEtagPath;
     private readonly string _screenshotIndexLastModifiedPath;
     private readonly HttpClient _httpClient;
     private readonly IconService _iconService;
 
-    // Mesmas opções centralizadas usadas pelo resto do app (ver WinProvisionJsonOptions) —
-    // é o mesmo apps.json que o WinProvision.Indexer gera via CatalogExporter, então os
-    // dois lados (gerador e consumidor) precisam concordar na mesma política de leitura.
+    // Opções centralizadas compartilhadas pelo app; o Python emite JSON UTF-8 compacto
+    // compatível com o mesmo modelo AppEntry usado pelo Indexer e pelo cliente.
     private static readonly JsonSerializerOptions _jsonOptions = WinProvisionJsonOptions.Compact;
 
     private List<AppEntry> _cachedCatalog = [];
@@ -35,6 +38,10 @@ public class StoreService
     private readonly object _refreshSync = new();
     private Task<List<AppEntry>>? _refreshTask;
     private CancellationTokenSource? _refreshCts;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _detailLocks = new(StringComparer.OrdinalIgnoreCase);
+    private string? _loadedSearchIndexCacheFilePath;
+    private string? _catalogBasePath;
+    private string? _catalogSha256;
     private int _cacheGeneration;
 
     private static readonly TimeSpan CatalogCacheTtl = TimeSpan.FromHours(6);
@@ -58,10 +65,12 @@ public class StoreService
             "WinProvisionStore"
         );
 
-        _cacheFilePath = Path.Combine(_cacheDirectory, "apps.json");
+        _legacyCacheFilePath = Path.Combine(_cacheDirectory, "apps.json");
+        _catalogManifestCacheFilePath = Path.Combine(_cacheDirectory, "catalog-v2-manifest.json");
+        _catalogManifestEtagPath = _catalogManifestCacheFilePath + ".etag";
+        _catalogManifestLastModifiedPath = _catalogManifestCacheFilePath + ".lastmodified";
+        _catalogDetailsCacheDirectory = Path.Combine(_cacheDirectory, "catalog-v2-details");
         _screenshotIndexCacheFilePath = Path.Combine(_cacheDirectory, "screenshot-index.json");
-        _catalogEtagPath = _cacheFilePath + ".etag";
-        _catalogLastModifiedPath = _cacheFilePath + ".lastmodified";
         _screenshotIndexEtagPath = _screenshotIndexCacheFilePath + ".etag";
         _screenshotIndexLastModifiedPath = _screenshotIndexCacheFilePath + ".lastmodified";
     }
@@ -82,25 +91,16 @@ public class StoreService
                 return _cachedCatalog;
             }
 
-            if (!forceRefresh && File.Exists(_cacheFilePath))
+            if (!forceRefresh && TryLoadLocalCatalog())
             {
-                try
-                {
-                    string localJson = await File.ReadAllTextAsync(_cacheFilePath, cancellationToken);
-                    SetCachedCatalog(JsonSerializer.Deserialize<List<AppEntry>>(localJson, _jsonOptions) ?? []);
-                    MergeScreenshotIndex(_cachedCatalog, LoadCachedScreenshotIndex());
-                    await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
-                    PopulateIcons(_cachedCatalog);
+                MergeScreenshotIndex(_cachedCatalog, LoadCachedScreenshotIndex());
+                await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
+                PopulateIcons(_cachedCatalog);
 
-                    if (IsCacheStale())
-                        _ = RefreshCacheInBackgroundAsync(CancellationToken.None);
+                if (IsCacheStale())
+                    _ = RefreshCacheInBackgroundAsync(CancellationToken.None);
 
-                    return _cachedCatalog;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[StoreService] Cache local corrompido, baixando novamente: {ex.Message}");
-                }
+                return _cachedCatalog;
             }
 
             return await FetchAndSaveRemoteCatalogAsync(cancellationToken);
@@ -114,9 +114,158 @@ public class StoreService
     /// <summary>Catálogo completo já carregado em memória (o que LoadCatalogAsync populou).</summary>
     public IReadOnlyList<AppEntry> GetAll() => _cachedCatalog;
 
-    /// <summary>Momento em que o cache local do apps.json foi gravado pela última sincronização.</summary>
+    /// <summary>Carrega o registro completo do app selecionado sem baixar o catálogo completo.</summary>
+    public async Task<AppEntry> LoadDetailsAsync(AppEntry app, CancellationToken cancellationToken = default)
+    {
+        int cacheGeneration = Volatile.Read(ref _cacheGeneration);
+        if (string.IsNullOrWhiteSpace(app.CatalogDetailPath))
+        {
+            AppEntry? catalogEntry = _cachedCatalog.FirstOrDefault(entry =>
+                string.Equals(entry.Id, app.Id, StringComparison.OrdinalIgnoreCase));
+            if (catalogEntry is not null && !ReferenceEquals(catalogEntry, app))
+                return await LoadDetailsAsync(catalogEntry, cancellationToken);
+        }
+        if (string.IsNullOrWhiteSpace(app.CatalogDetailPath) || string.IsNullOrWhiteSpace(_catalogBasePath))
+            return app;
+
+        string relativePath = app.CatalogDetailPath.Replace('\\', '/');
+        if (!IsSafeDetailPath(relativePath))
+            return app;
+
+        SemaphoreSlim detailLock = _detailLocks.GetOrAdd(app.Id, _ => new SemaphoreSlim(1, 1));
+        await detailLock.WaitAsync(cancellationToken);
+        try
+        {
+            string detailRoot = Path.Combine(_catalogDetailsCacheDirectory, _catalogSha256!);
+            string detailFile = Path.GetFullPath(Path.Combine(detailRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+            string normalizedRoot = Path.GetFullPath(detailRoot) + Path.DirectorySeparatorChar;
+            if (!detailFile.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+                return app;
+
+            string? json = null;
+            if (File.Exists(detailFile))
+            {
+                try { json = await File.ReadAllTextAsync(detailFile, cancellationToken); }
+                catch (IOException) { }
+            }
+
+            if (cacheGeneration != Volatile.Read(ref _cacheGeneration))
+                return app;
+
+            if (json is null)
+            {
+                string url = $"{CatalogV2BaseUrl}/{_catalogBasePath}/{relativePath}";
+                using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                json = await response.Content.ReadAsStringAsync(cancellationToken);
+                AppEntry? downloaded = JsonSerializer.Deserialize<AppEntry>(json, _jsonOptions);
+                if (downloaded is null || !string.Equals(downloaded.Id, app.Id, StringComparison.OrdinalIgnoreCase))
+                    return app;
+                if (cacheGeneration != Volatile.Read(ref _cacheGeneration))
+                    return app;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(detailFile)!);
+                string temporaryPath = detailFile + ".tmp";
+                await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
+                File.Move(temporaryPath, detailFile, overwrite: true);
+                return CompleteDetails(downloaded, app);
+            }
+
+            AppEntry? cached = JsonSerializer.Deserialize<AppEntry>(json, _jsonOptions);
+            return cacheGeneration == Volatile.Read(ref _cacheGeneration)
+                   && cached is not null && string.Equals(cached.Id, app.Id, StringComparison.OrdinalIgnoreCase)
+                ? CompleteDetails(cached, app)
+                : app;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Não foi possível carregar detalhes de {app.Id}: {ex.Message}");
+            return app;
+        }
+        finally
+        {
+            detailLock.Release();
+        }
+    }
+
+    private AppEntry CompleteDetails(AppEntry details, AppEntry summary)
+    {
+        details.IsInstalled = summary.IsInstalled;
+        details.IsInstalling = summary.IsInstalling;
+        details.IsSelectedForInstall = summary.IsSelectedForInstall;
+        details.CatalogDetailPath = summary.CatalogDetailPath;
+        details.IconUrl = _iconService.ResolveIconUrl(details);
+        MergeScreenshotIndex([details], LoadCachedScreenshotIndex());
+        return details;
+    }
+
+    private static bool IsSafeDetailPath(string path) =>
+        path.StartsWith("apps/", StringComparison.Ordinal)
+        && !Path.IsPathRooted(path)
+        && !path.Split('/').Any(segment => segment is "" or "." or "..");
+
+    /// <summary>Momento em que o manifesto do catálogo v2 foi gravado localmente.</summary>
     public DateTime? LastCatalogSyncUtc =>
-        File.Exists(_cacheFilePath) ? File.GetLastWriteTimeUtc(_cacheFilePath) : null;
+        File.Exists(_catalogManifestCacheFilePath) ? File.GetLastWriteTimeUtc(_catalogManifestCacheFilePath) : null;
+
+    private bool TryLoadLocalCatalog()
+    {
+        try
+        {
+            if (!File.Exists(_catalogManifestCacheFilePath))
+                return TryLoadLegacyCatalog();
+
+            var manifest = JsonSerializer.Deserialize<CatalogManifest>(
+                File.ReadAllText(_catalogManifestCacheFilePath), _jsonOptions);
+            if (!IsValidManifest(manifest))
+                throw new JsonException("Manifesto local do catálogo v2 inválido.");
+
+            string indexPath = GetSearchIndexCachePath(manifest!.CatalogSha256!);
+            if (!File.Exists(indexPath))
+                return TryLoadLegacyCatalog();
+
+            var catalog = JsonSerializer.Deserialize<List<AppEntry>>(File.ReadAllText(indexPath), _jsonOptions);
+            if (catalog is null || catalog.Count != manifest.AppCount || catalog.Count == 0 || !ValidateSearchEntries(catalog))
+                throw new JsonException("Índice local do catálogo v2 incompleto ou inválido.");
+
+            _catalogBasePath = manifest.BasePath;
+            _catalogSha256 = manifest.CatalogSha256;
+            _loadedSearchIndexCacheFilePath = indexPath;
+            SetCachedCatalog(catalog);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Cache local do catálogo v2 inválido: {ex.Message}");
+            return TryLoadLegacyCatalog();
+        }
+    }
+
+    private bool TryLoadLegacyCatalog()
+    {
+        try
+        {
+            if (!File.Exists(_legacyCacheFilePath))
+                return false;
+            var catalog = JsonSerializer.Deserialize<List<AppEntry>>(File.ReadAllText(_legacyCacheFilePath), _jsonOptions);
+            if (catalog is null || catalog.Count == 0)
+                return false;
+            _catalogBasePath = null;
+            _catalogSha256 = null;
+            _loadedSearchIndexCacheFilePath = _legacyCacheFilePath;
+            SetCachedCatalog(catalog);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Cache legado do catálogo inválido: {ex.Message}");
+            return false;
+        }
+    }
 
     public IEnumerable<AppEntry> Search(string query, int maxResults = int.MaxValue)
     {
@@ -248,20 +397,34 @@ public class StoreService
         int generation = Volatile.Read(ref _cacheGeneration);
         try
         {
-            Task<RemoteTextResult> catalogDownload = FetchTextWithCacheAsync(
-                DatabaseUrl, _cacheFilePath, _catalogEtagPath, _catalogLastModifiedPath, forceRefresh, cancellationToken);
+            Task<RemoteTextResult> manifestDownload = FetchTextWithCacheAsync(
+                CatalogManifestUrl, _catalogManifestCacheFilePath, _catalogManifestEtagPath,
+                _catalogManifestLastModifiedPath, forceRefresh, cancellationToken);
             Task<RemoteTextResult> screenshotIndexDownload = FetchTextWithCacheAsync(
                 ScreenshotIndexUrl, _screenshotIndexCacheFilePath, _screenshotIndexEtagPath,
                 _screenshotIndexLastModifiedPath, forceRefresh, cancellationToken);
-            await Task.WhenAll(catalogDownload, screenshotIndexDownload);
+            await Task.WhenAll(manifestDownload, screenshotIndexDownload);
 
-            RemoteTextResult catalogResult = await catalogDownload;
+            RemoteTextResult manifestResult = await manifestDownload;
             RemoteTextResult screenshotResult = await screenshotIndexDownload;
-            if (catalogResult.Content is null)
+            if (manifestResult.Content is null)
                 return _cachedCatalog;
 
-            string remoteJson = catalogResult.Content;
-            var catalog = JsonSerializer.Deserialize<List<AppEntry>>(remoteJson, _jsonOptions) ?? [];
+            CatalogManifest? manifest = JsonSerializer.Deserialize<CatalogManifest>(manifestResult.Content, _jsonOptions);
+            if (!IsValidManifest(manifest))
+                throw new JsonException("Manifesto remoto do catálogo v2 inválido.");
+
+            string indexPath = GetSearchIndexCachePath(manifest!.CatalogSha256!);
+            string indexUrl = $"{CatalogV2BaseUrl}/{manifest.BasePath}/search-index.json";
+            RemoteTextResult indexResult = await FetchTextWithCacheAsync(
+                indexUrl, indexPath, indexPath + ".etag", indexPath + ".lastmodified", forceRefresh, cancellationToken);
+            if (indexResult.Content is null)
+                return _cachedCatalog;
+
+            var catalog = JsonSerializer.Deserialize<List<AppEntry>>(indexResult.Content, _jsonOptions) ?? [];
+            if (catalog.Count == 0 || catalog.Count != manifest.AppCount || !ValidateSearchEntries(catalog))
+                throw new JsonException("Índice remoto do catálogo v2 inválido ou incompleto.");
+
             ScreenshotIndexDocument? screenshotIndex = null;
             bool screenshotIndexIsValid = false;
             if (screenshotResult.Content is not null)
@@ -307,11 +470,15 @@ public class StoreService
                     return _cachedCatalog;
 
                 SetCachedCatalog(catalog);
+                _catalogBasePath = manifest.BasePath;
+                _catalogSha256 = manifest.CatalogSha256;
+                _loadedSearchIndexCacheFilePath = indexPath;
                 await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
                 PopulateIcons(_cachedCatalog);
 
                 Directory.CreateDirectory(_cacheDirectory);
-                await CommitRemoteTextAsync(_cacheFilePath, catalogResult, cancellationToken);
+                await CommitRemoteTextAsync(_catalogManifestCacheFilePath, manifestResult, cancellationToken);
+                await CommitRemoteTextAsync(indexPath, indexResult, cancellationToken);
                 if (screenshotIndexIsValid && screenshotResult.Content is not null)
                     await CommitRemoteTextAsync(_screenshotIndexCacheFilePath, screenshotResult, cancellationToken);
 
@@ -323,6 +490,12 @@ public class StoreService
         catch (Exception ex)
         {
             Debug.WriteLine($"[StoreService] Falha ao baixar catálogo remoto: {ex.Message}");
+            if (_cachedCatalog.Count == 0 && TryLoadLegacyCatalog())
+            {
+                MergeScreenshotIndex(_cachedCatalog, LoadCachedScreenshotIndex());
+                await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
+                PopulateIcons(_cachedCatalog);
+            }
             return _cachedCatalog;
         }
     }
@@ -339,6 +512,9 @@ public class StoreService
     {
         Interlocked.Increment(ref _cacheGeneration);
         SetCachedCatalog([]);
+        _catalogBasePath = null;
+        _catalogSha256 = null;
+        _loadedSearchIndexCacheFilePath = null;
 
         lock (_refreshSync)
         {
@@ -350,13 +526,26 @@ public class StoreService
 
         try
         {
-            if (File.Exists(_cacheFilePath))
-                File.Delete(_cacheFilePath);
+            foreach (string path in Directory.Exists(_cacheDirectory)
+                         ? Directory.EnumerateFiles(_cacheDirectory, "catalog-v2-search-*.json").ToArray()
+                         : Array.Empty<string>())
+                File.Delete(path);
+            foreach (string path in Directory.Exists(_cacheDirectory)
+                         ? Directory.EnumerateFiles(_cacheDirectory, "catalog-v2-search-*.json.*").ToArray()
+                         : Array.Empty<string>())
+                File.Delete(path);
+            if (File.Exists(_legacyCacheFilePath))
+                File.Delete(_legacyCacheFilePath);
+            if (File.Exists(_catalogManifestCacheFilePath))
+                File.Delete(_catalogManifestCacheFilePath);
             if (File.Exists(_screenshotIndexCacheFilePath))
                 File.Delete(_screenshotIndexCacheFilePath);
+            if (Directory.Exists(_catalogDetailsCacheDirectory))
+                Directory.Delete(_catalogDetailsCacheDirectory, recursive: true);
             foreach (string metadataPath in new[]
                      {
-                         _catalogEtagPath, _catalogLastModifiedPath,
+                         _catalogManifestEtagPath, _catalogManifestLastModifiedPath,
+                         _legacyCacheFilePath + ".etag", _legacyCacheFilePath + ".lastmodified",
                          _screenshotIndexEtagPath, _screenshotIndexLastModifiedPath
                      })
             {
@@ -391,6 +580,29 @@ public class StoreService
                 app.PublisherUrl ?? string.Empty,
                 app.PackageUrl ?? string.Empty);
         }).ToArray();
+    }
+
+    private string GetSearchIndexCachePath(string catalogSha256) =>
+        Path.Combine(_cacheDirectory, $"catalog-v2-search-{catalogSha256}.json");
+
+    private static bool IsValidManifest(CatalogManifest? manifest) =>
+        manifest is { SchemaVersion: 2, AppCount: > 0 }
+        && manifest.CatalogSha256 is { Length: 64 } hash
+        && hash.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f')
+        && string.Equals(manifest.BasePath, $"releases/{hash.ToLowerInvariant()}", StringComparison.Ordinal);
+
+    private static bool ValidateSearchEntries(List<AppEntry> catalog)
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (AppEntry app in catalog)
+        {
+            if (string.IsNullOrWhiteSpace(app.Id)
+                || string.IsNullOrWhiteSpace(app.Name)
+                || !ids.Add(app.Id)
+                || !IsSafeDetailPath(app.CatalogDetailPath ?? string.Empty))
+                return false;
+        }
+        return true;
     }
 
     private static string CleanSearchText(string value, bool removeSpace, bool removeDot)
@@ -522,6 +734,14 @@ public class StoreService
 
     private sealed record RemoteTextResult(string? Content, string? ETag, string? LastModified, bool ShouldCommit, bool NotModified = false);
 
+    private sealed class CatalogManifest
+    {
+        public int SchemaVersion { get; set; }
+        public int AppCount { get; set; }
+        public string? CatalogSha256 { get; set; }
+        public string? BasePath { get; set; }
+    }
+
     private ScreenshotIndexDocument? LoadCachedScreenshotIndex()
     {
         try
@@ -597,9 +817,13 @@ public class StoreService
     {
         try
         {
-            return !File.Exists(_cacheFilePath) ||
+            string? searchIndexPath = _loadedSearchIndexCacheFilePath;
+            return searchIndexPath is null ||
+                   !File.Exists(searchIndexPath) ||
+                   !File.Exists(_catalogManifestCacheFilePath) ||
                    !File.Exists(_screenshotIndexCacheFilePath) ||
-                   DateTime.UtcNow - File.GetLastWriteTimeUtc(_cacheFilePath) >= CatalogCacheTtl ||
+                   DateTime.UtcNow - File.GetLastWriteTimeUtc(searchIndexPath) >= CatalogCacheTtl ||
+                   DateTime.UtcNow - File.GetLastWriteTimeUtc(_catalogManifestCacheFilePath) >= CatalogCacheTtl ||
                    DateTime.UtcNow - File.GetLastWriteTimeUtc(_screenshotIndexCacheFilePath) >= CatalogCacheTtl;
         }
         catch

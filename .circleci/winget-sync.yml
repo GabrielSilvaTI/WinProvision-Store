@@ -68,6 +68,11 @@ jobs:
               "$PWD/catalog-output/apps.json" "$PWD/catalog-output/apps.previous.json" \
               "$PWD/catalog-output/screenshot-assets.json"
       - run:
+          name: Montar e validar catálogo hierárquico em Python
+          command: |
+            /tmp/ci-venv/bin/python scripts/database/build_catalog_v2.py \
+              "$PWD/catalog-output/apps.json" "$PWD/catalog-output/catalog-v2"
+      - run:
           name: Validar apps.json antes da publicação
           command: |
             /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
@@ -83,6 +88,8 @@ jobs:
               Store/Api/v1
             /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
               "$PWD/catalog-output/metrics-cache.json" Store/Database/metrics-cache.json
+            CATALOG_V2_SOURCE="$PWD/catalog-output/catalog-v2" \
+              /tmp/ci-venv/bin/python scripts/database/upload_catalog_v2.py
             APPS_JSON_SOURCE="$PWD/catalog-output/apps.json" \
             PREVIOUS_APPS_JSON_PATH="$PWD/catalog-output/apps.previous.json" \
               /tmp/ci-venv/bin/python scripts/database/upload_apps_json.py

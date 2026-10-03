@@ -11,9 +11,11 @@ Os pipelines abaixo usam YAMLs independentes. Cadastre cada caminho em **Project
 | Verificação do atualizador | `.circleci/updater-verification.yml` | Agende ou execute manualmente com `run_updater_verification=true`. Compila, abre a janela WPF e exercita o atualizador em uma VM descartável. Requer WinGet disponível na imagem Windows. |
 | Validação do Release | `.circleci/release-validation.yml` | Associado à publicação de tags estáveis/pré-lançamentos `vX.Y.Z`; confere os assets publicados, instala e desinstala o pacote. |
 
-O pipeline WinGet executa a atualização do índice de screenshots em seguida à publicação do catálogo e do cache/API. O índice é separado do `apps.json` e contém somente os IDs com arquivos encontrados em `Store/Screenshot_Database/`. A leitura usa paginação S3 do R2 (aproximadamente uma chamada por mil objetos), sem buscar páginas dos aplicativos e sem baixar as imagens outra vez. A rotina `.circleci/homepage-screenshots.yml` é uma recuperação manual/agendada compatível que reconstrói o mesmo índice.
+O pipeline WinGet publica o catálogo v2 em `Store/Catalog/v2/`: um manifesto, um índice de busca e um JSON completo por app em uma hierarquia de pastas. O manifesto aponta para um release imutável identificado pelo hash e é publicado por último. O cliente carrega o índice leve e busca detalhes ao abrir um app. `Store/Database/apps.json` ainda é gerado para compatibilidade com as rotinas antigas durante a transição.
 
-Ao regenerar o catálogo WinGet, `winget-sync.yml` preserva os campos antigos como compatibilidade e publica o índice compacto separadamente. O cliente combina as URLs do índice com os apps por ID, sem aumentar ou regravar os 16 mil registros do catálogo.
+O pipeline WinGet também atualiza o índice de screenshots em seguida à publicação do catálogo e do cache/API. O índice contém somente os IDs com arquivos encontrados em `Store/Screenshot_Database/`. A leitura usa paginação S3 do R2 (aproximadamente uma chamada por mil objetos), sem buscar páginas dos aplicativos e sem baixar as imagens outra vez. A rotina `.circleci/homepage-screenshots.yml` é uma recuperação manual/agendada compatível que reconstrói o mesmo índice.
+
+Ao regenerar o catálogo WinGet, `winget-sync.yml` preserva screenshots existentes, monta os JSONs v2 com o utilitário Python e publica os arquivos do release antes do manifesto. O fluxo curado de screenshots também remonta o release v2 depois de atualizar os metadados.
 
 ## Snapshot e restauração
 

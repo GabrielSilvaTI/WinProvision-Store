@@ -32,6 +32,7 @@ public partial class AppDetailsOverlay : UserControl
     private readonly OperationsQueueService _queueService;
     private readonly InstalledAppsService _installedAppsService;
     private readonly InstalledPackagesViewModel _installedPackagesViewModel;
+    private readonly StoreService _storeService;
 
     private AppEntry? _app;
     private string? _installLocation;
@@ -41,6 +42,7 @@ public partial class AppDetailsOverlay : UserControl
     private string[] _screenshots = [];
     private int _screenshotIndex;
     private int _lightboxLoadGeneration;
+    private int _detailsGeneration;
 
     private sealed class ExtendedPackageInfo
     {
@@ -63,7 +65,8 @@ public partial class AppDetailsOverlay : UserControl
 
     public AppDetailsOverlay(AppDetailsOverlayService overlayService, PackageCollectionService collectionService,
         WingetExecutor wingetExecutor, OperationsQueueService queueService,
-        InstalledAppsService installedAppsService, InstalledPackagesViewModel installedPackagesViewModel)
+        InstalledAppsService installedAppsService, InstalledPackagesViewModel installedPackagesViewModel,
+        StoreService storeService)
     {
         InitializeComponent();
 
@@ -72,11 +75,30 @@ public partial class AppDetailsOverlay : UserControl
         _queueService = queueService;
         _installedAppsService = installedAppsService;
         _installedPackagesViewModel = installedPackagesViewModel;
+        _storeService = storeService;
 
         Visibility = Visibility.Collapsed;
         SizeChanged += AppDetailsOverlay_SizeChanged;
-        overlayService.Requested += app => Show(app, null, null);
-        overlayService.UpdateRequested += (app, current, available) => Show(app, current, available);
+        overlayService.Requested += app => _ = ShowWithCatalogDetailsAsync(app);
+        overlayService.UpdateRequested += (app, current, available) => _ = ShowUpdateWithCatalogDetailsAsync(app, current, available);
+    }
+
+    private async Task ShowWithCatalogDetailsAsync(AppEntry app)
+    {
+        Show(app, null, null);
+        int generation = _detailsGeneration;
+        AppEntry details = await _storeService.LoadDetailsAsync(app);
+        if (generation == _detailsGeneration && ReferenceEquals(_app, app) && !ReferenceEquals(details, app))
+            Show(details, null, null);
+    }
+
+    private async Task ShowUpdateWithCatalogDetailsAsync(AppEntry app, string current, string available)
+    {
+        Show(app, current, available);
+        int generation = _detailsGeneration;
+        AppEntry details = await _storeService.LoadDetailsAsync(app);
+        if (generation == _detailsGeneration && ReferenceEquals(_app, app) && !ReferenceEquals(details, app))
+            Show(details, current, available);
     }
 
     private void AppDetailsOverlay_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -87,6 +109,7 @@ public partial class AppDetailsOverlay : UserControl
 
     private void Show(AppEntry app, string? currentVersion, string? availableVersion)
     {
+        _detailsGeneration++;
         _detailsCts?.Cancel();
         _detailsCts = new CancellationTokenSource();
         _screenshotLoadCts?.Cancel();
