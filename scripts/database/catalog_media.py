@@ -208,13 +208,32 @@ def main() -> int:
     parser.add_argument("--type", choices=("icon", "screenshot"), required=True)
     parser.add_argument("--package-id", default="")
     parser.add_argument("--url", default="", help="URL direta da imagem (modo manual)")
+    parser.add_argument("--urls-text", default="", help="URLs diretas adicionais por linha ou em array JSON (modo manual)")
     parser.add_argument("--homepage-url", default="", help="homepage a percorrer (modo automático screenshot)")
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--out", type=Path, default=Path("catalog-media-report.json"))
     parser.add_argument("--dry-run", action="store_true", help="resolve and validate assets without publishing")
     args = parser.parse_args()
-    if args.mode == "manual" and (not args.package_id.strip() or not args.url.strip()):
-        parser.error("modo manual exige --package-id e --url")
+    urls_text = args.urls_text.strip()
+    if urls_text.startswith("["):
+        try:
+            parsed_urls = json.loads(urls_text)
+        except json.JSONDecodeError as exc:
+            parser.error(f"media_urls precisa ser uma lista JSON válida ou URLs separadas por linha: {exc}")
+        if not isinstance(parsed_urls, list) or any(not isinstance(url, str) for url in parsed_urls):
+            parser.error("a lista JSON de media_urls deve conter somente URLs em texto")
+        urls_from_text = parsed_urls
+    else:
+        urls_from_text = urls_text.splitlines()
+    manual_urls = list(dict.fromkeys(
+        url.strip()
+        for url in ([args.url] + urls_from_text)
+        if url.strip()
+    ))
+    if args.mode == "manual" and (not args.package_id.strip() or not manual_urls):
+        parser.error("modo manual exige --package-id e pelo menos uma URL em --url ou --urls-text")
+    if args.mode == "manual" and args.type == "icon" and len(manual_urls) > 1:
+        parser.error("modo manual de ícone aceita uma URL; use a captura automática para processar vários ícones")
     if args.mode == "auto" and args.type == "screenshot" and not args.homepage_url and args.batch_size < 1:
         parser.error("batch-size precisa ser positivo")
     if args.mode == "auto" and args.type == "icon" and args.package_id:
@@ -225,10 +244,21 @@ def main() -> int:
     jobs = []
     scan_cursor_key = "iconCursor" if args.type == "icon" else "screenshotCursor"
     selected_count = 0
+    results = []
     if args.mode == "manual":
-        body, extension, source = download_image(args.url)
-        extension = validate_image(body, args.type)
-        jobs.append((args.package_id.strip(), body, extension, source, ""))
+        for url in manual_urls:
+            try:
+                body, extension, source = download_image(url)
+                extension = validate_image(body, args.type)
+                jobs.append((args.package_id.strip(), body, extension, source, ""))
+            except Exception as exc:
+                results.append({
+                    "id": args.package_id.strip(),
+                    "type": args.type,
+                    "url": url,
+                    "status": "error",
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
     elif args.type == "screenshot":
         requested_homepage = args.homepage_url.strip()
         candidates = [
@@ -277,7 +307,6 @@ def main() -> int:
             if result.get("status") == "ok":
                 jobs.append((package_id, result["data"], result["ext"], result["url"], "cdn"))
 
-    results = []
     for package_id, body, extension, source, label in jobs:
         try:
             if args.dry_run:
@@ -288,12 +317,17 @@ def main() -> int:
             results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
     media_changed = any(item.get("status") in {"published", "queued-until-catalog-sync"} for item in results)
     index_changed = any(item.get("status") == "published" for item in results)
-    if media_changed and not args.dry_run:
+    for item in results:
+        if item.get("status") == "error":
+            print(json.dumps(item, ensure_ascii=False), file=sys.stderr)
+    if not args.dry_run:
         if args.mode == "auto" and selected_count:
             media_index[scan_cursor_key] = int(media_index.get(scan_cursor_key, 0)) + selected_count
-        media_index["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        media_index_bytes = put_json(client, MEDIA_INDEX_KEY, media_index)
-        manifest["mediaIndexSha256"] = hashlib.sha256(media_index_bytes).hexdigest()
+            media_changed = True
+        if media_changed:
+            media_index["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            media_index_bytes = put_json(client, MEDIA_INDEX_KEY, media_index)
+            manifest["mediaIndexSha256"] = hashlib.sha256(media_index_bytes).hexdigest()
     if index_changed and not args.dry_run:
         index_bytes = json.dumps(index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         # catalogSha256 é reconstituível pelos hashes dos detalhes no índice, sem baixar 15 mil arquivos.

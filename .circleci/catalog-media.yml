@@ -16,6 +16,9 @@ parameters:
   media_url:
     type: string
     default: ""
+  media_urls:
+    type: string
+    default: ""
   homepage_url:
     type: string
     default: ""
@@ -46,6 +49,8 @@ jobs:
             - /home/circleci/.cache/pip
       - run:
           name: Capturar e associar mídia aos apps
+          environment:
+            MEDIA_URLS_TEXT: << pipeline.parameters.media_urls >>
           command: |
             args=(--mode "<< pipeline.parameters.media_mode >>" \
               --type "<< pipeline.parameters.asset_type >>" \
@@ -56,6 +61,9 @@ jobs:
             fi
             if [ -n "<< pipeline.parameters.media_url >>" ]; then
               args+=(--url "<< pipeline.parameters.media_url >>")
+            fi
+            if [ -n "$MEDIA_URLS_TEXT" ]; then
+              args+=(--urls-text "$MEDIA_URLS_TEXT")
             fi
             if [ -n "<< pipeline.parameters.homepage_url >>" ]; then
               args+=(--homepage-url "<< pipeline.parameters.homepage_url >>")
