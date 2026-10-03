@@ -110,7 +110,7 @@ public class IconService
     /// </summary>
     public string ResolveIconUrl(AppEntry app)
     {
-        if (TryGetCatalogMediaUrl(app, app.Media?.Icon) is { } catalogIcon)
+        if (TryGetCatalogMediaUrl(app, app.Media?.Icon, app.Media?.IconSha256) is { } catalogIcon)
             return catalogIcon;
 
         string normalizedId = app.Id.Trim().ToLowerInvariant();
@@ -131,7 +131,7 @@ public class IconService
         return DefaultIconPackUri;
     }
 
-    private static string? TryGetCatalogMediaUrl(AppEntry app, string? mediaPath)
+    private static string? TryGetCatalogMediaUrl(AppEntry app, string? mediaPath, string? sha256)
     {
         if (string.IsNullOrWhiteSpace(mediaPath)
             || string.IsNullOrWhiteSpace(app.CatalogDetailPath)
@@ -146,7 +146,10 @@ public class IconService
             return null;
 
         string encodedMedia = string.Join('/', mediaPath.Split('/').Select(Uri.EscapeDataString));
-        return $"{CatalogAppsBaseUrl}{detailPath[..(lastSlash + 1)]}{encodedMedia}";
+        string url = $"{CatalogAppsBaseUrl}{detailPath[..(lastSlash + 1)]}{encodedMedia}";
+        return !string.IsNullOrWhiteSpace(sha256) && sha256.Length == 64 && sha256.All(Uri.IsHexDigit)
+            ? $"{url}?v={sha256[..16]}"
+            : url;
     }
 
     /// <summary>

@@ -57,6 +57,21 @@ def read_object(client, key: str) -> bytes | None:
         raise
 
 
+def object_sha256(client, key: str) -> str | None:
+    """Read an object's stored digest, calculating it when older metadata is absent."""
+    try:
+        head = client.head_object(Bucket=BUCKET, Key=key)
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+            return None
+        raise
+    digest = head.get("Metadata", {}).get("sha256")
+    if isinstance(digest, str) and re.fullmatch(r"[0-9a-fA-F]{64}", digest):
+        return digest.lower()
+    body = read_object(client, key)
+    return hashlib.sha256(body).hexdigest() if body is not None else None
+
+
 def put_json(client, key: str, value: dict | list, cache: str = "no-cache, max-age=0, must-revalidate") -> bytes:
     body = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     client.put_object(Bucket=BUCKET, Key=key, Body=body, ContentType="application/json", CacheControl=cache)
@@ -135,11 +150,31 @@ def normalize_media(media: dict) -> dict:
     if not isinstance(media, dict):
         media = {}
     icon = media.get("icon") if isinstance(media.get("icon"), str) else None
+    icon_sha256 = media.get("iconSha256") if isinstance(media.get("iconSha256"), str) else None
     screenshots = media.get("screenshots", [])
     if not isinstance(screenshots, list):
         screenshots = []
     screenshots = list(dict.fromkeys(path for path in screenshots if isinstance(path, str)))
-    return {"icon": icon, "screenshots": screenshots}
+    return {"icon": icon, "iconSha256": icon_sha256, "screenshots": screenshots}
+
+
+def screenshot_public_urls(client, detail_path: str, screenshot_paths: list[str]) -> list[str]:
+    app_directory = unquote(detail_path).rsplit("/", 1)[0]
+    urls = []
+    for path in screenshot_paths:
+        filename = path.rsplit("/", 1)[-1]
+        key = media_key_from_detail(detail_path, path)
+        url = f"{PUBLIC_BASE}/{quote(app_directory + '/' + path, safe='/')}"
+        digest = object_sha256(client, key)
+        if digest:
+            url += f"?v={digest[:16]}"
+        urls.append(url)
+    return urls
+
+
+def media_key_from_detail(detail_path: str, media_path: str) -> str:
+    app_directory = unquote(detail_path).rsplit("/", 1)[0]
+    return f"Store/Catalog/{app_directory}/{media_path}"
 
 
 def rotate_after_id(rows: list[dict], package_id: str | None) -> list[dict]:
@@ -191,21 +226,8 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
     media = normalize_media(registry)
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     label = slug(name or Path(urlparse(source_url).path).stem or kind)
-    if kind == "icon":
-        filename = f"icon.{extension}"
-        relative = f"media/{filename}"
-        media["icon"] = relative
-    else:
-        old_paths = media["screenshots"]
-        next_number = max((int(match.group(1)) for path in old_paths if (match := re.match(r"media/screenshots/(\d+)-", path))), default=0) + 1
-        filename = f"{next_number:02d}-{label}.{extension}"
-        relative = f"media/screenshots/{filename}"
-        if relative not in old_paths:
-            old_paths.append(relative)
-        media["screenshots"] = old_paths
-
-    object_key = media_key(package_id, kind, filename)
     digest = hashlib.sha256(data).hexdigest()
+    old_object_keys_to_delete: list[str] = []
     if kind == "icon":
         with Image.open(io.BytesIO(data)) as image:
             converted = io.BytesIO()
@@ -213,15 +235,84 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         data = converted.getvalue()
         extension = "png"
         digest = hashlib.sha256(data).hexdigest()
-    # Publish bytes first. They are immutable by normalized name unless explicitly replaced.
+        filename = "icon.png"
+        relative = f"media/{filename}"
+        media["icon"] = relative
+    else:
+        old_paths = media["screenshots"]
+        label_pattern = re.compile(rf"media/screenshots/(\d+)-{re.escape(label)}\.[^/]+$", re.IGNORECASE)
+        matching_paths = [(path, label_pattern.fullmatch(path)) for path in old_paths]
+        matching_paths = [(path, match) for path, match in matching_paths if match]
+        if matching_paths:
+            # The normalized source name is the stable identity for manual
+            # screenshots: re-submitting it updates that image instead of
+            # allocating another numbered entry.
+            existing_path, match = matching_paths[0]
+            assert match is not None
+            number = match.group(1)
+            filename = f"{number}-{label}.{extension}"
+            relative = f"media/screenshots/{filename}"
+            existing_key = media_key(package_id, "screenshot", existing_path.rsplit("/", 1)[-1])
+            if object_sha256(client, existing_key) == digest:
+                return {
+                    "id": package_id,
+                    "type": kind,
+                    "path": existing_key.removeprefix("Store/Catalog/"),
+                    "sha256": digest,
+                    "status": "unchanged",
+                }
+            if existing_path != relative:
+                old_object_keys_to_delete.append(existing_key)
+            media["screenshots"] = list(dict.fromkeys(relative if path == existing_path else path for path in old_paths))
+        else:
+            # Avoid another entry if the same screenshot is already associated
+            # under a different source name for this app.
+            for existing_path in old_paths:
+                if not existing_path.startswith("media/screenshots/"):
+                    continue
+                existing_key = media_key(package_id, "screenshot", existing_path.rsplit("/", 1)[-1])
+                if object_sha256(client, existing_key) == digest:
+                    return {
+                        "id": package_id,
+                        "type": kind,
+                        "path": existing_key.removeprefix("Store/Catalog/"),
+                        "sha256": digest,
+                        "status": "unchanged",
+                    }
+            next_number = max((int(match.group(1)) for path in old_paths if (match := re.match(r"media/screenshots/(\d+)-", path))), default=0) + 1
+            filename = f"{next_number:02d}-{label}.{extension}"
+            relative = f"media/screenshots/{filename}"
+            old_paths.append(relative)
+        media["screenshots"] = old_paths
+
+    object_key = media_key(package_id, kind, filename)
+    if kind == "icon":
+        existing_digest = object_sha256(client, object_key)
+        if existing_digest == digest:
+            return {
+                "id": package_id,
+                "type": kind,
+                "path": object_key.removeprefix("Store/Catalog/"),
+                "sha256": digest,
+                "status": "unchanged",
+            }
+        media["iconSha256"] = digest
+    # Keep stable normalized object paths. Catalog URLs carry the content hash
+    # separately so an intentional replacement bypasses old immutable caches.
     client.put_object(Bucket=BUCKET, Key=object_key, Body=data, ContentType=CONTENT_TYPES[extension], CacheControl="public, max-age=31536000, immutable", Metadata={"sha256": digest})
     detail_bytes = None
     if detail is not None:
         detail["media"] = media
         if kind == "screenshot":
-            detail["screenshotUrls"] = [f"{PUBLIC_BASE}/{quote('apps/' + unquote(detail_rel).removeprefix('apps/').rsplit('/', 1)[0] + '/' + path, safe='/')}" for path in media["screenshots"]]
+            detail["screenshotUrls"] = screenshot_public_urls(client, detail_rel, media["screenshots"])
         detail_bytes = json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         client.put_object(Bucket=BUCKET, Key=detail_key, Body=detail_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()})
+
+    for old_object_key in old_object_keys_to_delete:
+        try:
+            client.delete_object(Bucket=BUCKET, Key=old_object_key)
+        except Exception as exc:
+            print(f"Aviso: não foi possível remover a imagem substituída {old_object_key}: {exc}", file=sys.stderr)
 
     media_index["generatedUtc"] = now
     media_index["apps"][normalized_id] = media
@@ -385,6 +476,7 @@ def main() -> int:
         f"Mídia: {len(results)} processada(s); "
         f"{sum(item['status'] == 'published' for item in results)} publicada(s); "
         f"{sum(item['status'] == 'queued-until-catalog-sync' for item in results)} pendente(s); "
+        f"{sum(item['status'] == 'unchanged' for item in results)} sem alteração; "
         f"{sum(item['status'] == 'not-found' for item in results)} sem correspondência."
     )
     return 1 if any(item["status"] == "error" for item in results) else 0

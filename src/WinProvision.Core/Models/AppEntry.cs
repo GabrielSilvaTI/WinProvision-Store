@@ -258,6 +258,9 @@ public sealed class CatalogMedia
     [JsonPropertyName("icon")]
     public string? Icon { get; set; }
 
+    [JsonPropertyName("iconSha256")]
+    public string? IconSha256 { get; set; }
+
     [JsonPropertyName("screenshots")]
     public List<string> Screenshots { get; set; } = [];
 }
