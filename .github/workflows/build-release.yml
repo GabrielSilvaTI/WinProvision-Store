@@ -44,17 +44,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
       # Sem packages.lock.json no repo, então cacheia por hash dos .csproj em vez de
       # usar o cache nativo do setup-dotnet (que exige lock file).
       - name: Cache de pacotes NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -73,10 +73,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -84,7 +84,7 @@ jobs:
       # usar o cache nativo do setup-dotnet (que exige lock file). Isso também acelera
       # o download do runtime pack usado no publish self-contained abaixo.
       - name: Cache de pacotes NuGet
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
@@ -203,7 +203,7 @@ jobs:
       - name: Cache do Inno Setup
         if: steps.ver.outputs.channel != 'none'
         id: cache-innosetup
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: 'C:\Program Files (x86)\Inno Setup 6'
           key: innosetup-${{ runner.os }}-v${{ env.INNOSETUP_CACHE_VERSION }}
@@ -283,7 +283,7 @@ jobs:
           Write-Host "Desinstalação OK"
 
       - name: Guardar como artefato do workflow
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: WinProvision.Store-${{ steps.ver.outputs.version }}
           path: dist/*
@@ -299,7 +299,7 @@ jobs:
 
     steps:
       - name: Baixar os arquivos do build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: WinProvision.Store-${{ needs.build.outputs.version }}
           path: dist

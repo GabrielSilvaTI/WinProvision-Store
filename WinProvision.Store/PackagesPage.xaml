@@ -1110,8 +1110,7 @@
                                    AutomationProperties.Name="Ícone do WinProvision" />
                         </Border>
 
-                        <TextBlock Text="Sua coleção de pacotes está vazia"
-                                   Style="{StaticResource PageEmptyStateTitleStyle}" />
+                        <TextBlock Text="Sua coleção de pacotes está vazia" Style="{StaticResource PageEmptyStateTitleStyle}" />
 
                         <TextBlock Text="Adicione aplicativos a partir da Visão Geral ou abra um arquivo de coleção JSON (.json)."
                                    Style="{StaticResource PageEmptyStateMessageStyle}"

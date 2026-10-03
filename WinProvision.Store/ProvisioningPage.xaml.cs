@@ -935,51 +935,51 @@ public partial class ProvisioningPage : Page
         _uiLoaded = false;
         try
         {
-        ProfileNameTextBox.Text = manifest.Name ?? string.Empty;
-        ProfileCreatorTextBox.Text = manifest.Creator ?? string.Empty;
-        SelectEnum(ThemeComboBox, manifest.SystemTheme ?? manifest.Theme);
-        SelectEnum(AppsThemeComboBox, manifest.AppsTheme ?? manifest.Theme);
-        SelectEnum(AccentColorModeComboBox, manifest.AccentColorMode);
-        AccentColorHexTextBox.Text = manifest.AccentColor ?? "#0078D4";
-        UpdateAccentColorInputVisibility();
-        UpdateAccentColorPreview();
-        SelectEnum(TaskbarAlignmentComboBox, manifest.TaskbarAlignment);
-        SelectEnum(TaskbarSearchBoxComboBox, manifest.TaskbarSearchBox);
-        TaskbarAutoHideCheckBox.IsChecked = manifest.TaskbarAutoHide;
-        SelectPowerPlan(manifest.PowerPlan);
-        AutomaticTimeCheckBox.IsChecked = manifest.EnableAutomaticTime == true;
-        AutomaticTimeZoneCheckBox.IsChecked = manifest.EnableAutomaticTimeZone == true;
-        ShowFileExtensionsCheckBox.IsChecked = manifest.ShowFileExtensions;
-        ShowHiddenFilesCheckBox.IsChecked = manifest.ShowHiddenFiles;
-        OpenExplorerToThisPcCheckBox.IsChecked = manifest.OpenExplorerToThisPc;
-        SelectMinutes(DisplayTimeoutAcComboBox, manifest.DisplayTimeoutOnAc ?? manifest.DisplayTimeoutOnDc);
-        SelectMinutes(StandbyTimeoutAcComboBox, manifest.StandbyTimeoutOnAc ?? manifest.StandbyTimeoutOnDc);
-        MachineNameTextBox.Text = manifest.MachineName ?? string.Empty;
+            ProfileNameTextBox.Text = manifest.Name ?? string.Empty;
+            ProfileCreatorTextBox.Text = manifest.Creator ?? string.Empty;
+            SelectEnum(ThemeComboBox, manifest.SystemTheme ?? manifest.Theme);
+            SelectEnum(AppsThemeComboBox, manifest.AppsTheme ?? manifest.Theme);
+            SelectEnum(AccentColorModeComboBox, manifest.AccentColorMode);
+            AccentColorHexTextBox.Text = manifest.AccentColor ?? "#0078D4";
+            UpdateAccentColorInputVisibility();
+            UpdateAccentColorPreview();
+            SelectEnum(TaskbarAlignmentComboBox, manifest.TaskbarAlignment);
+            SelectEnum(TaskbarSearchBoxComboBox, manifest.TaskbarSearchBox);
+            TaskbarAutoHideCheckBox.IsChecked = manifest.TaskbarAutoHide;
+            SelectPowerPlan(manifest.PowerPlan);
+            AutomaticTimeCheckBox.IsChecked = manifest.EnableAutomaticTime == true;
+            AutomaticTimeZoneCheckBox.IsChecked = manifest.EnableAutomaticTimeZone == true;
+            ShowFileExtensionsCheckBox.IsChecked = manifest.ShowFileExtensions;
+            ShowHiddenFilesCheckBox.IsChecked = manifest.ShowHiddenFiles;
+            OpenExplorerToThisPcCheckBox.IsChecked = manifest.OpenExplorerToThisPc;
+            SelectMinutes(DisplayTimeoutAcComboBox, manifest.DisplayTimeoutOnAc ?? manifest.DisplayTimeoutOnDc);
+            SelectMinutes(StandbyTimeoutAcComboBox, manifest.StandbyTimeoutOnAc ?? manifest.StandbyTimeoutOnDc);
+            MachineNameTextBox.Text = manifest.MachineName ?? string.Empty;
 
-        _wallpaperFileName = manifest.WallpaperFileName;
-        _wallpaperImageBase64 = manifest.WallpaperImageBase64;
+            _wallpaperFileName = manifest.WallpaperFileName;
+            _wallpaperImageBase64 = manifest.WallpaperImageBase64;
 
-        if (_wallpaperImageBase64 is { } base64)
-        {
-            try
+            if (_wallpaperImageBase64 is { } base64)
             {
-                ShowWallpaperPreview(Convert.FromBase64String(base64), _wallpaperFileName);
+                try
+                {
+                    ShowWallpaperPreview(Convert.FromBase64String(base64), _wallpaperFileName);
+                }
+                catch (FormatException)
+                {
+                    WallpaperPreviewImage.Source = null;
+                    WallpaperFileNameText.Text = "Wallpaper incluído no perfil, mas o Base64 está corrompido.";
+                    ClearWallpaperButton.Visibility = Visibility.Collapsed;
+                }
             }
-            catch (FormatException)
+            else
             {
                 WallpaperPreviewImage.Source = null;
-                WallpaperFileNameText.Text = "Wallpaper incluído no perfil, mas o Base64 está corrompido.";
+                WallpaperFileNameText.Text = "Nenhuma imagem selecionada.";
                 ClearWallpaperButton.Visibility = Visibility.Collapsed;
             }
-        }
-        else
-        {
-            WallpaperPreviewImage.Source = null;
-            WallpaperFileNameText.Text = "Nenhuma imagem selecionada.";
-            ClearWallpaperButton.Visibility = Visibility.Collapsed;
-        }
 
-        UpdateDesktopPreview();
+            UpdateDesktopPreview();
         }
         finally
         {
@@ -1249,7 +1249,7 @@ public partial class ProvisioningPage : Page
                 StatusText.Text = result.RestartRequired
                     ? "Tudo certo! As configurações foram aplicadas. Reinicie o Windows para concluir."
                     : "Tudo certo! As configurações foram aplicadas.";
-            ShowProvisioningInfoBar("Provisionamento concluído", StatusText.Text, InfoBarSeverity.Success);
+                ShowProvisioningInfoBar("Provisionamento concluído", StatusText.Text, InfoBarSeverity.Success);
             }
             else
             {
@@ -1258,7 +1258,7 @@ public partial class ProvisioningPage : Page
                     : $"{failedSteps.Count} configurações não puderam ser aplicadas.";
                 StatusText.ToolTip = string.Join(Environment.NewLine,
                     failedSteps.Select(step => $"{step.Setting}: {step.Message}"));
-            ShowProvisioningInfoBar("Provisionamento parcial", StatusText.Text, InfoBarSeverity.Warning);
+                ShowProvisioningInfoBar("Provisionamento parcial", StatusText.Text, InfoBarSeverity.Warning);
                 await _contentDialogService.ShowSimpleDialogAsync(new SimpleContentDialogCreateOptions
                 {
                     Title = "Provisionamento concluído com falhas",
