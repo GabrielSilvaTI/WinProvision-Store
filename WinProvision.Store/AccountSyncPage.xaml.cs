@@ -31,7 +31,6 @@ public partial class AccountSyncPage : Page
     private readonly ProfileService _profileService;
     private readonly StoreService _storeService;
     private readonly ProvisioningService _provisioningService;
-    private readonly CliPresetsService _cliPresetsService;
 
     public AccountSyncPage()
     {
@@ -44,11 +43,10 @@ public partial class AccountSyncPage : Page
         _profileService = App.Services.GetRequiredService<ProfileService>();
         _storeService = App.Services.GetRequiredService<StoreService>();
         _provisioningService = App.Services.GetRequiredService<ProvisioningService>();
-        _cliPresetsService = App.Services.GetRequiredService<CliPresetsService>();
 
         RefreshConnectionUi();
         RefreshLocalBackupUi();
-        UpdateCliCommandPreview();
+
 
         _autoSyncService.SyncAttempted += AutoSyncService_SyncAttempted;
         Unloaded += (_, _) =>
@@ -66,7 +64,7 @@ public partial class AccountSyncPage : Page
         {
             RefreshConnectionUi();
             RefreshLocalBackupUi();
-            UpdateCliCommandPreview();
+
         });
     }
 
@@ -248,7 +246,7 @@ public partial class AccountSyncPage : Page
                     {
                         ResetOAuthUi();
                         RefreshConnectionUi();
-                        UpdateCliCommandPreview();
+
                         StatusText.Text = $"Conta vinculada com sucesso como @{_backupService.ConnectedLogin}.";
                         return;
                     }
@@ -311,7 +309,7 @@ public partial class AccountSyncPage : Page
     {
         _backupService.Disconnect();
         RefreshConnectionUi();
-        UpdateCliCommandPreview();
+
         StatusText.Text = "Conta desconectada. O backup local continua disponível.";
     }
 
@@ -467,7 +465,7 @@ public partial class AccountSyncPage : Page
 
             RefreshConnectionUi();
             RefreshLocalBackupUi();
-            UpdateCliCommandPreview();
+
 
             StatusText.Text = syncResult.AlreadyRunning
                 ? "Backup em andamento. Aguarde a conclusão."
@@ -552,53 +550,6 @@ public partial class AccountSyncPage : Page
         {
             ImportCloudBackupButton.IsEnabled = _backupService.IsConnected;
         }
-    }
-
-    // -------------------------------------------------------------
-    // LINHA DE COMANDO (CLI /auto)
-    // -------------------------------------------------------------
-
-    private void CliField_Changed(object sender, RoutedEventArgs e) => UpdateCliCommandPreview();
-
-    private void UpdateCliCommandPreview()
-    {
-        if (CliCommandPreviewTextBox is null) return;
-
-        string? gistUrl = _backupService.BackupRawUrl;
-
-        string path = gistUrl
-            ?? _cliPresetsService.ProfilePathOrUrl
-            ?? "<conecte-sua-conta-github-em-conta-e-sincronizacao>";
-
-        var command = new StringBuilder(".\\WinProvision.Store.exe /auto \"")
-            .Append(path).Append('"');
-
-        if (CliUiModeToggle?.IsChecked != true)
-        {
-            command.Append(" /silent");
-        }
-
-        if (CliLogToggle?.IsChecked == true)
-        {
-            string logPath = CliLogPathTextBox?.Text.Trim() ?? string.Empty;
-            if (logPath.Length > 0)
-            {
-                command.Append(" /log \"").Append(logPath).Append('"');
-            }
-        }
-
-        if (CliCloudLogToggle?.IsChecked == true)
-        {
-            command.Append(" /cloudlog");
-        }
-
-        CliCommandPreviewTextBox.Text = command.ToString();
-    }
-
-    private void CopyCliCommandButton_Click(object sender, RoutedEventArgs e)
-    {
-        Clipboard.SetText(CliCommandPreviewTextBox.Text);
-        StatusText.Text = "Comando copiado para a área de transferência.";
     }
 
     private class GitHubDeviceCodeResponse

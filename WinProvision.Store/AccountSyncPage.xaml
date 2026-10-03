@@ -1,4 +1,4 @@
-﻿<Page x:Class="WinProvision.Store.AccountSyncPage"
+<Page x:Class="WinProvision.Store.AccountSyncPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -35,7 +35,7 @@
                 </Border>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="Conta &amp; Sincronização" Style="{StaticResource StorePageTitleStyle}" />
-                    <TextBlock Text="Gerencie sua conta GitHub, backups e opções do WinProvision CLI."
+                    <TextBlock Text="Gerencie sua conta GitHub e seus backups."
                                Style="{StaticResource StoreSubtitleStyle}"
                                Margin="0,4,0,0" />
                 </StackPanel>
@@ -347,165 +347,6 @@
                             </WrapPanel>
                         </StackPanel>
                     </Border>
-
-                    <!--  Opções do CLI com labels flexíveis e controles nativos WPF-UI.  -->
-                    <Border Style="{StaticResource StoreCardSurfaceStyle}">
-                        <StackPanel>
-                            <Grid Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="12" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Border Width="40"
-                                        Height="40"
-                                        CornerRadius="{StaticResource ControlCornerRadius}"
-                                        Background="{DynamicResource FluentPanelElevatedBrush}">
-                                    <ui:SymbolIcon Symbol="Desktop24"
-                                                   FontSize="20"
-                                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                                   HorizontalAlignment="Center"
-                                                   VerticalAlignment="Center" />
-                                </Border>
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                    <TextBlock Text="Opções do WinProvision CLI"
-                                               FontSize="16"
-                                               FontWeight="SemiBold" />
-                                    <TextBlock Text="Configure o registro da execução e o modo padrão dos comandos."
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               FontSize="13"
-                                               TextWrapping="Wrap"
-                                               Margin="0,3,0,0" />
-                                </StackPanel>
-                            </Grid>
-
-                            <Grid Margin="0,12,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
-                                    <TextBlock Text="Gravar log de execução (/log)" FontWeight="SemiBold" />
-                                    <TextBlock Text="Salva as ações em um arquivo no computador."
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               FontSize="13"
-                                               TextWrapping="Wrap"
-                                               Margin="0,3,0,0" />
-                                </StackPanel>
-                                <ToggleButton x:Name="CliLogToggle"
-                                              Grid.Column="1"
-                                              Style="{StaticResource StoreLogToggleButtonStyle}"
-                                              Checked="CliField_Changed"
-                                              Unchecked="CliField_Changed"
-                                              VerticalAlignment="Center" />
-                            </Grid>
-                            <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <ui:TextBox x:Name="CliLogPathTextBox"
-                                            PlaceholderText="C:\WinProvision\exec.log"
-                                            IsEnabled="{Binding IsChecked, ElementName=CliLogToggle}"
-                                            TextChanged="CliField_Changed"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,12,0" />
-                                <TextBlock Grid.Column="1"
-                                           Text="Caminho do arquivo"
-                                           FontSize="12"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           VerticalAlignment="Center" />
-                            </Grid>
-                            <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
-                            <Grid Margin="0,12,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
-                                    <TextBlock Text="Logs na nuvem (/cloudlog)" FontWeight="SemiBold" />
-                                    <TextBlock Text="Envia os logs para consulta remota."
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               FontSize="13"
-                                               TextWrapping="Wrap"
-                                               Margin="0,3,0,0" />
-                                </StackPanel>
-                                <ToggleButton x:Name="CliCloudLogToggle"
-                                              Grid.Column="1"
-                                              Style="{StaticResource StoreLogToggleButtonStyle}"
-                                              Checked="CliField_Changed"
-                                              Unchecked="CliField_Changed"
-                                              VerticalAlignment="Center" />
-                            </Grid>
-                            <Rectangle Height="1" Fill="{DynamicResource DividerStrokeColorDefaultBrush}" />
-                            <Grid Margin="0,12,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,20,0" VerticalAlignment="Center">
-                                    <TextBlock Text="Modo de execução" FontWeight="SemiBold" />
-                                    <TextBlock Text="Escolha se a janela de progresso será exibida."
-                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                               FontSize="13"
-                                               TextWrapping="Wrap"
-                                               Margin="0,3,0,0" />
-                                </StackPanel>
-                                <ToggleButton x:Name="CliUiModeToggle"
-                                              Grid.Column="1"
-                                              Style="{StaticResource StoreUiModeToggleButtonStyle}"
-                                              IsChecked="True"
-                                              Checked="CliField_Changed"
-                                              Unchecked="CliField_Changed"
-                                              VerticalAlignment="Center" />
-                            </Grid>
-                        </StackPanel>
-                    </Border>
-
-                    <!--  Prévia atualizada pelos mesmos eventos existentes.  -->
-                    <ui:CardExpander Style="{StaticResource StoreCardExpanderStyle}" IsExpanded="False">
-                        <ui:CardExpander.Icon>
-                            <ui:SymbolIcon Symbol="Code24" />
-                        </ui:CardExpander.Icon>
-                        <ui:CardExpander.Header>
-                            <StackPanel>
-                                <TextBlock Text="Gerador de comandos"
-                                           FontSize="16"
-                                           FontWeight="SemiBold" />
-                                <TextBlock Text="Prévia do comando com as opções selecionadas. Execute como administrador para configurar o computador."
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                                           FontSize="13"
-                                           TextWrapping="Wrap"
-                                           Margin="0,3,0,0" />
-                            </StackPanel>
-                        </ui:CardExpander.Header>
-                        <StackPanel>
-                            <TextBox x:Name="CliCommandPreviewTextBox"
-                                     IsReadOnly="True"
-                                     BorderThickness="1"
-                                     BorderBrush="{DynamicResource AppCardBorderBrush}"
-                                     Background="{DynamicResource FluentPanelElevatedBrush}"
-                                     Padding="12"
-                                     FontFamily="Cascadia Mono, Consolas, Courier New"
-                                     FontSize="12"
-                                     TextWrapping="Wrap"
-                                     AcceptsReturn="True"
-                                     MinHeight="64"
-                                     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                                     Margin="0,0,0,12" />
-                            <ui:Button HorizontalAlignment="Left"
-                                       Appearance="Secondary"
-                                       Click="CopyCliCommandButton_Click"
-                                       Style="{StaticResource StoreActionButtonStyle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Copy24"
-                                                   FontSize="16"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="Copiar comando" VerticalAlignment="Center" />
-                                </StackPanel>
-                            </ui:Button>
-                        </StackPanel>
-                    </ui:CardExpander>
 
                 </StackPanel>
             </ScrollViewer>
