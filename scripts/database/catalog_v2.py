@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-PACKAGE_ID_PATTERN = re.compile(r"^[^\\W_][\\w.+-]{0,127}$")
+PACKAGE_ID_PATTERN = re.compile(r"^[^\W_][\w.+-]{0,127}$")
 
 
 def _prefix(package_id: str) -> str:
