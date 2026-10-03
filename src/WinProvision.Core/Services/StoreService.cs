@@ -13,7 +13,7 @@ namespace WinProvision.Core.Services;
 
 public class StoreService
 {
-    private const string CatalogV2BaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2";
+    private const string CatalogV2BaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog";
     private const string CatalogManifestUrl = CatalogV2BaseUrl + "/manifest.json";
     private const string ScreenshotIndexUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/screenshot-index.json";
     private readonly string _cacheDirectory;
@@ -40,7 +40,6 @@ public class StoreService
     private CancellationTokenSource? _refreshCts;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _detailLocks = new(StringComparer.OrdinalIgnoreCase);
     private string? _loadedSearchIndexCacheFilePath;
-    private string? _catalogBasePath;
     private string? _catalogSha256;
     private int _cacheGeneration;
 
@@ -125,7 +124,7 @@ public class StoreService
             if (catalogEntry is not null && !ReferenceEquals(catalogEntry, app))
                 return await LoadDetailsAsync(catalogEntry, cancellationToken);
         }
-        if (string.IsNullOrWhiteSpace(app.CatalogDetailPath) || string.IsNullOrWhiteSpace(_catalogBasePath))
+        if (string.IsNullOrWhiteSpace(app.CatalogDetailPath) || string.IsNullOrWhiteSpace(_catalogSha256))
             return app;
 
         string relativePath = app.CatalogDetailPath.Replace('\\', '/');
@@ -143,10 +142,17 @@ public class StoreService
                 return app;
 
             string? json = null;
+            string? expectedDetailHash = app.CatalogDetailSha256;
             if (File.Exists(detailFile))
             {
-                try { json = await File.ReadAllTextAsync(detailFile, cancellationToken); }
+                string? cachedJson = null;
+                try
+                {
+                    cachedJson = await File.ReadAllTextAsync(detailFile, cancellationToken);
+                }
                 catch (IOException) { }
+                if (cachedJson is not null && HasExpectedHash(cachedJson, expectedDetailHash))
+                    json = cachedJson;
             }
 
             if (cacheGeneration != Volatile.Read(ref _cacheGeneration))
@@ -154,10 +160,12 @@ public class StoreService
 
             if (json is null)
             {
-                string url = $"{CatalogV2BaseUrl}/{_catalogBasePath}/{relativePath}";
+                string url = $"{CatalogV2BaseUrl}/{relativePath}";
                 using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
                 json = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (!HasExpectedHash(json, expectedDetailHash))
+                    throw new JsonException($"O hash do detalhe de {app.Id} não corresponde ao índice de busca.");
                 AppEntry? downloaded = JsonSerializer.Deserialize<AppEntry>(json, _jsonOptions);
                 if (downloaded is null || !string.Equals(downloaded.Id, app.Id, StringComparison.OrdinalIgnoreCase))
                     return app;
@@ -198,6 +206,8 @@ public class StoreService
         details.IsInstalling = summary.IsInstalling;
         details.IsSelectedForInstall = summary.IsSelectedForInstall;
         details.CatalogDetailPath = summary.CatalogDetailPath;
+        details.CatalogDetailSha256 = summary.CatalogDetailSha256;
+        details.Media = summary.Media;
         details.IconUrl = _iconService.ResolveIconUrl(details);
         MergeScreenshotIndex([details], LoadCachedScreenshotIndex());
         return details;
@@ -232,7 +242,6 @@ public class StoreService
             if (catalog is null || catalog.Count != manifest.AppCount || catalog.Count == 0 || !ValidateSearchEntries(catalog))
                 throw new JsonException("Índice local do catálogo v2 incompleto ou inválido.");
 
-            _catalogBasePath = manifest.BasePath;
             _catalogSha256 = manifest.CatalogSha256;
             _loadedSearchIndexCacheFilePath = indexPath;
             SetCachedCatalog(catalog);
@@ -254,7 +263,6 @@ public class StoreService
             var catalog = JsonSerializer.Deserialize<List<AppEntry>>(File.ReadAllText(_legacyCacheFilePath), _jsonOptions);
             if (catalog is null || catalog.Count == 0)
                 return false;
-            _catalogBasePath = null;
             _catalogSha256 = null;
             _loadedSearchIndexCacheFilePath = _legacyCacheFilePath;
             SetCachedCatalog(catalog);
@@ -415,11 +423,17 @@ public class StoreService
                 throw new JsonException("Manifesto remoto do catálogo v2 inválido.");
 
             string indexPath = GetSearchIndexCachePath(manifest!.CatalogSha256!);
-            string indexUrl = $"{CatalogV2BaseUrl}/{manifest.BasePath}/search-index.json";
+            string indexUrl = $"{CatalogV2BaseUrl}/manifest/search-index.json";
             RemoteTextResult indexResult = await FetchTextWithCacheAsync(
                 indexUrl, indexPath, indexPath + ".etag", indexPath + ".lastmodified", forceRefresh, cancellationToken);
             if (indexResult.Content is null)
                 return _cachedCatalog;
+            if (!string.IsNullOrWhiteSpace(manifest.IndexSha256)
+                && !string.Equals(
+                    Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(indexResult.Content))).ToLowerInvariant(),
+                    manifest.IndexSha256,
+                    StringComparison.Ordinal))
+                throw new JsonException("O hash do índice de busca não corresponde ao manifesto.");
 
             var catalog = JsonSerializer.Deserialize<List<AppEntry>>(indexResult.Content, _jsonOptions) ?? [];
             if (catalog.Count == 0 || catalog.Count != manifest.AppCount || !ValidateSearchEntries(catalog))
@@ -470,7 +484,6 @@ public class StoreService
                     return _cachedCatalog;
 
                 SetCachedCatalog(catalog);
-                _catalogBasePath = manifest.BasePath;
                 _catalogSha256 = manifest.CatalogSha256;
                 _loadedSearchIndexCacheFilePath = indexPath;
                 await _iconService.EnsureIconsDatabaseLoadedAsync(cancellationToken);
@@ -512,7 +525,6 @@ public class StoreService
     {
         Interlocked.Increment(ref _cacheGeneration);
         SetCachedCatalog([]);
-        _catalogBasePath = null;
         _catalogSha256 = null;
         _loadedSearchIndexCacheFilePath = null;
 
@@ -589,7 +601,18 @@ public class StoreService
         manifest is { SchemaVersion: 2, AppCount: > 0 }
         && manifest.CatalogSha256 is { Length: 64 } hash
         && hash.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f')
-        && string.Equals(manifest.BasePath, $"releases/{hash.ToLowerInvariant()}", StringComparison.Ordinal);
+        && manifest.IndexSha256 is { Length: 64 } indexHash
+        && indexHash.All(character => character is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    private static bool HasExpectedHash(string json, string? expectedHash)
+    {
+        if (string.IsNullOrWhiteSpace(expectedHash))
+            return false;
+        string actualHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json)))
+            .ToLowerInvariant();
+        return string.Equals(actualHash, expectedHash, StringComparison.Ordinal);
+    }
 
     private static bool ValidateSearchEntries(List<AppEntry> catalog)
     {
@@ -739,7 +762,7 @@ public class StoreService
         public int SchemaVersion { get; set; }
         public int AppCount { get; set; }
         public string? CatalogSha256 { get; set; }
-        public string? BasePath { get; set; }
+        public string? IndexSha256 { get; set; }
     }
 
     private ScreenshotIndexDocument? LoadCachedScreenshotIndex()

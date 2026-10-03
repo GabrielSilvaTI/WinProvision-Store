@@ -15,7 +15,7 @@ from botocore.exceptions import ClientError
 from catalog_v2 import validate_catalog_v2
 
 SOURCE_DIR = Path(os.environ.get("CATALOG_V2_SOURCE", "catalog-v2"))
-DEST_PREFIX = os.environ.get("R2_CATALOG_V2_PREFIX", "Store/Catalog/v2").strip("/")
+DEST_PREFIX = os.environ.get("R2_CATALOG_V2_PREFIX", "Store/Catalog").strip("/")
 
 
 def sha256_file(path: Path) -> str:
@@ -51,13 +51,18 @@ def main() -> int:
         if exc.response.get("Error", {}).get("Code") not in {"404", "NoSuchKey", "NotFound"}:
             raise
     else:
-        if published.get("Metadata", {}).get("catalog-sha256") == manifest["catalogSha256"]:
-            print(f"Catálogo v2 sem alterações em {DEST_PREFIX}; {manifest['appCount']} apps.")
+        metadata = published.get("Metadata", {})
+        if (
+            metadata.get("catalog-sha256") == manifest["catalogSha256"]
+            and manifest.get("inputFingerprint")
+            and metadata.get("input-fingerprint") == manifest["inputFingerprint"]
+        ):
+            print(f"Catálogo v2 sem alterações em {DEST_PREFIX}; cache validado com {manifest['appCount']} apps.")
             return 0
 
-    def upload(path: Path) -> tuple[str, bool]:
+    def upload(path: Path, *, cache_control: str = "public, max-age=300, must-revalidate") -> tuple[str, bool]:
         relative = path.relative_to(SOURCE_DIR).as_posix()
-        key = f"{DEST_PREFIX}/{manifest['basePath']}/{relative}"
+        key = f"{DEST_PREFIX}/{relative}"
         digest = sha256_file(path)
         try:
             head = client.head_object(Bucket=bucket, Key=key)
@@ -72,34 +77,77 @@ def main() -> int:
             key,
             ExtraArgs={
                 "ContentType": "application/json",
-                "CacheControl": "public, max-age=31536000, immutable",
+                "CacheControl": cache_control,
                 "Metadata": {"sha256": digest},
             },
         )
         return key, True
 
+    detail_files = [path for path in files if path.is_relative_to(SOURCE_DIR / "apps")]
+    search_index = SOURCE_DIR / "manifest" / "search-index.json"
+    media_index = SOURCE_DIR / "manifest" / "media-index.json"
+    if search_index not in files:
+        print("Catálogo inválido: manifest/search-index.json não foi validado.", file=sys.stderr)
+        return 1
+
     uploaded = skipped = 0
     with ThreadPoolExecutor(max_workers=24) as pool:
-        futures = [pool.submit(upload, path) for path in files]
+        futures = [pool.submit(upload, path) for path in detail_files]
         for future in as_completed(futures):
             _, changed = future.result()
             uploaded += changed
             skipped += not changed
 
+    # Os arquivos de app ficam disponíveis antes de trocar o índice que aponta
+    # para eles. As chaves são estáveis; só o conteúdo alterado é enviado.
+    _, changed = upload(search_index)
+    uploaded += changed
+    skipped += not changed
+    if manifest.get("mediaIndexSha256"):
+        if media_index not in files:
+            print("Catálogo inválido: manifest/media-index.json não foi validado.", file=sys.stderr)
+            return 1
+        _, changed = upload(media_index)
+        uploaded += changed
+        skipped += not changed
+
     # Publica o ponto de entrada por último: clientes nunca recebem um índice novo
     # antes de todos os arquivos referenciados estarem disponíveis.
     manifest_path = SOURCE_DIR / "manifest.json"
     manifest_digest = sha256_file(manifest_path)
-    client.upload_file(
-        str(manifest_path),
-        bucket,
-        manifest_key,
-        ExtraArgs={
-            "ContentType": "application/json",
-            "CacheControl": "no-cache",
-            "Metadata": {"sha256": manifest_digest, "catalog-sha256": manifest["catalogSha256"]},
-        },
-    )
+    manifest_metadata = {
+        "sha256": manifest_digest,
+        "catalog-sha256": manifest["catalogSha256"],
+        "input-fingerprint": manifest.get("inputFingerprint") or "",
+    }
+    try:
+        head = client.head_object(Bucket=bucket, Key=manifest_key)
+        if head.get("Metadata", {}).get("sha256") == manifest_digest:
+            # Manifest byte-for-byte idêntico: preserve os metadados do cache,
+            # inclusive a impressão digital escrita no primeiro envio.
+            pass
+        else:
+            client.upload_file(
+                str(manifest_path), bucket, manifest_key,
+                ExtraArgs={
+                    "ContentType": "application/json",
+                    "CacheControl": "no-cache, max-age=0, must-revalidate",
+                    "Metadata": manifest_metadata,
+                },
+            )
+            uploaded += 1
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") not in {"404", "NoSuchKey", "NotFound"}:
+            raise
+        client.upload_file(
+            str(manifest_path), bucket, manifest_key,
+            ExtraArgs={
+                "ContentType": "application/json",
+                "CacheControl": "no-cache, max-age=0, must-revalidate",
+                "Metadata": manifest_metadata,
+            },
+        )
+        uploaded += 1
     print(
         f"Catálogo v2 publicado em {DEST_PREFIX}: {uploaded} enviados, {skipped} inalterados, {manifest['appCount']} apps."
     )

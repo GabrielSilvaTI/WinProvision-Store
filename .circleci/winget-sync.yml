@@ -21,10 +21,15 @@ jobs:
           command: |
             python3 -m venv /tmp/ci-venv
             /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/screenshots.txt
-            curl --fail --location --silent --show-error https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-            bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /home/circleci/.dotnet
+            if [ ! -x /home/circleci/.dotnet/dotnet ]; then
+              curl --fail --location --silent --show-error https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+              bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /home/circleci/.dotnet
+            fi
             echo 'export DOTNET_ROOT=/home/circleci/.dotnet' >> "$BASH_ENV"
             echo 'export PATH=/home/circleci/.dotnet:$PATH' >> "$BASH_ENV"
+      - run:
+          name: Checar cache do catálogo validado
+          command: /tmp/ci-venv/bin/python scripts/database/check_catalog_cache.py
       - save_cache:
           key: pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
           paths:
@@ -32,30 +37,47 @@ jobs:
       - run:
           name: Baixar manifests oficiais do WinGet
           command: |
-            mkdir -p winget-pkgs
-            curl --fail --location --retry 4 --retry-all-errors --retry-delay 2 \
-              https://github.com/microsoft/winget-pkgs/archive/refs/heads/master.tar.gz \
-              --output /tmp/winget-pkgs.tar.gz
-            test -s /tmp/winget-pkgs.tar.gz
-            tar -xzf /tmp/winget-pkgs.tar.gz -C winget-pkgs --strip-components=1 winget-pkgs-master/manifests
-            test -d winget-pkgs/manifests
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado; download dos manifests ignorado."
+            else
+              mkdir -p winget-pkgs
+              curl --fail --location --retry 4 --retry-all-errors --retry-delay 2 \
+                https://github.com/microsoft/winget-pkgs/archive/refs/heads/master.tar.gz \
+                --output /tmp/winget-pkgs.tar.gz
+              test -s /tmp/winget-pkgs.tar.gz
+              tar -xzf /tmp/winget-pkgs.tar.gz -C winget-pkgs --strip-components=1 winget-pkgs-master/manifests
+              test -d winget-pkgs/manifests
+            fi
           no_output_timeout: 30m
       - run:
           name: Restaurar caches e catálogos anteriores do R2
           command: |
-            mkdir -p catalog-output/api-previous
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/metrics-cache.json "$PWD/catalog-output/metrics-cache.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/apps.json "$PWD/catalog-output/apps.previous.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Api/v1/_state/package-hashes.json "$PWD/catalog-output/api-previous/package-hashes.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/msstore-catalog.json "$PWD/catalog-output/msstore-catalog.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/screenshot-assets.json "$PWD/catalog-output/screenshot-assets.json"
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado; restauração para regeneração ignorada."
+            else
+              mkdir -p catalog-output/api-previous
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/metrics-cache.json "$PWD/catalog-output/metrics-cache.json"
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/apps.json "$PWD/catalog-output/apps.previous.json"
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Api/v1/_state/package-hashes.json "$PWD/catalog-output/api-previous/package-hashes.json"
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/screenshot-assets.json "$PWD/catalog-output/screenshot-assets.json"
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/msstore-catalog.json "$PWD/catalog-output/msstore-catalog.json"
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Catalog/manifest/media-index.json "$PWD/catalog-output/media-index.json"
+              if [ ! -s catalog-output/media-index.json ]; then
+                printf '{"schemaVersion":1,"apps":{}}\n' > catalog-output/media-index.json
+              fi
+            fi
       - restore_cache:
           keys:
             - nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
             - nuget-v1-
       - run:
           name: Gerar catálogo e API do WinGet
-          command: dotnet run --project src/WinProvision.Indexer -c Release -- "$PWD/winget-pkgs/manifests" "$PWD/catalog-output"
+          command: |
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado; Indexer ignorado."
+            else
+              dotnet run --project src/WinProvision.Indexer -c Release -- "$PWD/winget-pkgs/manifests" "$PWD/catalog-output"
+            fi
           no_output_timeout: 45m
       - save_cache:
           key: nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
@@ -64,76 +86,56 @@ jobs:
       - run:
           name: Preservar screenshots publicados anteriormente
           command: |
-            /tmp/ci-venv/bin/python scripts/database/preserve_catalog_screenshots.py \
-              "$PWD/catalog-output/apps.json" "$PWD/catalog-output/apps.previous.json" \
-              "$PWD/catalog-output/screenshot-assets.json"
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado; preservação ignorada."
+            else
+              /tmp/ci-venv/bin/python scripts/database/preserve_catalog_screenshots.py \
+                "$PWD/catalog-output/apps.json" "$PWD/catalog-output/apps.previous.json" \
+                "$PWD/catalog-output/screenshot-assets.json"
+            fi
       - run:
           name: Montar e validar catálogo hierárquico em Python
           command: |
-            /tmp/ci-venv/bin/python scripts/database/build_catalog_v2.py \
-              "$PWD/catalog-output/apps.json" "$PWD/catalog-output/catalog-v2"
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado; montagem ignorada."
+            else
+              cache_args=()
+              if [ -n "$WINGET_SOURCE_REVISION" ]; then cache_args+=(--source-revision "$WINGET_SOURCE_REVISION"); fi
+              if [ -n "$CATALOG_BUILD_REVISION" ]; then cache_args+=(--build-revision "$CATALOG_BUILD_REVISION"); fi
+              if [ -n "$MSSTORE_CATALOG_SHA256" ]; then cache_args+=(--msstore-sha256 "$MSSTORE_CATALOG_SHA256"); fi
+              /tmp/ci-venv/bin/python scripts/database/build_catalog_v2.py \
+                "$PWD/catalog-output/apps.json" "$PWD/catalog-output/catalog-v2" \
+                --media-index "$PWD/catalog-output/media-index.json" "${cache_args[@]}"
+            fi
       - run:
           name: Validar apps.json antes da publicação
           command: |
-            /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
-              "$PWD/catalog-output/apps.json" \
-              --previous "$PWD/catalog-output/apps.previous.json" \
-              --min-count 5000 --min-retention 0.70
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado; validação repetida ignorada."
+            else
+              /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
+                "$PWD/catalog-output/apps.json" \
+                --previous "$PWD/catalog-output/apps.previous.json" \
+                --min-count 5000 --min-retention 0.70
+            fi
       - run:
           name: Publicar API e catálogo no R2
           command: |
-            /tmp/ci-venv/bin/python scripts/database/upload_api_json.py \
-              "$PWD/catalog-output/api" \
-              "$PWD/catalog-output/api-previous/package-hashes.json" \
-              Store/Api/v1
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/catalog-output/metrics-cache.json" Store/Database/metrics-cache.json
-            CATALOG_V2_SOURCE="$PWD/catalog-output/catalog-v2" \
-              /tmp/ci-venv/bin/python scripts/database/upload_catalog_v2.py
-            APPS_JSON_SOURCE="$PWD/catalog-output/apps.json" \
-            PREVIOUS_APPS_JSON_PATH="$PWD/catalog-output/apps.previous.json" \
-              /tmp/ci-venv/bin/python scripts/database/upload_apps_json.py
-
-  publish_screenshot_index:
-    docker:
-      - image: cimg/python:3.12
-    working_directory: ~/project
-    resource_class: small
-    environment:
-      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
-    steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
-      - run:
-          name: Preparar Python para o índice de screenshots
-          command: |
-            python3 -m venv /tmp/ci-venv
-            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
-      - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
-          paths:
-            - /home/circleci/.cache/pip
-      - run:
-          name: Preparar a pasta do índice
-          command: |
-            mkdir -p screenshot-index-output
-      - run:
-          name: Indexar somente screenshots já armazenadas no R2
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/index_r2_screenshots.py \
-              screenshot-index-output/screenshot-index.json \
-              --report screenshot-index-output/report.json
-      - store_artifacts:
-          path: screenshot-index-output/report.json
-          destination: screenshot-index-report.json
-      - run:
-          name: Publicar o índice compacto de screenshots
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/screenshot-index-output/screenshot-index.json" \
-              Store/Database/screenshot-index.json
+            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
+              echo "Catálogo remoto já está validado e atualizado; publicação ignorada."
+            else
+              /tmp/ci-venv/bin/python scripts/database/upload_api_json.py \
+                "$PWD/catalog-output/api" \
+                "$PWD/catalog-output/api-previous/package-hashes.json" \
+                Store/Api/v1
+              /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+                "$PWD/catalog-output/metrics-cache.json" Store/Database/metrics-cache.json
+              CATALOG_V2_SOURCE="$PWD/catalog-output/catalog-v2" \
+                /tmp/ci-venv/bin/python scripts/database/upload_catalog_v2.py
+              APPS_JSON_SOURCE="$PWD/catalog-output/apps.json" \
+              PREVIOUS_APPS_JSON_PATH="$PWD/catalog-output/apps.previous.json" \
+                /tmp/ci-venv/bin/python scripts/database/upload_apps_json.py
+            fi
 
 workflows:
   winget_catalog:
@@ -141,13 +143,6 @@ workflows:
     jobs:
       - publish_winget_catalog:
           context: r2-publishing
-          filters:
-            branches:
-              only: main
-      - publish_screenshot_index:
-          context: r2-publishing
-          requires:
-            - publish_winget_catalog
           filters:
             branches:
               only: main

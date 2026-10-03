@@ -1,0 +1,77 @@
+version: 2.1
+
+parameters:
+  run_catalog_media:
+    type: boolean
+    default: false
+  media_mode:
+    type: string
+    default: manual
+  asset_type:
+    type: string
+    default: screenshot
+  package_id:
+    type: string
+    default: ""
+  media_url:
+    type: string
+    default: ""
+  homepage_url:
+    type: string
+    default: ""
+  batch_size:
+    type: integer
+    default: 20
+
+jobs:
+  sync_catalog_media:
+    docker:
+      - image: cimg/python:3.12
+    working_directory: ~/project
+    resource_class: medium
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - pip-v1-{{ checksum "scripts/requirements/icons.txt" }}-{{ checksum "scripts/requirements/screenshots.txt" }}
+      - run:
+          name: Preparar dependências de imagens e R2
+          command: |
+            python3 -m pip install --disable-pip-version-check \
+              -r scripts/requirements/icons.txt \
+              -r scripts/requirements/screenshots.txt
+      - save_cache:
+          key: pip-v1-{{ checksum "scripts/requirements/icons.txt" }}-{{ checksum "scripts/requirements/screenshots.txt" }}
+          paths:
+            - /home/circleci/.cache/pip
+      - run:
+          name: Capturar e associar mídia aos apps
+          command: |
+            args=(--mode "<< pipeline.parameters.media_mode >>" \
+              --type "<< pipeline.parameters.asset_type >>" \
+              --batch-size "<< pipeline.parameters.batch_size >>" \
+              --out catalog-media-report.json)
+            if [ -n "<< pipeline.parameters.package_id >>" ]; then
+              args+=(--package-id "<< pipeline.parameters.package_id >>")
+            fi
+            if [ -n "<< pipeline.parameters.media_url >>" ]; then
+              args+=(--url "<< pipeline.parameters.media_url >>")
+            fi
+            if [ -n "<< pipeline.parameters.homepage_url >>" ]; then
+              args+=(--homepage-url "<< pipeline.parameters.homepage_url >>")
+            fi
+            python3 scripts/database/catalog_media.py "${args[@]}"
+          no_output_timeout: 30m
+      - store_artifacts:
+          path: catalog-media-report.json
+          destination: catalog-media-report.json
+
+workflows:
+  catalog_media:
+    when: << pipeline.parameters.run_catalog_media >>
+    jobs:
+      - sync_catalog_media:
+          context: r2-publishing
+          filters:
+            branches:
+              only: main

@@ -42,7 +42,7 @@ from urllib.parse import quote, urlparse
 import yaml
 
 DEFAULT_CDN = "https://cdn.winget.microsoft.com/cache"
-DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json"
+DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json"
 UA = "WinProvisionStore-IconProbe/1.0"
 MAX_ICON_BYTES = 2 * 1024 * 1024
 PNG_MAX_SIDE = 256
@@ -118,17 +118,16 @@ def fetch_catalog_payload(url: str, timeout: int = 60):
         return payload, ""
     if not isinstance(payload, dict) or payload.get("schemaVersion") != 2:
         return None, "manifesto v2 inválido"
-    digest, base_path, count = payload.get("catalogSha256"), payload.get("basePath"), payload.get("appCount")
+    digest, count = payload.get("catalogSha256"), payload.get("appCount")
     if (
         not isinstance(digest, str)
         or not re.fullmatch(r"[0-9a-f]{64}", digest)
-        or base_path != f"releases/{digest}"
         or not isinstance(count, int)
         or count < 1
     ):
         return None, "campos do manifesto v2 inválidos"
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path.rsplit('/', 1)[0]}"
-    status, data, err = http_get(f"{base_url}/{base_path}/search-index.json", timeout=timeout)
+    status, data, err = http_get(f"{base_url}/manifest/search-index.json", timeout=timeout)
     if data is None:
         return None, f"índice de busca indisponível: {err}"
     try:
@@ -138,9 +137,19 @@ def fetch_catalog_payload(url: str, timeout: int = 60):
     if (
         not isinstance(index, list)
         or len(index) != count
-        or any(not isinstance(row, dict) or not isinstance(row.get("id"), str) for row in index)
+        or any(
+            not isinstance(row, dict)
+            or not isinstance(row.get("id"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("recordSha256", "")))
+            for row in index
+        )
     ):
         return None, "contagem do índice de busca diverge do manifesto"
+    index_digest = hashlib.sha256(
+        json.dumps(index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    if index_digest != payload.get("indexSha256"):
+        return None, "SHA-256 do índice de busca diverge do manifesto"
     return index, ""
 
 

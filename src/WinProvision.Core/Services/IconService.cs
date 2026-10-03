@@ -11,6 +11,7 @@ namespace WinProvision.Core.Services;
 
 public class IconService
 {
+    private const string CatalogAppsBaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/";
     // Manifesto único de ícones, publicado no bucket Cloudflare R2 (mesmo bucket
     // que hospeda os arquivos de imagem em Store/Icon_Database/{id}.{ext}) pelo
     // build_kv_mapping.py + upload_manifest.py. Formato: {"vendor.appname": "url"},
@@ -109,6 +110,9 @@ public class IconService
     /// </summary>
     public string ResolveIconUrl(AppEntry app)
     {
+        if (TryGetCatalogMediaUrl(app, app.Media?.Icon) is { } catalogIcon)
+            return catalogIcon;
+
         string normalizedId = app.Id.Trim().ToLowerInvariant();
         if (normalizedId.Length > 0 && _iconManifest.TryGetValue(normalizedId, out var icon))
         {
@@ -125,6 +129,24 @@ public class IconService
         }
 
         return DefaultIconPackUri;
+    }
+
+    private static string? TryGetCatalogMediaUrl(AppEntry app, string? mediaPath)
+    {
+        if (string.IsNullOrWhiteSpace(mediaPath)
+            || string.IsNullOrWhiteSpace(app.CatalogDetailPath)
+            || !mediaPath.StartsWith("media/", StringComparison.Ordinal)
+            || Path.IsPathRooted(mediaPath)
+            || mediaPath.Replace('\\', '/').Split('/').Any(segment => segment is "" or "." or ".."))
+            return null;
+
+        string detailPath = app.CatalogDetailPath.Replace('\\', '/');
+        int lastSlash = detailPath.LastIndexOf('/');
+        if (lastSlash < 0)
+            return null;
+
+        string encodedMedia = string.Join('/', mediaPath.Split('/').Select(Uri.EscapeDataString));
+        return $"{CatalogAppsBaseUrl}{detailPath[..(lastSlash + 1)]}{encodedMedia}";
     }
 
     /// <summary>

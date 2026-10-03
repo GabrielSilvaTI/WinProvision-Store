@@ -4,74 +4,47 @@ parameters:
   run_screenshot_sync:
     type: boolean
     default: false
+  screenshot_batch_size:
+    type: integer
+    default: 20
 
 jobs:
-  sync_winget_screenshots:
+  capture_catalog_screenshots:
     docker:
       - image: cimg/python:3.12
     working_directory: ~/project
     resource_class: medium
-    environment:
-      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
     steps:
       - checkout
       - restore_cache:
           keys:
-            - pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
+            - pip-v1-{{ checksum "scripts/requirements/icons.txt" }}-{{ checksum "scripts/requirements/screenshots.txt" }}
       - run:
-          name: Instalar dependências de imagens e R2
+          name: Instalar dependências de captura de mídia
           command: |
-            python3 -m venv /tmp/ci-venv
-            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/screenshots.txt
+            python3 -m pip install --disable-pip-version-check \
+              -r scripts/requirements/icons.txt -r scripts/requirements/screenshots.txt
       - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/screenshots.txt" }}
+          key: pip-v1-{{ checksum "scripts/requirements/icons.txt" }}-{{ checksum "scripts/requirements/screenshots.txt" }}
           paths:
             - /home/circleci/.cache/pip
       - run:
-          name: Restaurar catálogo WinGet e cache de screenshots do R2
+          name: Encontrar screenshots nas homepages dos apps
           command: |
-            mkdir -p screenshot-output
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Store/Database/apps.json "$PWD/screenshot-output/apps.json"
-            /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Store/Database/screenshot-assets.json "$PWD/screenshot-output/screenshot-assets.json"
-            test -s screenshot-output/apps.json || {
-              echo "::error::O catálogo Store/Database/apps.json não existe no R2; execute primeiro o pipeline do catálogo WinGet."
-              exit 1
-            }
-            cp screenshot-output/apps.json screenshot-output/apps.previous.json
-      - run:
-          name: Baixar, validar e associar screenshots do WinGet
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/sync_winget_screenshots.py \
-              data/screenshots/screenshot-database-clean.json \
-              screenshot-output/apps.json screenshot-output/screenshot-assets.json \
-              --report screenshot-output/screenshot-report.json \
-              --max-failure-rate 0.25
+            python3 scripts/database/catalog_media.py \
+              --mode auto --type screenshot \
+              --batch-size "<< pipeline.parameters.screenshot_batch_size >>" \
+              --out screenshot-media-report.json
+          no_output_timeout: 30m
       - store_artifacts:
-          path: screenshot-output/screenshot-report.json
-          destination: winget-screenshot-report.json
-      - run:
-          name: Validar e publicar catálogo e cache de imagens no R2
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/validate_catalog.py \
-              screenshot-output/apps.json \
-              --previous screenshot-output/apps.previous.json \
-              --min-count 5000 --min-retention 0.70
-            /tmp/ci-venv/bin/python scripts/database/build_catalog_v2.py \
-              "$PWD/screenshot-output/apps.json" "$PWD/screenshot-output/catalog-v2"
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/screenshot-output/screenshot-assets.json" Store/Database/screenshot-assets.json
-            CATALOG_V2_SOURCE="$PWD/screenshot-output/catalog-v2" \
-              /tmp/ci-venv/bin/python scripts/database/upload_catalog_v2.py
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/screenshot-output/apps.json" Store/Database/apps.json
+          path: screenshot-media-report.json
+          destination: screenshot-media-report.json
 
 workflows:
   screenshots:
     when: << pipeline.parameters.run_screenshot_sync >>
     jobs:
-      - sync_winget_screenshots:
+      - capture_catalog_screenshots:
           context: r2-publishing
           filters:
             branches:

@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 import threading
 import time
@@ -18,7 +20,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 CATALOGS = {
-    "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json",
+    "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json",
     "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json",
     "office": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Database/catalog.json",
     "icon_manifest": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/icon-manifest.json",
@@ -203,18 +205,25 @@ def main() -> int:
     manifest = payloads.get("winget")
     if isinstance(manifest, dict):
         digest = manifest.get("catalogSha256")
-        base_path = manifest.get("basePath")
         if (
             manifest.get("schemaVersion") != 2
             or not isinstance(digest, str)
-            or len(digest) != 64
-            or base_path != f"releases/{digest}"
+            or not re.fullmatch(r"[0-9a-f]{64}", digest)
         ):
             catalog_errors.append("Manifesto do catálogo WinGet inválido")
         else:
-            base = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2"
+            base = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog"
             try:
-                search_index = get_json("winget search-index", f"{base}/{base_path}/search-index.json")
+                search_index = get_json("winget search-index", f"{base}/manifest/search-index.json")
+                expected_index_hash = manifest.get("indexSha256")
+                if (
+                    not isinstance(expected_index_hash, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", expected_index_hash)
+                    or hashlib.sha256(
+                        json.dumps(search_index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                    ).hexdigest() != expected_index_hash
+                ):
+                    raise ValueError("SHA-256 do índice de busca diverge do manifesto")
                 if not isinstance(search_index, list) or len(search_index) != manifest.get("appCount"):
                     raise ValueError("contagem do índice não corresponde ao manifesto")
                 payloads["winget"] = search_index
@@ -225,9 +234,15 @@ def main() -> int:
                         not isinstance(detail_path, str)
                         or not detail_path.startswith("apps/")
                         or any(segment in ("", ".", "..") for segment in detail_path.split("/"))
+                        or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("recordSha256", "")))
                     ):
                         raise ValueError("caminho de detalhe inválido no índice")
-                    detail = get_json("winget detail", f"{base}/{base_path}/{detail_path}")
+                    detail = get_json("winget detail", f"{base}/{detail_path}")
+                    actual_detail_hash = hashlib.sha256(
+                        json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                    ).hexdigest()
+                    if actual_detail_hash != row["recordSha256"]:
+                        raise ValueError(f"hash de detalhe incorreto para {row.get('id')}")
                     if (
                         not isinstance(detail, dict)
                         or str(detail.get("id", "")).casefold() != str(row.get("id", "")).casefold()

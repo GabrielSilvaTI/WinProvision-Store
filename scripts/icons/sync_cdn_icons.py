@@ -45,7 +45,7 @@ CONTENT_TYPES = {
     "bmp": "image/bmp",
     "tif": "image/tiff",
 }
-DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json"
+DEFAULT_APPS_URL = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json"
 DEFAULT_PREFIX = "Store/Icon_Database/"
 DEFAULT_STATE_KEY = "Store/Icon_Database/icon-sync-state.json"
 

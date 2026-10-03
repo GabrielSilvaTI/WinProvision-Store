@@ -19,6 +19,11 @@ public class AppEntry : INotifyPropertyChanged
     /// <summary>Caminho relativo do registro completo, presente no índice de busca v2.</summary>
     [JsonPropertyName("detailPath")]
     public string? CatalogDetailPath { get; set; }
+    [JsonPropertyName("recordSha256")]
+    public string? CatalogDetailSha256 { get; set; }
+
+    [JsonPropertyName("media")]
+    public CatalogMedia? Media { get; set; }
 
     /// <summary>
     /// Origem do pacote para fins de instalação: "winget" (padrão, veio de um manifesto
@@ -246,4 +251,13 @@ public class AppEntry : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+}
+
+public sealed class CatalogMedia
+{
+    [JsonPropertyName("icon")]
+    public string? Icon { get; set; }
+
+    [JsonPropertyName("screenshots")]
+    public List<string> Screenshots { get; set; } = [];
 }

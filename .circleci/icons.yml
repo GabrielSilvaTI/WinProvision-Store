@@ -18,22 +18,24 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - pip-v1-{{ checksum "scripts/requirements/icons.txt" }}
+            - pip-v1-{{ checksum "scripts/requirements/icons.txt" }}-{{ checksum "scripts/requirements/screenshots.txt" }}
       - run:
-          name: Instalar dependências dos ícones
-          command: python3 -m pip install --disable-pip-version-check -r scripts/requirements/icons.txt
+          name: Instalar dependências de captura de mídia
+          command: |
+            python3 -m pip install --disable-pip-version-check \
+              -r scripts/requirements/icons.txt -r scripts/requirements/screenshots.txt
       - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/icons.txt" }}
+          key: pip-v1-{{ checksum "scripts/requirements/icons.txt" }}-{{ checksum "scripts/requirements/screenshots.txt" }}
           paths:
             - /home/circleci/.cache/pip
       - run:
-          name: Sincronizar ícones CDN do WinGet com o R2
+          name: Capturar ícones do WinGet e associar aos apps
           command: |
-            args=(--out sync-out --max-probes 0 --recheck-days 30)
+            args=(--mode auto --type icon --batch-size 100 --out sync-out/catalog-media-report.json)
             if [ "<< pipeline.parameters.publish_icons >>" != "true" ]; then
               args+=(--dry-run)
             fi
-            python3 scripts/icons/sync_cdn_icons.py "${args[@]}"
+            python3 scripts/database/catalog_media.py "${args[@]}"
           no_output_timeout: 30m
       - store_artifacts:
           path: sync-out
