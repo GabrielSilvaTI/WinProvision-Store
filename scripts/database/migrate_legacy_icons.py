@@ -91,7 +91,8 @@ def load_documents(client):
     }
     consistency = {
         "searchIndexHashValid": hashlib.sha256(index_bytes).hexdigest() == manifest.get("indexSha256"),
-        "mediaIndexHashValid": not manifest.get("mediaIndexSha256") or hashlib.sha256(media_bytes).hexdigest() == manifest["mediaIndexSha256"],
+        "mediaIndexHashValid": not manifest.get("mediaIndexSha256")
+        or hashlib.sha256(media_bytes).hexdigest() == manifest["mediaIndexSha256"],
     }
     return manifest, index, media_index, legacy, legacy_keys, media_bytes, consistency
 
@@ -102,7 +103,7 @@ def legacy_key(url: str) -> str | None:
         return None
     if not parsed.path.startswith(LEGACY_ICON_PREFIX):
         return None
-    filename = unquote(parsed.path[len(LEGACY_ICON_PREFIX):])
+    filename = unquote(parsed.path[len(LEGACY_ICON_PREFIX) :])
     if not filename or "/" in filename or "\\" in filename or filename in {".", ".."}:
         return None
     if Path(filename).suffix.casefold() not in SUPPORTED_EXTENSIONS:
@@ -128,7 +129,15 @@ def build_plan(index: list[dict], media_index: dict, legacy: dict, legacy_keys: 
         legacy_by_id.setdefault(package_id.casefold(), []).append((package_id, url))
 
     plan: list[dict] = []
-    counts = {"catalogApps": 0, "alreadyHaveV2Icon": 0, "legacyMatch": 0, "missingLegacyIcon": 0, "missingLegacyObject": 0, "ambiguousId": 0, "invalidLegacyUrl": 0}
+    counts = {
+        "catalogApps": 0,
+        "alreadyHaveV2Icon": 0,
+        "legacyMatch": 0,
+        "missingLegacyIcon": 0,
+        "missingLegacyObject": 0,
+        "ambiguousId": 0,
+        "invalidLegacyUrl": 0,
+    }
     media_apps = media_index["apps"]
     for row in index:
         if not isinstance(row, dict) or not isinstance(row.get("id"), str):
@@ -184,12 +193,18 @@ def convert_icon(data: bytes) -> bytes:
         raise ValueError(f"arquivo de ícone inválido: {exc}") from exc
 
 
-def repair_interrupted_checkpoint(client, manifest: dict, index: list[dict], media_index: dict, media_bytes: bytes) -> int:
+def repair_interrupted_checkpoint(
+    client, manifest: dict, index: list[dict], media_index: dict, media_bytes: bytes
+) -> int:
     """Repair index/manifest hashes after an interrupted prior migration checkpoint."""
     repaired = 0
     rows_by_id = {str(row["id"]).casefold(): row for row in index if isinstance(row, dict) and row.get("id")}
     for package_id, registry in media_index["apps"].items():
-        if not isinstance(registry, dict) or not isinstance(registry.get("icon"), str) or not registry["icon"].startswith("media/"):
+        if (
+            not isinstance(registry, dict)
+            or not isinstance(registry.get("icon"), str)
+            or not registry["icon"].startswith("media/")
+        ):
             continue
         row = rows_by_id.get(str(package_id).casefold())
         if row is None or row.get("media") == registry:
@@ -209,7 +224,9 @@ def repair_interrupted_checkpoint(client, manifest: dict, index: list[dict], med
             raise ValueError(f"O detalhe publicado não corresponde ao ID {package_id} durante a recuperação.")
         detail_media = detail.get("media") if isinstance(detail.get("media"), dict) else {}
         if detail_media.get("icon") != registry["icon"]:
-            raise ValueError(f"Mídia do manifesto e detalhe divergem para {package_id}; recuperação interrompida para preservar os dados.")
+            raise ValueError(
+                f"Mídia do manifesto e detalhe divergem para {package_id}; recuperação interrompida para preservar os dados."
+            )
         row["media"] = detail_media
         row["recordSha256"] = hashlib.sha256(detail_bytes).hexdigest()
         repaired += 1
@@ -227,8 +244,12 @@ def repair_interrupted_checkpoint(client, manifest: dict, index: list[dict], med
     manifest["catalogSha256"] = digest_builder.hexdigest()
     manifest["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     client.put_object(
-        Bucket=BUCKET, Key=SEARCH_INDEX_KEY, Body=index_bytes, ContentType="application/json",
-        CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": index_digest},
+        Bucket=BUCKET,
+        Key=SEARCH_INDEX_KEY,
+        Body=index_bytes,
+        ContentType="application/json",
+        CacheControl="public, max-age=300, must-revalidate",
+        Metadata={"sha256": index_digest},
     )
     write_json(client, CATALOG_MANIFEST_KEY, manifest, cache_control="no-cache, max-age=0, must-revalidate")
     return repaired
@@ -271,7 +292,9 @@ def publish_batch(client, manifest: dict, index: list[dict], media_index: dict, 
         current_detail_hash = hashlib.sha256(current_detail_bytes).hexdigest()
         expected_detail_hash = row.get("recordSha256")
         if expected_detail_hash and expected_detail_hash != current_detail_hash and not has_v2_icon(detail):
-            raise ValueError(f"O detalhe de {package_id} mudou depois da leitura do índice; atualize o catálogo e rode novamente.")
+            raise ValueError(
+                f"O detalhe de {package_id} mudou depois da leitura do índice; atualize o catálogo e rode novamente."
+            )
         registry = media_index["apps"].get(package_id.casefold(), {})
 
         # A previous interrupted run may have uploaded the detail before its
@@ -279,8 +302,11 @@ def publish_batch(client, manifest: dict, index: list[dict], media_index: dict, 
         detail_media = detail.get("media") if isinstance(detail.get("media"), dict) else {}
         row_media = row.get("media") if isinstance(row.get("media"), dict) else {}
         existing_media = next(
-            (candidate for candidate in (detail_media, registry, row_media)
-             if isinstance(candidate.get("icon"), str) and candidate["icon"].startswith("media/")),
+            (
+                candidate
+                for candidate in (detail_media, registry, row_media)
+                if isinstance(candidate.get("icon"), str) and candidate["icon"].startswith("media/")
+            ),
             None,
         )
         if existing_media is not None:
@@ -290,17 +316,24 @@ def publish_batch(client, manifest: dict, index: list[dict], media_index: dict, 
             if isinstance(icon_sha, str):
                 media["iconSha256"] = icon_sha
             screenshot_groups = [
-                candidate.get("screenshots") for candidate in (detail_media, registry, row_media)
+                candidate.get("screenshots")
+                for candidate in (detail_media, registry, row_media)
                 if isinstance(candidate.get("screenshots"), list)
             ]
-            media["screenshots"] = list(dict.fromkeys(path for group in screenshot_groups for path in group if isinstance(path, str)))
+            media["screenshots"] = list(
+                dict.fromkeys(path for group in screenshot_groups for path in group if isinstance(path, str))
+            )
             detail["media"] = media
             detail_bytes = json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
             detail_hash = hashlib.sha256(detail_bytes).hexdigest()
             if detail_bytes != current_detail_bytes:
                 client.put_object(
-                    Bucket=BUCKET, Key=detail_key, Body=detail_bytes, ContentType="application/json",
-                    CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": detail_hash},
+                    Bucket=BUCKET,
+                    Key=detail_key,
+                    Body=detail_bytes,
+                    ContentType="application/json",
+                    CacheControl="public, max-age=300, must-revalidate",
+                    Metadata={"sha256": detail_hash},
                 )
             media_index["apps"][package_id.casefold()] = media
             row["media"] = media
@@ -321,8 +354,17 @@ def publish_batch(client, manifest: dict, index: list[dict], media_index: dict, 
         icon_key = detail_key.rsplit("/", 1)[0] + "/" + icon_path
         destination_digest = stored_object_sha256(client, icon_key)
         if destination_digest and destination_digest != digest:
-            item.update({"status": "destination-conflict", "path": icon_key.removeprefix("Store/Catalog/"), "existingSha256": destination_digest})
-            print(f"{package_id}: destino V2 já existe com conteúdo diferente; preservado sem sobrescrita", file=sys.stderr)
+            item.update(
+                {
+                    "status": "destination-conflict",
+                    "path": icon_key.removeprefix("Store/Catalog/"),
+                    "existingSha256": destination_digest,
+                }
+            )
+            print(
+                f"{package_id}: destino V2 já existe com conteúdo diferente; preservado sem sobrescrita",
+                file=sys.stderr,
+            )
             continue
         if destination_digest is None:
             client.put_object(
@@ -337,10 +379,13 @@ def publish_batch(client, manifest: dict, index: list[dict], media_index: dict, 
         media = dict(registry) if isinstance(registry, dict) else {}
         media.update({"icon": icon_path, "iconSha256": digest})
         screenshot_groups = [
-            candidate.get("screenshots") for candidate in (detail_media, registry, row_media)
+            candidate.get("screenshots")
+            for candidate in (detail_media, registry, row_media)
             if isinstance(candidate.get("screenshots"), list)
         ]
-        media["screenshots"] = list(dict.fromkeys(path for group in screenshot_groups for path in group if isinstance(path, str)))
+        media["screenshots"] = list(
+            dict.fromkeys(path for group in screenshot_groups for path in group if isinstance(path, str))
+        )
         detail["media"] = media
         detail_bytes = json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         detail_hash = hashlib.sha256(detail_bytes).hexdigest()
@@ -404,7 +449,9 @@ def main() -> int:
         recovered = 0
         if args.apply and not all(consistency.values()):
             recovered = repair_interrupted_checkpoint(client, manifest, index, media_index, media_bytes)
-            print(f"Checkpoint anterior recuperado; {recovered} detalhe(s) reconciliado(s) com o media-index.", flush=True)
+            print(
+                f"Checkpoint anterior recuperado; {recovered} detalhe(s) reconciliado(s) com o media-index.", flush=True
+            )
         plan, counts = build_plan(index, media_index, legacy, legacy_keys)
         ready = [item for item in plan if item["status"] == "ready"]
         report = {
@@ -425,7 +472,10 @@ def main() -> int:
             for offset in range(0, len(ready), args.batch_size):
                 batch = ready[offset : offset + args.batch_size]
                 count, reconciled = publish_batch(client, manifest, index, media_index, batch)
-                print(f"Lote {offset // args.batch_size + 1}: {count} ícone(s) publicado(s), {reconciled} associação(ões) V2 preservada(s); último ID: {batch[-1]['id']}", flush=True)
+                print(
+                    f"Lote {offset // args.batch_size + 1}: {count} ícone(s) publicado(s), {reconciled} associação(ões) V2 preservada(s); último ID: {batch[-1]['id']}",
+                    flush=True,
+                )
                 args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         else:
             report["counts"]["eligibleToCopy"] = len(ready)

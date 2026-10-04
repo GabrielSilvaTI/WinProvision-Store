@@ -8,8 +8,8 @@ using WinProvision.Core.Services;
 namespace WinProvision.Core.Services.Office;
 
 /// <summary>
-/// Obtém o Office Deployment Tool pelo fluxo de instalação do WinGet (COM, API própria
-/// e CLI), usando o download do setup.exe da API WinProvision como alternativa.
+/// Obtém o Office Deployment Tool pelo fluxo de instalação do WinGet (incluindo a API
+/// própria); se esse fluxo falhar, baixa o instalador atual do Centro de Download Microsoft.
 ///
 /// O configuration.xml não precisa ficar do lado do setup.exe: passamos o caminho
 /// completo de cada um como argumento, então tanto faz onde o setup.exe está localizado.
@@ -17,7 +17,7 @@ namespace WinProvision.Core.Services.Office;
 public class OfficeDeploymentToolService : IDisposable
 {
     private const string OdtWingetPackageId = "Microsoft.OfficeDeploymentTool";
-    private const string OdtDownloadUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Instalador/setup.exe";
+    private const string OdtOfficialDownloadUrl = "https://go.microsoft.com/fwlink/?LinkId=691958";
     private const long OfficeCacheLimitBytes = 8L * 1024 * 1024 * 1024;
     private static readonly TimeSpan OfficeCacheRetention = TimeSpan.FromDays(30);
 
@@ -65,13 +65,13 @@ public class OfficeDeploymentToolService : IDisposable
 
     /// <summary>
     /// Locais conhecidos onde o setup.exe pode estar encontrado:
-    /// 1. Pasta local do WinProvision (download do R2)
+    /// 1. Pasta local do WinProvision (extração do instalador oficial Microsoft)
     /// 2. Program Files (instalação via winget)
     /// 3. Program Files (x86) (instalação via winget em sistemas 64-bit)
     /// </summary>
     private static IEnumerable<string> KnownInstallPaths()
     {
-        // Local do download do R2
+        // Local da extração do instalador oficial Microsoft
         yield return Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "WinProvision", "OfficeDeploymentTool", "setup.exe");
@@ -88,7 +88,7 @@ public class OfficeDeploymentToolService : IDisposable
 
     /// <summary>
     /// Garante que setup.exe existe localmente, tentando primeiro a cadeia de instalação
-    /// do WinGet e usando o download da API WinProvision como alternativa.
+    /// do WinGet/API e usando o Centro de Download Microsoft como alternativa.
     /// </summary>
     public async Task<string> EnsureSetupExeAsync(Action<string>? onStatus = null, CancellationToken cancellationToken = default)
     {
@@ -137,67 +137,97 @@ public class OfficeDeploymentToolService : IDisposable
             wingetFailure = $"Falha ao obter o ODT pelo WinGet: {ex.Message}";
         }
 
-        onStatus?.Invoke($"{wingetFailure} Tentando download alternativo da API WinProvision...");
-        string? downloadedPath = await DownloadFromR2Async(onStatus, cancellationToken);
+        onStatus?.Invoke($"{wingetFailure} Tentando o download oficial da Microsoft...");
+        string? downloadedPath = await DownloadOfficialOdtAsync(onStatus, cancellationToken);
         if (downloadedPath is not null)
         {
             return downloadedPath;
         }
 
         throw new InvalidOperationException(
-            $"Não foi possível obter o Office Deployment Tool. {wingetFailure} O download alternativo da API WinProvision também falhou.");
+            $"Não foi possível obter o Office Deployment Tool. {wingetFailure} O download oficial da Microsoft também falhou.");
     }
 
     /// <summary>
-    /// Baixa o setup.exe do R2 e o coloca em um local conhecido.
+    /// Baixa o instalador oficial atual do ODT e extrai setup.exe para um local conhecido.
     /// </summary>
-    private async Task<string?> DownloadFromR2Async(Action<string>? onStatus, CancellationToken cancellationToken)
+    private async Task<string?> DownloadOfficialOdtAsync(Action<string>? onStatus, CancellationToken cancellationToken)
     {
+        string localFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "WinProvision", "OfficeDeploymentTool");
+        string installerPath = Path.Combine(localFolder, "officedeploymenttool.exe");
+        string extractFolder = Path.Combine(localFolder, "official-extract");
+
         try
         {
-            // Cria a pasta destino
-            string localFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "WinProvision", "OfficeDeploymentTool");
             Directory.CreateDirectory(localFolder);
+            if (Directory.Exists(extractFolder))
+                Directory.Delete(extractFolder, recursive: true);
+            Directory.CreateDirectory(extractFolder);
 
-            string localPath = Path.Combine(localFolder, "setup.exe");
-
-            // Remove arquivo existente se houver
-            if (File.Exists(localPath))
-            {
-                File.Delete(localPath);
-            }
-
-            // Baixa o arquivo
-            using var response = await _httpClient.GetAsync(OdtDownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            onStatus?.Invoke("Baixando o instalador atual do ODT do Centro de Download Microsoft...");
+            using var response = await _httpClient.GetAsync(OdtOfficialDownloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
+            Uri? finalUri = response.RequestMessage?.RequestUri;
+            if (finalUri is null || finalUri.Scheme != Uri.UriSchemeHttps ||
+                !finalUri.Host.Equals("download.microsoft.com", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("O download do ODT não terminou no domínio oficial download.microsoft.com.");
+            }
 
             long totalBytes = response.Content.Headers.ContentLength ?? 0;
             long totalBytesRead = 0;
 
             using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var fileStream = new FileStream(localPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            var buffer = new byte[8192];
-            int bytesRead;
-            var lastProgressUpdate = DateTime.UtcNow;
-
-            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, cancellationToken)) > 0)
+            using (var fileStream = new FileStream(installerPath, FileMode.Create, FileAccess.Write, FileShare.None))
             {
-                await fileStream.WriteAsync(buffer, 0, bytesRead, cancellationToken);
-                totalBytesRead += bytesRead;
+                var buffer = new byte[8192];
+                int bytesRead;
+                var lastProgressUpdate = DateTime.UtcNow;
 
-                // Atualiza progresso a cada 0.5 segundos para não spammar
-                if ((DateTime.UtcNow - lastProgressUpdate).TotalSeconds >= 0.5 && totalBytes > 0)
+                while ((bytesRead = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
                 {
-                    double percent = (totalBytesRead * 100.0) / totalBytes;
-                    onStatus?.Invoke($"Baixando setup.exe: {percent:F1}%");
-                    lastProgressUpdate = DateTime.UtcNow;
+                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                    totalBytesRead += bytesRead;
+
+                    if ((DateTime.UtcNow - lastProgressUpdate).TotalSeconds >= 0.5 && totalBytes > 0)
+                    {
+                        double percent = (totalBytesRead * 100.0) / totalBytes;
+                        onStatus?.Invoke($"Baixando instalador ODT: {percent:F1}%");
+                        lastProgressUpdate = DateTime.UtcNow;
+                    }
                 }
             }
 
-            onStatus?.Invoke("Download do setup.exe concluído.");
+            onStatus?.Invoke("Extraindo setup.exe do instalador oficial...");
+            using (var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = installerPath,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    ArgumentList = { "/quiet", $"/extract:{extractFolder}" },
+                },
+            })
+            {
+                if (!process.Start())
+                    throw new InvalidOperationException("Não foi possível iniciar o extrator oficial do ODT.");
+                await process.WaitForExitAsync(cancellationToken);
+                if (process.ExitCode != 0)
+                    throw new InvalidOperationException($"O extrator oficial do ODT retornou código {process.ExitCode}.");
+            }
+
+            string? extractedSetup = Directory
+                .EnumerateFiles(extractFolder, "setup.exe", SearchOption.AllDirectories)
+                .FirstOrDefault();
+            if (extractedSetup is null)
+                throw new InvalidOperationException("O instalador oficial terminou sem produzir setup.exe.");
+
+            string localPath = Path.Combine(localFolder, "setup.exe");
+            File.Copy(extractedSetup, localPath, overwrite: true);
+            onStatus?.Invoke("Office Deployment Tool obtido do site oficial da Microsoft.");
             return localPath;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -206,8 +236,23 @@ public class OfficeDeploymentToolService : IDisposable
         }
         catch (Exception ex)
         {
-            onStatus?.Invoke($"Erro ao baixar do R2: {ex.Message}");
+            onStatus?.Invoke($"Erro ao obter o ODT do site oficial da Microsoft: {ex.Message}");
             return null;
+        }
+        finally
+        {
+            if (File.Exists(installerPath))
+            {
+                try { File.Delete(installerPath); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+            if (Directory.Exists(extractFolder))
+            {
+                try { Directory.Delete(extractFolder, recursive: true); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
         }
     }
 
@@ -303,10 +348,10 @@ public class OfficeDeploymentToolService : IDisposable
                 return null;
             }
 
-            // A ferramenta é pequena; para não disputar a instalação de pacotes WinGet
-            // em paralelo, o pré-download obtém o ODT pelo endpoint próprio do app.
+            // Evita disputar a instalação de pacotes WinGet em paralelo; caso setup.exe
+            // ainda não esteja no cache local, usa diretamente o download oficial.
             string setupPath = KnownInstallPaths().FirstOrDefault(File.Exists)
-                ?? await DownloadFromR2Async(onStatus, cancellationToken).ConfigureAwait(false)
+                ?? await DownloadOfficialOdtAsync(onStatus, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("Não foi possível obter setup.exe para preparar o cache.");
 
             Directory.CreateDirectory(cachePath);

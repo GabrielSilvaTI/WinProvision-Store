@@ -43,11 +43,8 @@ public class AppEntry : INotifyPropertyChanged
     public string Source { get; set; } = "winget";
 
     /// <summary>
-    /// URL do ícone hospedado pela própria Microsoft Store, preenchida pelo
-    /// MsStoreCatalogService só para apps com <see cref="Source"/> "msstore". O manifesto
-    /// de ícones do R2 (ver IconService) não cobre esses apps porque não passam pelo
-    /// pipeline de captura de ícone do winget-pkgs; serve de fallback antes do ícone
-    /// genérico em IconService.ResolveIconUrl.
+    /// URL direta recebida em resultados ao vivo da Microsoft Store. Os registros do
+    /// catálogo V2 usam o caminho em <see cref="Media"/> e montam a URL pelo IconService.
     /// </summary>
     [JsonPropertyName("storeIconUrl")]
     public string? StoreIconUrl { get; set; }
@@ -72,6 +69,20 @@ public class AppEntry : INotifyPropertyChanged
     /// <summary>Quantidade de avaliações que compõe StoreRating.</summary>
     [JsonPropertyName("storeRatingCount")]
     public int? StoreRatingCount { get; set; }
+
+    /// <summary>Contagem editorial de instalações concluídas nos últimos 30 dias.</summary>
+    private int? _featuredInstallCount30d;
+    [JsonIgnore]
+    public int? FeaturedInstallCount30d
+    {
+        get => _featuredInstallCount30d;
+        set
+        {
+            if (_featuredInstallCount30d == value) return;
+            _featuredInstallCount30d = value;
+            OnPropertyChanged();
+        }
+    }
 
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
@@ -274,6 +285,12 @@ public sealed class CatalogMedia
     [JsonPropertyName("banner")]
     public string? Banner { get; set; }
 
+    [JsonPropertyName("bannerSha256")]
+    public string? BannerSha256 { get; set; }
+
     [JsonPropertyName("screenshots")]
     public List<string> Screenshots { get; set; } = [];
+
+    [JsonPropertyName("screenshotSha256")]
+    public Dictionary<string, string> ScreenshotSha256 { get; set; } = new(StringComparer.Ordinal);
 }

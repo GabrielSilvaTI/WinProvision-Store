@@ -1,4 +1,4 @@
-name: "Aplicativo | Build e publicação do EXE"
+name: Aplicativo | Build e release
 
 on:
   push:
@@ -35,35 +35,6 @@ env:
   INNOSETUP_CACHE_VERSION: "1"
 
 jobs:
-  # Checagem de build do Indexer, em job próprio para rodar em paralelo com o build do
-  # client (o do client já é coberto pelo publish abaixo, que compila o Core junto).
-  # É o "CI" que pega erro antes do cron do winget rodar.
-  build-indexer:
-    runs-on: windows-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: "10.0.x"
-
-      # Sem packages.lock.json no repo, então cacheia por hash dos .csproj em vez de
-      # usar o cache nativo do setup-dotnet (que exige lock file).
-      - name: Cache de pacotes NuGet
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-
-      - name: Compilar o Indexer
-        run: dotnet build src/WinProvision.Indexer/WinProvision.Indexer.csproj -c Release
-
   build:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -290,7 +261,7 @@ jobs:
           retention-days: 14
 
   release:
-    needs: [build, build-indexer]
+    needs: build
     if: ${{ needs.build.outputs.channel != 'none' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

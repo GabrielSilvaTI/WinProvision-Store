@@ -29,6 +29,7 @@ public partial class HomePage : Page
     private readonly OperationsQueueService _queueService;
     private readonly InstalledAppsService _installedAppsService;
     private readonly AppDetailsOverlayService _detailsOverlayService;
+    private readonly FeaturedCatalogService _featuredCatalogService;
     private readonly DispatcherTimer _debounceTimer;
     private readonly DispatcherTimer _heroBannerTimer;
     private CancellationTokenSource? _searchCancellation;
@@ -41,6 +42,8 @@ public partial class HomePage : Page
     private bool _isRefreshing;
     private bool _storeBannersLoading;
     private bool _storeBannersLoaded;
+    private bool _featuredRefreshPending;
+    private FeaturedCatalogDocument? _featuredCatalog;
     private DateOnly? _storeBannerWeek;
     private DateOnly? _storeBannerSearchWeek;
     private List<AppEntry> _searchedStoreBannerApps = [];
@@ -88,6 +91,13 @@ public partial class HomePage : Page
     public ObservableCollection<AppEntry> SideStoreBannerApps { get; } = [];
     public ObservableCollection<AppEntry> PopularApps { get; } = [];
     public ObservableCollection<AppEntry> StoreHighlights { get; } = [];
+    public ObservableCollection<FeaturedCategoryShelf> FeaturedCategories { get; } = [];
+
+    public sealed class FeaturedCategoryShelf
+    {
+        public string Title { get; init; } = string.Empty;
+        public ObservableCollection<AppEntry> Apps { get; } = [];
+    }
 
     public static readonly DependencyProperty AppsColumnsProperty =
         DependencyProperty.Register(nameof(AppsColumns), typeof(int), typeof(HomePage), new PropertyMetadata(2));
@@ -110,6 +120,7 @@ public partial class HomePage : Page
     public HomePage(WingetExecutor wingetExecutor, PackageCollectionService collectionService,
         OperationsQueueService queueService, InstalledAppsService installedAppsService,
         AppDetailsOverlayService detailsOverlayService,
+        FeaturedCatalogService featuredCatalogService,
         WinProvision.Core.Services.Indexing.MsStoreCatalogService msStoreCatalogService,
         IconService iconService, StoreService storeService, WinGetService winGetService)
     {
@@ -123,6 +134,7 @@ public partial class HomePage : Page
         _collectionService = collectionService;
         _queueService = queueService;
         _installedAppsService = installedAppsService;
+        _featuredCatalogService = featuredCatalogService;
         _detailsOverlayService = detailsOverlayService;
 
         // Define o contexto de dados para a vitrine e os resultados de busca.
@@ -149,11 +161,29 @@ public partial class HomePage : Page
         BuildCategoryChips();
 
         _storeService.CatalogUpdated += OnCatalogUpdated;
+        _featuredCatalogService.Updated += OnFeaturedCatalogUpdated;
         _storeService.CacheCleared += OnCacheCleared;
         _installedAppsService.Changed += OnInstalledAppsChanged;
         Loaded += HomePage_Loaded;
         Unloaded += (_, _) => _heroBannerTimer.Stop();
         SizeChanged += HomePage_SizeChanged;
+    }
+
+    private void OnFeaturedCatalogUpdated(FeaturedCatalogDocument document)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(() => OnFeaturedCatalogUpdated(document));
+            return;
+        }
+
+        _featuredCatalog = document;
+        _storeBannersLoaded = false;
+        if (_storeBannersLoading)
+            _featuredRefreshPending = true;
+        else
+            _ = LoadStoreBannersAsync(force: true);
+        UpdatePopularApps();
     }
 
     private void HomePage_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -225,6 +255,7 @@ public partial class HomePage : Page
         Apps.Clear();
         PopularApps.Clear();
         StoreHighlights.Clear();
+        FeaturedCategories.Clear();
         StatusText.Text = "Cache limpo. O catálogo será atualizado ao abrir esta tela.";
     }
 
@@ -360,6 +391,26 @@ public partial class HomePage : Page
         _storeBannersLoading = true;
         try
         {
+            if (_featuredCatalog is null)
+                _featuredCatalog = await _featuredCatalogService.LoadAsync();
+
+            if (_featuredCatalog is not null)
+            {
+                List<AppEntry> curated = ResolveFeaturedApps(_featuredCatalog.Hero)
+                    .Where(app => !string.IsNullOrWhiteSpace(app.StoreBannerUrl))
+                    .DistinctBy(GetProductIdentityKey, StringComparer.OrdinalIgnoreCase)
+                    .Take(3)
+                    .ToList();
+                if (curated.Count > 0)
+                {
+                    ApplyFeaturedBanners(curated);
+                    _storeBannerWeek = week;
+                    _storeBannersLoaded = true;
+                    UpdatePopularApps();
+                    return;
+                }
+            }
+
             List<AppEntry> availableStoreApps = _allApps
                 .Where(IsEligibleFeaturedStoreApp)
                 .ToList();
@@ -410,35 +461,7 @@ public partial class HomePage : Page
                 .Take(6)
                 .ToList();
 
-            SyncInstalledFlags(featured);
-            StoreBannerApps.Clear();
-            SideStoreBannerApps.Clear();
-            foreach (AppEntry app in featured.Take(3))
-            {
-                StoreBannerApps.Add(app);
-            }
-
-            // Distribui os destaques sem repetir o mesmo produto em mais de um espaço.
-            RightStorePromo.DataContext = featured.Skip(3).FirstOrDefault();
-            RightStorePromo.Visibility = RightStorePromo.DataContext is AppEntry ? Visibility.Visible : Visibility.Collapsed;
-            HeroPromotions.Visibility = ActualWidth >= 1050 && RightStorePromo.DataContext is AppEntry ? Visibility.Visible : Visibility.Collapsed;
-
-            foreach (AppEntry app in featured.Skip(4).Take(2))
-            {
-                SideStoreBannerApps.Add(app);
-            }
-
-            if (StoreBannerApps.Count > 0)
-            {
-                SetHeroBanner(0);
-            }
-            else
-            {
-                HeroBanner.Visibility = Visibility.Collapsed;
-            }
-
-            UpdateBannerAutoAdvance();
-            UpdateStorefrontLayout(ActualWidth);
+            ApplyFeaturedBanners(featured);
             _storeBannerWeek = week;
             _storeBannersLoaded = true;
             UpdatePopularApps();
@@ -450,7 +473,53 @@ public partial class HomePage : Page
         finally
         {
             _storeBannersLoading = false;
+            if (_featuredRefreshPending)
+            {
+                _featuredRefreshPending = false;
+                _ = LoadStoreBannersAsync(force: true);
+            }
         }
+    }
+
+    private void ApplyFeaturedBanners(IReadOnlyList<AppEntry> featured)
+    {
+        SyncInstalledFlags(featured);
+        StoreBannerApps.Clear();
+        SideStoreBannerApps.Clear();
+        foreach (AppEntry app in featured.Take(3))
+            StoreBannerApps.Add(app);
+
+        RightStorePromo.DataContext = featured.Skip(3).FirstOrDefault();
+        RightStorePromo.Visibility = RightStorePromo.DataContext is AppEntry ? Visibility.Visible : Visibility.Collapsed;
+        HeroPromotions.Visibility = ActualWidth >= 1050 && RightStorePromo.DataContext is AppEntry ? Visibility.Visible : Visibility.Collapsed;
+        foreach (AppEntry app in featured.Skip(4).Take(2))
+            SideStoreBannerApps.Add(app);
+
+        if (StoreBannerApps.Count > 0) SetHeroBanner(0);
+        else HeroBanner.Visibility = Visibility.Collapsed;
+        UpdateBannerAutoAdvance();
+        UpdateStorefrontLayout(ActualWidth);
+    }
+
+    private List<AppEntry> ResolveFeaturedApps(IEnumerable<FeaturedAppReference> references)
+    {
+        var resolved = new List<AppEntry>();
+        foreach (FeaturedAppReference reference in references)
+        {
+            AppEntry? match = _allApps.FirstOrDefault(app =>
+                app.Id.Equals(reference.Id, StringComparison.OrdinalIgnoreCase)
+                && app.Source.Equals(reference.Source, StringComparison.OrdinalIgnoreCase));
+            match ??= _allApps.FirstOrDefault(app =>
+                NormalizeSearchText(app.Name) == NormalizeSearchText(reference.Name)
+                && NormalizeSearchText(app.Publisher) == NormalizeSearchText(reference.Publisher));
+            if (match is not null)
+            {
+                match.FeaturedInstallCount30d = reference.InstallCount30d > 0 ? reference.InstallCount30d : null;
+                resolved.Add(match);
+            }
+        }
+        SyncInstalledFlags(resolved);
+        return resolved;
     }
 
     private static bool IsEligibleFeaturedStoreApp(AppEntry app) =>
@@ -659,6 +728,22 @@ public partial class HomePage : Page
 
     private void UpdatePopularApps()
     {
+        FeaturedRankingInfo.Text = _featuredCatalog?.InstallMetricsAvailable == true
+            ? "O ranking combina instalações concluídas nos últimos 30 dias com avaliações e qualidade dos dados do catálogo."
+            : "O ranking inicial usa sinais do catálogo. As instalações concluídas entram após a publicação do serviço de métricas.";
+
+        FeaturedCategories.Clear();
+        if (_featuredCatalog is not null)
+        {
+            foreach (FeaturedCategory category in _featuredCatalog.Categories)
+            {
+                var shelf = new FeaturedCategoryShelf { Title = category.Title };
+                foreach (AppEntry app in ResolveFeaturedApps(category.Apps).Take(4))
+                    shelf.Apps.Add(app);
+                if (shelf.Apps.Count > 0) FeaturedCategories.Add(shelf);
+            }
+        }
+
         int limit = _shelfView == ShelfView.Popular ? 48 : 6;
         List<AppEntry> selectedStoreApps = SelectPopularStoreApps(_allApps.Concat(StoreBannerApps),
             _shelfView == ShelfView.Store ? 48 : 6);
@@ -667,14 +752,17 @@ public partial class HomePage : Page
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         PopularApps.Clear();
-        foreach (AppEntry app in _allApps
+        IEnumerable<AppEntry> ranked = _featuredCatalog is { Popular.Count: > 0 }
+            ? ResolveFeaturedApps(_featuredCatalog.Popular)
+            : _allApps
                      .Where(app => app.Source.Equals("winget", StringComparison.OrdinalIgnoreCase)
                                    && HasRealIcon(app) && HasKnownPtBrSupport(app)
                                    && app.Score >= 25 && MatchesLocalRegion(app)
                                    && !storeProductKeys.Contains(GetProductIdentityKey(app)))
                      .OrderByDescending(app => app.Score)
                      .ThenByDescending(app => app.GitHubStars ?? 0)
-                     .Take(limit))
+                     .Take(limit);
+        foreach (AppEntry app in ranked.Take(limit))
             PopularApps.Add(app);
 
         limit = _shelfView == ShelfView.Store ? 48 : 6;
@@ -761,6 +849,7 @@ public partial class HomePage : Page
         bool browsing = query.Length == 0 && _selectedCategoryTag == "all";
         StorefrontHeroGrid.Visibility = browsing && _shelfView == ShelfView.Overview ? Visibility.Visible : Visibility.Collapsed;
         StorefrontShelves.Visibility = browsing ? Visibility.Visible : Visibility.Collapsed;
+        StorefrontCategoriesPanel.Visibility = browsing ? Visibility.Visible : Visibility.Collapsed;
         ResultsPanel.Visibility = ResultsStatusBar.Visibility = browsing ? Visibility.Collapsed : Visibility.Visible;
         ResultsTitle.Text = query.Length > 0 ? "Resultados da pesquisa" : "Aplicativos da categoria";
 

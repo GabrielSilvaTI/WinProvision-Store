@@ -1,0 +1,113 @@
+name: Testes de integração Windows
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/WinProvision.Core/Services/WingetExecutor.cs
+      - src/WinProvision.Core/Services/WingetBootstrapper.cs
+      - src/WinProvision.Core/Services/WingetErrorTranslator.cs
+      - tests/WinProvision.Core.IntegrationTests/**
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Suíte a executar
+        type: choice
+        required: true
+        default: winget
+        options: [winget, updater]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  winget:
+    if: github.event_name == 'schedule' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.suite == 'winget')
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Verificar WinGet no runner
+        run: |
+          winget --version
+          winget source list
+      - name: Executar testes de integração
+        run: >-
+          dotnet test tests/WinProvision.Core.IntegrationTests/WinProvision.Core.IntegrationTests.csproj
+          -c Release --logger "trx;LogFileName=integration-results.trx"
+          --results-directory test-results
+      - name: Anexar resultados
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: winget-integration-results
+          path: test-results/*.trx
+          if-no-files-found: ignore
+          retention-days: 14
+
+  updater:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'updater'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - name: Publicar cliente Windows
+        run: dotnet publish WinProvision.Store/WinProvision.Store.csproj -c Release -r win-x64 -p:RuntimeIdentifiers=win-x64 -p:PublishReadyToRun=false -o updater-smoke
+      - name: Verificar janela e atualizador em segundo plano
+        shell: pwsh
+        run: |
+          $exe = Join-Path (Resolve-Path 'updater-smoke').Path 'WinProvision.Store.exe'
+          if (-not (Test-Path $exe)) { throw 'Executável publicado não encontrado.' }
+          $ui = Start-Process -FilePath $exe -PassThru
+          $deadline = (Get-Date).AddSeconds(90)
+          while ((Get-Date) -lt $deadline) {
+            $ui.Refresh()
+            if ($ui.HasExited) { throw "O app encerrou ao iniciar (código $($ui.ExitCode))." }
+            if ($ui.MainWindowHandle -ne [IntPtr]::Zero) { break }
+            Start-Sleep -Milliseconds 500
+          }
+          if ($ui.MainWindowHandle -eq [IntPtr]::Zero) {
+            Stop-Process -Id $ui.Id -Force -ErrorAction SilentlyContinue
+            throw 'A janela principal não apareceu em 90 segundos.'
+          }
+          [void]$ui.CloseMainWindow()
+          if (-not $ui.WaitForExit(20000)) { Stop-Process -Id $ui.Id -Force -ErrorAction SilentlyContinue }
+          $log = Join-Path $env:TEMP 'WinProvision-Log.log'
+          Remove-Item $log -Force -ErrorAction SilentlyContinue
+          $process = Start-Process -FilePath $exe -ArgumentList '--background-update' -PassThru
+          if (-not $process.WaitForExit(900000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'O atualizador excedeu 15 minutos.'
+          }
+          if (-not (Test-Path $log)) { throw 'O atualizador não criou o log esperado.' }
+          $content = Get-Content $log -Raw
+          foreach ($marker in @('BACKGROUND UPDATE started', 'BACKGROUND UPDATE discovered count=', 'BACKGROUND UPDATE finished success=')) {
+            if ($content -notmatch [regex]::Escape($marker)) { throw "Log sem etapa esperada: $marker" }
+          }
+          if ($process.ExitCode -ne 0) { throw "Atualizador retornou código $($process.ExitCode).`n$content" }
+          Copy-Item $log updater-smoke/WinProvision-Log.log -Force
+      - name: Anexar log do atualizador
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: updater-smoke-log
+          path: updater-smoke/WinProvision-Log.log
+          if-no-files-found: ignore
+          retention-days: 14

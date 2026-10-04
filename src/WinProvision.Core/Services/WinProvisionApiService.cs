@@ -35,6 +35,7 @@ public sealed class PackageIndex
     [JsonPropertyName("generatedAt")] public DateTimeOffset GeneratedAt { get; set; }
     [JsonPropertyName("count")] public int Count { get; set; }
     [JsonPropertyName("packages")] public List<PackageIndexEntry> Packages { get; set; } = [];
+    [JsonPropertyName("sourceIndexHashes")] public Dictionary<string, string> SourceIndexHashes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class PackageIndexEntry
@@ -55,6 +56,24 @@ public sealed class CatalogIndexManifest
     [JsonPropertyName("appCount")] public int AppCount { get; set; }
     [JsonPropertyName("indexSha256")] public string IndexSha256 { get; set; } = "";
 }
+
+public sealed record CatalogSourceHealth(
+    string Source,
+    bool Available,
+    int? AppCount,
+    DateTimeOffset? GeneratedUtc,
+    TimeSpan? ResponseTime,
+    string? Error);
+
+public sealed record CatalogCacheHealth(
+    bool Exists,
+    bool Valid,
+    DateTimeOffset? UpdatedUtc);
+
+public sealed record CatalogApiHealth(
+    DateTimeOffset CheckedAt,
+    IReadOnlyList<CatalogSourceHealth> Sources,
+    CatalogCacheHealth Cache);
 
 public sealed class PackageManifest
 {
@@ -132,10 +151,11 @@ public sealed class WinProvisionApiService
     private readonly string _installRecordsPath;
 
     private PackageIndex? _indexCache;
+    private bool _startupRevalidationScheduled;
     private IReadOnlyDictionary<string, PackageIndexEntry> _catalogEntriesById =
         new Dictionary<string, PackageIndexEntry>(StringComparer.OrdinalIgnoreCase);
-    private DateTimeOffset _indexCachedAt;
-    private static readonly TimeSpan IndexTtl = TimeSpan.FromMinutes(15);
+    // O índice local é servido imediatamente; os manifestos remotos são revalidados
+    // uma vez por sessão e os índices só baixam de novo quando o hash muda.
     private static readonly TimeSpan MaxStaleCacheAge = TimeSpan.FromDays(30);
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(12);
@@ -190,14 +210,43 @@ public sealed class WinProvisionApiService
         await _indexLock.WaitAsync(ct);
         try
         {
-            if (!forceRefresh && _indexCache is not null && DateTimeOffset.UtcNow - _indexCachedAt < IndexTtl)
+            if (!forceRefresh && _indexCache is not null)
+            {
+                ScheduleStartupRevalidation();
                 return _indexCache;
+            }
+
+            if (!forceRefresh && _indexCache is null)
+            {
+                var diskCache = await ReadCacheFileAsync<PackageIndex>(IndexCachePath, ct);
+                if (diskCache is not null)
+                {
+                    try
+                    {
+                        ValidateIndex(diskCache);
+                        DateTimeOffset writtenAt = new(File.GetLastWriteTimeUtc(IndexCachePath));
+                        TimeSpan age = DateTimeOffset.UtcNow - writtenAt;
+                        if (age >= TimeSpan.Zero && age < MaxStaleCacheAge)
+                        {
+                            _indexCache = diskCache;
+                            _catalogEntriesById = diskCache.Packages
+                                .ToDictionary(entry => CatalogEntryKey(entry.Source, entry.Id), StringComparer.OrdinalIgnoreCase);
+                            ScheduleStartupRevalidation();
+                            return diskCache;
+                        }
+                    }
+                    catch (InvalidDataException)
+                    {
+                        // Cache local corrompido: consulta a origem e o substitui se ela responder.
+                    }
+                }
+            }
 
             try
             {
                 var sourceIndexes = await Task.WhenAll(
-                    LoadSourceIndexAsync("winget", CatalogBaseUrl, ct),
-                    LoadSourceIndexAsync("msstore", MsStoreCatalogBaseUrl, ct));
+                    LoadSourceIndexAsync("winget", CatalogBaseUrl, _indexCache, ct),
+                    LoadSourceIndexAsync("msstore", MsStoreCatalogBaseUrl, _indexCache, ct));
                 var combined = sourceIndexes.SelectMany(result => result.Entries).ToList();
                 DateTimeOffset generatedAt = sourceIndexes.Max(result => result.Manifest.GeneratedUtc);
 
@@ -206,14 +255,18 @@ public sealed class WinProvisionApiService
                     Schema = 2,
                     GeneratedAt = generatedAt,
                     Count = combined.Count,
-                    Packages = combined
+                    Packages = combined,
+                    SourceIndexHashes = sourceIndexes.ToDictionary(
+                        result => result.Source,
+                        result => result.Manifest.IndexSha256,
+                        StringComparer.OrdinalIgnoreCase)
                 };
                 ValidateIndex(index);
                 _indexCache = index;
                 _catalogEntriesById = index.Packages
                     .ToDictionary(entry => CatalogEntryKey(entry.Source, entry.Id), StringComparer.OrdinalIgnoreCase);
-                _indexCachedAt = DateTimeOffset.UtcNow;
                 await WriteCacheFileAsync(IndexCachePath, JsonSerializer.Serialize(index), ct);
+                _startupRevalidationScheduled = true;
                 return index;
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
@@ -225,7 +278,6 @@ public sealed class WinProvisionApiService
                     _indexCache = cached;
                     _catalogEntriesById = cached.Packages
                         .ToDictionary(entry => CatalogEntryKey(entry.Source, entry.Id), StringComparer.OrdinalIgnoreCase);
-                    _indexCachedAt = DateTimeOffset.UtcNow;
                     return cached;
                 }
                 throw new HttpRequestException("Não foi possível consultar a API e não há índice local recente disponível.", ex);
@@ -237,19 +289,155 @@ public sealed class WinProvisionApiService
         }
     }
 
-    private async Task<(CatalogIndexManifest Manifest, List<PackageIndexEntry> Entries)>
-        LoadSourceIndexAsync(string source, string baseUrl, CancellationToken ct)
+    /// <summary>Verifica cada catálogo remoto individualmente e valida o cache combinado local.</summary>
+    public async Task<CatalogApiHealth> CheckCatalogHealthAsync(CancellationToken ct = default)
+    {
+        var sources = await Task.WhenAll(
+            CheckSourceHealthAsync("WinGet", "winget", CatalogBaseUrl, ct),
+            CheckSourceHealthAsync("Microsoft Store", "msstore", MsStoreCatalogBaseUrl, ct));
+
+        bool exists = File.Exists(IndexCachePath);
+        DateTimeOffset? updated = null;
+        bool valid = false;
+        if (exists)
+        {
+            try
+            {
+                updated = new DateTimeOffset(File.GetLastWriteTimeUtc(IndexCachePath), TimeSpan.Zero);
+                var cached = await ReadCacheFileAsync<PackageIndex>(IndexCachePath, ct);
+                if (cached is not null)
+                {
+                    ValidateIndex(cached);
+                    valid = true;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                valid = false;
+            }
+        }
+
+        return new CatalogApiHealth(DateTimeOffset.UtcNow, sources, new CatalogCacheHealth(exists, valid, updated));
+    }
+
+    /// <summary>Remove os índices, detalhes e instaladores em cache local, sem tocar nos catálogos remotos.</summary>
+    public async Task ClearLocalCacheAsync(CancellationToken ct = default)
+    {
+        await _indexLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _manifestCacheLock.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                if (Directory.Exists(_cacheDir))
+                    Directory.Delete(_cacheDir, recursive: true);
+                Directory.CreateDirectory(_cacheDir);
+                _indexCache = null;
+                _catalogEntriesById = new Dictionary<string, PackageIndexEntry>(StringComparer.OrdinalIgnoreCase);
+            }
+            finally
+            {
+                _manifestCacheLock.Release();
+            }
+        }
+        finally
+        {
+            _indexLock.Release();
+        }
+
+        await InstallerCacheGate.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            string installerCacheDirectory = GetInstallerCacheDirectory();
+            if (Directory.Exists(installerCacheDirectory))
+                Directory.Delete(installerCacheDirectory, recursive: true);
+        }
+        finally
+        {
+            InstallerCacheGate.Release();
+        }
+    }
+
+    private async Task<CatalogSourceHealth> CheckSourceHealthAsync(
+        string displayName, string source, string baseUrl, CancellationToken ct)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        using var sourceTimeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        sourceTimeout.CancelAfter(TimeSpan.FromSeconds(45));
+        try
+        {
+            var (_, manifest, _) = await LoadSourceIndexAsync(source, baseUrl, cachedIndex: null, sourceTimeout.Token).ConfigureAwait(false);
+            stopwatch.Stop();
+            return new CatalogSourceHealth(displayName, true, manifest.AppCount, manifest.GeneratedUtc, stopwatch.Elapsed, null);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            stopwatch.Stop();
+            return new CatalogSourceHealth(displayName, false, null, null, stopwatch.Elapsed, "A consulta excedeu 45 segundos.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
+        {
+            stopwatch.Stop();
+            string message = ex is HttpRequestException { StatusCode: { } status }
+                ? $"Servidor respondeu {(int)status} ({status})."
+                : ex is TaskCanceledException
+                    ? "A consulta excedeu o tempo limite."
+                    : "Não foi possível consultar ou validar o catálogo.";
+            return new CatalogSourceHealth(displayName, false, null, null, stopwatch.Elapsed, message);
+        }
+    }
+
+    private async Task<(string Source, CatalogIndexManifest Manifest, List<PackageIndexEntry> Entries)>
+        LoadSourceIndexAsync(string source, string baseUrl, PackageIndex? cachedIndex, CancellationToken ct)
     {
         var manifest = await GetJsonWithRetryAsync<CatalogIndexManifest>(baseUrl + "manifest.json", ct)
             ?? throw new InvalidDataException($"Manifesto da origem {source} vazio.");
         ValidateSourceManifest(manifest, source);
+
+        List<PackageIndexEntry>? cachedEntries = null;
+        if (cachedIndex is not null
+            && cachedIndex.SourceIndexHashes.TryGetValue(source, out string? cachedHash)
+            && string.Equals(cachedHash, manifest.IndexSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            cachedEntries = cachedIndex.Packages
+                .Where(entry => string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (cachedEntries.Count == manifest.AppCount)
+                return (source, manifest, cachedEntries);
+        }
+
         var entries = await GetJsonWithRetryAsync<List<PackageIndexEntry>>(
             baseUrl + "manifest/search-index.json", ct, manifest.IndexSha256)
             ?? throw new InvalidDataException($"Índice da origem {source} vazio.");
         if (entries.Count != manifest.AppCount
             || entries.Any(entry => !string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidDataException($"Índice da origem {source} não corresponde ao manifesto.");
-        return (manifest, entries);
+        return (source, manifest, entries);
+    }
+
+    private void ScheduleStartupRevalidation()
+    {
+        if (_startupRevalidationScheduled)
+            return;
+
+        _startupRevalidationScheduled = true;
+        _ = RevalidateIndexInBackgroundAsync();
+    }
+
+    private async Task RevalidateIndexInBackgroundAsync()
+    {
+        try
+        {
+            await GetIndexAsync(forceRefresh: true, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
+        {
+            Debug.WriteLine($"[WinProvisionAPI] Não foi possível revalidar o índice em segundo plano: {ex.Message}");
+        }
     }
 
     public async Task<PackageManifest?> GetPackageAsync(string id, CancellationToken ct = default, string? source = null)
@@ -275,6 +463,23 @@ public sealed class WinProvisionApiService
             ? MsStoreCatalogBaseUrl
             : CatalogBaseUrl;
         string manifestUrl = sourceBaseUrl + entry.ManifestPath;
+
+        // O manifesto é imutável pelo hash publicado no índice. Se o cache local
+        // corresponde ao hash e aos metadados da entrada atual, não precisa de round-trip.
+        var cachedManifest = await ReadCacheFileAsync<PackageManifest>(cachePath, ct, allowExpired: true);
+        if (cachedManifest is not null && IsManifestCacheValid(cachePath, entry))
+        {
+            try
+            {
+                ValidateManifest(cachedManifest, entry);
+                return cachedManifest;
+            }
+            catch (InvalidDataException)
+            {
+                // Baixa novamente se os metadados não corresponderem ao índice atual.
+            }
+        }
+
         try
         {
             var manifest = await GetJsonWithRetryAsync<PackageManifest>(manifestUrl, ct, entry.ManifestSha256,
@@ -284,17 +489,17 @@ public sealed class WinProvisionApiService
                 ValidateManifest(manifest, entry);
                 return manifest;
             }
-            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
+            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct, allowExpired: true);
             return cached is not null && IsManifestCacheValid(cachePath, entry) && IsManifestForEntry(cached, entry) ? cached : null;
         }
         catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
         {
-            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
+            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct, allowExpired: true);
             return cached is not null && IsManifestCacheValid(cachePath, entry) && IsManifestForEntry(cached, entry) ? cached : null;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
         {
-            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct);
+            var cached = await ReadCacheFileAsync<PackageManifest>(cachePath, ct, allowExpired: true);
             if (cached is not null && IsManifestCacheValid(cachePath, entry) && IsManifestForEntry(cached, entry)) return cached;
             throw new HttpRequestException($"Falha ao consultar o manifesto de '{id}' e não há cache local válido.", ex);
         }
@@ -372,7 +577,6 @@ public sealed class WinProvisionApiService
 
     private static bool IsManifestCacheValid(string path, PackageIndexEntry entry)
     {
-        if (!IsRecentCache(path)) return false;
         if (string.IsNullOrWhiteSpace(entry.ManifestSha256)) return true;
         try
         {
@@ -455,9 +659,9 @@ public sealed class WinProvisionApiService
         return TimeSpan.FromMilliseconds(Math.Min(5000, 350 * Math.Pow(2, attempt - 1)));
     }
 
-    private async Task<T?> ReadCacheFileAsync<T>(string path, CancellationToken ct)
+    private async Task<T?> ReadCacheFileAsync<T>(string path, CancellationToken ct, bool allowExpired = false)
     {
-        if (!IsRecentCache(path)) return default;
+        if (!allowExpired && !IsRecentCache(path)) return default;
         try
         {
             await using var stream = File.OpenRead(path);

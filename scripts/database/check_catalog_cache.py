@@ -49,9 +49,11 @@ def winget_revision() -> str | None:
 
 
 def main() -> int:
-    env_file = os.environ.get("BASH_ENV")
+    # GitHub Actions is the canonical CI runner. Keep BASH_ENV support only so a
+    # locally invoked legacy CircleCI checkout can still use the helper.
+    env_file = os.environ.get("GITHUB_ENV") or os.environ.get("BASH_ENV")
     if not env_file:
-        print("BASH_ENV não foi definido pelo CircleCI", file=sys.stderr)
+        print("GITHUB_ENV não foi definido pelo GitHub Actions", file=sys.stderr)
         return 2
 
     account_id = os.environ["R2_ACCOUNT_ID"]
@@ -65,7 +67,7 @@ def main() -> int:
     )
 
     source_revision = winget_revision()
-    build_revision = os.environ.get("CIRCLE_SHA1", "").lower()
+    build_revision = (os.environ.get("GITHUB_SHA") or os.environ.get("CIRCLE_SHA1", "")).lower()
     if not REVISION_PATTERN.fullmatch(build_revision):
         build_revision = ""
 
@@ -105,7 +107,10 @@ def main() -> int:
     }
     with Path(env_file).open("a", encoding="utf-8") as stream:
         for name, value in values.items():
-            stream.write(f"export {name}={value}\n")
+            if os.environ.get("GITHUB_ENV"):
+                stream.write(f"{name}={value}\n")
+            else:
+                stream.write(f"export {name}={value}\n")
 
     if cache_hit:
         # Um cache miss anterior pode ter salvo um apps.json intermediário sem

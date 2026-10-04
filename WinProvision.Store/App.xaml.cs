@@ -53,6 +53,8 @@ public partial class App : Application
             services.AddSingleton<WingetExecutor>();
             services.AddSingleton<WinProvision.Core.Services.UninstallerEngineService>();
             services.AddSingleton<WinProvisionApiService>();
+            services.AddSingleton<WinProvision.Core.Services.InstallMetricsService>();
+            services.AddSingleton<WinProvision.Core.Services.FeaturedCatalogService>();
             services.AddSingleton<PackageMetricsService>();
             services.AddSingleton<CacheService>();
             services.AddSingleton<WingetBootstrapper>();
@@ -74,7 +76,6 @@ public partial class App : Application
                             packageId,
                             onLogReceived,
                             cancellationToken)));
-            services.AddSingleton<OfficeCatalogService>();
             services.AddSingleton<OfficeUninstallService>();
             services.AddSingleton<OfficeInstalledProductsDetector>();
             services.AddSingleton<WinGetService>();
@@ -113,6 +114,7 @@ public partial class App : Application
             services.AddSingleton<SettingsPage>();
             services.AddSingleton<AboutPage>();
             services.AddSingleton<MorePage>();
+            services.AddSingleton<StoreStatusPage>();
             services.AddSingleton<HistoryPage>();
             services.AddSingleton<LogViewerPage>();
             services.AddSingleton<ProvisioningPage>();
@@ -247,6 +249,8 @@ public partial class App : Application
                 var startupTimer = Stopwatch.StartNew();
                 await _host.StartAsync();
                 logger.Log($"[WinProvision] Serviços iniciais carregados em {startupTimer.Elapsed.TotalSeconds:0.0}s.");
+                OperationRunner.ConfigureSuccessfulInstallObserver(
+                    _host.Services.GetRequiredService<WinProvision.Core.Services.InstallMetricsService>().ReportSuccessfulInstall);
                 var autoWinGetService = _host.Services.GetRequiredService<WinGetService>();
                 OperationRunner.ConfigureInstallHandler(
                     (packageId, log, cancellationToken, installLocation, progress, source) =>
@@ -383,6 +387,8 @@ public partial class App : Application
                 .TryRegister(ActivateMainWindowFromNotification);
             OperationRunner.ConfigureInstallHandler(
                 _host.Services.GetRequiredService<WinGetService>().InstallPreferredAsync);
+            OperationRunner.ConfigureSuccessfulInstallObserver(
+                _host.Services.GetRequiredService<WinProvision.Core.Services.InstallMetricsService>().ReportSuccessfulInstall);
             WinProvisionLog.Write("STARTUP interactive install handler configured");
             OperationRunner.ConfigureUpdateHandler(
                 _host.Services.GetRequiredService<WinGetService>().UpdateAsync);
@@ -401,7 +407,6 @@ public partial class App : Application
             WinProvisionLog.Write("STARTUP interactive main window shown");
             StartUiResponsivenessMonitor();
 
-            _ = _host.Services.GetRequiredService<OfficeCatalogService>().RefreshAsync();
             if (isUpdateAtStartup)
                 _ = RunStartupPackageUpdatesAsync();
             else

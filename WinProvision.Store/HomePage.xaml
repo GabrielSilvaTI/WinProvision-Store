@@ -165,9 +165,34 @@
                                        TextWrapping="NoWrap"
                                        TextTrimming="CharacterEllipsis" />
                         </Grid>
+                        <TextBlock Text="{Binding FeaturedInstallCount30d, StringFormat={}{0:N0} instalações nos últimos 30 dias}"
+                                   FontSize="10"
+                                   Margin="0,3,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Visibility="{Binding FeaturedInstallCount30d, Converter={StaticResource NullToVisibilityConverter}}" />
                     </StackPanel>
                 </Grid>
             </ui:Button>
+        </DataTemplate>
+        <DataTemplate x:Key="FeaturedCategoryTemplate">
+            <Border Style="{StaticResource StoreCardSurfaceStyle}"
+                    Margin="0,0,0,10"
+                    Padding="16"
+                    Effect="{x:Null}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}"
+                               Style="{StaticResource FluentCardTitleStyle}"
+                               Margin="0,0,0,8" />
+                    <ItemsControl ItemsSource="{Binding Apps}"
+                                  ItemTemplate="{StaticResource StorefrontRowTemplate}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="PopularAppTileTemplate">
@@ -654,7 +679,7 @@
                                                        Symbol="ChevronRight24"
                                                        FontSize="16" />
                                     </ui:Button>
-                                    <TextBlock Text="Aplicativos populares"
+                                    <TextBlock Text="Em alta na WinProvision Store"
                                                Style="{StaticResource FluentCardTitleStyle}"
                                                VerticalAlignment="Center" />
                                 </DockPanel>
@@ -730,6 +755,22 @@
                             </StackPanel>
                         </Border>
                     </UniformGrid>
+                    <StackPanel x:Name="StorefrontCategoriesPanel">
+                    <ItemsControl ItemsSource="{Binding FeaturedCategories}"
+                                  ItemTemplate="{StaticResource FeaturedCategoryTemplate}"
+                                  Margin="0,0,0,16">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                    <TextBlock x:Name="FeaturedRankingInfo"
+                               Text="O ranking inicial usa sinais do catálogo. As instalações concluídas entram após a publicação do serviço de métricas."
+                               Style="{StaticResource StoreCardSubtitleStyle}"
+                               Margin="2,0,0,12"
+                               TextWrapping="Wrap" />
+                    </StackPanel>
                     <StackPanel x:Name="ResultsPanel" Visibility="Collapsed">
                         <TextBlock x:Name="ResultsTitle"
                                    Text="Resultados da pesquisa"

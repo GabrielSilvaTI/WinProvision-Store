@@ -418,7 +418,7 @@ public partial class SettingsPage : Page
             // Os ícones do Office e outras imagens remotas usam um cache WPF
             // independente dos caches de catálogo e do IconService.
             Converters.AsyncImage.ClearCache();
-            StatusText.Text = "Cache local limpo com sucesso!";
+            StatusText.Text = "Caches locais de busca e instalação limpos.";
         }
         catch (Exception ex)
         {

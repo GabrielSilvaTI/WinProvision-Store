@@ -11,7 +11,6 @@ import os
 import re
 import sys
 import unicodedata
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse
@@ -25,8 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "icons"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import probe_cdn_icons as icon_probe  # noqa: E402
 import sync_cdn_icons as icon_sync  # noqa: E402
-from catalog_v2 import _detail_path  # noqa: E402
 from catalog_media_naming import icon_filename, screenshot_filename, screenshot_slot  # noqa: E402
+from catalog_v2 import _detail_path  # noqa: E402
 from sync_homepage_screenshots import SafeHttp, fetch_screenshot  # noqa: E402
 
 PUBLIC_BASE = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog"
@@ -35,7 +34,15 @@ MANIFEST_KEY = "Store/Catalog/manifest.json"
 SEARCH_KEY = "Store/Catalog/manifest/search-index.json"
 MEDIA_INDEX_KEY = "Store/Catalog/manifest/media-index.json"
 MAX_MEDIA_BYTES = 20 * 1024 * 1024
-CONTENT_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "gif": "image/gif", "bmp": "image/bmp", "ico": "image/x-icon", "tif": "image/tiff"}
+CONTENT_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
+    "bmp": "image/bmp",
+    "ico": "image/x-icon",
+    "tif": "image/tiff",
+}
 
 
 def r2_client():
@@ -83,7 +90,7 @@ def slug(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value.casefold())
     normalized = "".join(char for char in normalized if not unicodedata.combining(char))
     normalized = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
-    return (normalized[:64].rstrip("-") or "image")
+    return normalized[:64].rstrip("-") or "image"
 
 
 def validate_image(data: bytes, kind: str) -> str:
@@ -163,8 +170,18 @@ def normalize_media(media: dict) -> dict:
     hashes = media.get("screenshotSha256", {})
     if not isinstance(hashes, dict):
         hashes = {}
-    hashes = {str(path): str(value).lower() for path, value in hashes.items() if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value)}
-    return {"icon": icon, "iconSha256": icon_sha256, "screenshots": screenshots, "screenshotLabels": labels, "screenshotSha256": hashes}
+    hashes = {
+        str(path): str(value).lower()
+        for path, value in hashes.items()
+        if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value)
+    }
+    return {
+        "icon": icon,
+        "iconSha256": icon_sha256,
+        "screenshots": screenshots,
+        "screenshotLabels": labels,
+        "screenshotSha256": hashes,
+    }
 
 
 def screenshot_public_urls(client, detail_path: str, screenshot_paths: list[str]) -> list[str]:
@@ -185,7 +202,9 @@ def media_key_from_detail(detail_path: str, media_path: str) -> str:
     return f"Store/Catalog/{app_directory}/{media_path}"
 
 
-def publish_catalog_checkpoint(client, manifest: dict, index: list[dict], media_index: dict, *, update_search_index: bool) -> None:
+def publish_catalog_checkpoint(
+    client, manifest: dict, index: list[dict], media_index: dict, *, update_search_index: bool
+) -> None:
     media_index["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     media_index_bytes = put_json(client, MEDIA_INDEX_KEY, media_index)
     manifest["mediaIndexSha256"] = hashlib.sha256(media_index_bytes).hexdigest()
@@ -202,7 +221,14 @@ def publish_catalog_checkpoint(client, manifest: dict, index: list[dict], media_
         manifest["indexSha256"] = hashlib.sha256(index_bytes).hexdigest()
         manifest["catalogSha256"] = digest_builder.hexdigest()
         manifest["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        client.put_object(Bucket=BUCKET, Key=SEARCH_KEY, Body=index_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": manifest["indexSha256"]})
+        client.put_object(
+            Bucket=BUCKET,
+            Key=SEARCH_KEY,
+            Body=index_bytes,
+            ContentType="application/json",
+            CacheControl="public, max-age=300, must-revalidate",
+            Metadata={"sha256": manifest["indexSha256"]},
+        )
 
     put_json(client, MANIFEST_KEY, manifest)
 
@@ -260,7 +286,9 @@ def parse_manual_urls(value: str, parameter_name: str) -> list[str]:
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"{parameter_name} precisa ser uma lista JSON válida ou URLs separadas por espaços: {exc}") from exc
+            raise ValueError(
+                f"{parameter_name} precisa ser uma lista JSON válida ou URLs separadas por espaços: {exc}"
+            ) from exc
         if not isinstance(parsed, list) or any(not isinstance(url, str) for url in parsed):
             raise ValueError(f"{parameter_name} em formato JSON deve conter somente URLs em texto")
         return [url.strip() for url in parsed if url.strip()]
@@ -269,7 +297,18 @@ def parse_manual_urls(value: str, parameter_name: str) -> list[str]:
     return value.split()
 
 
-def publish_one(client, manifest: dict, index: list[dict], media_index: dict, package_id: str, kind: str, data: bytes, extension: str, source_url: str, name: str = "") -> dict:
+def publish_one(
+    client,
+    manifest: dict,
+    index: list[dict],
+    media_index: dict,
+    package_id: str,
+    kind: str,
+    data: bytes,
+    extension: str,
+    source_url: str,
+    name: str = "",
+) -> dict:
     row = next((entry for entry in index if str(entry.get("id", "")).casefold() == package_id.casefold()), None)
     detail_rel = row.get("detailPath") if row else quote(_detail_path(package_id), safe="/")
     if not isinstance(detail_rel, str):
@@ -279,7 +318,9 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
     if row is not None and current_detail_bytes is None:
         raise ValueError(f"O detalhe publicado para {package_id} está ausente; mídia não foi associada.")
     detail = json.loads(current_detail_bytes) if current_detail_bytes else None
-    if detail is not None and (not isinstance(detail, dict) or str(detail.get("id", "")).casefold() != package_id.casefold()):
+    if detail is not None and (
+        not isinstance(detail, dict) or str(detail.get("id", "")).casefold() != package_id.casefold()
+    ):
         raise ValueError(f"O JSON do catálogo não corresponde ao ID {package_id}.")
 
     normalized_id = package_id.casefold()
@@ -316,10 +357,14 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         old_paths = media["screenshots"]
         labels = media["screenshotLabels"]
         matching_number = labels.get(label.casefold())
-        matching_path = next(
-            (path for path in old_paths if (slot := screenshot_slot(path)) and slot[0] == matching_number),
-            None,
-        ) if matching_number else None
+        matching_path = (
+            next(
+                (path for path in old_paths if (slot := screenshot_slot(path)) and slot[0] == matching_number),
+                None,
+            )
+            if matching_number
+            else None
+        )
         if matching_path:
             # Keep the physical filename independent from image origin; a
             # normalized label-to-slot map lets an intentional resend replace it.
@@ -332,7 +377,9 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
             if matching_path != relative:
                 old_object_keys_to_delete.append(existing_key)
                 upload_asset = True
-            media["screenshots"] = list(dict.fromkeys(relative if path == matching_path else path for path in old_paths))
+            media["screenshots"] = list(
+                dict.fromkeys(relative if path == matching_path else path for path in old_paths)
+            )
         else:
             # Avoid another entry if the same screenshot is already associated
             # under a different source name for this app.
@@ -350,7 +397,9 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
                 filename = screenshot_filename(package_id, next_number, extension)
                 relative = f"media/screenshots/{filename}"
                 old_paths.append(relative)
-            labels[label.casefold()] = next((slot[0] for path in media["screenshots"] if (slot := screenshot_slot(path)) and path == relative), 0)
+            labels[label.casefold()] = next(
+                (slot[0] for path in media["screenshots"] if (slot := screenshot_slot(path)) and path == relative), 0
+            )
         media["screenshots"] = old_paths
         if matching_path and matching_path != relative:
             media["screenshotSha256"].pop(matching_path, None)
@@ -364,7 +413,14 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
     # Keep stable normalized object paths. Catalog URLs carry the content hash
     # separately so an intentional replacement bypasses old immutable caches.
     if upload_asset:
-        client.put_object(Bucket=BUCKET, Key=object_key, Body=data, ContentType=CONTENT_TYPES[extension], CacheControl="public, max-age=31536000, immutable", Metadata={"sha256": digest})
+        client.put_object(
+            Bucket=BUCKET,
+            Key=object_key,
+            Body=data,
+            ContentType=CONTENT_TYPES[extension],
+            CacheControl="public, max-age=31536000, immutable",
+            Metadata={"sha256": digest},
+        )
     detail_bytes = None
     detail_changed = False
     if detail is not None:
@@ -374,12 +430,19 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         detail_bytes = json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         detail_changed = detail_bytes != current_detail_bytes
         if detail_changed:
-            client.put_object(Bucket=BUCKET, Key=detail_key, Body=detail_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()})
+            client.put_object(
+                Bucket=BUCKET,
+                Key=detail_key,
+                Body=detail_bytes,
+                ContentType="application/json",
+                CacheControl="public, max-age=300, must-revalidate",
+                Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()},
+            )
 
     for old_object_key in old_object_keys_to_delete:
         try:
             client.delete_object(Bucket=BUCKET, Key=old_object_key)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - cleanup failure must not hide a successful replacement.
             print(f"Aviso: não foi possível remover a imagem substituída {old_object_key}: {exc}", file=sys.stderr)
 
     media_index["generatedUtc"] = now
@@ -398,7 +461,13 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         status = "published" if upload_asset or detail_changed or row_changed else "unchanged"
     else:
         status = "queued-until-catalog-sync" if upload_asset or media != original_media else "unchanged"
-    return {"id": package_id, "type": kind, "path": object_key.removeprefix("Store/Catalog/"), "sha256": digest, "status": status}
+    return {
+        "id": package_id,
+        "type": kind,
+        "path": object_key.removeprefix("Store/Catalog/"),
+        "sha256": digest,
+        "status": status,
+    }
 
 
 def main() -> int:
@@ -407,11 +476,17 @@ def main() -> int:
     parser.add_argument("--type", choices=("icon", "screenshot"), required=True)
     parser.add_argument("--package-id", default="")
     parser.add_argument("--url", default="", help="URL direta da imagem (modo manual)")
-    parser.add_argument("--urls-text", default="", help="URLs diretas adicionais por linha ou em array JSON (modo manual)")
+    parser.add_argument(
+        "--urls-text", default="", help="URLs diretas adicionais por linha ou em array JSON (modo manual)"
+    )
     parser.add_argument("--homepage-url", default="", help="homepage a percorrer (modo automático screenshot)")
-    parser.add_argument("--scan-prefix", default="", help="prefixo inicial dos IDs no modo automático: 0-9 ou uma letra a-z")
+    parser.add_argument(
+        "--scan-prefix", default="", help="prefixo inicial dos IDs no modo automático: 0-9 ou uma letra a-z"
+    )
     parser.add_argument("--batch-size", type=int, default=100)
-    parser.add_argument("--publish-batch-size", type=int, default=200, help="apps por lote publicado no modo automático de ícones")
+    parser.add_argument(
+        "--publish-batch-size", type=int, default=200, help="apps por lote publicado no modo automático de ícones"
+    )
     parser.add_argument("--out", type=Path, default=Path("catalog-media-report.json"))
     parser.add_argument("--dry-run", action="store_true", help="resolve and validate assets without publishing")
     args = parser.parse_args()
@@ -450,29 +525,39 @@ def main() -> int:
                 body, extension, source = download_image(url)
                 extension = validate_image(body, args.type)
                 jobs.append((args.package_id.strip(), body, extension, source, ""))
-            except Exception as exc:
-                results.append({
-                    "id": args.package_id.strip(),
-                    "type": args.type,
-                    "url": url,
-                    "status": "error",
-                    "error": f"{type(exc).__name__}: {exc}",
-                })
+            except Exception as exc:  # noqa: BLE001 - report invalid manual media without aborting the batch.
+                results.append(
+                    {
+                        "id": args.package_id.strip(),
+                        "type": args.type,
+                        "url": url,
+                        "status": "error",
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
     elif args.type == "screenshot":
         requested_homepage = args.homepage_url.strip()
         catalog_rows = [row for row in index if isinstance(row, dict) and row.get("id")]
         if args.scan_prefix:
             catalog_rows = [row for row in catalog_rows if row_matches_prefix(row, args.scan_prefix)]
         if args.package_id:
-            candidates = [row for row in catalog_rows if str(row["id"]).casefold() == args.package_id.casefold() and (row.get("homepage") or requested_homepage)]
+            candidates = [
+                row
+                for row in catalog_rows
+                if str(row["id"]).casefold() == args.package_id.casefold()
+                and (row.get("homepage") or requested_homepage)
+            ]
         elif requested_homepage:
-            candidates = [row for row in catalog_rows if str(row.get("homepage", "")).casefold() == requested_homepage.casefold()]
+            candidates = [
+                row for row in catalog_rows if str(row.get("homepage", "")).casefold() == requested_homepage.casefold()
+            ]
         else:
             rotated_rows = rotate_after_id(catalog_rows, get_scan_cursor(media_index, args.type, args.scan_prefix))
             candidates = [
-                row for row in rotated_rows
+                row
+                for row in rotated_rows
                 if row.get("homepage") and not normalize_media(row.get("media")).get("screenshots")
-            ][:args.batch_size]
+            ][: args.batch_size]
             selected_count = len(candidates)
             if candidates:
                 next_cursor_id = str(candidates[-1]["id"])
@@ -481,24 +566,29 @@ def main() -> int:
                 page_url = requested_homepage or str(row.get("homepage") or "")
                 body, extension, source = download_image(page_url, homepage=True)
                 jobs.append((str(row["id"]), body, extension, source, str(row.get("name") or "screenshot")))
-            except Exception as exc:  # Per-app automatic failures are isolated.
+            except Exception as exc:  # noqa: BLE001 - isolate failures so one app cannot stop an automatic batch.
                 print(f"{row.get('id')}: {type(exc).__name__}: {exc}", file=sys.stderr)
-                status = "not-found" if isinstance(exc, ValueError) and "Nenhuma imagem identificada" in str(exc) else "error"
-                results.append({
-                    "id": str(row["id"]),
-                    "type": args.type,
-                    "status": status,
-                    "error": f"{type(exc).__name__}: {exc}",
-                })
+                status = (
+                    "not-found"
+                    if isinstance(exc, ValueError) and "Nenhuma imagem identificada" in str(exc)
+                    else "error"
+                )
+                results.append(
+                    {
+                        "id": str(row["id"]),
+                        "type": args.type,
+                        "status": status,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    }
+                )
     else:
         catalog_rows = [row for row in index if isinstance(row, dict) and row.get("id")]
         if args.scan_prefix:
             catalog_rows = [row for row in catalog_rows if row_matches_prefix(row, args.scan_prefix)]
         rotated_rows = rotate_after_id(catalog_rows, get_scan_cursor(media_index, args.type, args.scan_prefix))
-        pending = [
-            str(row["id"]) for row in rotated_rows
-            if not normalize_media(row.get("media")).get("icon")
-        ][:args.batch_size]
+        pending = [str(row["id"]) for row in rotated_rows if not normalize_media(row.get("media")).get("icon")][
+            : args.batch_size
+        ]
         selected_count = len(pending)
         if pending:
             next_cursor_id = pending[-1]
@@ -522,51 +612,122 @@ def main() -> int:
                 processed += 1
                 package = package_map.get(icon_sync.norm_id(package_id))
                 if not package:
-                    results.append({"id": package_id, "type": args.type, "status": "not-found", "error": "ID não encontrado no índice da CDN de ícones."})
+                    results.append(
+                        {
+                            "id": package_id,
+                            "type": args.type,
+                            "status": "not-found",
+                            "error": "ID não encontrado no índice da CDN de ícones.",
+                        }
+                    )
                 else:
                     try:
                         result = icon_sync.resolve_icon(package, icon_probe.DEFAULT_CDN)
                         if result.get("status") == "ok":
                             batch_jobs.append((package_id, result["data"], result["ext"], result["url"], "cdn"))
                         else:
-                            results.append({"id": package_id, "type": args.type, "status": "not-found", "error": str(result.get("status", "ícone indisponível na CDN"))})
-                    except Exception as exc:
-                        results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
+                            results.append(
+                                {
+                                    "id": package_id,
+                                    "type": args.type,
+                                    "status": "not-found",
+                                    "error": str(result.get("status", "ícone indisponível na CDN")),
+                                }
+                            )
+                    except Exception as exc:  # noqa: BLE001 - report this app's CDN failure and continue the batch.
+                        results.append(
+                            {
+                                "id": package_id,
+                                "type": args.type,
+                                "status": "error",
+                                "error": f"{type(exc).__name__}: {exc}",
+                            }
+                        )
 
                 if processed % 25 == 0 or processed == selected_count:
                     prefix_label = "0-9" if package_id[:1].isdigit() else package_id[:1].casefold()
-                    print(f"Ícones: prefixo {prefix_label}; {processed:,}/{selected_count:,} apps analisados; último ID: {package_id}", flush=True)
+                    print(
+                        f"Ícones: prefixo {prefix_label}; {processed:,}/{selected_count:,} apps analisados; último ID: {package_id}",
+                        flush=True,
+                    )
 
             for position, (package_id, body, extension, source, label) in enumerate(batch_jobs, start=1):
                 try:
                     if args.dry_run:
-                        results.append({"id": package_id, "type": args.type, "status": "dry-run", "sourceUrl": source, "sha256": hashlib.sha256(body).hexdigest()})
+                        results.append(
+                            {
+                                "id": package_id,
+                                "type": args.type,
+                                "status": "dry-run",
+                                "sourceUrl": source,
+                                "sha256": hashlib.sha256(body).hexdigest(),
+                            }
+                        )
                     else:
-                        results.append(publish_one(client, manifest, index, media_index, package_id, args.type, body, extension, source, label))
-                except Exception as exc:
-                    results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
+                        results.append(
+                            publish_one(
+                                client,
+                                manifest,
+                                index,
+                                media_index,
+                                package_id,
+                                args.type,
+                                body,
+                                extension,
+                                source,
+                                label,
+                            )
+                        )
+                except Exception as exc:  # noqa: BLE001 - report this app's publish failure and continue the batch.
+                    results.append(
+                        {
+                            "id": package_id,
+                            "type": args.type,
+                            "status": "error",
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
+                    )
                 if position % 25 == 0 or position == len(batch_jobs):
-                    print(f"Ícones: lote {offset // args.publish_batch_size + 1}; {position:,}/{len(batch_jobs):,} imagens publicadas", flush=True)
+                    print(
+                        f"Ícones: lote {offset // args.publish_batch_size + 1}; {position:,}/{len(batch_jobs):,} imagens publicadas",
+                        flush=True,
+                    )
 
             if not args.dry_run:
                 store_scan_cursor(media_index, args.type, args.scan_prefix, batch_ids[-1])
                 batch_published = any(
-                    result.get("id") in batch_ids and result.get("status") == "published"
-                    for result in results
+                    result.get("id") in batch_ids and result.get("status") == "published" for result in results
                 )
                 publish_catalog_checkpoint(client, manifest, index, media_index, update_search_index=batch_published)
                 prefix_label = "0-9" if batch_ids[-1][:1].isdigit() else batch_ids[-1][:1].casefold()
-                print(f"Ícones: lote {offset // args.publish_batch_size + 1} confirmado; prefixo {prefix_label}, cursor {batch_ids[-1]}", flush=True)
+                print(
+                    f"Ícones: lote {offset // args.publish_batch_size + 1} confirmado; prefixo {prefix_label}, cursor {batch_ids[-1]}",
+                    flush=True,
+                )
         auto_icons_checkpointed = not args.dry_run
 
     for package_id, body, extension, source, label in jobs:
         try:
             if args.dry_run:
-                results.append({"id": package_id, "type": args.type, "status": "dry-run", "sourceUrl": source, "sha256": hashlib.sha256(body).hexdigest()})
+                results.append(
+                    {
+                        "id": package_id,
+                        "type": args.type,
+                        "status": "dry-run",
+                        "sourceUrl": source,
+                        "sha256": hashlib.sha256(body).hexdigest(),
+                    }
+                )
             else:
-                results.append(publish_one(client, manifest, index, media_index, package_id, args.type, body, extension, source, label))
-        except Exception as exc:
-            results.append({"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
+                results.append(
+                    publish_one(
+                        client, manifest, index, media_index, package_id, args.type, body, extension, source, label
+                    )
+                )
+        except Exception as exc:  # noqa: BLE001 - report this image's publish failure and continue the batch.
+            results.append(
+                {"id": package_id, "type": args.type, "status": "error", "error": f"{type(exc).__name__}: {exc}"}
+            )
     media_changed = any(item.get("status") in {"published", "queued-until-catalog-sync"} for item in results)
     index_changed = any(item.get("status") == "published" for item in results)
     if auto_icons_checkpointed:
@@ -596,11 +757,25 @@ def main() -> int:
         manifest["indexSha256"] = hashlib.sha256(index_bytes).hexdigest()
         manifest["catalogSha256"] = digest_builder.hexdigest()
         manifest["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
-        client.put_object(Bucket=BUCKET, Key=SEARCH_KEY, Body=index_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": manifest["indexSha256"]})
+        client.put_object(
+            Bucket=BUCKET,
+            Key=SEARCH_KEY,
+            Body=index_bytes,
+            ContentType="application/json",
+            CacheControl="public, max-age=300, must-revalidate",
+            Metadata={"sha256": manifest["indexSha256"]},
+        )
     if media_changed and not args.dry_run:
         put_json(client, MANIFEST_KEY, manifest)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps({"mode": args.mode, "type": args.type, "processed": len(results), "results": results}, ensure_ascii=False, indent=2), encoding="utf-8")
+    args.out.write_text(
+        json.dumps(
+            {"mode": args.mode, "type": args.type, "processed": len(results), "results": results},
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     print(
         f"Mídia: {len(results)} processada(s); "
         f"{sum(item['status'] == 'published' for item in results)} publicada(s); "

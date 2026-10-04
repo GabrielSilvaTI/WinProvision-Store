@@ -45,7 +45,7 @@
             </Border>
             <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="Mais" Style="{StaticResource FluentPageTitleStyle}" />
-                <TextBlock Text="Informações do projeto, histórico e registros de diagnóstico."
+                <TextBlock Text="Status da Store, informações do projeto, histórico e registros de diagnóstico."
                            Style="{StaticResource FluentPageSubtitleStyle}"
                            Margin="0,4,0,0"
                            TextWrapping="Wrap" />
@@ -56,6 +56,40 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <WrapPanel Margin="0,0,0,8">
+                <ui:Button Style="{StaticResource MoreActionCardButtonStyle}"
+                           Click="StatusCard_Click"
+                           ToolTip="Verificar o estado do WinGet e dos catálogos da API">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Style="{StaticResource PageHeaderIconTileStyle}" HorizontalAlignment="Left">
+                            <ui:SymbolIcon Symbol="Info24" Style="{StaticResource PageHeaderSymbolIconStyle}" />
+                        </Border>
+                        <StackPanel Grid.Row="1" Margin="0,16,0,16">
+                            <TextBlock Text="WinProvision Store Status" Style="{StaticResource FluentCardTitleStyle}" />
+                            <TextBlock Text="Consulte o WinGet, os catálogos da API e o cache local."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Left">
+                            <TextBlock Text="Ver status"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource AppAccentBrush}"
+                                       VerticalAlignment="Center" />
+                            <ui:SymbolIcon Symbol="ArrowRight24"
+                                           Margin="8,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource AppAccentBrush}" />
+                        </StackPanel>
+                    </Grid>
+                </ui:Button>
+
                 <ui:Button Style="{StaticResource MoreActionCardButtonStyle}"
                            Click="AboutCard_Click"
                            ToolTip="Abrir o Sobre e o GitHub Pages do projeto">

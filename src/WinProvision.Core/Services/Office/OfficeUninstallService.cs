@@ -13,8 +13,10 @@ namespace WinProvision.Core.Services.Office;
 /// </summary>
 public sealed class OfficeUninstallService
 {
-    private const string GetHelpCmdZipUrl =
-        "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Uninstall/GetHelpCmd.zip";
+    private const string GetHelpCmdDownloadUrl = "https://aka.ms/SaRA_EnterpriseVersionFiles";
+    // A GetHelpCmd build expires 90 days after its creation date. Refresh at 60 days
+    // so a cached copy does not reach Microsoft's expiration window.
+    private static readonly TimeSpan GetHelpCmdCacheLifetime = TimeSpan.FromDays(60);
 
     private static readonly string GetHelpCmdRoot = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -88,31 +90,48 @@ public sealed class OfficeUninstallService
     private static async Task<string?> EnsureGetHelpCmdAsync(Action<string>? onStatus, CancellationToken ct)
     {
         var cached = FindExecutable(GetHelpCmdRoot);
-        if (cached is not null)
+        if (cached is not null && DateTime.UtcNow - File.GetLastWriteTimeUtc(cached) < GetHelpCmdCacheLifetime)
         {
             onStatus?.Invoke("Usando GetHelpCmd em cache.");
             return cached;
         }
 
-        onStatus?.Invoke("Baixando GetHelpCmd do R2...");
+        onStatus?.Invoke("Baixando a versão atual do GetHelpCmd do site oficial da Microsoft...");
         Directory.CreateDirectory(GetHelpCmdRoot);
         var zipPath = Path.Combine(GetHelpCmdRoot, "GetHelpCmd.zip");
 
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-            await using (var remoteStream = await http.GetStreamAsync(GetHelpCmdZipUrl, ct))
-            await using (var fileStream = File.Create(zipPath))
+            if (cached is not null)
             {
-                await remoteStream.CopyToAsync(fileStream, ct);
+                Directory.Delete(GetHelpCmdRoot, recursive: true);
+                Directory.CreateDirectory(GetHelpCmdRoot);
             }
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+            using var response = await http.GetAsync(GetHelpCmdDownloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+            Uri? finalUri = response.RequestMessage?.RequestUri;
+            if (finalUri is null || finalUri.Scheme != Uri.UriSchemeHttps ||
+                !finalUri.Host.Equals("download.microsoft.com", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("O download do GetHelpCmd não terminou no domínio oficial download.microsoft.com.");
+            }
+
+            await using (var remoteStream = await response.Content.ReadAsStreamAsync(ct))
+            await using (var fileStream = File.Create(zipPath))
+                await remoteStream.CopyToAsync(fileStream, ct);
 
             onStatus?.Invoke("Extraindo GetHelpCmd...");
             ZipFile.ExtractToDirectory(zipPath, GetHelpCmdRoot, overwriteFiles: true);
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            onStatus?.Invoke($"Erro ao baixar/extrair GetHelpCmd: {ex.Message}");
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or InvalidOperationException or TaskCanceledException or UnauthorizedAccessException)
+        {
+            onStatus?.Invoke($"Erro ao baixar/extrair GetHelpCmd oficial: {ex.Message}");
             return null;
         }
         finally

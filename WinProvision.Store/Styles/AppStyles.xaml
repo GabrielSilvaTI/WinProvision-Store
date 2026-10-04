@@ -30,7 +30,7 @@
     <FontFamily x:Key="StoreFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
     <FontFamily x:Key="StoreDisplayFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
     <sys:Double x:Key="StorePageTitleSize">30</sys:Double>
-    <sys:Double x:Key="StorefrontRowCardHeight">96</sys:Double>
+    <sys:Double x:Key="StorefrontRowCardHeight">112</sys:Double>
     <sys:Double x:Key="StoreSubtitleSize">14</sys:Double>
     <sys:Double x:Key="StoreBodySize">14</sys:Double>
     <sys:Double x:Key="StoreConfirmationDialogWidth">520</sys:Double>

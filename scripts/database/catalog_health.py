@@ -22,8 +22,23 @@ from urllib3.util.retry import Retry
 CATALOGS = {
     "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json",
     "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/msstore/manifest.json",
-    "office": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Database/catalog.json",
 }
+OFFICE_ICON_NAMES = (
+    "access",
+    "excel",
+    "ltsc",
+    "ms365",
+    "onenote",
+    "outlook",
+    "powerpoint",
+    "project",
+    "publisher",
+    "sharepoint",
+    "teams",
+    "visio",
+    "word",
+)
+OFFICE_ICON_BASE = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/office/media/icons"
 MEDIA_KEYS = {
     "iconurl",
     "storeiconurl",
@@ -160,12 +175,6 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
                 errors.append(f"ID ausente/duplicado no catálogo Microsoft Store: {app_id!r}")
             ids.add(app_id)
 
-    office = payloads.get("office")
-    if not isinstance(office, dict) or office.get("schemaVersion") not in (1, 2):
-        errors.append("Catálogo Office ausente ou schemaVersion inválido")
-    elif not isinstance(office.get("products"), list) or not office["products"]:
-        errors.append("Catálogo Office sem produtos")
-
     return errors
 
 
@@ -246,7 +255,10 @@ def main() -> int:
                     if (
                         not isinstance(installers, list)
                         or row.get("installerCount") != len(installers)
-                        or any(not isinstance(item, dict) or not str(item.get("url", "")).startswith("https://") for item in installers)
+                        or any(
+                            not isinstance(item, dict) or not str(item.get("url", "")).startswith("https://")
+                            for item in installers
+                        )
                     ):
                         raise ValueError(f"instaladores ausentes ou inválidos para {row.get('id')}")
                     details.append(detail)
@@ -311,6 +323,9 @@ def main() -> int:
     for name, payload in payloads.items():
         for location, url in walk_media(payload):
             media_map.setdefault(url, []).append(f"{name}.{location}")
+    for icon_name in OFFICE_ICON_NAMES:
+        icon_url = f"{OFFICE_ICON_BASE}/{icon_name}.png"
+        media_map.setdefault(icon_url, []).append(f"office_icons.{icon_name}")
     if not media_map:
         errors.append("Nenhuma URL de mídia foi encontrada nos catálogos consultados")
 

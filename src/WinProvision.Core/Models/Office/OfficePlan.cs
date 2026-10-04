@@ -42,7 +42,7 @@ public record OfficePlan(
         new("Microsoft 365 Apps for business", OfficeEditionCategory.Corporate365, "O365BusinessRetail", "Current", false)
         {
             Description = "Microsoft 365 Apps para empresas. A oferta da Store não substitui o Product ID exigido pelo ODT.",
-            IconUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png",
+            IconUrl = OfficeAppCatalog.Microsoft365IconUrl,
         };
 
     public static readonly OfficePlan LtscProPlus2024 =
@@ -162,69 +162,10 @@ public record OfficePlan(
         new("Project LTSC Standard 2021", OfficeEditionCategory.VisioProject, "ProjectStd2021Volume", "PerpetualVL2021", true);
 }
 
-/// <summary>Oferta comercial da Store ligada a um plano de implantação ODT por uma relação explícita.</summary>
+/// <summary>Dados de uma oferta comercial usados para abrir os detalhes do produto na Store.</summary>
 public sealed record OfficeStoreOffer(string StoreProductId, string DisplayName, string OdtProductId,
     string? Description = null, string? IconUrl = null, string? BannerUrl = null,
     IReadOnlyList<string>? Screenshots = null);
-
-public static class OfficeStoreOfferCatalog
-{
-    private static readonly HashSet<string> OffersExpectedToHaveScreenshots = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CFQ7TTC0K5DM", "CFQ7TTC0K5BF",
-    };
-    private static IReadOnlyList<OfficeStoreOffer> _all = Array.AsReadOnly(new[]
-    {
-        new OfficeStoreOffer("CFQ7TTC0K5DM", "Microsoft 365 Family", "O365HomePremRetail", "Assinatura Microsoft 365 Family.", "pack://application:,,,/Assets/Office/Microsoft365FamilyIcon.jpg", "pack://application:,,,/Assets/Office/Microsoft365FamilyBanner.jpg"),
-        new OfficeStoreOffer("CFQ7TTC0K5BF", "Microsoft 365 Personal", "O365HomePremRetail", "Assinatura Microsoft 365 Personal.", "pack://application:,,,/Assets/Office/Microsoft365PersonalIcon.jpg", "pack://application:,,,/Assets/Office/Microsoft365PersonalBanner.jpg"),
-        new OfficeStoreOffer("CFQ7TTC0K5CH", "Microsoft 365 Business Standard", "O365BusinessRetail", "Assinatura Microsoft 365 para empresas.", "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png", "pack://application:,,,/Assets/Office/Microsoft365FamilyBanner.jpg"),
-    });
-    private static readonly object Sync = new();
-    public static IReadOnlyList<OfficeStoreOffer> All { get { lock (Sync) return _all; } }
-    public static bool HasFeaturedScreenshots
-    {
-        get
-        {
-            lock (Sync)
-                return OffersExpectedToHaveScreenshots.All(id => _all.Any(offer =>
-                    offer.StoreProductId.Equals(id, StringComparison.OrdinalIgnoreCase) && offer.Screenshots is { Count: > 0 }));
-        }
-    }
-    public static void ApplyRemote(IEnumerable<OfficeStoreOffer> offers)
-    {
-        ArgumentNullException.ThrowIfNull(offers);
-        lock (Sync)
-        {
-            var merged = _all.ToDictionary(x => x.StoreProductId, StringComparer.OrdinalIgnoreCase);
-            foreach (var offer in offers)
-            {
-                if (merged.TryGetValue(offer.StoreProductId, out var fallback))
-                {
-                    merged[offer.StoreProductId] = offer with
-                    {
-                        Description = offer.Description ?? fallback.Description,
-                        IconUrl = IsPackAsset(fallback.IconUrl) ? fallback.IconUrl : offer.IconUrl ?? fallback.IconUrl,
-                        BannerUrl = IsPackAsset(fallback.BannerUrl) ? fallback.BannerUrl : offer.BannerUrl ?? fallback.BannerUrl,
-                        Screenshots = offer.Screenshots is { Count: > 0 } ? offer.Screenshots : fallback.Screenshots,
-                    };
-                }
-                else
-                {
-                    merged[offer.StoreProductId] = offer;
-                }
-            }
-            // Algumas ofertas de subscrição têm IDs comerciais alternativos, mas
-            // representam o mesmo produto/plano. Mostrar só um cartão por oferta ODT.
-            _all = Array.AsReadOnly(merged.Values
-                .GroupBy(x => $"{x.OdtProductId}|{x.DisplayName}", StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.FirstOrDefault(x => x.StoreProductId.Equals("CFQ7TTC0K5BF", StringComparison.OrdinalIgnoreCase)) ?? group.First())
-                .OrderBy(x => x.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .ToArray());
-        }
-    }
-
-    private static bool IsPackAsset(string? url) => url?.StartsWith("pack://application:", StringComparison.OrdinalIgnoreCase) == true;
-}
 
 public static class OfficePlanCatalog
 {
@@ -272,38 +213,10 @@ public static class OfficePlanCatalog
         OfficePlan.ProjectStd2021,
     ];
 
-    private static IReadOnlyList<OfficePlan> _all = BuiltIn;
-    private static readonly object Sync = new();
-    public static IReadOnlyList<OfficePlan> All { get { lock (Sync) return _all; } }
-
-    /// <summary>Aplica um catálogo validado, sempre preservando os planos embutidos como fallback.</summary>
-    public static void ApplyRemote(IEnumerable<OfficePlan> plans)
-    {
-        ArgumentNullException.ThrowIfNull(plans);
-        lock (Sync)
-        {
-            var merged = BuiltIn.ToDictionary(p => p.ProductId, StringComparer.OrdinalIgnoreCase);
-            foreach (var plan in plans)
-            {
-                if (merged.TryGetValue(plan.ProductId, out var fallback))
-                {
-                    merged[plan.ProductId] = plan with
-                    {
-                        DisplayName = plan.DisplayName,
-                        Description = plan.Description ?? fallback.Description,
-                        IconUrl = IsPackAsset(fallback.IconUrl) ? fallback.IconUrl : plan.IconUrl ?? fallback.IconUrl,
-                        BannerUrl = IsPackAsset(fallback.BannerUrl) ? fallback.BannerUrl : plan.BannerUrl ?? fallback.BannerUrl,
-                        Screenshots = plan.Screenshots.Count > 0 ? plan.Screenshots : fallback.Screenshots,
-                    };
-                }
-                else
-                {
-                    merged[plan.ProductId] = plan;
-                }
-            }
-            _all = Array.AsReadOnly(merged.Values.OrderBy(p => p.Category).ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase).ToArray());
-        }
-    }
+    public static IReadOnlyList<OfficePlan> All { get; } = Array.AsReadOnly(
+        BuiltIn.OrderBy(p => p.Category)
+            .ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray());
 
     public static IEnumerable<OfficePlan> ByCategory(OfficeEditionCategory category) =>
         All.Where(p => p.Category == category);
@@ -312,7 +225,6 @@ public static class OfficePlanCatalog
     public static OfficePlan? ByProductId(string productId) =>
         All.FirstOrDefault(p => string.Equals(p.ProductId, productId, StringComparison.OrdinalIgnoreCase));
 
-    private static bool IsPackAsset(string? url) => url?.StartsWith("pack://application:", StringComparison.OrdinalIgnoreCase) == true;
 }
 
 /// <summary>
@@ -323,25 +235,28 @@ public static class OfficePlanCatalog
 /// </summary>
 public static class OfficeAppCatalog
 {
-    private const string IconBaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon";
+    public const string IconBaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/office/media/icons";
+    public static string Microsoft365IconUrl => $"{IconBaseUrl}/ms365.png";
+
+    private static string Icon(string name) => $"{IconBaseUrl}/{name}.png";
 
     public static readonly IReadOnlyList<(string Id, string DisplayName, string IconUrl)> CoreApps =
     [
-        ("Word", "Word", $"{IconBaseUrl}/Word.png"),
-        ("Excel", "Excel", $"{IconBaseUrl}/Excel.png"),
-        ("PowerPoint", "PowerPoint", $"{IconBaseUrl}/PowerPoint.png"),
-        ("Outlook", "Outlook", $"{IconBaseUrl}/Outlook.png"),
-        ("OneNote", "OneNote", $"{IconBaseUrl}/OneNote.png"),
-        ("Access", "Access", $"{IconBaseUrl}/Access.png"),
-        ("Publisher", "Publisher", $"{IconBaseUrl}/Publisher.png"),
-        ("Teams", "Teams", $"{IconBaseUrl}/Teams.png"),
+        ("Word", "Word", Icon("word")),
+        ("Excel", "Excel", Icon("excel")),
+        ("PowerPoint", "PowerPoint", Icon("powerpoint")),
+        ("Outlook", "Outlook", Icon("outlook")),
+        ("OneNote", "OneNote", Icon("onenote")),
+        ("Access", "Access", Icon("access")),
+        ("Publisher", "Publisher", Icon("publisher")),
+        ("Teams", "Teams", Icon("teams")),
     ];
 
     /// <summary>Produtos opcionais Office implantados como Product ODT, e não como ExcludeApp.</summary>
     public static readonly IReadOnlyList<(string Id, string DisplayName, string IconUrl)> AdditionalProducts =
     [
-        ("Visio", "Visio", $"{IconBaseUrl}/Visio.png"),
-        ("Project", "Project", $"{IconBaseUrl}/Project.png"),
+        ("Visio", "Visio", Icon("visio")),
+        ("Project", "Project", Icon("project")),
     ];
 
     /// <summary>Excludes menos comuns, agrupados nas opções avançadas em vez da grade principal.</summary>

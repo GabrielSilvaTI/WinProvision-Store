@@ -20,20 +20,35 @@ import boto3
 import requests
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError
+from catalog_media_naming import banner_filename, icon_filename, screenshot_filename
 from PIL import Image, UnidentifiedImageError
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from catalog_media_naming import banner_filename, icon_filename, screenshot_filename
-
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 BASE_KEY = "Store/Catalog/msstore/apps"
+CONTENT_TYPES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
+    "bmp": "image/bmp",
+    "tif": "image/tiff",
+    "ico": "image/x-icon",
+}
 
 
 def allowed(url: str) -> bool:
     parsed = urlparse(url)
     host = (parsed.hostname or "").casefold().rstrip(".")
-    return parsed.scheme == "https" and (host == "microsoft.com" or host.endswith(".microsoft.com") or host == "s-microsoft.com" or host.endswith(".s-microsoft.com") or host == "akamaized.net" or host.endswith(".akamaized.net"))
+    return parsed.scheme == "https" and (
+        host == "microsoft.com"
+        or host.endswith(".microsoft.com")
+        or host == "s-microsoft.com"
+        or host.endswith(".s-microsoft.com")
+        or host == "akamaized.net"
+        or host.endswith(".akamaized.net")
+    )
 
 
 def app_folder(package_id: str) -> tuple[str, str]:
@@ -63,9 +78,16 @@ def main() -> int:
     previous = {}
     if args.previous and args.previous.is_file():
         try:
-            previous = {str(row["id"]).casefold(): row for row in json.loads(args.previous.read_text(encoding="utf-8-sig")) if isinstance(row, dict) and row.get("id")}
+            previous = {
+                str(row["id"]).casefold(): row
+                for row in json.loads(args.previous.read_text(encoding="utf-8-sig"))
+                if isinstance(row, dict) and row.get("id")
+            }
         except (OSError, json.JSONDecodeError, TypeError):
-            print("Aviso: catálogo anterior não pôde ser lido; mídia será reconstruída pelas URLs de origem.", file=sys.stderr)
+            print(
+                "Aviso: catálogo anterior não pôde ser lido; mídia será reconstruída pelas URLs de origem.",
+                file=sys.stderr,
+            )
     try:
         map_doc = json.loads(args.map_path.read_text(encoding="utf-8-sig")) if args.map_path.is_file() else {}
     except (OSError, json.JSONDecodeError):
@@ -75,12 +97,24 @@ def main() -> int:
         cache = {}
 
     s3 = boto3.client(
-        "s3", endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
-        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"], aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-        config=Config(signature_version="s3v4", retries={"max_attempts": 4, "mode": "standard"}), region_name="auto",
+        "s3",
+        endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+        aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+        config=Config(signature_version="s3v4", retries={"max_attempts": 4, "mode": "standard"}),
+        region_name="auto",
     )
     bucket = os.environ.get("R2_BUCKET") or "winprovision"
-    retry = Retry(total=3, connect=3, read=3, status=3, backoff_factor=0.5, status_forcelist=(429, 500, 502, 503, 504), allowed_methods=frozenset({"GET"}), respect_retry_after_header=True)
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        status=3,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        respect_retry_after_header=True,
+    )
     local = threading.local()
 
     def session() -> requests.Session:
@@ -97,10 +131,15 @@ def main() -> int:
         if not isinstance(app, dict) or not isinstance(app.get("id"), str):
             parser.error("cada app deve ter id")
         app_folder(app["id"])
-        for field, slot, index, url in (
-            [("storeIconUrl", "icon", 0, app.get("storeIconUrl")), ("storeBannerUrl", "banner", 0, app.get("storeBannerUrl"))]
-            + [("storeScreenshotUrls", "screenshot", i, url) for i, url in enumerate(app.get("storeScreenshotUrls", []) if isinstance(app.get("storeScreenshotUrls"), list) else [])]
-        ):
+        for field, slot, index, url in [
+            ("storeIconUrl", "icon", 0, app.get("storeIconUrl")),
+            ("storeBannerUrl", "banner", 0, app.get("storeBannerUrl")),
+        ] + [
+            ("storeScreenshotUrls", "screenshot", i, url)
+            for i, url in enumerate(
+                app.get("storeScreenshotUrls", []) if isinstance(app.get("storeScreenshotUrls"), list) else []
+            )
+        ]:
             if isinstance(url, str) and url:
                 jobs.append((app["id"], field, slot, index, url))
 
@@ -116,8 +155,10 @@ def main() -> int:
         if isinstance(old, dict) and isinstance(old.get("path"), str):
             extension = old["path"].rsplit(".", 1)[-1]
             expected_name = (
-                icon_filename(package_id, extension) if slot == "icon"
-                else banner_filename(package_id, extension) if slot == "banner"
+                icon_filename(package_id, extension)
+                if slot == "icon"
+                else banner_filename(package_id, extension)
+                if slot == "banner"
                 else screenshot_filename(package_id, index + 1, extension)
             )
             expected_path = f"media/{expected_name}" if slot != "screenshot" else f"media/screenshots/{expected_name}"
@@ -146,7 +187,15 @@ def main() -> int:
                 fmt, size = image.format, image.size
             if min(size) < 16:
                 raise ValueError(f"dimensões inválidas: {size}")
-            ext = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp", "GIF": "gif", "BMP": "bmp", "TIFF": "tif", "ICO": "ico"}.get(fmt)
+            ext = {
+                "PNG": "png",
+                "JPEG": "jpg",
+                "WEBP": "webp",
+                "GIF": "gif",
+                "BMP": "bmp",
+                "TIFF": "tif",
+                "ICO": "ico",
+            }.get(fmt)
             if not ext:
                 raise ValueError(f"formato inválido: {fmt}")
             if slot in {"icon", "banner"}:
@@ -165,8 +214,21 @@ def main() -> int:
             relative = f"media/screenshots/{screenshot_filename(package_id, index + 1, ext)}"
         object_key = f"{BASE_KEY}/{prefix}/{folder}/{relative}"
         digest = hashlib.sha256(data).hexdigest()
-        s3.put_object(Bucket=bucket, Key=object_key, Body=bytes(data), ContentType="image/png" if ext == "png" else f"image/{ext}", CacheControl="public, max-age=31536000, immutable", Metadata={"sha256": digest})
-        value = {"sourceUrl": url, "publicUrl": f"{public_base}/{object_key}?v={digest[:16]}", "path": relative, "contentSha256": digest, "updatedUtc": datetime.now(UTC).isoformat()}
+        s3.put_object(
+            Bucket=bucket,
+            Key=object_key,
+            Body=bytes(data),
+            ContentType=CONTENT_TYPES[ext],
+            CacheControl="public, max-age=31536000, immutable",
+            Metadata={"sha256": digest},
+        )
+        value = {
+            "sourceUrl": url,
+            "publicUrl": f"{public_base}/{object_key}?v={digest[:16]}",
+            "path": relative,
+            "contentSha256": digest,
+            "updatedUtc": datetime.now(UTC).isoformat(),
+        }
         return job, value, True
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
@@ -191,7 +253,15 @@ def main() -> int:
     for app in catalog:
         package_key = app["id"].casefold()
         old_app = previous.get(package_key, {})
-        media = {"icon": None, "iconSha256": None, "banner": None, "screenshots": []}
+        old_media = old_app.get("media", {})
+        media = {
+            "icon": None,
+            "iconSha256": None,
+            "banner": None,
+            "bannerSha256": None,
+            "screenshots": [],
+            "screenshotSha256": {},
+        }
         for field, slot in (("storeIconUrl", "icon"), ("storeBannerUrl", "banner")):
             item = results.get((package_key, slot, 0))
             if item:
@@ -199,40 +269,47 @@ def main() -> int:
                 media[slot] = item["path"]
                 if slot == "icon":
                     media["iconSha256"] = item["contentSha256"]
-            elif isinstance(old_app.get(field), str) and "/Catalog/msstore/apps/" in old_app[field]:
-                app[field] = old_app[field]
-                old_media = old_app.get("media", {})
-                media[slot] = old_media.get(slot if slot != "icon" else "icon") if isinstance(old_media, dict) else None
-                if slot == "icon" and isinstance(old_media, dict):
+                else:
+                    media["bannerSha256"] = item["contentSha256"]
+            elif isinstance(old_media, dict) and isinstance(old_media.get(slot), str):
+                media[slot] = old_media[slot]
+                if slot == "icon":
                     media["iconSha256"] = old_media.get("iconSha256")
+                else:
+                    media["bannerSha256"] = old_media.get("bannerSha256")
         screenshots = []
-        screenshot_urls = []
         original = app.get("storeScreenshotUrls", [])
-        old_urls = old_app.get("storeScreenshotUrls", [])
-        old_media = old_app.get("media", {})
-        if not original and isinstance(old_urls, list) and isinstance(old_media, dict):
-            for old_url, old_path in zip(old_urls, old_media.get("screenshots", []), strict=False):
-                if isinstance(old_url, str) and "/Catalog/msstore/apps/" in old_url and isinstance(old_path, str):
-                    screenshot_urls.append(old_url)
+        old_paths = old_media.get("screenshots", []) if isinstance(old_media, dict) else []
+        old_hashes = old_media.get("screenshotSha256", {}) if isinstance(old_media, dict) else {}
+        if not original and isinstance(old_paths, list):
+            for old_path in old_paths:
+                if isinstance(old_path, str) and old_path.startswith("media/screenshots/"):
                     screenshots.append(old_path)
+                    if isinstance(old_hashes, dict) and isinstance(old_hashes.get(old_path), str):
+                        media["screenshotSha256"][old_path] = old_hashes[old_path]
         for index, _source in enumerate(original if isinstance(original, list) else []):
             item = results.get((package_key, "screenshot", index))
             if item:
-                screenshot_urls.append(item["publicUrl"])
                 screenshots.append(item["path"])
+                media["screenshotSha256"][item["path"]] = item["contentSha256"]
             else:
-                if index < len(old_urls) and isinstance(old_urls[index], str) and "/Catalog/msstore/apps/" in old_urls[index]:
-                    screenshot_urls.append(old_urls[index])
-                    old_paths = old_media.get("screenshots", []) if isinstance(old_media, dict) else []
-                    if index < len(old_paths):
-                        screenshots.append(old_paths[index])
-        app["storeScreenshotUrls"] = screenshot_urls
+                if index < len(old_paths) and isinstance(old_paths[index], str):
+                    old_path = old_paths[index]
+                    if old_path.startswith("media/screenshots/"):
+                        screenshots.append(old_path)
+                        if isinstance(old_hashes, dict) and isinstance(old_hashes.get(old_path), str):
+                            media["screenshotSha256"][old_path] = old_hashes[old_path]
+        app.pop("storeIconUrl", None)
+        app.pop("storeBannerUrl", None)
+        app.pop("storeScreenshotUrls", None)
         media["screenshots"] = screenshots
         app["media"] = media
 
     args.catalog.write_text(json.dumps(catalog, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     args.map_path.parent.mkdir(parents=True, exist_ok=True)
-    args.map_path.write_text(json.dumps({"schemaVersion": 2, "assets": cache}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    args.map_path.write_text(
+        json.dumps({"schemaVersion": 2, "assets": cache}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
     return 0
 
 

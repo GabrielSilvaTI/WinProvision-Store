@@ -38,7 +38,9 @@ REQUIRED_V2_KEYS = (
 
 
 def create_client():
-    missing = [name for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY") if not os.environ.get(name)]
+    missing = [
+        name for name in ("R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY") if not os.environ.get(name)
+    ]
     if missing:
         raise RuntimeError("Variáveis R2 ausentes: " + ", ".join(missing))
     return boto3.client(
@@ -76,7 +78,9 @@ def verify_v2(client) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--apply", action="store_true", help="apaga os objetos listados; sem esta opção apenas mostra a prévia")
+    parser.add_argument(
+        "--apply", action="store_true", help="apaga os objetos listados; sem esta opção apenas mostra a prévia"
+    )
     args = parser.parse_args()
 
     try:
@@ -110,7 +114,9 @@ def main() -> int:
         unique = {item["Key"]: item for item in all_objects}
         objects = list(unique.values())
         total_bytes = sum(int(item.get("Size", 0)) for item in objects)
-        print(f"Total: {len(objects)} objeto(s), {total_bytes:,} bytes ({total_bytes / (1024 ** 3):.3f} GiB).", flush=True)
+        print(
+            f"Total: {len(objects)} objeto(s), {total_bytes:,} bytes ({total_bytes / (1024**3):.3f} GiB).", flush=True
+        )
         if not args.apply:
             print("Prévia apenas. Para aplicar exatamente esta allowlist: adicione --apply.")
             return 0
@@ -125,11 +131,16 @@ def main() -> int:
             errors = response.get("Errors", [])
             deleted += len(batch) - len(errors)
             for error in errors:
-                print(f"Falha ao remover {error.get('Key')}: {error.get('Code')} {error.get('Message', '')}", file=sys.stderr)
+                print(
+                    f"Falha ao remover {error.get('Key')}: {error.get('Code')} {error.get('Message', '')}",
+                    file=sys.stderr,
+                )
             print(f"Remoção R2: {deleted}/{len(objects)} objeto(s).", flush=True)
         if deleted != len(objects):
             return 1
-        print(f"Limpeza concluída: {deleted} objeto(s) legados removidos; V2, metrics-cache e assets Office preservados.")
+        print(
+            f"Limpeza concluída: {deleted} objeto(s) legados removidos; V2, metrics-cache e assets Office preservados."
+        )
         return 0
     except (ClientError, RuntimeError) as exc:
         print(f"Limpeza interrompida; {exc}", file=sys.stderr)

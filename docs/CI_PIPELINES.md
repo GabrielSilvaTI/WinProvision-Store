@@ -1,45 +1,50 @@
-# Pipelines de catálogo e mídia
+# Workflows de CI/CD
 
-Os trabalhos de publicação no R2 têm uma área por função. Cada workflow do CircleCI roda sem `requires` de outro workflow: uma falha no Office, nos ícones ou no WinGet não cancela os demais. O arquivo já usado pelo projeto continua em `.circleci/config.yml`.
+O GitHub Actions é o único executor automatizado do repositório. Os workflows do CircleCI foram removidos; não configure novos pipelines nele. Todos os publicadores de catálogo usam concorrência para impedir escritas simultâneas no R2.
 
-| Função | Configuração | Parâmetro manual | Destino |
-| --- | --- | --- | --- |
-| Catálogo Microsoft Store | `.circleci/config.yml` | `run_msstore_catalog=true` | `Store/Catalog/msstore/` (manifestos, índice, apps e mídia por app) |
-| Assets e ofertas Office | `.circleci/office.yml` | `run_office_assets=true` | `Office/Database/` e assets |
-| Catálogo WinGet e API | `.circleci/winget-sync.yml` | `run_winget_catalog=true` | `Store/Catalog/` (inclui URLs e opções de instalador nos detalhes; mantém `Store/Database/metrics-cache.json` como cache do Indexer) |
-| Captura automática de screenshots | `.circleci/screenshots.yml` | `run_screenshot_sync=true` | `Store/Catalog/apps/.../media/screenshots/` |
-| Ícones da CDN WinGet | `.circleci/icons.yml` | `run_icon_sync=true`; `publish_icons=true` para publicar | `Store/Catalog/apps/.../media/{produto}_icon.png` |
-| Mídia manual ou captura direcionada | `.circleci/catalog-media.yml` | `run_catalog_media=true`, `media_mode=manual|auto`, `asset_type=icon|screenshot` | pasta `media/` do app e JSON/índices associados |
-| Manifesto legado de ícones | `.circleci/icon-manifest.yml` | desativado | — |
-| Índice legado de screenshots | `.circleci/homepage-screenshots.yml` | desativado | — |
+| Workflow | Execução | Função |
+| --- | --- | --- |
+| `.github/workflows/ci.yml` | Push e pull request em `main`, ou manual | Ruff, formatação de C#/XAML, validação dos workflows com actionlint, compilação do Indexer e do app WPF, e testes unitários. |
+| `.github/workflows/catalogs.yml` | Agendado ou manual | Sincronização WinGet, Microsoft Store, gestão de mídia, sondagem de ícones e verificação dos catálogos. |
+| `.github/workflows/integration.yml` | Pull requests relevantes, semanal ou manual | Integração com WinGet e smoke test do atualizador Windows. |
+| `.github/workflows/security.yml` | Push/PR em `main`, semanal ou manual | CodeQL para C#, JavaScript/TypeScript e Python; revisão de dependências novas nos pull requests. |
+| `.github/workflows/release.yml` | Tag `v*`, pull request ou manual | Compila o cliente, testa o instalador e publica versões estáveis, pré-lançamentos ou nightly. |
+| `.github/workflows/format-xaml.yml` | Manual | Formata XAML em uma branch e abre um pull request para revisão. |
+| `.github/workflows/pages.yml` | Manual | Publica `docs/` no GitHub Pages. |
 
-O contexto `r2-publishing` precisa conter `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY`; `R2_BUCKET` é opcional (padrão `winprovision`). Para o indexador WinGet, `GITHUB_TOKEN` com acesso de leitura à API pública do GitHub é recomendado para evitar limites de requisições. Nunca colocar essas credenciais nos YAMLs.
+## Catálogos e mídia
 
-## Ativação no CircleCI GitHub App
+`catalogs.yml` tem as operações `winget`, `msstore`, `featured`, `media`, `health` e `icon_probe`. Na aba **Actions**, escolha **Catálogos e mídia** e selecione **Run workflow** para iniciar uma delas. Operações que publicam pedem os segredos de R2 somente dentro do job correspondente. Saúde e sondagem são somente leitura.
 
-1. Enviar os YAMLs ao `main`. Em **Project Settings > Project Setup**, manter o pipeline atual apontando para `.circleci/config.yml`. Adicionar os pipelines **Ofertas Office** (`.circleci/office.yml`), **Catálogo WinGet** (`.circleci/winget-sync.yml`), **Mídia: catálogo** (`.circleci/catalog-media.yml`) e **Mídia: ícones** (`.circleci/icons.yml`), usando o mesmo repositório como fonte de configuração e checkout. Os pipelines de manifesto legado e screenshots antigas estão desativados.
-2. Executar manualmente cada função em `main` com o parâmetro da tabela. Para ícones, começar sem `publish_icons` (simulação); depois fazer uma execução real. No modo automático, `scan_prefix` pode limitar a busca a `0-9` ou uma letra de `a` a `z`; vazio significa catálogo inteiro. Para percorrer tudo, defina `batch_size` acima da contagem de apps. Os ícones são publicados e o cursor salvo em lotes de `publish_batch_size` (padrão 200), com progresso no log. Para captura manual, usar `media_mode=manual`, informar `package_id`, escolher `asset_type` e preencher `media_url`. Screenshots do mesmo app podem ser enviadas em lote em `media_urls`, separadas por espaços/quebras de linha ou como array JSON. O parser também aceita vários links colados em `media_url`. Verificar os relatórios em **Artifacts** e os objetos correspondentes no R2.
-3. Criar gatilhos agendados separados em **Project Settings > Project Setup** para a branch `main`. Cada gatilho deve passar seu parâmetro; o agendamento de ícones também precisa de `publish_icons=true`. Sugestão de horários em UTC:
+Agendamentos em UTC:
 
-   | Função | Frequência | UTC | Brasília (UTC−3) |
-   | --- | --- | --- | --- |
-   | Microsoft Store | domingo | 03:00 | 00:00 |
-   | Office | domingo | 05:00 | 02:00 |
-   | WinGet | diariamente | 08:00 | 05:00 |
-   | Ícones | terça e sexta | 11:00 | 08:00 |
-   | Manifesto de ícones | terça e sexta | 13:00 | 10:00 |
-   | Saúde dos catálogos (amostra rotativa de 500 mídias) | semanalmente ou manual | 17:00 | 14:00 |
+| Operação | Agenda | Horário em Brasília (UTC−3) |
+| --- | --- | --- |
+| WinGet | Diariamente, 08:00 | 05:00 |
+| Microsoft Store | Domingo, 03:00 | 00:00 |
+| Ícones WinGet | Terça e sexta, 11:00 | 08:00 |
+| Destaques | Diariamente, 12:00 | 09:00 |
+| Saúde dos catálogos | Domingo, 17:00 | 14:00 |
 
-4. Configure o índice de screenshots no pipeline independente `.circleci/homepage-screenshots.yml` (um gatilho por execução). Os catálogos Microsoft Store, Office e WinGet são publicados pelo CircleCI; evite configurar outro publicador para os mesmos destinos no GitHub Actions. O GitHub Actions continua responsável por build, release, Pages, lint, testes, backup e utilitários.
+Na execução manual de mídia, `package_id` identifica o app; `asset_type` seleciona ícone ou screenshot. Para screenshots em lote, informe `media_urls` com URLs separadas por espaços ou quebras de linha, ou como array JSON. No modo automático, `scan_prefix` aceita `0-9` ou uma letra; em branco continua do cursor salvo. `batch_size` limita o número analisado naquela execução.
 
-Microsoft Store, Office e WinGet têm pipelines separados; seus resultados aparecem independentemente no CircleCI. O WinGet não incorpora mais os registros Microsoft Store; o app combina os índices no carregamento.
+WinGet e Microsoft Store publicam seus catálogos V2 em `Store/Catalog/` e `Store/Catalog/msstore/`. A API própria consome esses mesmos detalhes e índices; não há um catálogo/API duplicado em `Store/Api/`. O cache operacional do Indexer continua em `Store/Database/metrics-cache.json`.
 
-O cliente usa os mesmos catálogos como catálogo de busca e fonte da API própria. O índice combinado vem de `Store/Catalog/manifest/search-index.json` (WinGet) e `Store/Catalog/msstore/manifest/search-index.json` (Microsoft Store); os detalhes são carregados de `app.json` na origem indicada. Cada detalhe WinGet contém `installers`, com URL HTTPS, SHA-256, tipo/formato, arquitetura, escopo e os argumentos silenciosos quando conhecidos. Não há cópia separada desses registros em `Store/Api/`.
+O job WinGet verifica o fingerprint publicado e ignora a reconstrução quando a mesma revisão de origem e de build já foi validada. Em caso de alteração, baixa apenas os manifests do WinGet, restaura os índices e caches do R2, executa o Indexer C#, constrói e valida o catálogo em Python e publica os dados antes do manifesto. O lock `catalog-root-writer` serializa publicações que compartilham o prefixo raiz.
 
-O WinGet publica em `Store/Catalog/`; a Microsoft Store publica em `Store/Catalog/msstore/`. Cada pipeline atualiza seu catálogo, índice e manifesto. Os manifestos são publicados por último. Para a implantação do cliente atualizado, executar os dois workflows em `main`.
+O job `featured` combina os índices V2 WinGet e Microsoft Store e publica `Store/Catalog/manifest/featured.json`. O Worker em `workers/store-metrics/` recebe IDs de pacotes e origem somente após instalações concluídas; mantém eventos por até 90 dias e entrega agregados móveis de 30 dias. O app usa o catálogo editorial em cache e mostra a contagem observada quando disponível. Publique o Worker uma vez com `npx wrangler deploy --config workers/store-metrics/wrangler.toml`; até lá, a curadoria usa avaliações e sinais de qualidade do catálogo.
 
-Os ícones e screenshots ficam junto ao app: `Catalog/apps/{0-9|a-z}/{publisher}/{produto}/media/`. Os nomes seguem `{produto}_icon.ext`, `{produto}_banner.ext` e `{produto}_screenshot_01.ext`. O workflow de mídia atualiza o detalhe, o índice e o manifesto diretamente, sem executar o Indexer; IDs que ainda não existem no catálogo ficam registrados em `manifest/media-index.json` e entram no `app.json` na próxima sincronização WinGet. O modo automático percorre a CDN WinGet para ícones e homepages para screenshots. O modo manual recebe o ID do pacote, a categoria da mídia e uma URL direta ou, para screenshots, várias URLs diretas em `media_urls`, separadas por espaços/quebras de linha ou como array JSON. Reenviar uma imagem pelo mesmo nome normalizado atualiza o arquivo existente.
+## Segredos de repositório
 
-`apps.json` é um intermediário local do Indexer e não é publicado no R2. O workflow usa `Store/Catalog/manifest/search-index.json` para validar retenção e reaproveitar tamanhos de instaladores. `Store/Database/metrics-cache.json` permanece como cache operacional do Indexer. O catálogo Microsoft Store usa `Store/Catalog/msstore/` como fonte única.
+Configure em **Settings > Secrets and variables > Actions**:
 
-O pipeline `.circleci/homepage-screenshots.yml` reindexa as imagens já armazenadas. `run_homepage_screenshot_sync`, `run_screenshot_sync`, `homepage_screenshot_batch_size`, `homepage_screenshot_package_id` e `homepage_screenshot_url` continuam aceitos por compatibilidade com gatilhos existentes; os parâmetros de lote/URL não são usados nessa reindexação. Para descobrir novas imagens em páginas oficiais, esse trabalho deve permanecer separado e pontual, fora da sincronização diária do catálogo.
+- `R2_ACCOUNT_ID`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET_NAME` (opcional; padrão `winprovision`; `R2_BUCKET` também é aceito)
+
+O token `GITHUB_TOKEN` é fornecido pelo próprio Actions. Não coloque credenciais nos arquivos YAML ou nos parâmetros manuais.
+
+## CircleCI
+
+Os arquivos de configuração CircleCI não fazem mais parte deste repositório. Se pipelines ainda estiverem cadastrados no painel do CircleCI, desative-os lá depois que a nova configuração estiver disponível em `main`; apagar os arquivos do repositório não altera configurações armazenadas no serviço.

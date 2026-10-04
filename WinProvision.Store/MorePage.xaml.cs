@@ -18,6 +18,9 @@ public partial class MorePage : Page
     private void AboutCard_Click(object sender, RoutedEventArgs e) =>
         _navigationService.Navigate(typeof(AboutPage));
 
+    private void StatusCard_Click(object sender, RoutedEventArgs e) =>
+        _navigationService.Navigate(typeof(StoreStatusPage));
+
     private void HistoryCard_Click(object sender, RoutedEventArgs e) =>
         _navigationService.Navigate(typeof(HistoryPage));
 

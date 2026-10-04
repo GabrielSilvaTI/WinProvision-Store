@@ -2,7 +2,7 @@ name: "Qualidade | Formatar XAML (abre PR)"
 
 # Manual. Roda o XAML Styler, confere o resultado e abre um pull request com as
 # mudanças. Nunca commita na main: o diff é revisado antes de ser aceito.
-# Depende do Settings.XamlStyler na raiz e do job xaml do ci-lint.yml.
+# Depende do Settings.XamlStyler na raiz e do job xaml do ci.yml.
 on:
   workflow_dispatch: {}
 
@@ -23,7 +23,7 @@ jobs:
     permissions:
       contents: write # empurrar a branch nova
       pull-requests: write # abrir o PR
-      actions: write # disparar ci-lint e build na branch nova
+      actions: write # disparar CI e build na branch nova
     env:
       GH_TOKEN: ${{ github.token }}
       XSTYLER_VERSION: "3.2501.8"
@@ -157,11 +157,11 @@ jobs:
             || echo "::warning::Não consegui abrir o PR. Abra em https://github.com/${GITHUB_REPOSITORY}/compare/${BRANCH}"
 
       # Push feito com o token do workflow não dispara outros workflows sozinho.
-      # Fora da main o build-release não publica nada (canal none).
+      # Fora da main o release.yml só compila (canal none).
       - name: Disparar os checks na branch
         if: steps.scope.outputs.changed == 'true'
         env:
           BRANCH: ${{ steps.commit.outputs.branch }}
         run: |
-          gh workflow run ci-lint.yml --ref "$BRANCH" || echo "::warning::Não consegui disparar o ci-lint."
-          gh workflow run build-release.yml --ref "$BRANCH" || echo "::warning::Não consegui disparar o build."
+          gh workflow run ci.yml --ref "$BRANCH" || echo "::warning::Não consegui disparar o CI."
+          gh workflow run release.yml --ref "$BRANCH" || echo "::warning::Não consegui disparar o build."

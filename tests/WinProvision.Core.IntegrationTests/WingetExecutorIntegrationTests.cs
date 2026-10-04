@@ -1,5 +1,6 @@
 using WinProvision.Core.Services;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using Xunit;
 
@@ -219,13 +220,15 @@ public class WinProvisionApiReliabilityTests
     [Fact]
     public async Task GetIndexAsync_RetryEmErroTemporarioEUsaRespostaValida()
     {
+        var winget = CreateCatalogFixture("Vendor.App", "winget");
+        var msstore = CreateCatalogFixture("Vendor.StoreApp", "msstore");
         int attempts = 0;
-        using var http = new HttpClient(new StubHttpMessageHandler(_ =>
+        using var http = new HttpClient(new StubHttpMessageHandler(request =>
         {
-            attempts++;
-            return attempts == 1
+            int attempt = Interlocked.Increment(ref attempts);
+            return attempt == 1
                 ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
-                : Json("""{"schema":1,"generatedAt":"2026-09-23T00:00:00Z","count":1,"packages":[{"id":"Vendor.App","version":"1.0","architectures":["x64"]}]}""");
+                : CatalogResponse(request, winget, msstore);
         }));
         string cache = Path.Combine(Path.GetTempPath(), $"WinProvisionApiTests-{Guid.NewGuid():N}");
         try
@@ -233,9 +236,11 @@ public class WinProvisionApiReliabilityTests
             var api = new WinProvisionApiService(http, cache);
             var index = await api.GetIndexAsync();
 
-            Assert.Equal(2, attempts);
-            Assert.Equal("Vendor.App", Assert.Single(index.Packages).Id);
-            Assert.True(File.Exists(Path.Combine(cache, "index.json")));
+            Assert.Equal(5, attempts); // quatro recursos V2 e uma repetição após o 503.
+            Assert.Equal(2, index.Packages.Count);
+            Assert.Contains(index.Packages, item => item.Id == "Vendor.App" && item.Source == "winget");
+            Assert.Contains(index.Packages, item => item.Id == "Vendor.StoreApp" && item.Source == "msstore");
+            Assert.True(File.Exists(Path.Combine(cache, "catalog-index.json")));
         }
         finally
         {
@@ -246,15 +251,18 @@ public class WinProvisionApiReliabilityTests
     [Fact]
     public async Task GetPackageAsync_Manifest404RetornaNulo()
     {
-        const string indexJson = """{"schema":1,"generatedAt":"2026-09-23T00:00:00Z","count":1,"packages":[{"id":"Vendor.Missing","version":"1.0","architectures":["x64"]}]}""";
+        var winget = CreateCatalogFixture("Vendor.Missing", "winget");
+        var msstore = CreateCatalogFixture("Vendor.StoreApp", "msstore");
         int manifestRequests = 0;
         using var http = new HttpClient(new StubHttpMessageHandler(request =>
         {
-            if (request.RequestUri?.AbsolutePath.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase) == true)
-                return Json(indexJson);
+            if (request.RequestUri?.AbsolutePath.Contains("/apps/", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                manifestRequests++;
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
 
-            manifestRequests++;
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
+            return CatalogResponse(request, winget, msstore);
         }));
         string cache = Path.Combine(Path.GetTempPath(), $"WinProvisionApiTests-{Guid.NewGuid():N}");
         try
@@ -272,15 +280,18 @@ public class WinProvisionApiReliabilityTests
     [Fact]
     public async Task GetPackageAsync_FalhaTemporariaNoManifestPropagaErro()
     {
-        const string indexJson = """{"schema":1,"generatedAt":"2026-09-23T00:00:00Z","count":1,"packages":[{"id":"Vendor.App","version":"1.0","architectures":["x64"]}]}""";
+        var winget = CreateCatalogFixture("Vendor.App", "winget");
+        var msstore = CreateCatalogFixture("Vendor.StoreApp", "msstore");
         int manifestRequests = 0;
         using var http = new HttpClient(new StubHttpMessageHandler(request =>
         {
-            if (request.RequestUri?.AbsolutePath.EndsWith("/index.json", StringComparison.OrdinalIgnoreCase) == true)
-                return Json(indexJson);
+            if (request.RequestUri?.AbsolutePath.Contains("/apps/", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                Interlocked.Increment(ref manifestRequests);
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            }
 
-            manifestRequests++;
-            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            return CatalogResponse(request, winget, msstore);
         }));
         string cache = Path.Combine(Path.GetTempPath(), $"WinProvisionApiTests-{Guid.NewGuid():N}");
         try
@@ -293,6 +304,30 @@ public class WinProvisionApiReliabilityTests
         {
             if (Directory.Exists(cache)) Directory.Delete(cache, recursive: true);
         }
+    }
+
+    private static (string Manifest, string Index) CreateCatalogFixture(string id, string source)
+    {
+        string prefix = char.IsDigit(id[0]) ? "0-9" : char.ToLowerInvariant(id[0]).ToString();
+        string detailPath = $"apps/{prefix}/{id.Replace('.', '/')}/app.json";
+        string index = $"[{{\"id\":\"{id}\",\"version\":\"1.0\",\"source\":\"{source}\",\"architectures\":[\"x64\"],\"installerCount\":0,\"detailPath\":\"{detailPath}\",\"recordSha256\":\"{new string('a', 64)}\"}}]";
+        string indexSha256 = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(index))).ToLowerInvariant();
+        string manifest = $"{{\"schemaVersion\":2,\"generatedUtc\":\"2026-09-23T00:00:00Z\",\"appCount\":1,\"indexSha256\":\"{indexSha256}\"}}";
+        return (manifest, index);
+    }
+
+    private static HttpResponseMessage CatalogResponse(
+        HttpRequestMessage request,
+        (string Manifest, string Index) winget,
+        (string Manifest, string Index) msstore)
+    {
+        string path = request.RequestUri?.AbsolutePath ?? string.Empty;
+        var fixture = path.Contains("/msstore/", StringComparison.OrdinalIgnoreCase) ? msstore : winget;
+        if (path.EndsWith("/manifest.json", StringComparison.OrdinalIgnoreCase))
+            return Json(fixture.Manifest);
+        if (path.EndsWith("/manifest/search-index.json", StringComparison.OrdinalIgnoreCase))
+            return Json(fixture.Index);
+        return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
 
     private static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK)

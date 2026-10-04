@@ -18,6 +18,7 @@ namespace WinProvision.Core.Services;
 public static partial class OperationRunner
 {
     private static Func<string, Action<string>?, CancellationToken, string?, Action<InstallProgressUpdate>?, string, Task<WingetExecutionResult>>? _installHandler;
+    private static Action<string, string>? _successfulInstallObserver;
     private static Func<bool, Action<string>?, CancellationToken, Task>? _installWarmupHandler;
     private static Func<string, Action<string>?, CancellationToken, string, Action<InstallProgressUpdate>?, Task<WingetExecutionResult>>? _updateHandler;
 
@@ -25,6 +26,17 @@ public static partial class OperationRunner
         Func<string, Action<string>?, CancellationToken, string?, Action<InstallProgressUpdate>?, string, Task<WingetExecutionResult>> installHandler)
     {
         _installHandler = installHandler ?? throw new ArgumentNullException(nameof(installHandler));
+    }
+
+    public static void ConfigureSuccessfulInstallObserver(Action<string, string> observer)
+    {
+        _successfulInstallObserver = observer ?? throw new ArgumentNullException(nameof(observer));
+    }
+
+    private static void ReportSuccessfulInstall(string packageId, string source)
+    {
+        try { _successfulInstallObserver?.Invoke(packageId, source); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[OperationRunner] Métrica de instalação indisponível: {ex.Message}"); }
     }
 
     public static void ConfigureInstallWarmupHandler(
@@ -58,7 +70,7 @@ public static partial class OperationRunner
     /// CLI). Sem handler configurado, usa o <see cref="WingetExecutor"/> diretamente. Usado
     /// também pelo modo /auto, para que ele não rode sempre o winget.exe.
     /// </summary>
-    public static Task<WingetExecutionResult> InstallWithConfiguredHandlerAsync(
+    public static async Task<WingetExecutionResult> InstallWithConfiguredHandlerAsync(
         WingetExecutor executor,
         string appId,
         Action<string>? onLogReceived,
@@ -67,9 +79,13 @@ public static partial class OperationRunner
         Action<InstallProgressUpdate>? onProgress = null,
         string source = "winget")
     {
-        return _installHandler is null
+        Task<WingetExecutionResult> operation = _installHandler is null
             ? executor.InstallAppAsync(appId, onLogReceived, cancellationToken, installLocation, source)
             : _installHandler(appId, onLogReceived, cancellationToken, installLocation, onProgress, source);
+        WingetExecutionResult result = await operation.ConfigureAwait(false);
+        if (result.Success)
+            ReportSuccessfulInstall(appId, source);
+        return result;
     }
 
     public static async Task<WingetExecutionResult> RunInstallAsync(
@@ -121,6 +137,7 @@ public static partial class OperationRunner
 
             if (result.Success)
             {
+                ReportSuccessfulInstall(appId, source);
                 item.IsIndeterminate = false;
                 item.Progress = 100;
             }

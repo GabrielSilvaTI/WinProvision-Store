@@ -112,7 +112,7 @@ def main() -> int:
 
     # Os arquivos de app ficam disponíveis antes de trocar o índice que aponta
     # para eles. As chaves são estáveis; só o conteúdo alterado é enviado.
-    _, changed = upload(search_index)
+    _, changed = upload(search_index, cache_control="no-cache, max-age=0, must-revalidate")
     uploaded += changed
     skipped += not changed
     if manifest.get("mediaIndexSha256"):
@@ -140,7 +140,9 @@ def main() -> int:
             pass
         else:
             client.upload_file(
-                str(manifest_path), bucket, manifest_key,
+                str(manifest_path),
+                bucket,
+                manifest_key,
                 ExtraArgs={
                     "ContentType": "application/json",
                     "CacheControl": "no-cache, max-age=0, must-revalidate",
@@ -152,7 +154,9 @@ def main() -> int:
         if exc.response.get("Error", {}).get("Code") not in {"404", "NoSuchKey", "NotFound"}:
             raise
         client.upload_file(
-            str(manifest_path), bucket, manifest_key,
+            str(manifest_path),
+            bucket,
+            manifest_key,
             ExtraArgs={
                 "ContentType": "application/json",
                 "CacheControl": "no-cache, max-age=0, must-revalidate",

@@ -1,0 +1,392 @@
+name: Catálogos e mídia
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # WinGet: diariamente, 05:00 em Brasília
+    - cron: "0 3 * * 0" # Microsoft Store: domingo, 00:00 em Brasília
+    - cron: "0 17 * * 0" # Saúde pública: domingo, 14:00 em Brasília
+    - cron: "0 11 * * 2,5" # Ícones WinGet: terça e sexta, 08:00 em Brasília
+    - cron: "0 12 * * *" # Destaques: diariamente, 09:00 em Brasília
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Operação
+        type: choice
+        required: true
+        default: winget
+        options: [winget, msstore, featured, media, health, icon_probe]
+      media_mode:
+        description: Modo de captura de mídia
+        type: choice
+        required: false
+        default: manual
+        options: [manual, auto]
+      asset_type:
+        description: Tipo de mídia
+        type: choice
+        required: false
+        default: screenshot
+        options: [icon, screenshot]
+      package_id:
+        description: ID do pacote para mídia manual
+        type: string
+        required: false
+      media_url:
+        description: URL direta de uma imagem
+        type: string
+        required: false
+      media_urls:
+        description: URLs de screenshots (uma por linha ou array JSON)
+        type: string
+        required: false
+      homepage_url:
+        description: Homepage para captura automática
+        type: string
+        required: false
+      scan_prefix:
+        description: Prefixo automático (0-9 ou letra a-z; vazio percorre o cursor atual)
+        type: string
+        required: false
+      batch_size:
+        description: Apps por execução automática
+        type: string
+        required: false
+        default: "100"
+      publish_batch_size:
+        description: Apps por lote de publicação de ícones
+        type: string
+        required: false
+        default: "200"
+      probe_sample_size:
+        description: Apps sondados na verificação de cobertura (0 = todos)
+        type: string
+        required: false
+        default: "300"
+      probe_ids:
+        description: IDs para sondagem, separados por vírgula
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-publisher-${{ github.event_name == 'workflow_dispatch' && inputs.task || github.event.schedule || 'manual' }}
+  cancel-in-progress: false
+
+jobs:
+  winget:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'schedule' && github.event.schedule == '0 8 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.task == 'winget'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: catalog-root-writer
+      cancel-in-progress: false
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements/screenshots.txt
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - name: Instalar dependências
+        run: python -m pip install -r scripts/requirements/screenshots.txt
+      - name: Verificar cache remoto
+        run: python scripts/database/check_catalog_cache.py
+      - name: Baixar manifests da revisão validada do WinGet
+        if: env.CATALOG_CACHE_HIT != 'true'
+        run: |
+          mkdir -p winget-pkgs
+          revision="$WINGET_SOURCE_REVISION"
+          if [ -z "$revision" ]; then
+            revision="$(git ls-remote https://github.com/microsoft/winget-pkgs.git refs/heads/master | cut -f1)"
+          fi
+          curl --fail --location --retry 4 --retry-all-errors --retry-delay 2 \
+            "https://github.com/microsoft/winget-pkgs/archive/${revision}.tar.gz" \
+            --output "$RUNNER_TEMP/winget-pkgs.tar.gz"
+          tar -xzf "$RUNNER_TEMP/winget-pkgs.tar.gz" -C winget-pkgs \
+            --strip-components=1 --wildcards 'winget-pkgs-*/manifests'
+          test -d winget-pkgs/manifests
+      - name: Restaurar caches do R2
+        if: env.CATALOG_CACHE_HIT != 'true'
+        run: |
+          python scripts/database/r2_download.py Store/Database/metrics-cache.json catalog-output/metrics-cache.json
+          python scripts/database/r2_download.py Store/Catalog/manifest/search-index.json catalog-output/apps.previous.json
+          python scripts/database/r2_download.py Store/Catalog/manifest/media-index.json catalog-output/media-index.json
+          if [ ! -s catalog-output/media-index.json ]; then
+            mkdir -p catalog-output
+            printf '{"schemaVersion":1,"apps":{}}\n' > catalog-output/media-index.json
+          fi
+      - name: Gerar dados WinGet no Indexer
+        if: env.CATALOG_CACHE_HIT != 'true'
+        run: dotnet run --project src/WinProvision.Indexer -c Release -- "$GITHUB_WORKSPACE/winget-pkgs/manifests" "$GITHUB_WORKSPACE/catalog-output"
+      - name: Montar catálogo V2
+        if: env.CATALOG_CACHE_HIT != 'true'
+        run: |
+          args=()
+          if [ -n "$WINGET_SOURCE_REVISION" ]; then args+=(--source-revision "$WINGET_SOURCE_REVISION"); fi
+          if [ -n "$CATALOG_BUILD_REVISION" ]; then args+=(--build-revision "$CATALOG_BUILD_REVISION"); fi
+          python scripts/database/build_catalog_v2.py \
+            "$GITHUB_WORKSPACE/catalog-output/apps.json" "$GITHUB_WORKSPACE/catalog-output/catalog-v2" \
+            --media-index "$GITHUB_WORKSPACE/catalog-output/media-index.json" "${args[@]}"
+      - name: Validar retenção do catálogo
+        if: env.CATALOG_CACHE_HIT != 'true'
+        run: >-
+          python scripts/database/validate_catalog.py catalog-output/apps.json
+          --previous catalog-output/apps.previous.json --min-count 5000 --min-retention 0.70
+      - name: Publicar V2 no R2
+        if: env.CATALOG_CACHE_HIT != 'true'
+        env:
+          CATALOG_V2_SOURCE: ${{ github.workspace }}/catalog-output/catalog-v2
+        run: |
+          python scripts/database/r2_upload.py catalog-output/metrics-cache.json Store/Database/metrics-cache.json
+          python scripts/database/upload_catalog_v2.py
+
+  msstore:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'schedule' && github.event.schedule == '0 3 * * 0') ||
+      (github.event_name == 'workflow_dispatch' && inputs.task == 'msstore'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: catalog-msstore-writer
+      cancel-in-progress: false
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements/msstore.txt
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - name: Instalar dependências
+        run: python -m pip install -r scripts/requirements/msstore.txt
+      - name: Restaurar índice anterior e cache de assets
+        run: |
+          python scripts/database/r2_download.py Store/Catalog/msstore/manifest/asset-cache.json msstore-output/msstore-assets-map.json
+          python scripts/database/r2_download.py Store/Catalog/msstore/manifest/search-index.json msstore-output/msstore-catalog.previous.json
+      - name: Gerar catálogo da Microsoft Store
+        run: dotnet run --project src/WinProvision.Indexer -c Release -- --msstore "$GITHUB_WORKSPACE/msstore-output"
+      - name: Validar catálogo e retenção
+        run: >-
+          python scripts/database/validate_catalog.py msstore-output/msstore-catalog.json
+          --previous msstore-output/msstore-catalog.previous.json --min-count 20
+          --min-retention 0.50 --expected-source msstore
+      - name: Sincronizar mídia e publicar catálogo V2
+        env:
+          MSSTORE_CATALOG_SOURCE: ${{ github.workspace }}/msstore-output/catalog
+        run: |
+          python scripts/database/sync_msstore_catalog_media.py \
+            msstore-output/msstore-catalog.json \
+            --map msstore-output/msstore-assets-map.json \
+            --previous msstore-output/msstore-catalog.previous.json
+          python scripts/database/r2_upload.py msstore-output/msstore-assets-map.json Store/Catalog/msstore/manifest/asset-cache.json
+          python scripts/database/build_msstore_catalog.py msstore-output/msstore-catalog.json msstore-output/catalog
+          python scripts/database/upload_msstore_catalog.py
+
+  featured:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'schedule' && github.event.schedule == '0 12 * * *') ||
+      (github.event_name == 'workflow_dispatch' && inputs.task == 'featured'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: catalog-root-writer
+      cancel-in-progress: false
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+      INSTALL_METRICS_URL: https://winprovision-store-metrics.gabriel-silva20090.workers.dev/v1/stats
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements/base.txt
+      - name: Instalar dependências
+        run: python -m pip install -r scripts/requirements/base.txt
+      - name: Baixar índices atuais do catálogo V2
+        run: |
+          python scripts/database/r2_download.py Store/Catalog/manifest/search-index.json featured-output/winget-search-index.json
+          python scripts/database/r2_download.py Store/Catalog/msstore/manifest/search-index.json featured-output/msstore-search-index.json
+          test -s featured-output/winget-search-index.json
+      - name: Gerar ranking e coleções por categoria
+        run: >-
+          python scripts/database/build_featured_catalog.py
+          --winget-index featured-output/winget-search-index.json
+          --msstore-index featured-output/msstore-search-index.json
+          --metrics-url "$INSTALL_METRICS_URL"
+          --output featured-output/featured.json
+      - name: Publicar destaques V2
+        run: python scripts/database/r2_upload.py featured-output/featured.json Store/Catalog/manifest/featured.json
+
+  media:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.task == 'media'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    concurrency:
+      group: catalog-root-writer
+      cancel-in-progress: false
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            scripts/requirements/icons.txt
+            scripts/requirements/screenshots.txt
+      - name: Instalar dependências de mídia
+        run: python -m pip install -r scripts/requirements/icons.txt -r scripts/requirements/screenshots.txt
+      - name: Capturar e publicar mídia
+        env:
+          MEDIA_MODE: ${{ inputs.media_mode }}
+          ASSET_TYPE: ${{ inputs.asset_type }}
+          PACKAGE_ID: ${{ inputs.package_id }}
+          MEDIA_URL: ${{ inputs.media_url }}
+          MEDIA_URLS_TEXT: ${{ inputs.media_urls }}
+          HOMEPAGE_URL: ${{ inputs.homepage_url }}
+          SCAN_PREFIX: ${{ inputs.scan_prefix }}
+          BATCH_SIZE: ${{ inputs.batch_size }}
+          PUBLISH_BATCH_SIZE: ${{ inputs.publish_batch_size }}
+        run: |
+          args=(--mode "$MEDIA_MODE" --type "$ASSET_TYPE" --batch-size "$BATCH_SIZE" \
+            --publish-batch-size "$PUBLISH_BATCH_SIZE" --scan-prefix "$SCAN_PREFIX" \
+            --out catalog-media-report.json)
+          if [ -n "$PACKAGE_ID" ]; then args+=(--package-id "$PACKAGE_ID"); fi
+          if [ -n "$MEDIA_URL" ]; then args+=(--url "$MEDIA_URL"); fi
+          if [ -n "$MEDIA_URLS_TEXT" ]; then args+=(--urls-text "$MEDIA_URLS_TEXT"); fi
+          if [ -n "$HOMEPAGE_URL" ]; then args+=(--homepage-url "$HOMEPAGE_URL"); fi
+          python scripts/database/catalog_media.py "${args[@]}"
+      - name: Anexar relatório
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: catalog-media-report
+          path: catalog-media-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  scheduled-icons:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'schedule' && github.event.schedule == '0 11 * * 2,5'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: catalog-root-writer
+      cancel-in-progress: false
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET_NAME || secrets.R2_BUCKET || 'winprovision' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            scripts/requirements/icons.txt
+            scripts/requirements/screenshots.txt
+      - name: Instalar dependências de mídia
+        run: python -m pip install -r scripts/requirements/icons.txt -r scripts/requirements/screenshots.txt
+      - name: Atualizar ícones automaticamente por lotes
+        run: >-
+          python scripts/database/catalog_media.py --mode auto --type icon
+          --batch-size 100 --publish-batch-size 200 --out catalog-icons-report.json
+      - name: Anexar relatório
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: catalog-icons-report
+          path: catalog-icons-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  health:
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 17 * * 0') ||
+      (github.event_name == 'workflow_dispatch' && inputs.task == 'health')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements/screenshots.txt
+      - name: Instalar dependências
+        run: python -m pip install -r scripts/requirements/screenshots.txt
+      - name: Validar os catálogos públicos
+        run: >-
+          python scripts/database/catalog_health.py --report-dir catalog-health-report
+          --workers 24 --max-media-urls 500 --max-failure-rate 0.01
+      - name: Anexar relatório de saúde
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: catalog-health-report
+          path: catalog-health-report
+          if-no-files-found: ignore
+          retention-days: 14
+
+  icon-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.task == 'icon_probe'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements/screenshots.txt
+      - name: Instalar dependências
+        run: python -m pip install -r scripts/requirements/screenshots.txt
+      - name: Medir cobertura da CDN WinGet
+        env:
+          PROBE_SAMPLE_SIZE: ${{ inputs.probe_sample_size }}
+          PROBE_IDS: ${{ inputs.probe_ids }}
+        run: |
+          args=(--sample "$PROBE_SAMPLE_SIZE" --out probe-report)
+          if [ -n "$PROBE_IDS" ]; then args+=(--ids "$PROBE_IDS"); fi
+          python scripts/icons/probe_cdn_icons.py "${args[@]}"
+      - name: Anexar relatório
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: winget-icon-probe
+          path: probe-report
+          if-no-files-found: ignore
+          retention-days: 14

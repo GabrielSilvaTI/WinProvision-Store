@@ -545,8 +545,8 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
-                                    <TextBlock Text="Cache local de instaladores" FontWeight="SemiBold" />
-                                    <TextBlock Text="Remove os instaladores temporários baixados pelo aplicativo para liberar espaço em disco."
+                                    <TextBlock Text="Caches locais do WinProvision" FontWeight="SemiBold" />
+                                    <TextBlock Text="Remove índices de busca, detalhes de pacotes e instaladores guardados. Eles serão baixados novamente quando necessário."
                                                FontSize="13"
                                                Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                TextWrapping="Wrap"

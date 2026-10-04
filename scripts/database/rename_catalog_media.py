@@ -14,13 +14,10 @@ from urllib.parse import quote, unquote
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
-
 from catalog_media_naming import banner_filename, icon_filename, screenshot_filename, screenshot_slot
 
 BUCKET = os.environ.get("R2_BUCKET") or "winprovision"
-PUBLIC_BASE = os.environ.get(
-    "R2_PUBLIC_BASE", "https://pub-166b41912a994dbe86583ba10596d673.r2.dev"
-).rstrip("/")
+PUBLIC_BASE = os.environ.get("R2_PUBLIC_BASE", "https://pub-166b41912a994dbe86583ba10596d673.r2.dev").rstrip("/")
 CATALOGS = ("Store/Catalog", "Store/Catalog/msstore")
 
 
@@ -125,7 +122,9 @@ def migrate_catalog(client, prefix: str, apply: bool) -> tuple[int, int, int]:
 
         screenshots = media.get("screenshots") if isinstance(media.get("screenshots"), list) else []
         new_screenshots = []
-        screenshot_labels = dict(media.get("screenshotLabels", {})) if isinstance(media.get("screenshotLabels"), dict) else {}
+        screenshot_labels = (
+            dict(media.get("screenshotLabels", {})) if isinstance(media.get("screenshotLabels"), dict) else {}
+        )
         screenshot_hashes = {}
         for number, item in enumerate(screenshots, start=1):
             old_path = safe_media_path(item)
@@ -224,16 +223,43 @@ def migrate_catalog(client, prefix: str, apply: bool) -> tuple[int, int, int]:
     manifest["mediaIndexSha256"] = hashlib.sha256(media_bytes).hexdigest()
     manifest["generatedUtc"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-    print(f"{prefix}: {changed_assets} objeto(s) de mídia para renomear; {changed_details} detalhes afetados.", flush=True)
+    print(
+        f"{prefix}: {changed_assets} objeto(s) de mídia para renomear; {changed_details} detalhes afetados.", flush=True
+    )
     if not apply:
         return changed_assets, changed_details, len(source_keys)
 
-    client.put_object(Bucket=BUCKET, Key=media_key, Body=media_bytes, ContentType="application/json", CacheControl="no-cache, max-age=0, must-revalidate")
+    client.put_object(
+        Bucket=BUCKET,
+        Key=media_key,
+        Body=media_bytes,
+        ContentType="application/json",
+        CacheControl="no-cache, max-age=0, must-revalidate",
+    )
     for detail_key, detail, _ in details:
         detail_bytes = compact(detail)
-        client.put_object(Bucket=BUCKET, Key=detail_key, Body=detail_bytes, ContentType="application/json", CacheControl="public, max-age=300, must-revalidate", Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()})
-    client.put_object(Bucket=BUCKET, Key=index_key, Body=index_bytes, ContentType="application/json", CacheControl="no-cache, max-age=0, must-revalidate")
-    client.put_object(Bucket=BUCKET, Key=manifest_key, Body=compact(manifest), ContentType="application/json", CacheControl="no-cache, max-age=0, must-revalidate")
+        client.put_object(
+            Bucket=BUCKET,
+            Key=detail_key,
+            Body=detail_bytes,
+            ContentType="application/json",
+            CacheControl="public, max-age=300, must-revalidate",
+            Metadata={"sha256": hashlib.sha256(detail_bytes).hexdigest()},
+        )
+    client.put_object(
+        Bucket=BUCKET,
+        Key=index_key,
+        Body=index_bytes,
+        ContentType="application/json",
+        CacheControl="no-cache, max-age=0, must-revalidate",
+    )
+    client.put_object(
+        Bucket=BUCKET,
+        Key=manifest_key,
+        Body=compact(manifest),
+        ContentType="application/json",
+        CacheControl="no-cache, max-age=0, must-revalidate",
+    )
 
     orphaned = source_keys - destination_keys
     keys_to_delete = sorted(orphaned)
@@ -251,7 +277,9 @@ def migrate_catalog(client, prefix: str, apply: bool) -> tuple[int, int, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--apply", action="store_true", help="copia, atualiza os catálogos e remove nomes antigos após publicar")
+    parser.add_argument(
+        "--apply", action="store_true", help="copia, atualiza os catálogos e remove nomes antigos após publicar"
+    )
     args = parser.parse_args()
     try:
         client = client_from_env()
@@ -260,7 +288,9 @@ def main() -> int:
             values = migrate_catalog(client, prefix, args.apply)
             totals = [left + right for left, right in zip(totals, values, strict=True)]
         action = "Migração concluída" if args.apply else "Prévia concluída"
-        print(f"{action}: {totals[0]} mídias renomeadas; {totals[1]} detalhes revisados; {totals[2]} chaves antigas removíveis.")
+        print(
+            f"{action}: {totals[0]} mídias renomeadas; {totals[1]} detalhes revisados; {totals[2]} chaves antigas removíveis."
+        )
         if not args.apply:
             print("Nenhum objeto foi alterado. Adicione --apply para publicar a migração.")
         return 0

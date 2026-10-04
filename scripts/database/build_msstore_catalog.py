@@ -76,18 +76,45 @@ def build(source_path: Path, destination: Path) -> dict:
             detail = dict(app)
             detail.pop("detailPath", None)
             detail.pop("recordSha256", None)
+            detail.pop("storeIconUrl", None)
+            detail.pop("storeBannerUrl", None)
+            detail.pop("storeScreenshotUrls", None)
             body = write_json(staging.joinpath(*path.split("/")), detail)
             record_hash = hashlib.sha256(body).hexdigest()
             digest.update(path.encode("utf-8"))
             digest.update(b"\0")
             digest.update(bytes.fromhex(record_hash))
             fields = (
-                "id", "name", "publisher", "source", "packageLocale", "storeIconUrl", "storeBannerUrl",
-                "storeCategory", "storeSubCategory", "storeRating", "storeRatingCount", "version", "description",
-                "homepage", "packageUrl", "publisherUrl", "score", "moniker", "tags", "regionTags", "media",
-                "screenshotUrls", "storeScreenshotUrls", "license", "licenseUrl", "releaseNotesUrl",
-                "architectures", "hasGitHubMetrics", "gitHubStars", "installerSizeBytes", "office",
-                "detailPath", "recordSha256",
+                "id",
+                "name",
+                "publisher",
+                "source",
+                "packageLocale",
+                "storeCategory",
+                "storeSubCategory",
+                "storeRating",
+                "storeRatingCount",
+                "version",
+                "description",
+                "homepage",
+                "packageUrl",
+                "publisherUrl",
+                "score",
+                "moniker",
+                "tags",
+                "regionTags",
+                "media",
+                "screenshotUrls",
+                "license",
+                "licenseUrl",
+                "releaseNotesUrl",
+                "architectures",
+                "hasGitHubMetrics",
+                "gitHubStars",
+                "installerSizeBytes",
+                "office",
+                "detailPath",
+                "recordSha256",
             )
             row = {field: detail[field] for field in fields if field in detail}
             row["detailPath"] = quote(path, safe="/")
@@ -99,7 +126,11 @@ def build(source_path: Path, destination: Path) -> dict:
                 media_apps[app["id"].casefold()] = app["media"]
 
         index_body = write_json(staging / "manifest" / "search-index.json", rows)
-        media_document = {"schemaVersion": 1, "generatedUtc": datetime.now(UTC).isoformat().replace("+00:00", "Z"), "apps": media_apps}
+        media_document = {
+            "schemaVersion": 1,
+            "generatedUtc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "apps": media_apps,
+        }
         media_body = write_json(staging / "manifest" / "media-index.json", media_document)
         digest.update(hashlib.sha256(index_body).digest())
         manifest = {

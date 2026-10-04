@@ -20,7 +20,9 @@ def _is_safe_package_id(package_id: str) -> bool:
         bool(package_id)
         and len(package_id) <= 128
         and package_id[0].isalnum()
-        and all(character.isprintable() and not character.isspace() and character not in "/\\" for character in package_id)
+        and all(
+            character.isprintable() and not character.isspace() and character not in "/\\" for character in package_id
+        )
         and all(part not in {"", ".", ".."} for part in package_id.split("."))
     )
 
@@ -45,7 +47,9 @@ def _detail_url_path(package_id: str) -> str:
     return quote(_detail_path(package_id), safe="/")
 
 
-def cache_fingerprint(source_revision: str | None, build_revision: str | None, msstore_sha256: str | None) -> str | None:
+def cache_fingerprint(
+    source_revision: str | None, build_revision: str | None, msstore_sha256: str | None
+) -> str | None:
     values = (source_revision, build_revision, msstore_sha256) if msstore_sha256 else (source_revision, build_revision)
     if any(not isinstance(value, str) or not value.strip() for value in values):
         return None
@@ -81,7 +85,9 @@ def build_catalog_v2(
         media_entries = media_document.get("apps", {}) if isinstance(media_document, dict) else None
         if not isinstance(media_entries, dict):
             raise ValueError("media-index.json precisa conter o objeto 'apps'")
-        media_by_id = {str(package_id).casefold(): value for package_id, value in media_entries.items() if isinstance(value, dict)}
+        media_by_id = {
+            str(package_id).casefold(): value for package_id, value in media_entries.items() if isinstance(value, dict)
+        }
 
     seen: set[str] = set()
     ordered: list[dict] = []
@@ -113,8 +119,14 @@ def build_catalog_v2(
                 screenshot_hashes = app["media"].get("screenshotSha256", {})
                 app["screenshotUrls"] = [
                     "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/"
-                    + base_path + "/" + quote(path, safe="/")
-                    + ("?v=" + screenshot_hashes[path][:16] if isinstance(screenshot_hashes, dict) and isinstance(screenshot_hashes.get(path), str) else "")
+                    + base_path
+                    + "/"
+                    + quote(path, safe="/")
+                    + (
+                        "?v=" + screenshot_hashes[path][:16]
+                        if isinstance(screenshot_hashes, dict) and isinstance(screenshot_hashes.get(path), str)
+                        else ""
+                    )
                     for path in screenshot_paths
                     if isinstance(path, str) and path.startswith("media/screenshots/")
                 ]
@@ -196,7 +208,9 @@ def build_catalog_v2(
             "installerSchemaVersion": 1,
             "inputFingerprint": cache_fingerprint(source_revision, build_revision, msstore_sha256),
             "indexSha256": hashlib.sha256(index_bytes).hexdigest(),
-            "mediaIndexSha256": hashlib.sha256(media_index_bytes).hexdigest() if media_index_bytes is not None else None,
+            "mediaIndexSha256": hashlib.sha256(media_index_bytes).hexdigest()
+            if media_index_bytes is not None
+            else None,
         }
         _write_json(staging / "manifest.json", manifest)
         validate_catalog_v2(staging)
@@ -235,7 +249,9 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
         raise ValueError("catalog-v2 não inclui o contrato de instaladores")
     if manifest.get("appCount") != len(search) or not search:
         raise ValueError("contagem do manifesto não corresponde ao índice de busca")
-    if not isinstance(manifest.get("catalogSha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", manifest["catalogSha256"]):
+    if not isinstance(manifest.get("catalogSha256"), str) or not re.fullmatch(
+        r"[0-9a-f]{64}", manifest["catalogSha256"]
+    ):
         raise ValueError("catalogSha256 ausente ou inválido")
     index_digest = hashlib.sha256(search_path.read_bytes()).hexdigest()
     if manifest.get("indexSha256") != index_digest:
@@ -243,7 +259,10 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
     media_index_path = root / "manifest" / "media-index.json"
     media_index_hash = manifest.get("mediaIndexSha256")
     if media_index_hash:
-        if not media_index_path.is_file() or hashlib.sha256(media_index_path.read_bytes()).hexdigest() != media_index_hash:
+        if (
+            not media_index_path.is_file()
+            or hashlib.sha256(media_index_path.read_bytes()).hexdigest() != media_index_hash
+        ):
             raise ValueError("media-index.json ausente ou seu hash diverge do manifesto")
     expected_fingerprint = cache_fingerprint(
         manifest.get("sourceRevision"),
@@ -325,7 +344,15 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
             "screenshotUrls",
             "storeScreenshotUrls",
         )
-        defaults = {"publisher": "", "source": "winget", "version": "", "score": 0, "tags": [], "regionTags": [], "architectures": []}
+        defaults = {
+            "publisher": "",
+            "source": "winget",
+            "version": "",
+            "score": 0,
+            "tags": [],
+            "regionTags": [],
+            "architectures": [],
+        }
         if any(row.get(field) != detail.get(field, defaults.get(field)) for field in comparable_fields):
             raise ValueError(f"resumo diverge dos detalhes para {package_id}")
 

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Formatação e configuração
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.x"
+      - name: Verificar formatação C#
+        run: |
+          dotnet format whitespace src --folder --verify-no-changes --verbosity normal
+          dotnet format whitespace tests --folder --verify-no-changes --verbosity normal
+          dotnet format whitespace WinProvision.Store --folder --verify-no-changes --verbosity normal
+      - name: Verificar formatação XAML
+        run: |
+          dotnet tool install --global XamlStyler.Console --version 3.2501.8
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          "$HOME/.dotnet/tools/xstyler" --passive --recursive --directory WinProvision.Store --config Settings.XamlStyler
+      - name: Verificar Python
+        uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version: "0.16.8"
+          src: scripts
+      - name: Verificar formatação Python
+        uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version: "0.16.8"
+          src: scripts
+          args: "format --check --diff"
+      - name: Verificar sintaxe dos workflows
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.11
+          "$HOME/go/bin/actionlint" -color
+
+  build:
+    name: Compilar cliente e Indexer
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Compilar Indexer
+        run: dotnet build src/WinProvision.Indexer/WinProvision.Indexer.csproj -c Release
+      - name: Compilar app WPF
+        run: dotnet build WinProvision.Store/WinProvision.Store.csproj -c Release
+      - name: Executar testes unitários
+        run: >-
+          dotnet test tests/WinProvision.Core.IntegrationTests/WinProvision.Core.IntegrationTests.csproj
+          -c Release --filter "Category=Unit" --logger "console;verbosity=minimal"

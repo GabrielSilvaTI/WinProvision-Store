@@ -44,7 +44,7 @@ def legacy_object(url: str, expected_id: str) -> tuple[str, str] | None:
     if not parsed.path.startswith("/" + LEGACY_PREFIX):
         return None
     key = unquote(parsed.path.lstrip("/"))
-    parts = key[len(LEGACY_PREFIX):].split("/")
+    parts = key[len(LEGACY_PREFIX) :].split("/")
     if len(parts) == 2:
         folder, filename = parts
         source = "winget"
@@ -75,8 +75,10 @@ def content_label(source: str, key: str) -> str:
     filename = key.rsplit("/", 1)[-1]
     stem = filename.rsplit(".", 1)[0]
     if source == "homepage" and stem.casefold().startswith("screenshot-"):
-        stem = stem[len("screenshot-"):]
-    token = stem.casefold() if re.fullmatch(r"[0-9a-fA-F]{64}", stem) else hashlib.sha256(key.encode("utf-8")).hexdigest()
+        stem = stem[len("screenshot-") :]
+    token = (
+        stem.casefold() if re.fullmatch(r"[0-9a-fA-F]{64}", stem) else hashlib.sha256(key.encode("utf-8")).hexdigest()
+    )
     return f"legacy-{source}-{token[:12]}"
 
 
@@ -86,7 +88,11 @@ def read_legacy_index(client) -> dict:
         document = json.loads(body)
     except json.JSONDecodeError as exc:
         raise ValueError("Store/Database/screenshot-index.json contém JSON inválido.") from exc
-    if not isinstance(document, dict) or document.get("schemaVersion") != 1 or not isinstance(document.get("packages"), dict):
+    if (
+        not isinstance(document, dict)
+        or document.get("schemaVersion") != 1
+        or not isinstance(document.get("packages"), dict)
+    ):
         raise ValueError("Store/Database/screenshot-index.json inválido.")
     return document
 
@@ -171,11 +177,24 @@ def load_plan(client) -> tuple[dict, list[dict], dict, list[dict], dict]:
                 label = content_label(source_name, object_key)
                 if any(Path(path).stem.casefold().endswith("-" + label.casefold()) for path in existing_paths):
                     counts["alreadyMigrated"] += 1
-                    plan.append({"id": package_id, "sourceKey": object_key, "label": label, "status": "already-migrated"})
+                    plan.append(
+                        {"id": package_id, "sourceKey": object_key, "label": label, "status": "already-migrated"}
+                    )
                     continue
-                candidates.append({"id": package_id, "sourceKey": object_key, "source": source_name, "label": label, "url": url, "status": "ready"})
+                candidates.append(
+                    {
+                        "id": package_id,
+                        "sourceKey": object_key,
+                        "source": source_name,
+                        "label": label,
+                        "url": url,
+                        "status": "ready",
+                    }
+                )
 
-        candidates.sort(key=lambda item: (0 if item["source"] == "winget" else 1, item["sourceKey"].casefold(), item["sourceKey"]))
+        candidates.sort(
+            key=lambda item: (0 if item["source"] == "winget" else 1, item["sourceKey"].casefold(), item["sourceKey"])
+        )
         for item in candidates:
             counts["eligibleScreenshots"] += 1
             plan.append(item)
@@ -225,7 +244,11 @@ def resume_plan(client, index: list[dict], media_index: dict, initial_plan: list
     document = read_legacy_index(client)
     catalog_by_normalized_id: dict[str, list[dict]] = {}
     for row in index:
-        if isinstance(row, dict) and isinstance(row.get("id"), str) and str(row.get("source", "winget")).casefold() != "msstore":
+        if (
+            isinstance(row, dict)
+            and isinstance(row.get("id"), str)
+            and str(row.get("source", "winget")).casefold() != "msstore"
+        ):
             catalog_by_normalized_id.setdefault(normalize_id(row["id"]), []).append(row)
     paginator = client.get_paginator("list_objects_v2")
     existing_keys = {
@@ -260,8 +283,19 @@ def resume_plan(client, index: list[dict], media_index: dict, initial_plan: list
                 label = content_label(source, key)
                 if any(Path(path).stem.casefold().endswith("-" + label.casefold()) for path in existing_paths):
                     continue
-                pending.append({"id": package_id, "sourceKey": key, "source": source, "label": label, "url": url, "status": "ready"})
-    initial_ready = {(item.get("id", "").casefold(), item.get("sourceKey")) for item in initial_plan if item.get("status") == "ready"}
+                pending.append(
+                    {
+                        "id": package_id,
+                        "sourceKey": key,
+                        "source": source,
+                        "label": label,
+                        "url": url,
+                        "status": "ready",
+                    }
+                )
+    initial_ready = {
+        (item.get("id", "").casefold(), item.get("sourceKey")) for item in initial_plan if item.get("status") == "ready"
+    }
     return [item for item in pending if (item["id"].casefold(), item["sourceKey"]) in initial_ready]
 
 
@@ -296,7 +330,10 @@ def main() -> int:
             for offset in range(0, len(ready), args.batch_size):
                 batch = ready[offset : offset + args.batch_size]
                 published, unchanged = publish_batch(client, manifest, index, media_index, batch)
-                print(f"Lote {offset // args.batch_size + 1}: {published} screenshot(s) publicada(s), {unchanged} já existente(s); última: {batch[-1]['id']}", flush=True)
+                print(
+                    f"Lote {offset // args.batch_size + 1}: {published} screenshot(s) publicada(s), {unchanged} já existente(s); última: {batch[-1]['id']}",
+                    flush=True,
+                )
                 args.report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         else:
             report["counts"]["eligibleToCopy"] = len(ready)

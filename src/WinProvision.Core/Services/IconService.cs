@@ -53,7 +53,7 @@ public class IconService
     /// </summary>
     public string ResolveIconUrl(AppEntry app)
     {
-        if (TryGetCatalogMediaUrl(app, app.Media?.Icon, app.Media?.IconSha256) is { } catalogIcon)
+        if (ResolveCatalogMediaUrl(app, app.Media?.Icon, app.Media?.IconSha256) is { } catalogIcon)
             return catalogIcon;
 
         // Apps "msstore" usam o ícone fornecido pela própria Microsoft Store.
@@ -65,7 +65,30 @@ public class IconService
         return DefaultIconPackUri;
     }
 
-    private static string? TryGetCatalogMediaUrl(AppEntry app, string? mediaPath, string? sha256)
+    public string? ResolveBannerUrl(AppEntry app) =>
+        ResolveCatalogMediaUrl(app, app.Media?.Banner, app.Media?.BannerSha256)
+        ?? app.StoreBannerUrl;
+
+    public List<string> ResolveScreenshotUrls(AppEntry app)
+    {
+        if (app.Media?.Screenshots is { Count: > 0 } paths)
+        {
+            List<string> urls = paths
+                .Select(path => ResolveCatalogMediaUrl(
+                    app,
+                    path,
+                    app.Media?.ScreenshotSha256?.GetValueOrDefault(path)))
+                .Where(url => !string.IsNullOrWhiteSpace(url))
+                .Cast<string>()
+                .ToList();
+            if (urls.Count > 0)
+                return urls;
+        }
+
+        return app.StoreScreenshotUrls ?? app.ScreenshotUrls ?? [];
+    }
+
+    public static string? ResolveCatalogMediaUrl(AppEntry app, string? mediaPath, string? sha256)
     {
         if (string.IsNullOrWhiteSpace(mediaPath)
             || string.IsNullOrWhiteSpace(app.CatalogDetailPath)

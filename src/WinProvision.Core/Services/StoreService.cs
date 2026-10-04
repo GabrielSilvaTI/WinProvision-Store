@@ -43,6 +43,7 @@ public class StoreService
     private string? _loadedSearchIndexCacheFilePath;
     private string? _catalogSha256;
     private int _cacheGeneration;
+    private bool _startupRevalidationScheduled;
 
     private static readonly TimeSpan CatalogCacheTtl = TimeSpan.FromHours(6);
 
@@ -81,13 +82,22 @@ public class StoreService
         try
         {
             if (forceRefresh)
+            {
+                _startupRevalidationScheduled = true;
                 return await RefreshCacheInBackgroundAsync(cancellationToken, forceRefresh: true);
+            }
 
             if (_cachedCatalog.Count > 0)
             {
-                bool stale = IsCacheStale();
-                if (stale)
+                if (!_startupRevalidationScheduled)
+                {
+                    _startupRevalidationScheduled = true;
+                    _ = RefreshCacheInBackgroundAsync(CancellationToken.None, revalidateRemote: true);
+                }
+                else if (IsCacheStale())
+                {
                     _ = RefreshCacheInBackgroundAsync(CancellationToken.None);
+                }
                 return _cachedCatalog;
             }
 
@@ -96,12 +106,13 @@ public class StoreService
                 RemoveLegacyScreenshotLinks(_cachedCatalog);
                 PopulateIcons(_cachedCatalog);
 
-                if (IsCacheStale())
-                    _ = RefreshCacheInBackgroundAsync(CancellationToken.None);
+                _startupRevalidationScheduled = true;
+                _ = RefreshCacheInBackgroundAsync(CancellationToken.None, revalidateRemote: true);
 
                 return _cachedCatalog;
             }
 
+            _startupRevalidationScheduled = true;
             return await FetchAndSaveRemoteCatalogAsync(cancellationToken);
         }
         finally
@@ -214,6 +225,9 @@ public class StoreService
         details.CatalogDetailCatalogSha256 = summary.CatalogDetailCatalogSha256;
         details.Media = summary.Media;
         details.IconUrl = _iconService.ResolveIconUrl(details);
+        details.StoreBannerUrl = _iconService.ResolveBannerUrl(details);
+        if (string.Equals(details.Source, "msstore", StringComparison.OrdinalIgnoreCase))
+            details.StoreScreenshotUrls = _iconService.ResolveScreenshotUrls(details);
         RemoveLegacyScreenshotLinks([details]);
         return details;
     }
@@ -243,7 +257,11 @@ public class StoreService
             if (!File.Exists(indexPath))
                 return TryLoadLegacyCatalog();
 
-            var catalog = JsonSerializer.Deserialize<List<AppEntry>>(File.ReadAllText(indexPath), _jsonOptions);
+            string indexJson = File.ReadAllText(indexPath);
+            if (!HasExpectedHash(indexJson, manifest.IndexSha256))
+                throw new JsonException("O índice local não corresponde ao hash do manifesto.");
+
+            var catalog = JsonSerializer.Deserialize<List<AppEntry>>(indexJson, _jsonOptions);
             if (catalog is null || catalog.Count != manifest.AppCount || catalog.Count == 0 || !ValidateSearchEntries(catalog))
                 throw new JsonException("Índice local do catálogo v2 incompleto ou inválido.");
 
@@ -408,14 +426,15 @@ public class StoreService
 
     private async Task<List<AppEntry>> FetchAndSaveRemoteCatalogAsync(
         CancellationToken cancellationToken = default,
-        bool forceRefresh = false)
+        bool forceRefresh = false,
+        bool revalidateRemote = false)
     {
         int generation = Volatile.Read(ref _cacheGeneration);
         try
         {
             Task<RemoteTextResult> manifestDownload = FetchTextWithCacheAsync(
                 CatalogManifestUrl, _catalogManifestCacheFilePath, _catalogManifestEtagPath,
-                _catalogManifestLastModifiedPath, forceRefresh, cancellationToken);
+                _catalogManifestLastModifiedPath, forceRefresh || revalidateRemote, cancellationToken);
             RemoteTextResult manifestResult = await manifestDownload;
             if (manifestResult.Content is null)
                 return _cachedCatalog;
@@ -477,6 +496,8 @@ public class StoreService
                 Directory.CreateDirectory(_cacheDirectory);
                 await CommitRemoteTextAsync(_catalogManifestCacheFilePath, manifestResult, cancellationToken);
                 await CommitRemoteTextAsync(indexPath, indexResult, cancellationToken);
+                PruneSearchIndexCache(indexPath);
+                PruneMsStoreIndexCache(msStoreCatalog);
                 CatalogUpdated?.Invoke(_cachedCatalog);
             }
 
@@ -499,6 +520,9 @@ public class StoreService
         foreach (var app in catalog)
         {
             app.IconUrl = _iconService.ResolveIconUrl(app);
+            app.StoreBannerUrl = _iconService.ResolveBannerUrl(app);
+            if (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase))
+                app.StoreScreenshotUrls = _iconService.ResolveScreenshotUrls(app);
         }
     }
 
@@ -581,6 +605,47 @@ public class StoreService
 
     private string GetSearchIndexCachePath(string catalogSha256) =>
         Path.Combine(_cacheDirectory, $"catalog-v2-search-{catalogSha256}.json");
+
+    private void PruneSearchIndexCache(string currentPath)
+    {
+        PruneVersionedCacheFiles("catalog-v2-search-*.json*", currentPath);
+    }
+
+    private void PruneMsStoreIndexCache(IReadOnlyList<AppEntry> currentCatalog)
+    {
+        string? catalogHash = currentCatalog.FirstOrDefault()?.CatalogDetailCatalogSha256;
+        string? currentPath = catalogHash is null
+            ? null
+            : Path.Combine(_cacheDirectory, $"msstore-catalog-{catalogHash}.json");
+        PruneVersionedCacheFiles("msstore-catalog-*.json*", currentPath);
+    }
+
+    private void PruneVersionedCacheFiles(string pattern, string? currentPath)
+    {
+        try
+        {
+            if (!Directory.Exists(_cacheDirectory))
+                return;
+
+            string? fullCurrentPath = currentPath is null ? null : Path.GetFullPath(currentPath);
+            foreach (string path in Directory.EnumerateFiles(_cacheDirectory, pattern))
+            {
+                if (fullCurrentPath is not null)
+                {
+                    string fullPath = Path.GetFullPath(path);
+                    if (string.Equals(fullPath, fullCurrentPath, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(fullPath, fullCurrentPath + ".etag", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(fullPath, fullCurrentPath + ".lastmodified", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"[StoreService] Não foi possível remover índices de catálogo antigos: {ex.Message}");
+        }
+    }
 
     private static bool IsValidManifest(CatalogManifest? manifest) =>
         manifest is { SchemaVersion: 2, AppCount: > 0 }
@@ -813,7 +878,9 @@ public class StoreService
                 throw new JsonException("Índice do subcatálogo MS Store incompleto ou inválido.");
             SetCatalogRoute(apps, MsStoreCatalogBaseUrl, manifest.CatalogSha256);
             Directory.CreateDirectory(_cacheDirectory);
-            await File.WriteAllTextAsync(indexPath, indexJson, cancellationToken);
+            string temporaryPath = indexPath + ".tmp";
+            await File.WriteAllTextAsync(temporaryPath, indexJson, cancellationToken);
+            File.Move(temporaryPath, indexPath, overwrite: true);
             return apps;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -833,6 +900,20 @@ public class StoreService
         {
             app.CatalogDetailBaseUrl = baseUrl;
             app.CatalogDetailCatalogSha256 = catalogHash;
+            app.StoreBannerUrl = IconService.ResolveCatalogMediaUrl(app, app.Media?.Banner, app.Media?.BannerSha256)
+                ?? app.StoreBannerUrl;
+            if (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase)
+                && app.Media?.Screenshots is { Count: > 0 })
+            {
+                app.StoreScreenshotUrls = app.Media.Screenshots
+                    .Select(path => IconService.ResolveCatalogMediaUrl(
+                        app,
+                        path,
+                        app.Media?.ScreenshotSha256?.GetValueOrDefault(path)))
+                    .Where(url => !string.IsNullOrWhiteSpace(url))
+                    .Cast<string>()
+                    .ToList();
+            }
         }
     }
 
@@ -880,7 +961,10 @@ public class StoreService
         }
     }
 
-    private Task<List<AppEntry>> RefreshCacheInBackgroundAsync(CancellationToken cancellationToken = default, bool forceRefresh = false)
+    private Task<List<AppEntry>> RefreshCacheInBackgroundAsync(
+        CancellationToken cancellationToken = default,
+        bool forceRefresh = false,
+        bool revalidateRemote = false)
     {
         lock (_refreshSync)
         {
@@ -890,7 +974,7 @@ public class StoreService
             _refreshCts?.Dispose();
             _refreshCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             CancellationToken token = _refreshCts.Token;
-            Task<List<AppEntry>> task = FetchAndSaveRemoteCatalogAsync(token, forceRefresh);
+            Task<List<AppEntry>> task = FetchAndSaveRemoteCatalogAsync(token, forceRefresh, revalidateRemote);
             _refreshTask = task;
 
             _ = task.ContinueWith(_ =>

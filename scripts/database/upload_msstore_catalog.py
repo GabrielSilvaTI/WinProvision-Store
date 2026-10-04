@@ -16,7 +16,17 @@ from botocore.exceptions import ClientError
 
 SOURCE_DIR = Path(os.environ.get("MSSTORE_CATALOG_SOURCE", "msstore-output/catalog"))
 DEST_PREFIX = "Store/Catalog/msstore"
-CONTENT_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+CONTENT_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".bmp": "image/bmp",
+    ".tif": "image/tiff",
+    ".tiff": "image/tiff",
+    ".ico": "image/x-icon",
+}
 
 
 def sha256(data: bytes) -> str:
@@ -97,7 +107,11 @@ def main() -> int:
             Key=key,
             Body=body,
             ContentType=CONTENT_TYPES.get(path.suffix.casefold(), "application/json"),
-            CacheControl="public, max-age=31536000, immutable" if "/media/" in relative else "public, max-age=300, must-revalidate",
+            CacheControl="public, max-age=31536000, immutable"
+            if "/media/" in relative
+            else "no-cache, max-age=0, must-revalidate"
+            if relative == "manifest/search-index.json"
+            else "public, max-age=300, must-revalidate",
             Metadata={"sha256": digest},
         )
         return True
@@ -129,7 +143,9 @@ def main() -> int:
             Metadata={"sha256": manifest_hash, "catalog-sha256": manifest["catalogSha256"]},
         )
         changed += 1
-    print(f"Subcatálogo MS Store publicado em {DEST_PREFIX}: {changed} objeto(s) alterado(s), {manifest['appCount']} apps.")
+    print(
+        f"Subcatálogo MS Store publicado em {DEST_PREFIX}: {changed} objeto(s) alterado(s), {manifest['appCount']} apps."
+    )
     return 0
 
 

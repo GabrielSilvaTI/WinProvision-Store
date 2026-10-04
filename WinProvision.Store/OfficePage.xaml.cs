@@ -541,7 +541,7 @@ public partial class OfficePage : Page
             Publisher = "Microsoft",
             Version = request.ChannelOverride ?? plan.Channel ?? "-",
             Description = $"Plano salvo pela página Office. Apps incluídos: {appsSummary}. Produtos adicionais: {string.Join(", ", GetAdditionalProducts().Select(p => p.DisplayName))}.",
-            IconUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Icon/MS365.png",
+            IconUrl = OfficeAppCatalog.Microsoft365IconUrl,
             Tags = { "Office", plan.Category.ToString() },
             Office = officeOptions,
         };
