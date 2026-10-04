@@ -9,37 +9,16 @@ jobs:
   publish_icon_manifest:
     docker:
       - image: cimg/python:3.12
-    working_directory: ~/project
-    resource_class: medium
-    environment:
-      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Icon_Database
     steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
-          name: Instalar dependências do manifesto
-          command: python3 -m pip install --disable-pip-version-check -r scripts/requirements/base.txt
-      - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
-          paths:
-            - /home/circleci/.cache/pip
-      - run:
-          name: Gerar e publicar manifesto dos ícones
-          command: |
-            python3 scripts/icons/build_manifest_from_r2.py
-            python3 scripts/icons/upload_manifest_ci.py
-      - store_artifacts:
-          path: icon-manifest.json
-          destination: icon-manifest.json
+          name: Pipeline legado desativado
+          command: echo "Manifesto legado de ícones desativado; os ícones ficam junto aos apps no catálogo V2."
 
 workflows:
   icon_manifest:
     when: << pipeline.parameters.run_icon_manifest >>
     jobs:
       - publish_icon_manifest:
-          context: r2-publishing
           filters:
             branches:
               only: main

@@ -15,56 +15,18 @@ jobs:
   snapshot_validated_catalogs:
     docker:
       - image: cimg/python:3.12
-    working_directory: ~/project
-    resource_class: medium
     steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
-          name: Preparar acesso ao R2
-          command: |
-            python3 -m venv /tmp/ci-venv
-            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
-      - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
-          paths:
-            - /home/circleci/.cache/pip
-      - run:
-          name: Criar snapshot dos catálogos validados
-          command: /tmp/ci-venv/bin/python scripts/database/catalog_recovery.py snapshot
-      - store_artifacts:
-          path: catalog-recovery-report.json
-          destination: catalog-recovery-report.json
+          name: Snapshots legados desativados
+          command: echo "Snapshots legados desativados; os catálogos V2 são publicados em chaves estáveis."
 
   restore_validated_catalogs:
     docker:
       - image: cimg/python:3.12
-    working_directory: ~/project
-    resource_class: medium
-    environment:
-      CATALOG_SNAPSHOT_ID: << pipeline.parameters.catalog_snapshot_id >>
     steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
-          name: Preparar acesso ao R2
-          command: |
-            python3 -m venv /tmp/ci-venv
-            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
-      - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
-          paths:
-            - /home/circleci/.cache/pip
-      - run:
-          name: Validar integridade e restaurar snapshot escolhido
-          command: /tmp/ci-venv/bin/python scripts/database/catalog_recovery.py restore "$CATALOG_SNAPSHOT_ID"
-      - store_artifacts:
-          path: catalog-recovery-report.json
-          destination: catalog-recovery-report.json
+          name: Restauração legada desativada
+          command: echo "Restauração de snapshots legados desativada."
 
 workflows:
   catalog_snapshot:
@@ -74,7 +36,6 @@ workflows:
         - not: << pipeline.parameters.restore_catalog_snapshot >>
     jobs:
       - snapshot_validated_catalogs:
-          context: r2-publishing
           filters:
             branches:
               only: main
@@ -85,7 +46,6 @@ workflows:
         - not: << pipeline.parameters.run_catalog_snapshot >>
     jobs:
       - restore_validated_catalogs:
-          context: r2-publishing
           filters:
             branches:
               only: main

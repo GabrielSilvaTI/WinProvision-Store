@@ -10,14 +10,14 @@ Os trabalhos de publicação no R2 têm uma área por função. Cada workflow do
 | Captura automática de screenshots | `.circleci/screenshots.yml` | `run_screenshot_sync=true` | `Store/Catalog/apps/.../media/screenshots/` |
 | Ícones da CDN WinGet | `.circleci/icons.yml` | `run_icon_sync=true`; `publish_icons=true` para publicar | `Store/Catalog/apps/.../media/icon.png` |
 | Mídia manual ou captura direcionada | `.circleci/catalog-media.yml` | `run_catalog_media=true`, `media_mode=manual|auto`, `asset_type=icon|screenshot` | pasta `media/` do app e JSON/índices associados |
-| Manifesto de ícones | `.circleci/icon-manifest.yml` | `run_icon_manifest=true` | `Store/icon-manifest.json` |
-| Índice de screenshots já armazenadas | `.circleci/homepage-screenshots.yml` | `run_screenshot_index=true` (os gatilhos antigos continuam aceitos) | `Store/Database/screenshot-index.json` |
+| Manifesto legado de ícones | `.circleci/icon-manifest.yml` | desativado | — |
+| Índice legado de screenshots | `.circleci/homepage-screenshots.yml` | desativado | — |
 
 O contexto `r2-publishing` precisa conter `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e `R2_SECRET_ACCESS_KEY`; `R2_BUCKET` é opcional (padrão `winprovision`). Para o indexador WinGet, `GITHUB_TOKEN` com acesso de leitura à API pública do GitHub é recomendado para evitar limites de requisições. Nunca colocar essas credenciais nos YAMLs.
 
 ## Ativação no CircleCI GitHub App
 
-1. Enviar os YAMLs ao `main`. Em **Project Settings > Project Setup**, manter o pipeline atual apontando para `.circleci/config.yml`. Adicionar os pipelines **Ofertas Office** (`.circleci/office.yml`), **Catálogo WinGet** (`.circleci/winget-sync.yml`), **Mídia: catálogo** (`.circleci/catalog-media.yml`), **Mídia: ícones** (`.circleci/icons.yml`) e **Mídia: manifesto legado** (`.circleci/icon-manifest.yml`), usando o mesmo repositório como fonte de configuração e checkout.
+1. Enviar os YAMLs ao `main`. Em **Project Settings > Project Setup**, manter o pipeline atual apontando para `.circleci/config.yml`. Adicionar os pipelines **Ofertas Office** (`.circleci/office.yml`), **Catálogo WinGet** (`.circleci/winget-sync.yml`), **Mídia: catálogo** (`.circleci/catalog-media.yml`) e **Mídia: ícones** (`.circleci/icons.yml`), usando o mesmo repositório como fonte de configuração e checkout. Os pipelines de manifesto legado e screenshots antigas estão desativados.
 2. Executar manualmente cada função em `main` com o parâmetro da tabela. Para ícones, começar sem `publish_icons` (simulação); depois fazer uma execução real. No modo automático, `scan_prefix` pode limitar a busca a `0-9` ou uma letra de `a` a `z`; vazio significa catálogo inteiro. Para percorrer tudo, defina `batch_size` acima da contagem de apps. Os ícones são publicados e o cursor salvo em lotes de `publish_batch_size` (padrão 200), com progresso no log. Para captura manual, usar `media_mode=manual`, informar `package_id`, escolher `asset_type` e preencher `media_url`. Screenshots do mesmo app podem ser enviadas em lote em `media_urls`, separadas por espaços/quebras de linha ou como array JSON. O parser também aceita vários links colados em `media_url`. Verificar os relatórios em **Artifacts** e os objetos correspondentes no R2.
 3. Criar gatilhos agendados separados em **Project Settings > Project Setup** para a branch `main`. Cada gatilho deve passar seu parâmetro; o agendamento de ícones também precisa de `publish_icons=true`. Sugestão de horários em UTC:
 

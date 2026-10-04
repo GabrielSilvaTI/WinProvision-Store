@@ -24,7 +24,6 @@ CATALOGS = {
     "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/msstore/manifest.json",
     "installer_api": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Api/manifest.json",
     "office": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Database/catalog.json",
-    "icon_manifest": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/icon-manifest.json",
 }
 MEDIA_KEYS = {
     "iconurl",
@@ -168,11 +167,6 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
     elif not isinstance(office.get("products"), list) or not office["products"]:
         errors.append("Catálogo Office sem produtos")
 
-    manifest = payloads.get("icon_manifest")
-    if not isinstance(manifest, dict) or len(manifest) < minimums["icon_manifest"]:
-        errors.append(f"Manifesto de ícones inválido ou com menos de {minimums['icon_manifest']} entradas")
-    elif any(not isinstance(url, str) or not url.startswith("https://") for url in manifest.values()):
-        errors.append("Manifesto de ícones contém URL inválida")
     return errors
 
 
@@ -376,18 +370,12 @@ def main() -> int:
         {
             "winget": 5000,
             "microsoft_store": 20,
-            "icon_manifest": 100,
         },
     )
     media_map: dict[str, list[str]] = {}
     for name, payload in payloads.items():
-        if name == "icon_manifest":
-            for app_id, url in payload.items():
-                if isinstance(url, str):
-                    media_map.setdefault(url, []).append(f"icon_manifest.{app_id}")
-        else:
-            for location, url in walk_media(payload):
-                media_map.setdefault(url, []).append(f"{name}.{location}")
+        for location, url in walk_media(payload):
+            media_map.setdefault(url, []).append(f"{name}.{location}")
     if not media_map:
         errors.append("Nenhuma URL de mídia foi encontrada nos catálogos consultados")
 

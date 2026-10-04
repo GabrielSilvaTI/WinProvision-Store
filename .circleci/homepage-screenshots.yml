@@ -4,8 +4,7 @@ parameters:
   run_screenshot_index:
     type: boolean
     default: false
-  # Compatibilidade com gatilhos existentes. Este pipeline só reindexa objetos
-  # já armazenados; o pipeline do catálogo WinGet já reindexa ao concluir.
+  # Parâmetros mantidos para que gatilhos antigos terminem sem republicar índices legados.
   run_homepage_screenshot_sync:
     type: boolean
     default: false
@@ -26,42 +25,10 @@ jobs:
   publish_screenshot_index:
     docker:
       - image: cimg/python:3.12
-    working_directory: ~/project
-    resource_class: small
-    environment:
-      R2_PUBLIC_BASE: https://pub-166b41912a994dbe86583ba10596d673.r2.dev
     steps:
-      - checkout
-      - restore_cache:
-          keys:
-            - pip-v1-{{ checksum "scripts/requirements/base.txt" }}
       - run:
-          name: Preparar Python para o índice de screenshots
-          command: |
-            python3 -m venv /tmp/ci-venv
-            /tmp/ci-venv/bin/pip install --disable-pip-version-check -r scripts/requirements/base.txt
-      - save_cache:
-          key: pip-v1-{{ checksum "scripts/requirements/base.txt" }}
-          paths:
-            - /home/circleci/.cache/pip
-      - run:
-          name: Preparar a pasta do índice
-          command: mkdir -p screenshot-index-output
-      - run:
-          name: Indexar somente screenshots já armazenadas no R2
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/index_r2_screenshots.py \
-              screenshot-index-output/screenshot-index.json \
-              --report screenshot-index-output/report.json
-      - store_artifacts:
-          path: screenshot-index-output/report.json
-          destination: screenshot-index-report.json
-      - run:
-          name: Publicar o índice compacto de screenshots
-          command: |
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
-              "$PWD/screenshot-index-output/screenshot-index.json" \
-              Store/Database/screenshot-index.json
+          name: Pipeline legado desativado
+          command: echo "Índice antigo de screenshots desativado; as imagens ficam no catálogo V2."
 
 workflows:
   screenshot_index:
@@ -72,7 +39,6 @@ workflows:
         - << pipeline.parameters.run_screenshot_sync >>
     jobs:
       - publish_screenshot_index:
-          context: r2-publishing
           filters:
             branches:
               only: main
