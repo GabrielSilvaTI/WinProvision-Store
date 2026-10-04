@@ -40,11 +40,6 @@ jobs:
             /tmp/ci-venv/bin/python scripts/database/r2_download.py \
               Store/Catalog/msstore/manifest/search-index.json \
               "$PWD/msstore-output/msstore-catalog.previous.json"
-            if [ ! -s "$PWD/msstore-output/msstore-catalog.previous.json" ]; then
-              /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-                Store/Database/msstore-catalog.json \
-                "$PWD/msstore-output/msstore-catalog.previous.json"
-            fi
       - restore_cache:
           keys:
             - nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}

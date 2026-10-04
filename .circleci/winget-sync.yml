@@ -50,15 +50,13 @@ jobs:
             fi
           no_output_timeout: 30m
       - run:
-          name: Restaurar caches e catálogos anteriores do R2
+          name: Restaurar cache e índice V2 anterior do R2
           command: |
             if [ "$CATALOG_CACHE_HIT" = "true" ]; then
               echo "Catálogo remoto já está validado; restauração para regeneração ignorada."
             else
-              mkdir -p catalog-output/api-previous
               /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/metrics-cache.json "$PWD/catalog-output/metrics-cache.json"
-              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/apps.json "$PWD/catalog-output/apps.previous.json"
-              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/screenshot-assets.json "$PWD/catalog-output/screenshot-assets.json"
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Catalog/manifest/search-index.json "$PWD/catalog-output/apps.previous.json"
               /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Catalog/manifest/media-index.json "$PWD/catalog-output/media-index.json"
               if [ ! -s catalog-output/media-index.json ]; then
                 printf '{"schemaVersion":1,"apps":{}}\n' > catalog-output/media-index.json
@@ -81,16 +79,6 @@ jobs:
           key: nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
           paths:
             - /home/circleci/.nuget/packages
-      - run:
-          name: Preservar screenshots publicados anteriormente
-          command: |
-            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
-              echo "Catálogo remoto já está validado; preservação ignorada."
-            else
-              /tmp/ci-venv/bin/python scripts/database/preserve_catalog_screenshots.py \
-                "$PWD/catalog-output/apps.json" "$PWD/catalog-output/apps.previous.json" \
-                "$PWD/catalog-output/screenshot-assets.json"
-            fi
       - run:
           name: Montar e validar catálogo hierárquico em Python
           command: |
@@ -136,9 +124,6 @@ jobs:
                 "$PWD/catalog-output/metrics-cache.json" Store/Database/metrics-cache.json
               CATALOG_V2_SOURCE="$PWD/catalog-output/catalog-v2" \
                 /tmp/ci-venv/bin/python scripts/database/upload_catalog_v2.py
-              APPS_JSON_SOURCE="$PWD/catalog-output/apps.json" \
-              PREVIOUS_APPS_JSON_PATH="$PWD/catalog-output/apps.previous.json" \
-                /tmp/ci-venv/bin/python scripts/database/upload_apps_json.py
             fi
 
 workflows:
