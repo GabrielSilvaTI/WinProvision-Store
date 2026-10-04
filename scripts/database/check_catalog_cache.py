@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -15,12 +14,10 @@ from pathlib import Path
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
-
 from catalog_v2 import cache_fingerprint
 
 BUCKET = os.environ.get("R2_BUCKET") or "winprovision"
 DEST_PREFIX = os.environ.get("R2_CATALOG_V2_PREFIX", "Store/Catalog").strip("/")
-MSSTORE_KEY = "Store/Database/msstore-catalog.json"
 WINGET_REMOTE = "https://github.com/microsoft/winget-pkgs.git"
 REVISION_PATTERN = re.compile(r"^[0-9a-f]{40,64}$")
 
@@ -72,14 +69,8 @@ def main() -> int:
     if not REVISION_PATTERN.fullmatch(build_revision):
         build_revision = ""
 
-    # O mesmo msstore-catalog.json alimenta o Indexer. Salvar a cópia lida aqui
-    # evita que a checagem e a geração usem versões diferentes durante um job.
-    msstore_bytes = object_bytes(client, MSSTORE_KEY)
-    msstore_sha256 = hashlib.sha256(msstore_bytes).hexdigest() if msstore_bytes is not None else ""
     output_dir = Path("catalog-output")
     output_dir.mkdir(parents=True, exist_ok=True)
-    if msstore_bytes is not None:
-        (output_dir / "msstore-catalog.json").write_bytes(msstore_bytes)
 
     manifest_bytes = object_bytes(client, f"{DEST_PREFIX}/manifest.json")
     published = None
@@ -89,7 +80,7 @@ def main() -> int:
         except (UnicodeError, json.JSONDecodeError):
             pass
 
-    fingerprint = cache_fingerprint(source_revision, build_revision, msstore_sha256)
+    fingerprint = cache_fingerprint(source_revision, build_revision, None)
     try:
         app_count = int(published.get("appCount", 0)) if isinstance(published, dict) else 0
     except (TypeError, ValueError):
@@ -109,7 +100,6 @@ def main() -> int:
         "CATALOG_CACHE_HIT": "true" if cache_hit else "false",
         "CATALOG_NEEDS_REINDEX": "true",
         "WINGET_SOURCE_REVISION": source_revision or "",
-        "MSSTORE_CATALOG_SHA256": msstore_sha256,
         "CATALOG_BUILD_REVISION": build_revision,
     }
     with Path(env_file).open("a", encoding="utf-8") as stream:

@@ -22,6 +22,12 @@ public class AppEntry : INotifyPropertyChanged
     [JsonPropertyName("recordSha256")]
     public string? CatalogDetailSha256 { get; set; }
 
+    [JsonIgnore]
+    public string? CatalogDetailBaseUrl { get; set; }
+
+    [JsonIgnore]
+    public string? CatalogDetailCatalogSha256 { get; set; }
+
     [JsonPropertyName("media")]
     public CatalogMedia? Media { get; set; }
 
@@ -260,6 +266,9 @@ public sealed class CatalogMedia
 
     [JsonPropertyName("iconSha256")]
     public string? IconSha256 { get; set; }
+
+    [JsonPropertyName("banner")]
+    public string? Banner { get; set; }
 
     [JsonPropertyName("screenshots")]
     public List<string> Screenshots { get; set; } = [];

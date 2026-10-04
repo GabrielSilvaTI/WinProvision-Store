@@ -21,7 +21,7 @@ from urllib3.util.retry import Retry
 
 CATALOGS = {
     "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json",
-    "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json",
+    "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/msstore/manifest.json",
     "office": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Database/catalog.json",
     "icon_manifest": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/icon-manifest.json",
 }
@@ -143,20 +143,18 @@ def validate_payloads(payloads: dict, minimums: dict[str, int]) -> list[str]:
             if source in sources:
                 sources[source] += 1
             else:
-                errors.append(f"Origem inválida no search-index para {app_id}: {source!r}")
-        if sources["winget"] < minimums["winget"] or sources["msstore"] < minimums["microsoft_store"]:
-            errors.append(
-                f"Contagem por origem abaixo do mínimo: winget={sources['winget']}, msstore={sources['msstore']}"
-            )
+                errors.append(f"O índice WinGet contém origem separada inesperada para {app_id}: {source!r}")
+        if sources["winget"] < minimums["winget"]:
+            errors.append(f"Contagem WinGet abaixo do mínimo: {sources['winget']}")
 
     msstore = payloads.get("microsoft_store")
     if not isinstance(msstore, list) or len(msstore) < minimums["microsoft_store"]:
-        errors.append(f"Catálogo Microsoft Store: esperada lista com ao menos {minimums['microsoft_store']} itens")
+        errors.append(f"Índice Microsoft Store: esperada lista com ao menos {minimums['microsoft_store']} itens")
     else:
         ids: set[str] = set()
         for index, item in enumerate(msstore):
             if not isinstance(item, dict) or item.get("source") != "msstore":
-                errors.append(f"msstore-catalog.json[{index}] inválido ou com origem diferente de msstore")
+                errors.append(f"msstore search-index[{index}] inválido ou com origem diferente de msstore")
                 continue
             app_id = str(item.get("id", "")).strip().casefold()
             if not app_id or app_id in ids:
@@ -254,6 +252,39 @@ def main() -> int:
             except (requests.RequestException, UnicodeError, json.JSONDecodeError, ValueError) as exc:
                 catalog_errors.append(f"Catálogo WinGet v2: {type(exc).__name__}: {exc}")
                 print(f"JSON ERRO: catálogo WinGet v2: {exc}", file=sys.stderr)
+
+    msstore_manifest = payloads.get("microsoft_store")
+    if isinstance(msstore_manifest, dict):
+        base = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/msstore"
+        try:
+            if msstore_manifest.get("schemaVersion") != 2 or msstore_manifest.get("catalog") != "msstore":
+                raise ValueError("manifesto MS Store inválido")
+            search_index = get_json("microsoft_store search-index", f"{base}/manifest/search-index.json")
+            expected = msstore_manifest.get("indexSha256")
+            actual = hashlib.sha256(json.dumps(search_index, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+            if actual != expected or not isinstance(search_index, list) or len(search_index) != msstore_manifest.get("appCount"):
+                raise ValueError("hash/contagem do índice MS Store diverge do manifesto")
+            payloads["microsoft_store"] = search_index
+            details = []
+            for row in search_index[: min(24, len(search_index))]:
+                detail_path = row.get("detailPath") if isinstance(row, dict) else None
+                if (
+                    not isinstance(detail_path, str)
+                    or not detail_path.startswith("apps/")
+                    or any(segment in ("", ".", "..") for segment in detail_path.split("/"))
+                    or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("recordSha256", "")))
+                ):
+                    raise ValueError("caminho ou hash de detalhe inválido no índice MS Store")
+                detail = get_json("microsoft_store detail", f"{base}/{detail_path}")
+                detail_hash = hashlib.sha256(json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+                if detail_hash != row["recordSha256"] or detail.get("id", "").casefold() != row.get("id", "").casefold():
+                    raise ValueError(f"detalhe MS Store divergente para {row.get('id')}")
+                details.append(detail)
+            payloads["microsoft_store_details_sample"] = details
+            print(f"JSON OK: microsoft_store search-index ({len(search_index)} apps)")
+        except (requests.RequestException, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            catalog_errors.append(f"Catálogo Microsoft Store: {type(exc).__name__}: {exc}")
+            print(f"JSON ERRO: catálogo Microsoft Store: {exc}", file=sys.stderr)
 
     errors = catalog_errors + validate_payloads(
         payloads,

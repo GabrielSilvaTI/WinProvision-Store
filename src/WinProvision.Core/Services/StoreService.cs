@@ -14,6 +14,8 @@ public class StoreService
 {
     private const string CatalogV2BaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog";
     private const string CatalogManifestUrl = CatalogV2BaseUrl + "/manifest.json";
+    private const string MsStoreCatalogBaseUrl = CatalogV2BaseUrl + "/msstore";
+    private const string MsStoreManifestUrl = MsStoreCatalogBaseUrl + "/manifest.json";
     private const string LegacyScreenshotBasePath = "/Store/Screenshot_Database/";
     private readonly string _cacheDirectory;
     private readonly string _legacyCacheFilePath;
@@ -122,7 +124,8 @@ public class StoreService
             if (catalogEntry is not null && !ReferenceEquals(catalogEntry, app))
                 return await LoadDetailsAsync(catalogEntry, cancellationToken);
         }
-        if (string.IsNullOrWhiteSpace(app.CatalogDetailPath) || string.IsNullOrWhiteSpace(_catalogSha256))
+        string? catalogHash = app.CatalogDetailCatalogSha256 ?? _catalogSha256;
+        if (string.IsNullOrWhiteSpace(app.CatalogDetailPath) || string.IsNullOrWhiteSpace(catalogHash))
             return app;
 
         string relativePath = app.CatalogDetailPath.Replace('\\', '/');
@@ -133,7 +136,7 @@ public class StoreService
         await detailLock.WaitAsync(cancellationToken);
         try
         {
-            string detailRoot = Path.Combine(_catalogDetailsCacheDirectory, _catalogSha256!);
+            string detailRoot = Path.Combine(_catalogDetailsCacheDirectory, catalogHash);
             string detailFile = Path.GetFullPath(Path.Combine(detailRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
             string normalizedRoot = Path.GetFullPath(detailRoot) + Path.DirectorySeparatorChar;
             if (!detailFile.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
@@ -158,7 +161,9 @@ public class StoreService
 
             if (json is null)
             {
-                string url = $"{CatalogV2BaseUrl}/{relativePath}";
+                string detailBaseUrl = app.CatalogDetailBaseUrl
+                    ?? (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase) ? MsStoreCatalogBaseUrl : CatalogV2BaseUrl);
+                string url = $"{detailBaseUrl}/{relativePath}";
                 using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
                 json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -205,6 +210,8 @@ public class StoreService
         details.IsSelectedForInstall = summary.IsSelectedForInstall;
         details.CatalogDetailPath = summary.CatalogDetailPath;
         details.CatalogDetailSha256 = summary.CatalogDetailSha256;
+        details.CatalogDetailBaseUrl = summary.CatalogDetailBaseUrl;
+        details.CatalogDetailCatalogSha256 = summary.CatalogDetailCatalogSha256;
         details.Media = summary.Media;
         details.IconUrl = _iconService.ResolveIconUrl(details);
         RemoveLegacyScreenshotLinks([details]);
@@ -239,6 +246,9 @@ public class StoreService
             var catalog = JsonSerializer.Deserialize<List<AppEntry>>(File.ReadAllText(indexPath), _jsonOptions);
             if (catalog is null || catalog.Count != manifest.AppCount || catalog.Count == 0 || !ValidateSearchEntries(catalog))
                 throw new JsonException("Índice local do catálogo v2 incompleto ou inválido.");
+
+            SetCatalogRoute(catalog, CatalogV2BaseUrl, manifest.CatalogSha256);
+            catalog = MergeMsStoreCatalog(catalog, TryLoadLocalMsStoreCatalog());
 
             _catalogSha256 = manifest.CatalogSha256;
             _loadedSearchIndexCacheFilePath = indexPath;
@@ -414,6 +424,7 @@ public class StoreService
             if (!IsValidManifest(manifest))
                 throw new JsonException("Manifesto remoto do catálogo v2 inválido.");
 
+            Task<List<AppEntry>> msStoreCatalogTask = FetchMsStoreCatalogAsync(forceRefresh, cancellationToken);
             string indexPath = GetSearchIndexCachePath(manifest!.CatalogSha256!);
             string indexUrl = $"{CatalogV2BaseUrl}/manifest/search-index.json";
             RemoteTextResult indexResult = await FetchTextWithCacheAsync(
@@ -430,6 +441,10 @@ public class StoreService
             var catalog = JsonSerializer.Deserialize<List<AppEntry>>(indexResult.Content, _jsonOptions) ?? [];
             if (catalog.Count == 0 || catalog.Count != manifest.AppCount || !ValidateSearchEntries(catalog))
                 throw new JsonException("Índice remoto do catálogo v2 inválido ou incompleto.");
+
+            SetCatalogRoute(catalog, CatalogV2BaseUrl, manifest.CatalogSha256);
+            var msStoreCatalog = await msStoreCatalogTask;
+            catalog = MergeMsStoreCatalog(catalog, msStoreCatalog);
 
             RemoveLegacyScreenshotLinks(catalog);
 
@@ -518,6 +533,10 @@ public class StoreService
                 File.Delete(_catalogManifestCacheFilePath);
             if (File.Exists(_screenshotIndexCacheFilePath))
                 File.Delete(_screenshotIndexCacheFilePath);
+            foreach (string path in Directory.Exists(_cacheDirectory)
+                         ? Directory.EnumerateFiles(_cacheDirectory, "msstore-catalog-*.json*").ToArray()
+                         : Array.Empty<string>())
+                File.Delete(path);
             if (Directory.Exists(_catalogDetailsCacheDirectory))
                 Directory.Delete(_catalogDetailsCacheDirectory, recursive: true);
             foreach (string metadataPath in new[]
@@ -729,6 +748,103 @@ public class StoreService
         public int AppCount { get; set; }
         public string? CatalogSha256 { get; set; }
         public string? IndexSha256 { get; set; }
+    }
+
+    private List<AppEntry> TryLoadLocalMsStoreCatalog()
+    {
+        try
+        {
+            string? indexPath = Directory.Exists(_cacheDirectory)
+                ? Directory.EnumerateFiles(_cacheDirectory, "msstore-catalog-*.json")
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .FirstOrDefault()
+                : null;
+            if (indexPath is null)
+                return [];
+            string hash = Path.GetFileNameWithoutExtension(indexPath).Replace("msstore-catalog-", "", StringComparison.Ordinal);
+            var apps = JsonSerializer.Deserialize<List<AppEntry>>(File.ReadAllText(indexPath), _jsonOptions) ?? [];
+            if (apps.Count == 0 || !ValidateSearchEntries(apps))
+                return [];
+            SetCatalogRoute(apps, MsStoreCatalogBaseUrl, hash);
+            return apps;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Cache MS Store local inválido: {ex.Message}");
+            return [];
+        }
+    }
+
+    private async Task<List<AppEntry>> FetchMsStoreCatalogAsync(bool forceRefresh, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var manifestResponse = await _httpClient.GetAsync(MsStoreManifestUrl, cancellationToken);
+            manifestResponse.EnsureSuccessStatusCode();
+            string manifestJson = await manifestResponse.Content.ReadAsStringAsync(cancellationToken);
+            var manifest = JsonSerializer.Deserialize<CatalogManifest>(manifestJson, _jsonOptions);
+            if (!IsValidManifest(manifest))
+                throw new JsonException("Manifesto do subcatálogo MS Store inválido.");
+
+            string indexPath = Path.Combine(_cacheDirectory, $"msstore-catalog-{manifest!.CatalogSha256}.json");
+            string indexUrl = $"{MsStoreCatalogBaseUrl}/manifest/search-index.json";
+            string indexJson;
+            if (!forceRefresh && File.Exists(indexPath))
+            {
+                indexJson = await File.ReadAllTextAsync(indexPath, cancellationToken);
+            }
+            else
+            {
+                using var indexResponse = await _httpClient.GetAsync(indexUrl, cancellationToken);
+                indexResponse.EnsureSuccessStatusCode();
+                indexJson = await indexResponse.Content.ReadAsStringAsync(cancellationToken);
+            }
+            if (!HasExpectedHash(indexJson, manifest.IndexSha256))
+            {
+                using var indexResponse = await _httpClient.GetAsync(indexUrl, cancellationToken);
+                indexResponse.EnsureSuccessStatusCode();
+                indexJson = await indexResponse.Content.ReadAsStringAsync(cancellationToken);
+                if (!HasExpectedHash(indexJson, manifest.IndexSha256))
+                    throw new JsonException("Hash do índice do subcatálogo MS Store divergente.");
+            }
+            var apps = JsonSerializer.Deserialize<List<AppEntry>>(indexJson, _jsonOptions) ?? [];
+            if (apps.Count != manifest.AppCount || !ValidateSearchEntries(apps)
+                || apps.Any(app => !string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase)))
+                throw new JsonException("Índice do subcatálogo MS Store incompleto ou inválido.");
+            SetCatalogRoute(apps, MsStoreCatalogBaseUrl, manifest.CatalogSha256);
+            Directory.CreateDirectory(_cacheDirectory);
+            await File.WriteAllTextAsync(indexPath, indexJson, cancellationToken);
+            return apps;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return TryLoadLocalMsStoreCatalog();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[StoreService] Subcatálogo MS Store indisponível: {ex.Message}");
+            return TryLoadLocalMsStoreCatalog();
+        }
+    }
+
+    private static void SetCatalogRoute(IEnumerable<AppEntry> apps, string baseUrl, string catalogHash)
+    {
+        foreach (AppEntry app in apps)
+        {
+            app.CatalogDetailBaseUrl = baseUrl;
+            app.CatalogDetailCatalogSha256 = catalogHash;
+        }
+    }
+
+    private static List<AppEntry> MergeMsStoreCatalog(List<AppEntry> wingetCatalog, List<AppEntry> msStoreCatalog)
+    {
+        if (msStoreCatalog.Count == 0)
+            return wingetCatalog;
+        var storeIds = msStoreCatalog.Select(app => app.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        wingetCatalog.RemoveAll(app => string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase)
+            || storeIds.Contains(app.Id));
+        wingetCatalog.AddRange(msStoreCatalog);
+        return wingetCatalog;
     }
 
     private static void RemoveLegacyScreenshotLinks(IEnumerable<AppEntry> catalog)

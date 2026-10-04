@@ -1,55 +1,8 @@
 using System.Diagnostics;
-using System.Net.Http;
 using System.Text.Json;
 using WinProvision.Core.Models;
 using WinProvision.Core.Services;
 using WinProvision.Core.Services.Indexing;
-
-// URL pública do catálogo msstore, publicado pelo workflow separado (ver
-// RunMsStoreOnlyAsync). Mesmo bucket/padrão do apps.json principal.
-const string MsStoreCatalogR2Url =
-    "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Database/msstore-catalog.json";
-
-static async Task<List<AppEntry>> DownloadMsStoreCatalogAsync(string localCatalogPath)
-{
-    var catalogEntries = new List<AppEntry>();
-    if (File.Exists(localCatalogPath))
-    {
-        try
-        {
-            string localJson = await File.ReadAllTextAsync(localCatalogPath);
-            catalogEntries.AddRange(
-                JsonSerializer.Deserialize<List<AppEntry>>(localJson, WinProvisionJsonOptions.Compact) ?? []);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"      [AVISO] Catálogo MS Store local inválido, tentando R2: {ex.Message}");
-        }
-    }
-
-    // O catálogo é restaurado do R2 pelo workflow diário. Baixar a mesma cópia
-    // novamente só adicionava tráfego e podia manter duplicatas antes do merge.
-    if (catalogEntries.Count == 0)
-    {
-        try
-        {
-            using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            string json = await httpClient.GetStringAsync(MsStoreCatalogR2Url);
-            catalogEntries.AddRange(
-                JsonSerializer.Deserialize<List<AppEntry>>(json, WinProvisionJsonOptions.Compact) ?? []);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"      [AVISO] Falha ao baixar msstore-catalog.json do R2: {ex.Message}");
-        }
-    }
-
-    return catalogEntries
-        .Where(app => !string.IsNullOrWhiteSpace(app.Id))
-        .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
-        .Select(group => group.First())
-        .ToList();
-}
 
 /// <summary>
 /// Modo "--msstore": atualiza IDs já descobertos, resolve IDs curados e busca novos
@@ -257,17 +210,6 @@ foreach (var bundle in bundles)
 Console.WriteLine($"      {discarded:N0} pacotes descartados como ruído");
 Console.WriteLine($"      {candidates.Count:N0} pacotes seguem para enriquecimento");
 Lap("filtro de ruído");
-
-// [+] Atualiza/mescla apps da Microsoft Store no catálogo diário. O workflow roda
-// RunMsStoreOnlyAsync antes do indexador completo e deixa o JSON em outputDir; fora
-// do workflow integrado, o catálogo publicado no R2 continua como fallback. Curadoria
-// manual já cumpre o papel do NoiseFilter aqui; segue para classificação regional e
-// corte por score como qualquer outro pacote.
-Console.WriteLine("\n[+] Baixando apps curados da Microsoft Store (R2)...");
-var msstoreApps = await DownloadMsStoreCatalogAsync(Path.Combine(outputDir, "msstore-catalog.json"));
-candidates.AddRange(msstoreApps);
-Console.WriteLine($"      {msstoreApps.Count:N0} apps da Microsoft Store mesclados");
-Lap("catálogo msstore");
 
 // 3. Classificação regional
 Console.WriteLine("\n[3/8] Classificando apelo regional...");

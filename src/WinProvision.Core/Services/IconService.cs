@@ -80,7 +80,11 @@ public class IconService
             return null;
 
         string encodedMedia = string.Join('/', mediaPath.Split('/').Select(Uri.EscapeDataString));
-        string url = $"{CatalogAppsBaseUrl}{detailPath[..(lastSlash + 1)]}{encodedMedia}";
+        string baseUrl = app.CatalogDetailBaseUrl
+            ?? (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase)
+                ? CatalogAppsBaseUrl + "msstore"
+                : CatalogAppsBaseUrl.TrimEnd('/'));
+        string url = $"{baseUrl}/{detailPath[..(lastSlash + 1)]}{encodedMedia}";
         return !string.IsNullOrWhiteSpace(sha256) && sha256.Length == 64 && sha256.All(Uri.IsHexDigit)
             ? $"{url}?v={sha256[..16]}"
             : url;

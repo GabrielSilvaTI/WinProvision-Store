@@ -32,14 +32,19 @@ jobs:
           paths:
             - /home/circleci/.cache/pip
       - run:
-          name: Restaurar caches e catálogo anterior do R2
+          name: Restaurar cache de mídia e catálogo anterior do R2
           command: |
             /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Store/Database/msstore-assets-map.json \
+              Store/Catalog/msstore/manifest/asset-cache.json \
               "$PWD/msstore-output/msstore-assets-map.json"
             /tmp/ci-venv/bin/python scripts/database/r2_download.py \
-              Store/Database/msstore-catalog.json \
+              Store/Catalog/msstore/manifest/search-index.json \
               "$PWD/msstore-output/msstore-catalog.previous.json"
+            if [ ! -s "$PWD/msstore-output/msstore-catalog.previous.json" ]; then
+              /tmp/ci-venv/bin/python scripts/database/r2_download.py \
+                Store/Database/msstore-catalog.json \
+                "$PWD/msstore-output/msstore-catalog.previous.json"
+            fi
       - restore_cache:
           keys:
             - nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
@@ -62,21 +67,23 @@ jobs:
               --min-retention 0.50 \
               --expected-source msstore
       - run:
-          name: Armazenar imagens da Microsoft Store no R2
+          name: Organizar imagens da Microsoft Store por aplicativo no R2
           command: |
-            /tmp/ci-venv/bin/python scripts/database/sync_msstore_assets.py \
+            /tmp/ci-venv/bin/python scripts/database/sync_msstore_catalog_media.py \
               "$PWD/msstore-output/msstore-catalog.json" \
               --map "$PWD/msstore-output/msstore-assets-map.json" \
               --previous "$PWD/msstore-output/msstore-catalog.previous.json"
       - run:
-          name: Publicar catálogo e assets da Microsoft Store no R2
+          name: Montar catálogo hierárquico da Microsoft Store
           command: |
             /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
               "$PWD/msstore-output/msstore-assets-map.json" \
-              Store/Database/msstore-assets-map.json
-            /tmp/ci-venv/bin/python scripts/database/r2_upload.py \
+              Store/Catalog/msstore/manifest/asset-cache.json
+            /tmp/ci-venv/bin/python scripts/database/build_msstore_catalog.py \
               "$PWD/msstore-output/msstore-catalog.json" \
-              Store/Database/msstore-catalog.json
+              "$PWD/msstore-output/catalog"
+            MSSTORE_CATALOG_SOURCE="$PWD/msstore-output/catalog" \
+              /tmp/ci-venv/bin/python scripts/database/upload_msstore_catalog.py
 
 workflows:
   microsoft_store_catalog:

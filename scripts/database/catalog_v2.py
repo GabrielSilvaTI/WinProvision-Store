@@ -11,8 +11,8 @@ import tempfile
 import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
-from urllib.parse import quote
 from typing import Any
+from urllib.parse import quote
 
 
 def _is_safe_package_id(package_id: str) -> bool:
@@ -46,7 +46,7 @@ def _detail_url_path(package_id: str) -> str:
 
 
 def cache_fingerprint(source_revision: str | None, build_revision: str | None, msstore_sha256: str | None) -> str | None:
-    values = (source_revision, build_revision, msstore_sha256)
+    values = (source_revision, build_revision, msstore_sha256) if msstore_sha256 else (source_revision, build_revision)
     if any(not isinstance(value, str) or not value.strip() for value in values):
         return None
     payload = json.dumps(values, ensure_ascii=True, separators=(",", ":")).encode("ascii")

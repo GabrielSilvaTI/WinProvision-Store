@@ -60,7 +60,6 @@ jobs:
               /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/apps.json "$PWD/catalog-output/apps.previous.json"
               /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Api/v1/_state/package-hashes.json "$PWD/catalog-output/api-previous/package-hashes.json"
               /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/screenshot-assets.json "$PWD/catalog-output/screenshot-assets.json"
-              /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Database/msstore-catalog.json "$PWD/catalog-output/msstore-catalog.json"
               /tmp/ci-venv/bin/python scripts/database/r2_download.py Store/Catalog/manifest/media-index.json "$PWD/catalog-output/media-index.json"
               if [ ! -s catalog-output/media-index.json ]; then
                 printf '{"schemaVersion":1,"apps":{}}\n' > catalog-output/media-index.json
@@ -102,7 +101,6 @@ jobs:
               cache_args=()
               if [ -n "$WINGET_SOURCE_REVISION" ]; then cache_args+=(--source-revision "$WINGET_SOURCE_REVISION"); fi
               if [ -n "$CATALOG_BUILD_REVISION" ]; then cache_args+=(--build-revision "$CATALOG_BUILD_REVISION"); fi
-              if [ -n "$MSSTORE_CATALOG_SHA256" ]; then cache_args+=(--msstore-sha256 "$MSSTORE_CATALOG_SHA256"); fi
               /tmp/ci-venv/bin/python scripts/database/build_catalog_v2.py \
                 "$PWD/catalog-output/apps.json" "$PWD/catalog-output/catalog-v2" \
                 --media-index "$PWD/catalog-output/media-index.json" "${cache_args[@]}"

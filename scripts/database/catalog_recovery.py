@@ -19,14 +19,16 @@ SNAPSHOT_PREFIX = "Store/Recovery/Snapshots"
 TARGETS = (
     # Maps and immutable-content pointers first; active catalog documents are restored after them.
     "Store/Database/screenshot-assets.json",
-    "Store/Database/msstore-assets-map.json",
+    "Store/Catalog/msstore/manifest/asset-cache.json",
     "Office/Database/office-assets-map.json",
     "Store/Database/metrics-cache.json",
     "Store/Api/v1/_state/package-hashes.json",
     "Store/Api/v1/index.json",
     "Store/icon-manifest.json",
     "Office/Database/catalog.json",
-    "Store/Database/msstore-catalog.json",
+    "Store/Catalog/msstore/manifest.json",
+    "Store/Catalog/msstore/manifest/search-index.json",
+    "Store/Catalog/msstore/manifest/media-index.json",
     "Store/Database/apps.json",
 )
 SNAPSHOT_ID_RE = re.compile(r"^\d{8}T\d{6}Z$")
@@ -78,12 +80,31 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
         if source not in sources:
             raise ValueError(f"Origem inválida em apps.json[{index}]: {source!r}")
         sources[source] += 1
-    if sources["winget"] < 5000 or sources["msstore"] < 20:
-        raise ValueError(f"catálogo por origem incompleto: winget={sources['winget']}, msstore={sources['msstore']}")
+    if sources["winget"] < 5000:
+        raise ValueError(f"catálogo WinGet incompleto: winget={sources['winget']}")
 
-    msstore = decode_json(documents["Store/Database/msstore-catalog.json"], "msstore-catalog.json")
-    if not isinstance(msstore, list) or len(msstore) < 20:
-        raise ValueError("msstore-catalog.json inválido ou com menos de 20 aplicativos")
+    msstore_manifest = decode_json(documents["Store/Catalog/msstore/manifest.json"], "manifesto MS Store")
+    msstore = decode_json(documents["Store/Catalog/msstore/manifest/search-index.json"], "índice MS Store")
+    msstore_media = decode_json(documents["Store/Catalog/msstore/manifest/media-index.json"], "índice de mídia MS Store")
+    if (
+        not isinstance(msstore_manifest, dict)
+        or msstore_manifest.get("schemaVersion") != 2
+        or msstore_manifest.get("catalog") != "msstore"
+        or not isinstance(msstore, list)
+        or len(msstore) < 20
+        or len(msstore) != msstore_manifest.get("appCount")
+        or hashlib.sha256(json.dumps(msstore, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest() != msstore_manifest.get("indexSha256")
+        or not isinstance(msstore_media, dict)
+        or hashlib.sha256(json.dumps(msstore_media, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest() != msstore_manifest.get("mediaIndexSha256")
+    ):
+        raise ValueError("subcatálogo Microsoft Store inválido ou incompleto")
+    seen_msstore = set()
+    for item in msstore:
+        if not isinstance(item, dict) or item.get("source") != "msstore" or not isinstance(item.get("id"), str):
+            raise ValueError("índice MS Store contém uma entrada inválida")
+        if item["id"].casefold() in seen_msstore:
+            raise ValueError(f"ID MS Store duplicado: {item['id']}")
+        seen_msstore.add(item["id"].casefold())
     office = decode_json(documents["Office/Database/catalog.json"], "Office catalog")
     if (
         not isinstance(office, dict)
@@ -95,7 +116,7 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
         raise ValueError("catálogo Office inválido")
     for key in (
         "Store/Database/screenshot-assets.json",
-        "Store/Database/msstore-assets-map.json",
+        "Store/Catalog/msstore/manifest/asset-cache.json",
         "Office/Database/office-assets-map.json",
     ):
         value = decode_json(documents[key], key)
