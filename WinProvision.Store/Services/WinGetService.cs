@@ -279,7 +279,8 @@ public sealed class WinGetService
                     var result = await _apiService.TryInstallAsync(packageId,
                         onLogReceived is null ? null : new Progress<string>(onLogReceived),
                         cancellationToken,
-                        onProgress: onProgress).ConfigureAwait(false);
+                        onProgress: onProgress,
+                        source: source).ConfigureAwait(false);
                     if (result.Outcome is WinProvisionInstallOutcome.RequiresWinget
                         or WinProvisionInstallOutcome.PackageNotFound
                         or WinProvisionInstallOutcome.NoCompatibleInstaller)
@@ -752,7 +753,8 @@ public sealed class WinGetService
                 cancellationToken,
                 effectivePreferences?.Architecture,
                 effectivePreferences?.Scope,
-                onProgress).ConfigureAwait(false);
+                onProgress,
+                source).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1612,7 +1614,8 @@ public sealed class WinGetService
                 cancellationToken,
                 effectivePreferences?.Architecture,
                 effectivePreferences?.Scope,
-                onProgress).ConfigureAwait(false);
+                onProgress,
+                source).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

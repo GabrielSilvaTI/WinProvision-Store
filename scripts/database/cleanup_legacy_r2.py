@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 
@@ -13,8 +14,8 @@ from botocore.exceptions import ClientError
 
 BUCKET = os.environ.get("R2_BUCKET") or "winprovision"
 RETIRED_PREFIXES = (
+    "Store/Api/",
     "Store/Catalog/v2/",
-    "Store/Api/v1/",
     "Store/Icon_Database/",
     "Store/Screenshot_Database/",
     "Store/Recovery/",
@@ -33,11 +34,6 @@ REQUIRED_V2_KEYS = (
     "Store/Catalog/msstore/manifest.json",
     "Store/Catalog/msstore/manifest/search-index.json",
     "Store/Catalog/msstore/manifest/media-index.json",
-    "Store/Api/manifest.json",
-    "Store/Api/winget/manifest.json",
-    "Store/Api/winget/manifest/search-index.json",
-    "Store/Api/msstore/manifest.json",
-    "Store/Api/msstore/manifest/search-index.json",
 )
 
 
@@ -72,6 +68,10 @@ def verify_v2(client) -> None:
                 raise
     if missing:
         raise RuntimeError("V2 incompleta no R2; nada será removido. Ausentes:\n  " + "\n  ".join(missing))
+    response = client.get_object(Bucket=BUCKET, Key="Store/Catalog/manifest.json")
+    manifest = json.loads(response["Body"].read())
+    if manifest.get("installerSchemaVersion") != 1:
+        raise RuntimeError("O catálogo ainda não tem instaladores incorporados; nada será removido.")
 
 
 def main() -> int:
@@ -82,7 +82,7 @@ def main() -> int:
     try:
         client = create_client()
         verify_v2(client)
-        print("Catálogo e API V2 verificados; cache operacional e assets Office serão preservados.", flush=True)
+        print("Catálogos V2 verificados; cache operacional e assets Office serão preservados.", flush=True)
 
         targets: list[tuple[str, list[dict]]] = []
         for prefix in RETIRED_PREFIXES:

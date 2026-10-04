@@ -327,24 +327,20 @@ Console.WriteLine($"      {sizeResolved:N0} de {published.Count:N0} pacotes com 
 Console.WriteLine($"      {sizeReused:N0} reaproveitados do catálogo anterior, {sizeResolved - sizeReused:N0} consultados na rede");
 Lap("tamanhos dos instaladores");
 
-// 7. Exportação do catálogo
-Console.WriteLine("\n[7/8] Exportando catálogo...");
+// 7. Anexa as opções de instalação ao mesmo registro que será publicado no catálogo.
+Console.WriteLine("\n[7/8] Incorporando os dados dos instaladores ao catálogo...");
+var installerExporter = new InstallerDataExporter();
+var installerStats = installerExporter.EnrichApps(published, bundlesByAppId);
+Console.WriteLine($"      {installerStats.Packages:N0} apps com instaladores; {installerStats.Installers:N0} opções incorporadas");
+Console.WriteLine($"      {installerStats.InstallersWithoutSilent:N0} instaladores sem suporte silencioso (silentSupported=false)");
+Console.WriteLine($"      {installerStats.SkippedInsecureInstallerUrls:N0} URL(s) HTTP ou inválidas descartadas; {installerStats.SkippedNoInstaller:N0} apps sem instalador HTTPS");
+Lap("enriquecimento dos instaladores");
+
+// 8. Exporta um único apps.json intermediário, que o montador publica como catálogo V2.
+Console.WriteLine("\n[8/8] Exportando catálogo unificado...");
 var exporter = new CatalogExporter();
 await exporter.ExportAsync(published, outputDir);
 Lap("exportação");
-
-// 8. Exportação intermediária da API de instaladores. O montador Python organiza
-// <pasta-de-saida>/api no subcatálogo hierárquico publicado no R2.
-Console.WriteLine("\n[8/8] Exportando API de instaladores...");
-var apiExporter = new InstallerApiExporter();
-// A sincronização MS Store é um pipeline separado (--msstore). Este pipeline só tem
-// os pacotes WinGet carregados em `published`; não há lista MS Store disponível aqui.
-var apiStats = await apiExporter.ExportAsync(published, bundlesByAppId, Path.Combine(outputDir, "api"));
-Console.WriteLine($"      {apiStats.Packages:N0} pacotes e {apiStats.Installers:N0} instaladores exportados");
-Console.WriteLine($"      {apiStats.InstallersWithoutSilent:N0} instaladores sem instalação silenciosa suportada (silentSupported=false)");
-Console.WriteLine($"      {apiStats.SkippedInsecureInstallerUrls:N0} instalador(es) HTTP/URL inválida descartado(s) por exigir HTTPS");
-Console.WriteLine($"      {apiStats.SkippedNoInstaller:N0} pacotes ignorados por não terem instalador HTTPS, {apiStats.SkippedInvalidId:N0} por ID inválido como nome de arquivo");
-Lap("exportação da API");
 
 totalTimer.Stop();
 Console.WriteLine($"\n[SUCESSO] Pipeline concluída em {totalTimer.Elapsed.TotalSeconds:N1}s. {published.Count:N0} apps publicados em '{outputDir}'.");

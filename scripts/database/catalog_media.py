@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import probe_cdn_icons as icon_probe  # noqa: E402
 import sync_cdn_icons as icon_sync  # noqa: E402
 from catalog_v2 import _detail_path  # noqa: E402
+from catalog_media_naming import icon_filename, screenshot_filename, screenshot_slot  # noqa: E402
 from sync_homepage_screenshots import SafeHttp, fetch_screenshot  # noqa: E402
 
 PUBLIC_BASE = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog"
@@ -155,7 +156,15 @@ def normalize_media(media: dict) -> dict:
     if not isinstance(screenshots, list):
         screenshots = []
     screenshots = list(dict.fromkeys(path for path in screenshots if isinstance(path, str)))
-    return {"icon": icon, "iconSha256": icon_sha256, "screenshots": screenshots}
+    labels = media.get("screenshotLabels", {})
+    if not isinstance(labels, dict):
+        labels = {}
+    labels = {str(label): int(number) for label, number in labels.items() if str(number).isdigit() and int(number) > 0}
+    hashes = media.get("screenshotSha256", {})
+    if not isinstance(hashes, dict):
+        hashes = {}
+    hashes = {str(path): str(value).lower() for path, value in hashes.items() if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value)}
+    return {"icon": icon, "iconSha256": icon_sha256, "screenshots": screenshots, "screenshotLabels": labels, "screenshotSha256": hashes}
 
 
 def screenshot_public_urls(client, detail_path: str, screenshot_paths: list[str]) -> list[str]:
@@ -282,6 +291,8 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
     if not media["iconSha256"] and detail_media["iconSha256"]:
         media["iconSha256"] = detail_media["iconSha256"]
     media["screenshots"] = list(dict.fromkeys(media["screenshots"] + detail_media["screenshots"]))
+    media["screenshotLabels"].update(detail_media["screenshotLabels"])
+    media["screenshotSha256"].update(detail_media["screenshotSha256"])
     original_media = normalize_media(registry)
     now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
     label = slug(name or Path(urlparse(source_url).path).stem or kind)
@@ -295,7 +306,7 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         data = converted.getvalue()
         extension = "png"
         digest = hashlib.sha256(data).hexdigest()
-        filename = "icon.png"
+        filename = icon_filename(package_id, "png")
         relative = f"media/{filename}"
         old_icon_path = media["icon"]
         if old_icon_path and old_icon_path != relative and old_icon_path.startswith("media/"):
@@ -303,25 +314,25 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
         media["icon"] = relative
     else:
         old_paths = media["screenshots"]
-        label_pattern = re.compile(rf"media/screenshots/(\d+)-{re.escape(label)}\.[^/]+$", re.IGNORECASE)
-        matching_paths = [(path, label_pattern.fullmatch(path)) for path in old_paths]
-        matching_paths = [(path, match) for path, match in matching_paths if match]
-        if matching_paths:
-            # The normalized source name is the stable identity for manual
-            # screenshots: re-submitting it updates that image instead of
-            # allocating another numbered entry.
-            existing_path, match = matching_paths[0]
-            assert match is not None
-            number = match.group(1)
-            filename = f"{number}-{label}.{extension}"
+        labels = media["screenshotLabels"]
+        matching_number = labels.get(label.casefold())
+        matching_path = next(
+            (path for path in old_paths if (slot := screenshot_slot(path)) and slot[0] == matching_number),
+            None,
+        ) if matching_number else None
+        if matching_path:
+            # Keep the physical filename independent from image origin; a
+            # normalized label-to-slot map lets an intentional resend replace it.
+            number = matching_number
+            filename = screenshot_filename(package_id, number, extension)
             relative = f"media/screenshots/{filename}"
-            existing_key = media_key(package_id, "screenshot", existing_path.rsplit("/", 1)[-1])
+            existing_key = media_key(package_id, "screenshot", matching_path.rsplit("/", 1)[-1])
             if object_sha256(client, existing_key) == digest:
                 upload_asset = False
-            if existing_path != relative:
+            if matching_path != relative:
                 old_object_keys_to_delete.append(existing_key)
                 upload_asset = True
-            media["screenshots"] = list(dict.fromkeys(relative if path == existing_path else path for path in old_paths))
+            media["screenshots"] = list(dict.fromkeys(relative if path == matching_path else path for path in old_paths))
         else:
             # Avoid another entry if the same screenshot is already associated
             # under a different source name for this app.
@@ -335,11 +346,15 @@ def publish_one(client, manifest: dict, index: list[dict], media_index: dict, pa
                     upload_asset = False
                     break
             else:
-                next_number = max((int(match.group(1)) for path in old_paths if (match := re.match(r"media/screenshots/(\d+)-", path))), default=0) + 1
-                filename = f"{next_number:02d}-{label}.{extension}"
+                next_number = max((slot[0] for path in old_paths if (slot := screenshot_slot(path))), default=0) + 1
+                filename = screenshot_filename(package_id, next_number, extension)
                 relative = f"media/screenshots/{filename}"
                 old_paths.append(relative)
+            labels[label.casefold()] = next((slot[0] for path in media["screenshots"] if (slot := screenshot_slot(path)) and path == relative), 0)
         media["screenshots"] = old_paths
+        if matching_path and matching_path != relative:
+            media["screenshotSha256"].pop(matching_path, None)
+        media["screenshotSha256"][relative] = digest
 
     object_key = media_key(package_id, kind, filename)
     if kind == "icon":

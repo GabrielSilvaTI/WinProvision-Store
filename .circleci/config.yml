@@ -79,10 +79,6 @@ jobs:
               "$PWD/msstore-output/catalog"
             MSSTORE_CATALOG_SOURCE="$PWD/msstore-output/catalog" \
               /tmp/ci-venv/bin/python scripts/database/upload_msstore_catalog.py
-            /tmp/ci-venv/bin/python scripts/database/build_api_v2.py \
-              msstore "$PWD/msstore-output/msstore-catalog.json" "$PWD/msstore-output/api-v2/msstore"
-            API_V2_SOURCE=msstore API_V2_SOURCE_DIR="$PWD/msstore-output/api-v2/msstore" \
-              /tmp/ci-venv/bin/python scripts/database/upload_api_v2.py
 
 workflows:
   microsoft_store_catalog:

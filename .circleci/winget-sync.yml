@@ -67,7 +67,7 @@ jobs:
             - nuget-v1-{{ checksum "src/WinProvision.Indexer/WinProvision.Indexer.csproj" }}-{{ checksum "src/WinProvision.Core/WinProvision.Core.csproj" }}
             - nuget-v1-
       - run:
-          name: Gerar catálogo e API do WinGet
+          name: Gerar dados WinGet para o catálogo unificado
           command: |
             if [ "$CATALOG_CACHE_HIT" = "true" ]; then
               echo "Catálogo remoto já está validado; Indexer ignorado."
@@ -102,17 +102,6 @@ jobs:
                 "$PWD/catalog-output/apps.json" \
                 --previous "$PWD/catalog-output/apps.previous.json" \
                 --min-count 5000 --min-retention 0.70
-            fi
-      - run:
-          name: Montar e publicar API WinGet hierárquica
-          command: |
-            if [ "$CATALOG_CACHE_HIT" = "true" ]; then
-              echo "Catálogo remoto já está validado e atualizado; publicação da API ignorada."
-            else
-              /tmp/ci-venv/bin/python scripts/database/build_api_v2.py \
-                winget "$PWD/catalog-output/api" "$PWD/catalog-output/api-v2/winget"
-              API_V2_SOURCE=winget API_V2_SOURCE_DIR="$PWD/catalog-output/api-v2/winget" \
-                /tmp/ci-venv/bin/python scripts/database/upload_api_v2.py
             fi
       - run:
           name: Publicar catálogo WinGet no R2

@@ -116,6 +116,10 @@ public class AppEntry : INotifyPropertyChanged
     [JsonPropertyName("architectures")]
     public List<string> Architectures { get; set; } = [];
 
+    /// <summary>Opções MSI, MSIX, EXE, ZIP e outros formatos extraídas do manifesto WinGet.</summary>
+    [JsonPropertyName("installers")]
+    public List<CatalogInstaller> Installers { get; set; } = [];
+
     /// <summary>
     /// Score de relevância calculado (0-100). Ver ScoringEngine para a fórmula.
     /// </summary>

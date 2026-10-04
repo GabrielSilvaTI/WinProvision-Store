@@ -12,7 +12,7 @@ import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 
 def _is_safe_package_id(package_id: str) -> bool:
@@ -94,11 +94,14 @@ def build_catalog_v2(
             raise ValueError("entrada do apps.json sem ID ou nome válido")
         if not _is_safe_package_id(package_id):
             raise ValueError(f"ID não pode ser representado com segurança na hierarquia de pastas: {package_id!r}")
+        key = package_id.casefold()
         # Apps WinGet passam a obter screenshots somente da mídia associada na V2.
         # Não carregue referências do Screenshot_Database legado para o novo catálogo.
         if str(app.get("source", "winget")).casefold() != "msstore":
             app.pop("screenshotUrls", None)
-        key = package_id.casefold()
+            installers = app.get("installers")
+            if not isinstance(installers, list):
+                raise ValueError(f"Lista de instaladores ausente ou inválida para {package_id}")
         if key in seen:
             raise ValueError(f"ID duplicado no apps.json: {package_id}")
         seen.add(key)
@@ -107,9 +110,11 @@ def build_catalog_v2(
             screenshot_paths = app["media"].get("screenshots", [])
             if isinstance(screenshot_paths, list) and screenshot_paths:
                 base_path = _detail_url_path(package_id).rsplit("/", 1)[0]
+                screenshot_hashes = app["media"].get("screenshotSha256", {})
                 app["screenshotUrls"] = [
                     "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/"
                     + base_path + "/" + quote(path, safe="/")
+                    + ("?v=" + screenshot_hashes[path][:16] if isinstance(screenshot_hashes, dict) and isinstance(screenshot_hashes.get(path), str) else "")
                     for path in screenshot_paths
                     if isinstance(path, str) and path.startswith("media/screenshots/")
                 ]
@@ -142,6 +147,8 @@ def build_catalog_v2(
                 "name": app["name"],
                 "publisher": app.get("publisher", ""),
                 "source": app.get("source", "winget"),
+                "architectures": app.get("architectures", []),
+                "installerCount": len(app.get("installers", [])),
                 "packageLocale": app.get("packageLocale"),
                 "storeIconUrl": app.get("storeIconUrl"),
                 "storeBannerUrl": app.get("storeBannerUrl"),
@@ -186,6 +193,7 @@ def build_catalog_v2(
             "sourceRevision": source_revision,
             "buildRevision": build_revision,
             "msstoreCatalogSha256": msstore_sha256,
+            "installerSchemaVersion": 1,
             "inputFingerprint": cache_fingerprint(source_revision, build_revision, msstore_sha256),
             "indexSha256": hashlib.sha256(index_bytes).hexdigest(),
             "mediaIndexSha256": hashlib.sha256(media_index_bytes).hexdigest() if media_index_bytes is not None else None,
@@ -223,6 +231,8 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
     search = json.loads(search_path.read_text(encoding="utf-8"))
     if manifest.get("schemaVersion") != 2 or not isinstance(search, list):
         raise ValueError("schema do catalog-v2 inválido")
+    if manifest.get("installerSchemaVersion") != 1:
+        raise ValueError("catalog-v2 não inclui o contrato de instaladores")
     if manifest.get("appCount") != len(search) or not search:
         raise ValueError("contagem do manifesto não corresponde ao índice de busca")
     if not isinstance(manifest.get("catalogSha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", manifest["catalogSha256"]):
@@ -271,10 +281,28 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
         detail = json.loads(detail_bytes)
         if not isinstance(detail, dict) or str(detail.get("id", "")).casefold() != key:
             raise ValueError(f"JSON de detalhe não corresponde ao índice: {package_id}")
+        installers = detail.get("installers")
+        if not isinstance(installers, list) or row.get("installerCount") != len(installers):
+            raise ValueError(f"lista de instaladores inválida para {package_id}")
+        for installer in installers:
+            if not isinstance(installer, dict):
+                raise ValueError(f"instalador inválido para {package_id}")
+            installer_url = installer.get("url")
+            parsed_url = urlparse(installer_url) if isinstance(installer_url, str) else None
+            if parsed_url is None or parsed_url.scheme != "https" or not parsed_url.hostname:
+                raise ValueError(f"URL de instalador não HTTPS para {package_id}")
+            installer_sha = installer.get("sha256")
+            if installer_sha is not None and (
+                not isinstance(installer_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", installer_sha)
+            ):
+                raise ValueError(f"SHA-256 de instalador inválido para {package_id}")
+            if installer.get("silentSupported") is True and not re.fullmatch(r"[0-9a-fA-F]{64}", installer_sha or ""):
+                raise ValueError(f"instalador silencioso sem SHA-256 válido para {package_id}")
         comparable_fields = (
             "name",
             "publisher",
             "source",
+            "architectures",
             "packageLocale",
             "storeIconUrl",
             "storeBannerUrl",
@@ -297,7 +325,7 @@ def validate_catalog_v2(directory: str | Path) -> tuple[dict, list[Path]]:
             "screenshotUrls",
             "storeScreenshotUrls",
         )
-        defaults = {"publisher": "", "source": "winget", "version": "", "score": 0, "tags": [], "regionTags": []}
+        defaults = {"publisher": "", "source": "winget", "version": "", "score": 0, "tags": [], "regionTags": [], "architectures": []}
         if any(row.get(field) != detail.get(field, defaults.get(field)) for field in comparable_fields):
             raise ValueError(f"resumo diverge dos detalhes para {package_id}")
 

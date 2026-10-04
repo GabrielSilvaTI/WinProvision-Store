@@ -1,19 +1,10 @@
 // WinProvisionApiService.cs
-// Cliente para a API própria da WinProvision Store (Store/Api no Cloudflare R2).
+// Cliente de instalação própria: lê os instaladores dos mesmos detalhes publicados pelo catálogo V2.
 //
 // Formato observado:
-//   Store/Api/manifest.json aponta para os subcatálogos independentes winget e msstore.
-//   Cada origem publica <source>/manifest.json, <source>/manifest/search-index.json
-//   e <source>/apps/{0-9|a-z}/{publisher}/{produto}/package.json.
-//
-//   Store/Api/<source>/apps/.../package.json
-//     { "schema":2, "id":"115.115Chrome", "version":"36.0.1", "source":"winget",
-//       "installers":[
-//         { "architecture":"x64", "type":"nullsoft", "scope":"user",
-//           "url":"...", "sha256":"...", "silentArgs":"/S -disable-auto-start",
-//           "silentSource":"default", "silentSupported":true, "productCode":"115Chrome" },
-//         ...
-//       ] }
+//   Store/Catalog/manifest.json + Store/Catalog/manifest/search-index.json (WinGet)
+//   Store/Catalog/msstore/manifest.json + .../search-index.json (Microsoft Store)
+//   Cada detailPath aponta para o app.json que também contém "installers".
 //
 using System;
 using System.Collections.Generic;
@@ -52,30 +43,16 @@ public sealed class PackageIndexEntry
     [JsonPropertyName("version")] public string Version { get; set; } = "";
     [JsonPropertyName("source")] public string Source { get; set; } = "winget";
     [JsonPropertyName("architectures")] public List<string> Architectures { get; set; } = [];
+    [JsonPropertyName("installerCount")] public int InstallerCount { get; set; }
     [JsonPropertyName("detailPath")] public string? ManifestPath { get; set; }
     [JsonPropertyName("recordSha256")] public string? ManifestSha256 { get; set; }
 }
 
-public sealed class InstallerApiRootManifest
+public sealed class CatalogIndexManifest
 {
     [JsonPropertyName("schemaVersion")] public int SchemaVersion { get; set; }
-    [JsonPropertyName("catalog")] public string Catalog { get; set; } = "";
-    [JsonPropertyName("sources")] public Dictionary<string, InstallerApiSourceReference> Sources { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-}
-
-public sealed class InstallerApiSourceReference
-{
-    [JsonPropertyName("manifestPath")] public string ManifestPath { get; set; } = "";
-    [JsonPropertyName("indexPath")] public string IndexPath { get; set; } = "";
-}
-
-public sealed class InstallerApiSourceManifest
-{
-    [JsonPropertyName("schemaVersion")] public int SchemaVersion { get; set; }
-    [JsonPropertyName("catalog")] public string Catalog { get; set; } = "";
-    [JsonPropertyName("source")] public string Source { get; set; } = "";
     [JsonPropertyName("generatedUtc")] public DateTimeOffset GeneratedUtc { get; set; }
-    [JsonPropertyName("packageCount")] public int PackageCount { get; set; }
+    [JsonPropertyName("appCount")] public int AppCount { get; set; }
     [JsonPropertyName("indexSha256")] public string IndexSha256 { get; set; } = "";
 }
 
@@ -85,36 +62,11 @@ public sealed class PackageManifest
     [JsonPropertyName("id")] public string Id { get; set; } = "";
     [JsonPropertyName("version")] public string Version { get; set; } = "";
     [JsonPropertyName("source")] public string Source { get; set; } = "winget";
-    [JsonPropertyName("installers")] public List<PackageInstaller> Installers { get; set; } = [];
+    [JsonPropertyName("installers")] public List<CatalogInstaller> Installers { get; set; } = [];
 }
 
-public sealed class PackageInstaller
-{
-    [JsonPropertyName("architecture")] public string Architecture { get; set; } = "";
-    [JsonPropertyName("type")] public string Type { get; set; } = "";           // nullsoft, inno, msi, burn, exe, zip...
-    // Só vem preenchido quando Type == "zip": tipo/caminho do instalador real de dentro do pacote.
-    [JsonPropertyName("nestedType")] public string? NestedType { get; set; }
-    [JsonPropertyName("nestedInstallerFile")] public string? NestedInstallerFile { get; set; }
-    [JsonPropertyName("portableCommandAlias")] public string? PortableCommandAlias { get; set; }
-    [JsonPropertyName("scope")] public string Scope { get; set; } = "";         // user | machine
-    [JsonPropertyName("url")] public string Url { get; set; } = "";
-    [JsonPropertyName("sha256")] public string Sha256 { get; set; } = "";
-    [JsonPropertyName("silentArgs")] public string SilentArgs { get; set; } = "";
-    [JsonPropertyName("silentSource")] public string SilentSource { get; set; } = "";
-    [JsonPropertyName("silentSupported")] public bool SilentSupported { get; set; }
-    [JsonPropertyName("productCode")] public string? ProductCode { get; set; }
-    [JsonPropertyName("successCodes")] public List<int> SuccessCodes { get; set; } = [];
-
-    /// <summary>Atalho: true quando este instalador é um zip com instalador aninhado resolvido pela API.</summary>
-    [JsonIgnore]
-    public bool IsZipWithNestedInstaller =>
-        string.Equals(Type, "zip", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(NestedInstallerFile);
-
-    [JsonIgnore]
-    public bool IsPortable => string.Equals(Type, "portable", StringComparison.OrdinalIgnoreCase)
-                              || (string.Equals(Type, "zip", StringComparison.OrdinalIgnoreCase)
-                                  && string.Equals(NestedType, "portable", StringComparison.OrdinalIgnoreCase));
-}
+/// <summary>Compatibilidade para consumidores antigos do modelo de instalador.</summary>
+public sealed class PackageInstaller : CatalogInstaller { }
 
 #endregion
 
@@ -169,7 +121,8 @@ public static class WinProvisionInstallerCommandBuilder
 [SupportedOSPlatform("windows")]
 public sealed class WinProvisionApiService
 {
-    private const string BaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Api/";
+    private const string CatalogBaseUrl = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/";
+    private const string MsStoreCatalogBaseUrl = CatalogBaseUrl + "msstore/";
 
     private readonly HttpClient _http;
     private readonly string _cacheDir;
@@ -179,7 +132,7 @@ public sealed class WinProvisionApiService
     private readonly string _installRecordsPath;
 
     private PackageIndex? _indexCache;
-    private IReadOnlyDictionary<string, PackageIndexEntry> _apiEntriesById =
+    private IReadOnlyDictionary<string, PackageIndexEntry> _catalogEntriesById =
         new Dictionary<string, PackageIndexEntry>(StringComparer.OrdinalIgnoreCase);
     private DateTimeOffset _indexCachedAt;
     private static readonly TimeSpan IndexTtl = TimeSpan.FromMinutes(15);
@@ -242,20 +195,11 @@ public sealed class WinProvisionApiService
 
             try
             {
-                var root = await GetJsonWithRetryAsync<InstallerApiRootManifest>(BaseUrl + "manifest.json", ct)
-                    ?? throw new InvalidDataException("manifest.json da API vazio ou inválido.");
-                ValidateRootManifest(root);
-                var combined = new List<PackageIndexEntry>();
-                DateTimeOffset generatedAt = DateTimeOffset.MinValue;
-                var sourceIndexes = await Task.WhenAll(root.Sources
-                    .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .Select(pair => LoadSourceIndexAsync(pair.Key, pair.Value, ct)));
-                foreach (var (source, sourceManifest, entries) in sourceIndexes)
-                {
-                    combined.AddRange(entries);
-                    if (sourceManifest.GeneratedUtc > generatedAt)
-                        generatedAt = sourceManifest.GeneratedUtc;
-                }
+                var sourceIndexes = await Task.WhenAll(
+                    LoadSourceIndexAsync("winget", CatalogBaseUrl, ct),
+                    LoadSourceIndexAsync("msstore", MsStoreCatalogBaseUrl, ct));
+                var combined = sourceIndexes.SelectMany(result => result.Entries).ToList();
+                DateTimeOffset generatedAt = sourceIndexes.Max(result => result.Manifest.GeneratedUtc);
 
                 var index = new PackageIndex
                 {
@@ -266,8 +210,8 @@ public sealed class WinProvisionApiService
                 };
                 ValidateIndex(index);
                 _indexCache = index;
-                _apiEntriesById = index.Packages
-                    .ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
+                _catalogEntriesById = index.Packages
+                    .ToDictionary(entry => CatalogEntryKey(entry.Source, entry.Id), StringComparer.OrdinalIgnoreCase);
                 _indexCachedAt = DateTimeOffset.UtcNow;
                 await WriteCacheFileAsync(IndexCachePath, JsonSerializer.Serialize(index), ct);
                 return index;
@@ -279,8 +223,8 @@ public sealed class WinProvisionApiService
                 {
                     ValidateIndex(cached);
                     _indexCache = cached;
-                    _apiEntriesById = cached.Packages
-                        .ToDictionary(entry => entry.Id, StringComparer.OrdinalIgnoreCase);
+                    _catalogEntriesById = cached.Packages
+                        .ToDictionary(entry => CatalogEntryKey(entry.Source, entry.Id), StringComparer.OrdinalIgnoreCase);
                     _indexCachedAt = DateTimeOffset.UtcNow;
                     return cached;
                 }
@@ -293,39 +237,44 @@ public sealed class WinProvisionApiService
         }
     }
 
-    private async Task<(string Source, InstallerApiSourceManifest Manifest, List<PackageIndexEntry> Entries)>
-        LoadSourceIndexAsync(string source, InstallerApiSourceReference reference, CancellationToken ct)
+    private async Task<(CatalogIndexManifest Manifest, List<PackageIndexEntry> Entries)>
+        LoadSourceIndexAsync(string source, string baseUrl, CancellationToken ct)
     {
-        var manifest = await GetJsonWithRetryAsync<InstallerApiSourceManifest>(BaseUrl + reference.ManifestPath, ct)
+        var manifest = await GetJsonWithRetryAsync<CatalogIndexManifest>(baseUrl + "manifest.json", ct)
             ?? throw new InvalidDataException($"Manifesto da origem {source} vazio.");
         ValidateSourceManifest(manifest, source);
         var entries = await GetJsonWithRetryAsync<List<PackageIndexEntry>>(
-            BaseUrl + reference.IndexPath, ct, manifest.IndexSha256)
+            baseUrl + "manifest/search-index.json", ct, manifest.IndexSha256)
             ?? throw new InvalidDataException($"Índice da origem {source} vazio.");
-        if (entries.Count != manifest.PackageCount
+        if (entries.Count != manifest.AppCount
             || entries.Any(entry => !string.Equals(entry.Source, source, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidDataException($"Índice da origem {source} não corresponde ao manifesto.");
-        return (source, manifest, entries);
+        return (manifest, entries);
     }
 
-    public async Task<PackageManifest?> GetPackageAsync(string id, CancellationToken ct = default)
+    public async Task<PackageManifest?> GetPackageAsync(string id, CancellationToken ct = default, string? source = null)
     {
-        string cachePath = GetManifestCachePath(id);
-        PackageIndex index;
+        string requestedSource = string.Equals(source, "msstore", StringComparison.OrdinalIgnoreCase) ? "msstore" : "winget";
+        string cachePath = GetManifestCachePath(id, requestedSource);
         try
         {
-            index = await GetIndexAsync(ct: ct).ConfigureAwait(false);
+            await GetIndexAsync(ct: ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException or JsonException or InvalidDataException)
         {
             throw new HttpRequestException("Não foi possível validar o pacote contra o índice da API.", ex);
         }
 
-        if (!_apiEntriesById.TryGetValue(id, out var entry)) return null;
+        if (!_catalogEntriesById.TryGetValue(CatalogEntryKey(requestedSource, id), out var entry)
+            && (source is not null || !_catalogEntriesById.TryGetValue(CatalogEntryKey("msstore", id), out entry)))
+            return null;
         if (!IsValidManifestReference(entry))
             throw new InvalidDataException($"Referência do manifesto de '{id}' inválida no índice.");
 
-        string manifestUrl = BaseUrl + entry.Source + "/" + entry.ManifestPath;
+        string sourceBaseUrl = string.Equals(entry.Source, "msstore", StringComparison.OrdinalIgnoreCase)
+            ? MsStoreCatalogBaseUrl
+            : CatalogBaseUrl;
+        string manifestUrl = sourceBaseUrl + entry.ManifestPath;
         try
         {
             var manifest = await GetJsonWithRetryAsync<PackageManifest>(manifestUrl, ct, entry.ManifestSha256,
@@ -353,40 +302,40 @@ public sealed class WinProvisionApiService
 
     private static bool IsValidManifestReference(PackageIndexEntry entry)
     {
-        if (!IsSafeApiPackageId(entry.Id) || string.IsNullOrWhiteSpace(entry.ManifestPath)
+        if (!IsSafeCatalogPackageId(entry.Id) || string.IsNullOrWhiteSpace(entry.ManifestPath)
             || !IsValidSha256(entry.ManifestSha256)) return false;
-        string path = Uri.UnescapeDataString(entry.ManifestPath);
+        string path;
+        try { path = Uri.UnescapeDataString(entry.ManifestPath); }
+        catch (UriFormatException) { return false; }
         string[] segments = path.Split('/');
         return segments.Length >= 4
             && segments[0] == "apps"
-            && segments[1] == (char.IsDigit(entry.Id[0]) ? "0-9" : char.ToLowerInvariant(entry.Id[0]).ToString())
-            && segments[^1] == "package.json"
+            && segments[1] == GetCatalogPrefix(entry.Id)
+            && segments[^1] == "app.json"
             && segments.Skip(2).Take(segments.Length - 3).All(segment => segment.Length > 0
-                && segment.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_'));
+                && segment is not ("." or "..")
+                && segment.All(character => !char.IsControl(character) && !char.IsWhiteSpace(character)
+                    && character is not ('/' or '\\')));
     }
 
-    private static bool IsSafeApiPackageId(string id) =>
+    private static string GetCatalogPrefix(string id) =>
+        id[0] is >= '0' and <= '9' ? "0-9"
+        : id[0] is >= 'a' and <= 'z' or >= 'A' and <= 'Z' ? char.ToLowerInvariant(id[0]).ToString()
+        : "_";
+
+    private static string CatalogEntryKey(string source, string id) => $"{source}\0{id}";
+
+    private static bool IsSafeCatalogPackageId(string id) =>
         !string.IsNullOrWhiteSpace(id)
         && id.Length <= 128
-        && char.IsAsciiLetterOrDigit(id[0])
-        && id.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+        && char.IsLetterOrDigit(id[0])
+        && id.All(character => !char.IsWhiteSpace(character) && !char.IsControl(character) && character is not ('/' or '\\'))
+        && id.Split('.').All(part => part.Length > 0 && part is not ("." or ".."));
 
-    private static void ValidateRootManifest(InstallerApiRootManifest manifest)
+    private static void ValidateSourceManifest(CatalogIndexManifest manifest, string source)
     {
-        if (manifest.SchemaVersion != 2 || manifest.Catalog != "installer-api"
-            || manifest.Sources is null || manifest.Sources.Count is < 1 or > 2
-            || manifest.Sources.Keys.Any(source => source is not ("winget" or "msstore"))
-            || manifest.Sources.Any(pair => pair.Value is null
-                || pair.Value.ManifestPath != $"{pair.Key}/manifest.json"
-                || pair.Value.IndexPath != $"{pair.Key}/manifest/search-index.json"))
-            throw new InvalidDataException("O manifesto raiz da API é inválido ou incompatível.");
-    }
-
-    private static void ValidateSourceManifest(InstallerApiSourceManifest manifest, string source)
-    {
-        if (manifest.SchemaVersion != 2 || manifest.Catalog != "installer-api"
-            || !string.Equals(manifest.Source, source, StringComparison.Ordinal)
-            || manifest.PackageCount < 1 || manifest.GeneratedUtc == default
+        if (manifest.SchemaVersion != 2
+            || manifest.AppCount < 1 || manifest.GeneratedUtc == default
             || manifest.GeneratedUtc > DateTimeOffset.UtcNow.AddMinutes(10)
             || !IsValidSha256(manifest.IndexSha256))
             throw new InvalidDataException($"Manifesto da origem {source} inválido.");
@@ -400,8 +349,9 @@ public sealed class WinProvisionApiService
         var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in index.Packages)
         {
-            if (entry is null || !IsSafeApiPackageId(entry.Id)
-                || !ids.Add(entry.Id) || (entry.Source is not ("winget" or "msstore")))
+            if (entry is null || !IsSafeCatalogPackageId(entry.Id)
+                || (entry.Source is not ("winget" or "msstore"))
+                || !ids.Add(CatalogEntryKey(entry.Source, entry.Id)))
                 throw new InvalidDataException("O índice da API contém uma entrada inválida ou duplicada.");
             if (!IsValidManifestReference(entry))
                 throw new InvalidDataException($"Referência do manifesto de '{entry.Id}' inválida.");
@@ -409,14 +359,14 @@ public sealed class WinProvisionApiService
     }
 
     private static bool IsManifestForEntry(PackageManifest manifest, PackageIndexEntry entry) =>
-        manifest.Schema == 2
-        && string.Equals(manifest.Id, entry.Id, StringComparison.OrdinalIgnoreCase)
+        string.Equals(manifest.Id, entry.Id, StringComparison.OrdinalIgnoreCase)
         && string.Equals(manifest.Version, entry.Version, StringComparison.Ordinal)
         && string.Equals(manifest.Source, entry.Source, StringComparison.OrdinalIgnoreCase);
 
     private static void ValidateManifest(PackageManifest manifest, PackageIndexEntry entry)
     {
-        if (!IsManifestForEntry(manifest, entry) || manifest.Installers is null)
+        if (!IsManifestForEntry(manifest, entry) || manifest.Installers is null
+            || manifest.Installers.Count != entry.InstallerCount)
             throw new InvalidDataException("O manifesto não corresponde à entrada validada do índice.");
     }
 
@@ -437,12 +387,12 @@ public sealed class WinProvisionApiService
     }
     private static bool IsRecentCache(string path) =>
         File.Exists(path) && DateTime.UtcNow - File.GetLastWriteTimeUtc(path) <= MaxStaleCacheAge;
-    private string IndexCachePath => Path.Combine(_cacheDir, "index.json");
+    private string IndexCachePath => Path.Combine(_cacheDir, "catalog-index.json");
 
-    private string GetManifestCachePath(string id)
+    private string GetManifestCachePath(string id, string source)
     {
-        string key = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(id.ToUpperInvariant())));
-        return Path.Combine(_cacheDir, $"manifest-{key}.json");
+        string key = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{source}\0{id.ToUpperInvariant()}")));
+        return Path.Combine(_cacheDir, $"catalog-app-{key}.json");
     }
 
     private async Task<T?> GetJsonWithRetryAsync<T>(string url, CancellationToken ct, string? expectedSha256 = null, Func<byte[], CancellationToken, Task>? onPayloadReceived = null)
@@ -552,7 +502,7 @@ public sealed class WinProvisionApiService
     /// Escolhe o melhor installer para a arquitetura atual da máquina, com fallback pra x86
     /// (compatível via WOW64) quando não existe build nativa.
     /// </summary>
-    public static PackageInstaller? PickInstaller(
+    public static CatalogInstaller? PickInstaller(
         PackageManifest manifest,
         Architecture? preferred = null,
         string? preferredScope = null)
@@ -588,8 +538,8 @@ public sealed class WinProvisionApiService
             .FirstOrDefault();
     }
 
-    private static IEnumerable<PackageInstaller> PreferScope(
-        IEnumerable<PackageInstaller> installers,
+    private static IEnumerable<CatalogInstaller> PreferScope(
+        IEnumerable<CatalogInstaller> installers,
         string? preferredScope)
     {
         var available = installers.ToList();
@@ -616,13 +566,14 @@ public sealed class WinProvisionApiService
         CancellationToken ct = default,
         string? preferredArchitecture = null,
         string? preferredScope = null,
-        Action<InstallProgressUpdate>? onProgress = null)
+        Action<InstallProgressUpdate>? onProgress = null,
+        string? source = null)
     {
         onLog?.Report($"[WinProvisionAPI] Consultando manifest de '{packageId}'...");
         PackageManifest? manifest;
         try
         {
-            manifest = await GetPackageAsync(packageId, ct).ConfigureAwait(false);
+            manifest = await GetPackageAsync(packageId, ct, source).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -678,7 +629,7 @@ public sealed class WinProvisionApiService
             return new WinProvisionInstallResult(WinProvisionInstallOutcome.InvalidManifest,
                 Message: "O manifesto não contém um SHA-256 válido; o instalador não será executado.");
 
-        // O catálogo (InstallerApiExporter) já marca silentSupported=false pra tipos que
+        // O catálogo WinGet já marca silentSupported=false pra tipos que
         // não sabe instalar sem interação (msix, appx, portable, exe sem switch declarado
         // no manifesto, ou um zip cujo NestedInstallerType/NestedInstallerFiles não foi
         // resolvido). Baixar e tentar EXECUTAR esse arquivo sempre falha nesses casos —
@@ -1041,7 +992,7 @@ public sealed class WinProvisionApiService
     private static async Task<WinProvisionInstallResult> InstallPortablePackageAsync(
         string downloadedPath,
         string packageId,
-        PackageInstaller installer,
+        CatalogInstaller installer,
         CancellationToken ct)
     {
         string portableRoot = Path.Combine(

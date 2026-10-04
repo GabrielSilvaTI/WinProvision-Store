@@ -1,47 +1,26 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using WinProvision.Core.Models;
 
 namespace WinProvision.Core.Services.Indexing;
 
-/// <param name="Packages">Pacotes gravados em packages/.</param>
+/// <param name="Packages">Apps WinGet com pelo menos um instalador HTTPS.</param>
 /// <param name="Installers">Total de instaladores dentro desses pacotes.</param>
 /// <param name="InstallersWithoutSilent">Instaladores com silentSupported=false (msix, zip, portable, exe genérico sem switch etc.).</param>
 /// <param name="SkippedNoInstaller">Pacotes sem nenhum instalador com URL no manifesto.</param>
 /// <param name="SkippedInsecureInstallerUrls">Instaladores descartados por não usarem URL HTTPS absoluta.</param>
-/// <param name="SkippedInvalidId">Pacotes cujo ID não serve como nome de arquivo.</param>
-public record ApiExportStats(
+public record InstallerExportStats(
     int Packages,
     int Installers,
     int InstallersWithoutSilent,
     int SkippedNoInstaller,
-    int SkippedInsecureInstallerUrls,
-    int SkippedInvalidId);
+    int SkippedInsecureInstallerUrls);
 
 /// <summary>
-/// Gera os dados intermediários da API estática de instaladores:
-///
-///   api/index.json                 lista leve (id, versão, arquiteturas)
-///   api/packages/&lt;id&gt;.json    todos os instaladores normalizados do pacote
-///
-/// Os arquivos são artefatos de pipeline (publicados no R2 por upload_api_json.py,
-/// que só reenvia os packages/*.json cujo sha256 mudou). Por isso o conteúdo de cada
-/// packages/*.json é DETERMINÍSTICO: sem data/hora de geração e com instaladores em
-/// ordem fixa. O generatedAt fica só no index.json, que é sempre reenviado.
-///
-/// O resultado plano é uma entrada intermediária consumida pelo montador Python da API V2.
-/// A origem Microsoft Store é montada pelo pipeline próprio, sem depender do indexador WinGet.
-/// Usa a mesma <see cref="WinProvisionJsonOptions"/> do
-/// <see cref="CatalogExporter"/>; campos nulos são omitidos do JSON.
+/// Acrescenta os dados dos instaladores diretamente aos apps antes de exportar o catálogo.
 /// </summary>
-public class InstallerApiExporter
+public class InstallerDataExporter
 {
-    private const int SchemaVersion = 1;
-
-    private static readonly JsonSerializerOptions JsonOptions = WinProvisionJsonOptions.Compact;
-
-    // Tipos que a API trata como EXE/MSI. Fora disso (msix, appx, portable, pwa...) o
-    // instalador é exportado, mas com silentSupported=false. "zip" não entra aqui de
+    // Tipos com suporte silencioso conhecido. Outros formatos (msix, appx, portable...)
+    // permanecem no JSON com silentSupported=false. "zip" não entra aqui de
     // propósito: é resolvido à parte em BuildInstallers via NestedInstallerType (o tipo
     // real do instalador de dentro do pacote), que é o valor efetivamente checado contra
     // este conjunto.
@@ -62,113 +41,45 @@ public class InstallerApiExporter
         ["inno"] = "/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART",
     };
 
-    private static readonly char[] InvalidFileNameChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|', '\0'];
-
-    public async Task<ApiExportStats> ExportAsync(
+    public InstallerExportStats EnrichApps(
         IEnumerable<AppEntry> apps,
-        IReadOnlyDictionary<string, RawManifestBundle> bundlesByAppId,
-        string apiDir)
+        IReadOnlyDictionary<string, RawManifestBundle> bundlesByAppId)
     {
-        // A pasta é recriada do zero para não sobrar pacote de uma execução antiga.
-        if (Directory.Exists(apiDir))
-            Directory.Delete(apiDir, recursive: true);
-
-        string packagesDir = Path.Combine(apiDir, "packages");
-        Directory.CreateDirectory(packagesDir);
-
-        var indexItems = new List<ApiIndexItem>();
+        int packageCount = 0;
         int installerCount = 0;
         int withoutSilent = 0;
         int skippedNoInstaller = 0;
         int skippedInsecureInstallerUrls = 0;
-        int skippedInvalidId = 0;
 
-        foreach (var app in apps.OrderBy(a => a.Id, StringComparer.OrdinalIgnoreCase))
+        foreach (var app in apps)
         {
-            if (!IsSafeFileName(app.Id))
-            {
-                skippedInvalidId++;
-                continue;
-            }
-
-            if (string.Equals(app.Source, "msstore", StringComparison.OrdinalIgnoreCase))
-            {
-                var storePackage = new ApiPackage
-                {
-                    Schema = SchemaVersion,
-                    Id = app.Id,
-                    Version = app.Version,
-                    Source = "msstore"
-                };
-                await WriteAsync(Path.Combine(packagesDir, app.Id + ".json"), storePackage);
-                indexItems.Add(new ApiIndexItem
-                {
-                    Id = app.Id,
-                    Version = app.Version,
-                    Source = "msstore"
-                });
-                continue;
-            }
-
             if (!string.Equals(app.Source, "winget", StringComparison.OrdinalIgnoreCase)
                 || !bundlesByAppId.TryGetValue(app.Id, out var bundle))
                 continue;
 
             var installers = BuildInstallers(bundle, out int insecureInstallerUrls);
             skippedInsecureInstallerUrls += insecureInstallerUrls;
+            app.Installers = installers;
             if (installers.Count == 0)
             {
                 skippedNoInstaller++;
                 continue;
             }
 
-            var package = new ApiPackage
-            {
-                Schema = SchemaVersion,
-                Id = app.Id,
-                Version = app.Version,
-                Source = "winget",
-                Installers = installers
-            };
-
-            await WriteAsync(Path.Combine(packagesDir, app.Id + ".json"), package);
-
+            packageCount++;
             installerCount += installers.Count;
             withoutSilent += installers.Count(i => !i.SilentSupported);
-
-            indexItems.Add(new ApiIndexItem
-            {
-                Id = app.Id,
-                Version = app.Version,
-                Architectures = installers
-                    .Select(i => i.Architecture)
-                    .Where(a => !string.IsNullOrWhiteSpace(a))
-                    .Select(a => a!)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(a => a, StringComparer.Ordinal)
-                    .ToList()
-            });
         }
 
-        var index = new ApiIndex
-        {
-            Schema = SchemaVersion,
-            GeneratedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
-            Count = indexItems.Count,
-            Packages = indexItems
-        };
-
-        await WriteAsync(Path.Combine(apiDir, "index.json"), index);
-
-        return new ApiExportStats(indexItems.Count, installerCount, withoutSilent, skippedNoInstaller,
-            skippedInsecureInstallerUrls, skippedInvalidId);
+        return new InstallerExportStats(packageCount, installerCount, withoutSilent, skippedNoInstaller,
+            skippedInsecureInstallerUrls);
     }
 
     /// <summary>
     /// Um item por entrada de "Installers". Campos da raiz do manifesto valem como padrão
     /// e o item sobrescreve (InstallerSwitches é mesclado chave a chave).
     /// </summary>
-    private static List<ApiInstaller> BuildInstallers(RawManifestBundle bundle, out int insecureUrlCount)
+    private static List<CatalogInstaller> BuildInstallers(RawManifestBundle bundle, out int insecureUrlCount)
     {
         insecureUrlCount = 0;
         var root = bundle.InstallerManifest;
@@ -177,7 +88,7 @@ public class InstallerApiExporter
 
         var rootSwitches = ReadSwitches(root);
         var rootModes = root.GetStringList("InstallModes");
-        var result = new List<ApiInstaller>();
+        var result = new List<CatalogInstaller>();
 
         foreach (var item in root.GetObjectList("Installers"))
         {
@@ -232,7 +143,7 @@ public class InstallerApiExporter
                 || !string.IsNullOrEmpty(nestedRelativePath);
             bool supported = silent.Supported && hasUsableNestedFile;
 
-            result.Add(new ApiInstaller
+            result.Add(new CatalogInstaller
             {
                 Architecture = Clean(Pick(item, root, "Architecture"))?.ToLowerInvariant(),
                 Type = type,
@@ -347,59 +258,4 @@ public class InstallerApiExporter
     private static string? Clean(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private static bool IsSafeFileName(string id)
-        => !string.IsNullOrWhiteSpace(id) && id.IndexOfAny(InvalidFileNameChars) < 0;
-
-    private static async Task WriteAsync<T>(string path, T data)
-    {
-        await using var stream = File.Create(path);
-        await JsonSerializer.SerializeAsync(stream, data, JsonOptions);
-    }
-}
-
-public class ApiIndex
-{
-    [JsonPropertyName("schema")] public int Schema { get; set; }
-    [JsonPropertyName("generatedAt")] public string GeneratedAt { get; set; } = string.Empty;
-    [JsonPropertyName("count")] public int Count { get; set; }
-    [JsonPropertyName("packages")] public List<ApiIndexItem> Packages { get; set; } = [];
-}
-
-public class ApiIndexItem
-{
-    [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
-    [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
-    [JsonPropertyName("source")] public string Source { get; set; } = "winget";
-    [JsonPropertyName("architectures")] public List<string> Architectures { get; set; } = [];
-}
-
-public class ApiPackage
-{
-    [JsonPropertyName("schema")] public int Schema { get; set; }
-    [JsonPropertyName("id")] public string Id { get; set; } = string.Empty;
-    [JsonPropertyName("version")] public string Version { get; set; } = string.Empty;
-    [JsonPropertyName("source")] public string Source { get; set; } = "winget";
-    [JsonPropertyName("installers")] public List<ApiInstaller> Installers { get; set; } = [];
-}
-
-public class ApiInstaller
-{
-    [JsonPropertyName("architecture")] public string? Architecture { get; set; }
-    /// <summary>Tipo do instalador publicado (msi, wix, burn, nullsoft, inno, exe, zip, msix...).</summary>
-    [JsonPropertyName("type")] public string? Type { get; set; }
-    /// <summary>Só preenchido quando <see cref="Type"/> é "zip": o InstallerType real de dentro do pacote.</summary>
-    [JsonPropertyName("nestedType")] public string? NestedType { get; set; }
-    /// <summary>Só preenchido quando <see cref="Type"/> é "zip": caminho relativo, dentro do zip, do instalador a extrair e rodar.</summary>
-    [JsonPropertyName("nestedInstallerFile")] public string? NestedInstallerFile { get; set; }
-    [JsonPropertyName("portableCommandAlias")] public string? PortableCommandAlias { get; set; }
-    [JsonPropertyName("scope")] public string? Scope { get; set; }
-    [JsonPropertyName("locale")] public string? Locale { get; set; }
-    [JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
-    [JsonPropertyName("sha256")] public string? Sha256 { get; set; }
-    [JsonPropertyName("silentArgs")] public string? SilentArgs { get; set; }
-    /// <summary>"manifest", "default" ou "none" (sem instalação silenciosa suportada).</summary>
-    [JsonPropertyName("silentSource")] public string SilentSource { get; set; } = "none";
-    [JsonPropertyName("silentSupported")] public bool SilentSupported { get; set; }
-    [JsonPropertyName("productCode")] public string? ProductCode { get; set; }
-    [JsonPropertyName("successCodes")] public List<int> SuccessCodes { get; set; } = [];
 }

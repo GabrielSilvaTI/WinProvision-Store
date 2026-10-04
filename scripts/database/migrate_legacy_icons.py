@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlparse
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from catalog_media_naming import icon_filename
 from PIL import Image, UnidentifiedImageError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -316,7 +317,7 @@ def publish_batch(client, manifest: dict, index: list[dict], media_index: dict, 
             print(f"{package_id}: ícone legado ignorado ({type(exc).__name__}: {exc})", file=sys.stderr)
             continue
         digest = hashlib.sha256(png).hexdigest()
-        icon_path = "media/icon.png"
+        icon_path = f"media/{icon_filename(package_id, 'png')}"
         icon_key = detail_key.rsplit("/", 1)[0] + "/" + icon_path
         destination_digest = stored_object_sha256(client, icon_key)
         if destination_digest and destination_digest != digest:

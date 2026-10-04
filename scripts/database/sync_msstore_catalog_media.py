@@ -24,6 +24,8 @@ from PIL import Image, UnidentifiedImageError
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from catalog_media_naming import banner_filename, icon_filename, screenshot_filename
+
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 BASE_KEY = "Store/Catalog/msstore/apps"
 
@@ -110,7 +112,16 @@ def main() -> int:
         contextual = f"{package_id.casefold()}\0{slot}\0{index}\0{url}"
         cache_key = hashlib.sha256(contextual.encode("utf-8")).hexdigest()
         old = cache.get(cache_key)
-        if isinstance(old, dict) and old.get("sourceUrl") == url and old.get("path"):
+        expected_path = None
+        if isinstance(old, dict) and isinstance(old.get("path"), str):
+            extension = old["path"].rsplit(".", 1)[-1]
+            expected_name = (
+                icon_filename(package_id, extension) if slot == "icon"
+                else banner_filename(package_id, extension) if slot == "banner"
+                else screenshot_filename(package_id, index + 1, extension)
+            )
+            expected_path = f"media/{expected_name}" if slot != "screenshot" else f"media/screenshots/{expected_name}"
+        if isinstance(old, dict) and old.get("sourceUrl") == url and old.get("path") == expected_path:
             return job, old, False
         if not allowed(url):
             raise ValueError(f"URL fora dos domínios permitidos: {url}")
@@ -147,11 +158,11 @@ def main() -> int:
             raise ValueError(f"imagem inválida: {exc}") from exc
         prefix, folder = app_folder(package_id)
         if slot == "icon":
-            relative = "media/icon.png"
+            relative = f"media/{icon_filename(package_id, ext)}"
         elif slot == "banner":
-            relative = "media/banner.png"
+            relative = f"media/{banner_filename(package_id, ext)}"
         else:
-            relative = f"media/screenshots/{index + 1:02d}.{ext}"
+            relative = f"media/screenshots/{screenshot_filename(package_id, index + 1, ext)}"
         object_key = f"{BASE_KEY}/{prefix}/{folder}/{relative}"
         digest = hashlib.sha256(data).hexdigest()
         s3.put_object(Bucket=bucket, Key=object_key, Body=bytes(data), ContentType="image/png" if ext == "png" else f"image/{ext}", CacheControl="public, max-age=31536000, immutable", Metadata={"sha256": digest})

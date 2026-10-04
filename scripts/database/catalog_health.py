@@ -22,7 +22,6 @@ from urllib3.util.retry import Retry
 CATALOGS = {
     "winget": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json",
     "microsoft_store": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/msstore/manifest.json",
-    "installer_api": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Api/manifest.json",
     "office": "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Office/Database/catalog.json",
 }
 MEDIA_KEYS = {
@@ -200,6 +199,7 @@ def main() -> int:
         digest = manifest.get("catalogSha256")
         if (
             manifest.get("schemaVersion") != 2
+            or manifest.get("installerSchemaVersion") != 1
             or not isinstance(digest, str)
             or not re.fullmatch(r"[0-9a-f]{64}", digest)
         ):
@@ -242,6 +242,13 @@ def main() -> int:
                         or str(detail.get("id", "")).casefold() != str(row.get("id", "")).casefold()
                     ):
                         raise ValueError(f"detalhe não corresponde ao resumo: {row.get('id')}")
+                    installers = detail.get("installers")
+                    if (
+                        not isinstance(installers, list)
+                        or row.get("installerCount") != len(installers)
+                        or any(not isinstance(item, dict) or not str(item.get("url", "")).startswith("https://") for item in installers)
+                    ):
+                        raise ValueError(f"instaladores ausentes ou inválidos para {row.get('id')}")
                     details.append(detail)
                 payloads["winget_details_sample"] = details
                 print(f"JSON OK: winget search-index ({len(search_index)} apps; {len(details)} detalhes amostrados)")
@@ -292,78 +299,6 @@ def main() -> int:
         except (requests.RequestException, UnicodeError, json.JSONDecodeError, ValueError) as exc:
             catalog_errors.append(f"Catálogo Microsoft Store: {type(exc).__name__}: {exc}")
             print(f"JSON ERRO: catálogo Microsoft Store: {exc}", file=sys.stderr)
-
-    api_root = payloads.get("installer_api")
-    if isinstance(api_root, dict):
-        try:
-            sources = api_root.get("sources")
-            if (
-                api_root.get("schemaVersion") != 2
-                or api_root.get("catalog") != "installer-api"
-                or not isinstance(sources, dict)
-                or set(sources) != {"winget", "msstore"}
-            ):
-                raise ValueError("manifesto raiz da API inválido")
-            api_base = "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Api"
-            for source, refs in sources.items():
-                if (
-                    not isinstance(refs, dict)
-                    or refs.get("manifestPath") != f"{source}/manifest.json"
-                    or refs.get("indexPath") != f"{source}/manifest/search-index.json"
-                ):
-                    raise ValueError(f"referências da origem {source} inválidas")
-                source_manifest = get_json(f"installer_api {source} manifest", f"{api_base}/{refs['manifestPath']}")
-                rows = get_json(f"installer_api {source} index", f"{api_base}/{refs['indexPath']}")
-                index_hash = hashlib.sha256(
-                    json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-                ).hexdigest()
-                if (
-                    not isinstance(source_manifest, dict)
-                    or source_manifest.get("schemaVersion") != 2
-                    or source_manifest.get("catalog") != "installer-api"
-                    or source_manifest.get("source") != source
-                    or not isinstance(rows, list)
-                    or source_manifest.get("packageCount") != len(rows)
-                    or len(rows) < (5000 if source == "winget" else 20)
-                    or source_manifest.get("indexSha256") != index_hash
-                ):
-                    raise ValueError(f"manifesto/índice da origem {source} inválido")
-                sample_details = []
-                for row in rows[: min(12, len(rows))]:
-                    detail_path = row.get("detailPath") if isinstance(row, dict) else None
-                    if (
-                        not isinstance(row, dict)
-                        or row.get("source") != source
-                        or not isinstance(detail_path, str)
-                        or not detail_path.startswith("apps/")
-                        or any(segment in ("", ".", "..") for segment in detail_path.split("/"))
-                        or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("recordSha256", "")))
-                    ):
-                        raise ValueError(f"entrada ou caminho inválido no índice {source}")
-                    detail = get_json(f"installer_api {source} detail", f"{api_base}/{source}/{detail_path}")
-                    detail_hash = hashlib.sha256(
-                        json.dumps(detail, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-                    ).hexdigest()
-                    if (
-                        detail_hash != row["recordSha256"]
-                        or not isinstance(detail, dict)
-                        or detail.get("schema") != 2
-                        or detail.get("source") != source
-                        or str(detail.get("id", "")).casefold() != str(row.get("id", "")).casefold()
-                    ):
-                        raise ValueError(f"detalhe da API diverge para {row.get('id')}")
-                    installers = detail.get("installers", [])
-                    if source == "winget" and not installers or source == "msstore" and installers:
-                        raise ValueError(f"instaladores incompatíveis com a origem para {row.get('id')}")
-                    sample_details.append(detail)
-                payloads[f"installer_api_{source}"] = rows
-                payloads[f"installer_api_{source}_details"] = sample_details
-                print(
-                    f"JSON OK: installer_api {source} ({len(rows)} pacotes; {len(sample_details)} detalhes amostrados)"
-                )
-        except (requests.RequestException, UnicodeError, json.JSONDecodeError, ValueError) as exc:
-            catalog_errors.append(f"API própria V2: {type(exc).__name__}: {exc}")
-            print(f"JSON ERRO: API própria V2: {exc}", file=sys.stderr)
 
     errors = catalog_errors + validate_payloads(
         payloads,
