@@ -9,8 +9,8 @@ on:
         description: "Quantos apps sondar (0 = todos)"
         default: "300"
       apps_url:
-        description: "URL do manifesto v2 do catálogo (vazio = amostra aleatória do índice do winget)"
-        default: "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/v2/manifest.json"
+        description: "URL do manifesto estável do catálogo (vazio = amostra aleatória do índice do winget)"
+        default: "https://pub-166b41912a994dbe86583ba10596d673.r2.dev/Store/Catalog/manifest.json"
       ids:
         description: "Opcional: PackageIdentifier separados por vírgula (substitui o catálogo)"
         default: ""
