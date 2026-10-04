@@ -14,8 +14,18 @@ from pathlib import Path
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 SNAPSHOT_PREFIX = "Store/Recovery/Snapshots"
+OPTIONAL_API_V2_TARGETS = (
+    "Store/Api/manifest.json",
+    "Store/Api/winget/manifest.json",
+    "Store/Api/winget/manifest/search-index.json",
+    "Store/Api/winget/_state/package-hashes.json",
+    "Store/Api/msstore/manifest.json",
+    "Store/Api/msstore/manifest/search-index.json",
+    "Store/Api/msstore/_state/package-hashes.json",
+)
 TARGETS = (
     # Maps and immutable-content pointers first; active catalog documents are restored after them.
     "Store/Database/screenshot-assets.json",
@@ -85,7 +95,9 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
 
     msstore_manifest = decode_json(documents["Store/Catalog/msstore/manifest.json"], "manifesto MS Store")
     msstore = decode_json(documents["Store/Catalog/msstore/manifest/search-index.json"], "índice MS Store")
-    msstore_media = decode_json(documents["Store/Catalog/msstore/manifest/media-index.json"], "índice de mídia MS Store")
+    msstore_media = decode_json(
+        documents["Store/Catalog/msstore/manifest/media-index.json"], "índice de mídia MS Store"
+    )
     if (
         not isinstance(msstore_manifest, dict)
         or msstore_manifest.get("schemaVersion") != 2
@@ -93,9 +105,13 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
         or not isinstance(msstore, list)
         or len(msstore) < 20
         or len(msstore) != msstore_manifest.get("appCount")
-        or hashlib.sha256(json.dumps(msstore, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest() != msstore_manifest.get("indexSha256")
+        or hashlib.sha256(json.dumps(msstore, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
+        != msstore_manifest.get("indexSha256")
         or not isinstance(msstore_media, dict)
-        or hashlib.sha256(json.dumps(msstore_media, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest() != msstore_manifest.get("mediaIndexSha256")
+        or hashlib.sha256(
+            json.dumps(msstore_media, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        != msstore_manifest.get("mediaIndexSha256")
     ):
         raise ValueError("subcatálogo Microsoft Store inválido ou incompleto")
     seen_msstore = set()
@@ -129,17 +145,60 @@ def validate_catalogs(documents: dict[str, bytes]) -> None:
         or any(not isinstance(url, str) or not url.startswith("https://") for url in manifest.values())
     ):
         raise ValueError("manifesto de ícones inválido ou incompleto")
-    api_index = decode_json(documents["Store/Api/v1/index.json"], "installer API index")
+    if "Store/Api/manifest.json" in documents:
+        api_root = decode_json(documents["Store/Api/manifest.json"], "manifesto raiz da API")
+        sources = api_root.get("sources") if isinstance(api_root, dict) else None
+        if (
+            not isinstance(api_root, dict)
+            or api_root.get("schemaVersion") != 2
+            or api_root.get("catalog") != "installer-api"
+            or not isinstance(sources, dict)
+            or not sources
+            or any(source not in ("winget", "msstore") for source in sources)
+        ):
+            raise ValueError("manifest.json raiz da API inválido")
+        for source, references in sources.items():
+            if references != {
+                "manifestPath": f"{source}/manifest.json",
+                "indexPath": f"{source}/manifest/search-index.json",
+            }:
+                raise ValueError(f"referências da origem {source} inválidas no manifesto raiz da API")
+            manifest_key = f"Store/Api/{source}/manifest.json"
+            index_key = f"Store/Api/{source}/manifest/search-index.json"
+            state_key = f"Store/Api/{source}/_state/package-hashes.json"
+            if any(key not in documents for key in (manifest_key, index_key, state_key)):
+                raise ValueError(f"subcatálogo {source} da API incompleto no snapshot")
+            source_manifest = decode_json(documents[manifest_key], manifest_key)
+            source_index = decode_json(documents[index_key], index_key)
+            source_state = decode_json(documents[state_key], state_key)
+            if (
+                not isinstance(source_manifest, dict)
+                or source_manifest.get("schemaVersion") != 2
+                or source_manifest.get("catalog") != "installer-api"
+                or source_manifest.get("source") != source
+                or not isinstance(source_index, list)
+                or source_manifest.get("packageCount") != len(source_index)
+                or hashlib.sha256(documents[index_key]).hexdigest() != source_manifest.get("indexSha256")
+                or any(not isinstance(item, dict) or item.get("source") != source for item in source_index)
+                or not isinstance(source_state, dict)
+                or source_state.get("schemaVersion") != 2
+                or source_state.get("source") != source
+                or not isinstance(source_state.get("packages"), dict)
+            ):
+                raise ValueError(f"subcatálogo {source} da API inválido")
+    legacy_index = decode_json(documents["Store/Api/v1/index.json"], "índice legado da API")
+    legacy_state_key = "Store/Api/v1/_state/package-hashes.json"
     if (
-        not isinstance(api_index, dict)
-        or api_index.get("schema") != 1
-        or not isinstance(api_index.get("packages"), list)
-        or api_index.get("count") != len(api_index.get("packages", []))
+        not isinstance(legacy_index, dict)
+        or legacy_index.get("schema") != 1
+        or not isinstance(legacy_index.get("packages"), list)
+        or legacy_index.get("count") != len(legacy_index.get("packages", []))
+        or not isinstance(decode_json(documents[legacy_state_key], legacy_state_key), dict)
     ):
-        raise ValueError("index.json da API de instaladores inválido")
-    for key in ("Store/Database/metrics-cache.json", "Store/Api/v1/_state/package-hashes.json"):
-        if not isinstance(decode_json(documents[key], key), dict):
-            raise ValueError(f"{key} precisa ser um objeto JSON")
+        raise ValueError("API legada inválida para recuperação")
+    metrics_key = "Store/Database/metrics-cache.json"
+    if not isinstance(decode_json(documents[metrics_key], metrics_key), dict):
+        raise ValueError(f"{metrics_key} precisa ser um objeto JSON")
 
 
 def snapshot(snapshot_id: str | None) -> str:
@@ -161,6 +220,18 @@ def snapshot(snapshot_id: str | None) -> str:
     bodies = {}
     for key in TARGETS:
         response = s3.get_object(Bucket=bucket, Key=key)
+        body = response["Body"].read()
+        decode_json(body, key)
+        bodies[key] = body
+        print(f"Leitura OK: {key} ({len(body)} bytes)")
+    for key in OPTIONAL_API_V2_TARGETS:
+        try:
+            response = s3.get_object(Bucket=bucket, Key=key)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+            if code in ("404", "NoSuchKey", "NotFound"):
+                continue
+            raise
         body = response["Body"].read()
         decode_json(body, key)
         bodies[key] = body

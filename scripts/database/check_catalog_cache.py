@@ -73,6 +73,24 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     manifest_bytes = object_bytes(client, f"{DEST_PREFIX}/manifest.json")
+    api_manifest_bytes = object_bytes(client, "Store/Api/winget/manifest.json")
+    api_root_bytes = object_bytes(client, "Store/Api/manifest.json")
+    api_manifest = None
+    api_root = None
+    if api_manifest_bytes is not None:
+        try:
+            api_manifest = json.loads(api_manifest_bytes)
+        except (UnicodeError, json.JSONDecodeError):
+            pass
+    if api_root_bytes is not None:
+        try:
+            api_root = json.loads(api_root_bytes)
+        except (UnicodeError, json.JSONDecodeError):
+            pass
+    try:
+        api_package_count = int(api_manifest.get("packageCount", 0)) if isinstance(api_manifest, dict) else 0
+    except (TypeError, ValueError):
+        api_package_count = 0
     published = None
     if manifest_bytes is not None:
         try:
@@ -94,6 +112,21 @@ def main() -> int:
         and re.fullmatch(r"[0-9a-f]{64}", published_digest)
         and re.fullmatch(r"[0-9a-f]{64}", str(published.get("indexSha256", "")))
         and published.get("inputFingerprint") == fingerprint
+        and isinstance(api_manifest, dict)
+        and api_manifest.get("schemaVersion") == 2
+        and api_manifest.get("catalog") == "installer-api"
+        and api_manifest.get("source") == "winget"
+        and api_package_count >= 5000
+        and re.fullmatch(r"[0-9a-f]{64}", str(api_manifest.get("indexSha256", "")))
+        and isinstance(api_root, dict)
+        and api_root.get("schemaVersion") == 2
+        and api_root.get("catalog") == "installer-api"
+        and isinstance(api_root.get("sources"), dict)
+        and api_root["sources"].get("winget")
+        == {
+            "manifestPath": "winget/manifest.json",
+            "indexPath": "winget/manifest/search-index.json",
+        }
     )
 
     values = {

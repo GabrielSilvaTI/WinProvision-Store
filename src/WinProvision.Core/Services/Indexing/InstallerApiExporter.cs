@@ -19,7 +19,7 @@ public record ApiExportStats(
     int SkippedInvalidId);
 
 /// <summary>
-/// Gera a API estática de instaladores consumida pelo Worker da Cloudflare:
+/// Gera os dados intermediários da API estática de instaladores:
 ///
 ///   api/index.json                 lista leve (id, versão, arquiteturas)
 ///   api/packages/&lt;id&gt;.json    todos os instaladores normalizados do pacote
@@ -29,9 +29,8 @@ public record ApiExportStats(
 /// packages/*.json é DETERMINÍSTICO: sem data/hora de geração e com instaladores em
 /// ordem fixa. O generatedAt fica só no index.json, que é sempre reenviado.
 ///
-/// Cobre os pacotes WinGet aprovados para publicação e todos os produtos incluídos no
-/// catálogo sincronizado da Microsoft Store. As entradas Store são marcadores de origem
-/// sem instalador, usados pela API cliente para encaminhar a instalação ao WinGet/msstore.
+/// O resultado plano é uma entrada intermediária consumida pelo montador Python da API V2.
+/// A origem Microsoft Store é montada pelo pipeline próprio, sem depender do indexador WinGet.
 /// Usa a mesma <see cref="WinProvisionJsonOptions"/> do
 /// <see cref="CatalogExporter"/>; campos nulos são omitidos do JSON.
 /// </summary>

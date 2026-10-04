@@ -333,23 +333,14 @@ var exporter = new CatalogExporter();
 await exporter.ExportAsync(published, outputDir);
 Lap("exportação");
 
-// 8. Exportação da API de instaladores (index.json + packages/<id>.json). Sai em
-// <pasta-de-saida>/api, que é o diretório que o upload_api_json.py publica no R2.
+// 8. Exportação intermediária da API de instaladores. O montador Python organiza
+// <pasta-de-saida>/api no subcatálogo hierárquico publicado no R2.
 Console.WriteLine("\n[8/8] Exportando API de instaladores...");
 var apiExporter = new InstallerApiExporter();
-// A vitrine pública continua usando o corte de score acima, mas a API de instalação
-// também precisa conhecer todos os produtos que o catálogo MS Store conseguiu descobrir.
-// Para esses IDs, o manifesto da API funciona como roteador para a origem oficial msstore;
-// eles não têm URL de instalador própria. Antes, usar somente `published` removia ofertas
-// da Store com score baixo e fazia a API própria responder PackageNotFound.
-var apiPackages = published
-    .Concat(msstoreApps)
-    .GroupBy(app => app.Id, StringComparer.OrdinalIgnoreCase)
-    .Select(group => group.First())
-    .ToList();
-var apiStats = await apiExporter.ExportAsync(apiPackages, bundlesByAppId, Path.Combine(outputDir, "api"));
+// A sincronização MS Store é um pipeline separado (--msstore). Este pipeline só tem
+// os pacotes WinGet carregados em `published`; não há lista MS Store disponível aqui.
+var apiStats = await apiExporter.ExportAsync(published, bundlesByAppId, Path.Combine(outputDir, "api"));
 Console.WriteLine($"      {apiStats.Packages:N0} pacotes e {apiStats.Installers:N0} instaladores exportados");
-Console.WriteLine($"      {msstoreApps.Count:N0} produtos da Store incluídos como encaminhamentos para a origem oficial msstore");
 Console.WriteLine($"      {apiStats.InstallersWithoutSilent:N0} instaladores sem instalação silenciosa suportada (silentSupported=false)");
 Console.WriteLine($"      {apiStats.SkippedInsecureInstallerUrls:N0} instalador(es) HTTP/URL inválida descartado(s) por exigir HTTPS");
 Console.WriteLine($"      {apiStats.SkippedNoInstaller:N0} pacotes ignorados por não terem instalador HTTPS, {apiStats.SkippedInvalidId:N0} por ID inválido como nome de arquivo");

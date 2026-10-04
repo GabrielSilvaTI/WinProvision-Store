@@ -4,9 +4,9 @@ Os trabalhos de publicação no R2 têm uma área por função. Cada workflow do
 
 | Função | Configuração | Parâmetro manual | Destino |
 | --- | --- | --- | --- |
-| Catálogo Microsoft Store | `.circleci/config.yml` | `run_msstore_catalog=true` | `Store/Catalog/msstore/` (manifestos, índice, apps e mídia por app) |
+| Catálogo Microsoft Store | `.circleci/config.yml` | `run_msstore_catalog=true` | `Store/Catalog/msstore/` e `Store/Api/msstore/` (manifestos, índice, apps e mídia por app) |
 | Assets e ofertas Office | `.circleci/office.yml` | `run_office_assets=true` | `Office/Database/` e assets |
-| Catálogo WinGet e API | `.circleci/winget-sync.yml` | `run_winget_catalog=true` | `Store/Catalog/` e `Store/Api/v1/` (mantém `Store/Database/apps.json` para compatibilidade) |
+| Catálogo WinGet e API | `.circleci/winget-sync.yml` | `run_winget_catalog=true` | `Store/Catalog/` e `Store/Api/winget/` (mantém `Store/Database/apps.json` para compatibilidade) |
 | Captura automática de screenshots | `.circleci/screenshots.yml` | `run_screenshot_sync=true` | `Store/Catalog/apps/.../media/screenshots/` |
 | Ícones da CDN WinGet | `.circleci/icons.yml` | `run_icon_sync=true`; `publish_icons=true` para publicar | `Store/Catalog/apps/.../media/icon.png` |
 | Mídia manual ou captura direcionada | `.circleci/catalog-media.yml` | `run_catalog_media=true`, `media_mode=manual|auto`, `asset_type=icon|screenshot` | pasta `media/` do app e JSON/índices associados |
@@ -35,6 +35,10 @@ O contexto `r2-publishing` precisa conter `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID` e 
 Microsoft Store, Office e WinGet têm pipelines separados; seus resultados aparecem independentemente no CircleCI. O WinGet não incorpora mais os registros Microsoft Store; o app combina os índices no carregamento.
 
 O cliente da loja baixa `Store/Catalog/manifest.json`, carrega `Store/Catalog/manifest/search-index.json` e busca detalhes WinGet em `Store/Catalog/apps/{0-9|a-z}/{Publisher}/{Produto}/app.json`. O subcatálogo Microsoft Store é independente em `Store/Catalog/msstore/`: `manifest.json`, índices próprios e `apps/{0-9|a-z}/{ProductId}/app.json`, com as imagens em `media/`. A busca combina os índices; cada detalhe continua sendo carregado do catálogo de origem. As chaves são estáveis e os manifestos são publicados por último.
+
+A API própria tem o manifesto raiz `Store/Api/manifest.json` e dois subcatálogos independentes (`winget/` e `msstore/`). Cada um contém `manifest.json`, `manifest/search-index.json` e `apps/{0-9|a-z}/{Publisher}/{Produto}/package.json`; o índice leve é carregado para ambas as origens e o manifesto de instaladores é consultado sob demanda. Cada pipeline atualiza somente sua origem.
+Os workflows atuais publicam apenas esse formato; os objetos antigos em `Store/Api/v1/` ficam preservados no R2 para permitir retorno temporário ao cliente anterior e podem ser removidos depois que o app atualizado estiver validado.
+Na implantação inicial, executar os workflows WinGet e Microsoft Store em `main` antes de usar o cliente atualizado; o manifesto raiz passa a anunciar cada origem quando ela termina de publicar.
 
 Os ícones e screenshots novos ficam junto ao app: `Catalog/apps/{0-9|a-z}/{publisher}/{produto}/media/`. O JSON do app e o índice leve recebem os caminhos relativos. O workflow de mídia atualiza o detalhe, o índice e o manifesto diretamente, sem executar o Indexer; IDs que ainda não existem no catálogo ficam registrados em `manifest/media-index.json` e entram no `app.json` na próxima sincronização WinGet. O modo automático percorre a CDN WinGet para ícones e homepages para screenshots. O modo manual recebe o ID do pacote, a categoria da mídia e uma URL direta ou, para screenshots, várias URLs diretas em `media_urls`, separadas por espaços/quebras de linha ou como array JSON. Se o CircleCI achatar as quebras de linha, a separação por espaços também é aceita. Reenviar a mesma imagem pelo mesmo nome normalizado atualiza o arquivo existente; o ícone sempre usa o caminho fixo e também é atualizado. Os links publicados recebem uma versão baseada no hash para que clientes não continuem usando a imagem em cache após a atualização.
 
