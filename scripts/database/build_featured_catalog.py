@@ -149,7 +149,7 @@ def build(winget_path: Path, msstore_path: Path | None, output_path: Path, metri
         default=0,
     )
     candidates = []
-    seen = set()
+    seen: dict[str, dict] = {}
     for row in rows:
         source = str(row["source"]).casefold()
         count = counts.get((source, row["id"].casefold()), 0)
