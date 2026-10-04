@@ -31,6 +31,18 @@ def package_path(package_id: str) -> str:
     return "/".join(("apps", bucket, *(slug(part) for part in parts), "package.json"))
 
 
+def is_safe_package_id(package_id: object) -> bool:
+    """Accept catalog IDs and normalize punctuation when creating API paths."""
+    return (
+        isinstance(package_id, str)
+        and bool(package_id)
+        and len(package_id) <= 128
+        and package_id[0].isalnum()
+        and all(char.isprintable() and not char.isspace() and char not in "/\\" for char in package_id)
+        and all(part not in {"", ".", ".."} for part in package_id.split("."))
+    )
+
+
 def write_json(path: Path, value) -> bytes:
     body = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,8 +65,8 @@ def read_packages(source: str, input_dir: Path) -> list[dict]:
             if not isinstance(row, dict):
                 raise ValueError("Entrada inválida no índice intermediário WinGet")
             package_id = row.get("id")
-            if not isinstance(package_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", package_id):
-                raise ValueError("Pacote WinGet sem ID")
+            if not is_safe_package_id(package_id):
+                raise ValueError(f"ID de pacote WinGet inválido: {package_id!r}")
             path = input_dir / "packages" / f"{package_id}.json"
             package = json.loads(path.read_text(encoding="utf-8-sig"))
             if (
@@ -98,7 +110,7 @@ def build(source: str, input_path: Path, destination: Path) -> dict:
     prepared = []
     for package in packages:
         package_id = package.get("id")
-        if not isinstance(package_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", package_id):
+        if not is_safe_package_id(package_id):
             raise ValueError(f"ID de pacote inválido para caminho: {package_id!r}")
         if package.get("source") != source:
             raise ValueError(f"Origem de {package_id} não corresponde a {source}")

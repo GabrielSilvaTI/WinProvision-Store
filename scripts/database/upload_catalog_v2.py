@@ -27,11 +27,18 @@ def sha256_file(path: Path) -> str:
 
 
 def main() -> int:
+    print(f"Validando catálogo V2 em {SOURCE_DIR}...", flush=True)
     try:
         manifest, files = validate_catalog_v2(SOURCE_DIR)
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"Catálogo hierárquico inválido; nada foi publicado: {exc}", file=sys.stderr)
         return 1
+    detail_files = [path for path in files if path.is_relative_to(SOURCE_DIR / "apps")]
+    print(
+        f"Catálogo validado: {manifest['appCount']} apps; "
+        f"iniciando verificação/publicação de {len(detail_files)} detalhes...",
+        flush=True,
+    )
 
     account_id = os.environ["R2_ACCOUNT_ID"]
     client = boto3.client(
@@ -83,7 +90,6 @@ def main() -> int:
         )
         return key, True
 
-    detail_files = [path for path in files if path.is_relative_to(SOURCE_DIR / "apps")]
     search_index = SOURCE_DIR / "manifest" / "search-index.json"
     media_index = SOURCE_DIR / "manifest" / "media-index.json"
     if search_index not in files:
@@ -93,10 +99,16 @@ def main() -> int:
     uploaded = skipped = 0
     with ThreadPoolExecutor(max_workers=24) as pool:
         futures = [pool.submit(upload, path) for path in detail_files]
-        for future in as_completed(futures):
+        for completed, future in enumerate(as_completed(futures), start=1):
             _, changed = future.result()
             uploaded += changed
             skipped += not changed
+            if completed % 250 == 0 or completed == len(futures):
+                print(
+                    f"Catálogo R2: {completed}/{len(futures)} apps verificados; "
+                    f"{uploaded} enviados, {skipped} sem alteração.",
+                    flush=True,
+                )
 
     # Os arquivos de app ficam disponíveis antes de trocar o índice que aponta
     # para eles. As chaves são estáveis; só o conteúdo alterado é enviado.

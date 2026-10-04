@@ -112,11 +112,16 @@ def validate() -> tuple[dict, list[Path]]:
 
 
 def main() -> int:
+    print(f"Validando API {SOURCE or '?'} em {SOURCE_DIR}...", flush=True)
     try:
         manifest, details = validate()
     except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         print(f"API {SOURCE or '?'} inválida; nada publicado: {exc}", file=sys.stderr)
         return 1
+    print(
+        f"API validada: {manifest['packageCount']} pacotes; iniciando verificação/publicação...",
+        flush=True,
+    )
     client = boto3.client(
         "s3",
         endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
@@ -177,8 +182,14 @@ def main() -> int:
     with ThreadPoolExecutor(max_workers=16) as executor:
         futures = {executor.submit(upload, path): path for path in details}
         changed = 0
-        for future in as_completed(futures):
+        for completed, future in enumerate(as_completed(futures), start=1):
             changed += future.result()
+            if completed % 250 == 0 or completed == len(futures):
+                print(
+                    f"API R2 ({SOURCE}): {completed}/{len(futures)} pacotes verificados; "
+                    f"{changed} objeto(s) enviado(s).",
+                    flush=True,
+                )
 
     # Índice e manifesto são ponteiros de ativação: publique-os só após todos os detalhes.
     for path in (SOURCE_DIR / "manifest" / "search-index.json", SOURCE_DIR / "manifest.json"):
